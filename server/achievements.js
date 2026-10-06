@@ -15,6 +15,7 @@ import { ITEM, ZTYPE, ZONE, CONT, KILLER, EVT } from '../shared/defs.js';
 import { ACH_STATS, ACH_STAT_INDEX, ACH_BY_ID, ACHF, KILL_FEATS } from '../shared/achievements.js';
 import { swimming } from '../shared/swim.js';
 import { handcars } from '../shared/handcar.js';
+import { isBloodMoon } from '../shared/nights.js';
 
 const SEND_EVERY = 3; // seconds: counts are gathered this long before they go out (a feat goes at once)
 const MOVE_MAX = 15; // m/s: further than this between two looks is a respawn or a teleport, not travel
@@ -257,13 +258,17 @@ export class AchievementTracker {
 
   // Game.startDay, before the dead come back: whoever saw the night through
   dawn() {
-    for (const p of this.g.players.values()) {
+    const g = this.g;
+    // a Blood Moon that nobody went down in (the night is the day before the one that has just begun)
+    const red = isBloodMoon(g.day - 1) && !g.nightStats.downs && !g.nightStats.deaths;
+    for (const p of g.players.values()) {
       const st = this.of(p);
       const night = st.night;
       st.night = null;
       if (!p.alive || p.zombie) continue;
       this.bump(p, 'nights');
       if (night && !night.fired) this.feat(p, 'pacifist');
+      if (night && red) this.feat(p, 'blood_moon');
       if (!p.downed && p.hp < LOW_HP) this.feat(p, 'low_hp');
       if (!p.away) this.send(p); // (with the sunrise, not a few seconds after it)
     }

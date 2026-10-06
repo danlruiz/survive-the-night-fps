@@ -3,6 +3,7 @@
 // card, at the dusk horn and on the night's title) each work it out for themselves: nothing crosses the wire.
 import { ZTYPE } from './defs.js';
 import { mulberry32 } from './rng.js';
+import { BLOOD_MOON } from './constants.js';
 import { WORLD, nightRank } from './acts.js';
 
 // mul: multipliers on startNight's spawn weights. A theme changes what the horde is made of, not how many come
@@ -92,4 +93,24 @@ export function nightBoss(seed, night, act = WORLD.ISLAND) {
     met.add(pick);
   }
   return prev;
+}
+
+// A Blood Moon is every BLOOD_MOON.every-th night (7, 14, 21...): no draw, so the team can count on it. The server
+// makes it a bigger night (Game.startNight) and the client warns of it and turns the moon and the sky red.
+export function isBloodMoon(night) {
+  return night > 0 && night % BLOOD_MOON.every === 0;
+}
+
+// The next Blood Moon on or after night n (the admin's /bloodmoon)
+export function nextBloodMoon(n) {
+  return Math.max(1, Math.ceil(n / BLOOD_MOON.every)) * BLOOD_MOON.every;
+}
+
+// The second boss a Blood Moon brings, with its last wave: drawn like the first from what can come that night, and
+// never the same as the night's own (nightBoss). On the mainland, from the mainland's bosses (act: shared/acts.js)
+export function bloodMoonBoss(seed, night, act = WORLD.ISLAND) {
+  const first = nightBoss(seed, night, act);
+  const pool = act === WORLD.MAINLAND ? MAINLAND_BOSSES.filter((t) => t !== first).map((type) => ({ type })) : BOSS_POOL.filter((b) => night >= b.from && b.type !== first);
+  const rng = mulberry32((Math.imul(seed | 0, 3266489917) ^ Math.imul(night + 709, 48271)) >>> 0);
+  return pool[Math.floor(rng() * pool.length)].type;
 }

@@ -111,6 +111,7 @@ export const ACHIEVEMENTS = [
   F(57, 'flawless', 'survival', 'platinum', 'Flawless', 'Escape in a run where no survivor died.', 'shield'),
   F(58, 'leaper_off', 'survival', 'bronze', 'Get Off Me!', 'Throw off a leaper that has you pinned.', 'hand'),
   F(59, 'tank_dodge', 'survival', 'silver', 'Olé!', 'A charging Tank comes for you, and misses.', 'bolt'),
+  F(69, 'blood_moon', 'survival', 'gold', 'Saw the Red Moon', 'See a Blood Moon through to the dawn without anyone going down.', 'moon'),
 
   // ---- with other people
   F(60, 'friend', 'social', 'bronze', 'Better Together', 'Play in a game with a friend.', 'people'),

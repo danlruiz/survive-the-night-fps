@@ -243,8 +243,8 @@ export class UI {
     this.hud.damage(amount, angle);
   }
 
-  showSummary(stats, nextText, theme, boss) {
-    this.summary.show(stats, nextText, theme, boss);
+  showSummary(stats, nextText, theme, boss, bloodBoss) {
+    this.summary.show(stats, nextText, theme, boss, bloodBoss);
   }
 
   setMapOpen(open) {

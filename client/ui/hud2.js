@@ -5,7 +5,7 @@ import { ITEM_DEFS, ZONE_NAMES, ITEM, ZOMBIE_DEFS, supplyRumours } from '../../s
 import { SUPPLIES, SUPPLY_NEED, W, ACT_NOW } from '../game/act.js'; // (this act's: the car's supplies, or the plane's parts)
 import { WORLD, RUNWAY } from '../../shared/acts.js';
 import { PHASE, DUSK_WARNING } from '../../shared/constants.js';
-import { nightBoss } from '../../shared/nights.js';
+import { nightBoss, bloodMoonBoss } from '../../shared/nights.js';
 import { el, svgEl, fmtTime, clamp } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { bindTag } from '../game/binds.js';
@@ -611,10 +611,12 @@ export class Summary {
     this.stats = el('div', 'sm-stats', this.root);
     this.theme = el('div', 'sm-theme', this.root);
     this.boss = el('div', 'sm-theme sm-boss', this.root);
+    this.moon = el('div', 'sm-theme sm-moon', this.root);
     this.next = el('div', 'sm-next', this.root, '');
   }
-  // theme: the coming night's theme (shared/nights.js), or null for a plain night; boss: its boss (nightBossText)
-  show(s, nextText, theme, boss) {
+  // theme: the coming night's theme (shared/nights.js), or null for a plain night; boss: its boss (nightBossText);
+  // bloodBoss: a coming Blood Moon's second boss (nightBossText, late), or false on any other night
+  show(s, nextText, theme, boss, bloodBoss) {
     this.title.textContent = `Night ${s.night} survived`;
     this.stats.textContent = '';
     const stat = (label, v, cls = '') => {
@@ -638,6 +640,12 @@ export class Summary {
     if (boss) {
       el('b', '', this.boss, `Boss: ${boss.name}`);
       el('span', '', this.boss, `With the second wave. ${boss.tip}`);
+    }
+    // ...and a Blood Moon above all: the night to spend the day getting ready for
+    this.moon.textContent = '';
+    if (bloodBoss) {
+      el('b', '', this.moon, 'Blood Moon tonight');
+      el('span', '', this.moon, `More of them at once, ${bloodBoss.name} with the last wave, and a fourth wave before dawn. See it through for a heavy weapon from the sky and twice the night's XP.`);
     }
     this.next.textContent = nextText || '';
     this.root.hidden = false;
@@ -663,8 +671,9 @@ export function nextNightText(night) {
 
 // the boss that comes with night n, named on the dawn card and at the dusk horn so the team can get ready for it. The
 // server draws the same one from the seed (shared/nights.js nightBoss): nothing crosses the wire
-export function nightBossText(seed, night) {
-  const zd = ZOMBIE_DEFS[nightBoss(seed, night)];
+// late: a Blood Moon's second boss instead (shared/nights.js bloodMoonBoss), drawn for the act it falls in
+export function nightBossText(seed, night, late = false, act = undefined) {
+  const zd = ZOMBIE_DEFS[late ? bloodMoonBoss(seed, night, act) : nightBoss(seed, night)];
   return { name: (zd.boss ? '' : 'A ') + zd.name, tip: zd.tip || '' };
 }
 

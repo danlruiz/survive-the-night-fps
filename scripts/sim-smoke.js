@@ -3510,7 +3510,8 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
       game.startNight();
       game.events.length = queued; // (drop the "night falls" notice each roll queues for the clients)
       let shades = 0;
-      for (const wv of game.waves) {
+      // (the waves the blend is drawn for: a Blood Moon's fourth, of runners and leapers, is its own - shared/nights.js)
+      for (const wv of game.waves.slice(0, 3)) {
         for (const t of wv.queue) {
           r.n++;
           r.hp += ZOMBIE_DEFS[t].hp;

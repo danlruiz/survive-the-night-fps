@@ -127,6 +127,13 @@ export const DUSK_WARNING = 60; // horn: pick a spot and build a shelter
 export const NIGHT_WAVES = 3; // each night's horde arrives in waves
 export const WAVE_TIMES = [4, 52, 100]; // seconds into the night each wave starts
 export const WAVE_SPREAD = 26; // a wave trickles in over this many seconds
+// A Blood Moon: every `every`-th night (shared/nights.js isBloodMoon). The cap on the dead on their feet is aliveMul
+// times the usual one (MAX_ZOMBIES_ALIVE, server/game.js: 120, so 180); a second boss from the draw comes with the last
+// wave; and a fourth wave, count times the night's horde, of runners and leapers (leap of them leapers, times the
+// difficulty's specials), comes in over the night's last `last` seconds, over `spread` of them (both stretched with
+// the difficulty's night). At its dawn: drops more air drops through the day, the night's XP times xp, and the first
+// drop carries a heavy weapon
+export const BLOOD_MOON = { every: 7, aliveMul: 1.5, count: 0.5, leap: 0.35, last: 30, spread: 15, drops: 1, xp: 2 };
 export const HORDE_SPAWN_MIN = 58; // horde groups appear this far from the survivors (around wherever they are)
 export const HORDE_SPAWN_MAX = 84;
 // Every night has a boss (shared/nights.js nightBoss). A Tank that comes as one has this share of a Tank's health.

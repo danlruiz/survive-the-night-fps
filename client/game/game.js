@@ -66,7 +66,7 @@ import { characterFor, defaultCharacter, CHARACTER_COUNT } from '../../shared/ch
 import { chosenCharacter } from '../ui/picker.js';
 import { SPAWN_KEY } from '../ui/spawnmenu.js';
 import { treeAt, fellTree, regrowTrees } from '../../shared/felling.js';
-import { nightTheme } from '../../shared/nights.js';
+import { nightTheme, isBloodMoon, bloodMoonBoss } from '../../shared/nights.js';
 import { shotDirections, currentWeapon, eyeHeight } from '../../shared/playersim.js';
 import { perkMods, levelOf, picksEarned, XP_SRC } from '../../shared/progress.js';
 import { swimming } from '../../shared/swim.js';
@@ -1265,7 +1265,7 @@ export class Game {
       },
       summary(s) {
         // after the "DAY N" title card has faded
-        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, nextNightText(s.night + 1), nightTheme(g.seed, s.night + 1), nightBossText(g.seed, s.night + 1)), 4300);
+        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, nextNightText(s.night + 1), nightTheme(g.seed, s.night + 1), nightBossText(g.seed, s.night + 1), isBloodMoon(s.night + 1) && nightBossText(g.seed, s.night + 1, true, g.act)), 4300);
       },
     };
     return this._eh;
@@ -1280,8 +1280,15 @@ export class Game {
       case NOTIFY.NIGHT_FALLS: {
         // a themed night says so (the same theme the server drew: both work it out from the seed)
         const th = nightTheme(this.seed, arg);
-        ui.notify(th ? `NIGHT ${arg}: ${th.name.toUpperCase()}` : `NIGHT ${arg}`, 'big', th ? 6 : 4);
-        ui.notify(th ? th.warn : arg <= 1 ? 'The horde is coming to wherever you are. Hold your shelter.' : `Horde ${arg}: more of them than last night.`, 'sub', th ? 6 : 4);
+        if (isBloodMoon(arg)) {
+          // a Blood Moon says so first; its theme, if it has one, comes as a toast
+          ui.notify(`NIGHT ${arg}: BLOOD MOON`, 'big', 6);
+          ui.notify('More of them on their feet at once, two bosses, and a fourth wave before dawn.', 'sub', 6);
+          if (th) ui.notify(`${th.name}: ${th.warn}`, 'toast', 8);
+        } else {
+          ui.notify(th ? `NIGHT ${arg}: ${th.name.toUpperCase()}` : `NIGHT ${arg}`, 'big', th ? 6 : 4);
+          ui.notify(th ? th.warn : arg <= 1 ? 'The horde is coming to wherever you are. Hold your shelter.' : `Horde ${arg}: more of them than last night.`, 'sub', th ? 6 : 4);
+        }
         a.stinger?.('night');
         break;
       }
@@ -1305,6 +1312,11 @@ export class Game {
         // ...and tonight's boss (on night 1, with no dawn card before it, this is the first word of The Brute)
         const boss = nightBossText(this.seed, arg);
         ui.notify(`${boss.name} tonight, with the second wave. ${boss.tip}`, 'warning', 9);
+        // ...and a Blood Moon's second boss, with the last wave
+        if (isBloodMoon(arg)) {
+          const zd = ZOMBIE_DEFS[bloodMoonBoss(this.seed, arg, this.act)];
+          ui.notify(`BLOOD MOON tonight. ${(zd.boss ? '' : 'A ') + zd.name} comes too, with the last wave, and a fourth wave before dawn.`, 'danger', 9);
+        }
         break;
       }
       case NOTIFY.BOSS: {
@@ -2920,6 +2932,7 @@ export class Game {
     this.under += (dark - this.under) * Math.min(1, dt * 4);
     if (this.under < 0.002) this.under = 0;
     this._envOver.under = this.under;
+    this._envOver.blood = g.phase === PHASE.NIGHT && isBloodMoon(g.day) ? 1 : 0; // (the moon and the night turn red)
     this._envOver.fogMul = this.debugFog ?? (cine ? cine.fogMul : 0); // (a cutscene's long shots see further than the day's haze lets a survivor; debugFog: a look-dev camera's)
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it

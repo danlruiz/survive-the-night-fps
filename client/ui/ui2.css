@@ -1422,6 +1422,11 @@
   color: var(--amber);
 }
 
+/* a coming Blood Moon (shared/nights.js isBloodMoon): its name in blood, not amber */
+.stn-ui .sm-moon b {
+  color: var(--blood-lite);
+}
+
 .stn-ui .sm-theme:not(:empty) + .sm-next {
   margin-top: calc(8 * var(--u));
   padding-top: 0;

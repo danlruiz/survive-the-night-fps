@@ -19,6 +19,7 @@ import {
   NIGHT_WAVES,
   WAVE_TIMES,
   WAVE_SPREAD,
+  BLOOD_MOON,
   TANK_BOSS_HP,
   BOSS_WAVE,
   BOSS_HP_PER_PLAYER,
@@ -128,7 +129,7 @@ import { createPlayerState, copyPlayerState, samePlayerState, snapPlayerState, h
 import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, canReach } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
 import { swimming, DROWN_DPS } from '../shared/swim.js';
-import { nightTheme, nightBoss } from '../shared/nights.js';
+import { nightTheme, nightBoss, isBloodMoon, bloodMoonBoss, nextBloodMoon } from '../shared/nights.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
 import { ClientView, writeEntities, stageEntities } from './snapshot.js';
@@ -376,6 +377,8 @@ export class Game {
     this.waves = [];
     this.wave = 0;
     this.bossPending = null;
+    this.bossLate = null; // a Blood Moon's second boss, to come with the last wave
+    this.heavyDrop = false; // the next air drop carries a heavy weapon (the day after a Blood Moon)
     this.bossId = 0;
     this.warned = false;
     this.shadeWarned = false; // the "a shade is out there" notice went out tonight
@@ -982,7 +985,7 @@ export class Game {
       p.lastChance = false;
       if (!dawn) continue;
       if (p.alive && !p.zombie) {
-        this.award(p, XPS.nights, Math.min(XP.nightCap, XP.night * night));
+        this.award(p, XPS.nights, Math.min(XP.nightCap, XP.night * night) * (isBloodMoon(night) ? BLOOD_MOON.xp : 1));
         if (p.xpLoaded && this.day > p.best) {
           if (p.best > 0 || this.day > 2) this.award(p, XPS.best, XP.best); // (day 2 is everyone's first dawn: no record broken)
           p.best = this.day;
@@ -1159,6 +1162,8 @@ export class Game {
     this.wave = 0;
     this.fallen.clear();
     this.bossPending = null;
+    this.bossLate = null;
+    this.heavyDrop = false;
     this.bossId = 0;
     this.gather.clear();
     this.ringing.clear();
@@ -1721,9 +1726,15 @@ export class Game {
     return { mag: RETURN_KIT.mag, ammo: 0, items: [[ITEM.BANDAGE, 2]] };
   }
 
+  // the most of the dead on their feet at once: MAX_ZOMBIES_ALIVE, or more under a Blood Moon (BLOOD_MOON.aliveMul of it)
+  get zombieCap() {
+    return this.phase === PHASE.NIGHT && isBloodMoon(this.day) ? Math.round(MAX_ZOMBIES_ALIVE * BLOOD_MOON.aliveMul) : MAX_ZOMBIES_ALIVE;
+  }
+
   scheduleSupplyDrops() {
     const len = this.dayLen;
-    const n = this.day >= 2 ? 2 : 1;
+    // (the day after a Blood Moon brings BLOOD_MOON.drops more)
+    const n = (this.day >= 2 ? 2 : 1) + (isBloodMoon(this.day - 1) ? BLOOD_MOON.drops : 0);
     this.supplyAt = [];
     for (let i = 0; i < n; i++) this.supplyAt.push(len * (0.2 + (i + this.rng()) * (0.6 / n))); // timeLeft thresholds
   }
@@ -1810,6 +1821,15 @@ export class Game {
       const at = q.indexOf(ZTYPE.WALKER);
       q[at >= 0 ? at : Math.floor(this.rng() * q.length)] = t;
     }
+    // a Blood Moon: a fourth wave in the night's last seconds, of runners and leapers (BLOOD_MOON). Leapers are a
+    // special: the difficulty's share of them, as in the other waves
+    if (isBloodMoon(n)) {
+      const count = Math.max(3, Math.round(total * BLOOD_MOON.count));
+      const leap = rank >= ZOMBIE_DEFS[ZTYPE.LEAPER].minNight ? Math.min(0.7, BLOOD_MOON.leap * this.diff.specials) : 0;
+      const q = [];
+      for (let i = 0; i < count; i++) q.push(this.rng() < leap ? ZTYPE.LEAPER : ZTYPE.RUNNER);
+      this.waves.push({ start: (NIGHT_LENGTH - BLOOD_MOON.last) * scale, queue: q, started: false, spawnT: 0, interval: (BLOOD_MOON.spread * scale) / Math.max(1, Math.ceil(count / 3.5)) });
+    }
     this.shadeWarned = false;
     this.wave = 0;
     this.hordeHpMul = 1 + 0.1 * (n - 1) + 0.12 * (humans - 1);
@@ -1819,6 +1839,8 @@ export class Game {
     const bossT = WAVE_TIMES[BOSS_WAVE] * scale + 8;
     // every night has one: The Brute on the first, then one drawn from the seed (BOSS_POOL)
     this.bossPending = { types: [nightBoss(this.seed, n, this.act)], t: bossT };
+    // ...and a Blood Moon a second one, with the last wave
+    this.bossLate = isBloodMoon(n) ? { types: [bloodMoonBoss(this.seed, n, this.act)], t: WAVE_TIMES[NIGHT_WAVES - 1] * scale + 8 } : null;
     this.notify(NOTIFY.NIGHT_FALLS, n);
     this.track.nightfall();
     this.ach.nightfall();
@@ -1846,6 +1868,9 @@ export class Game {
     this.waves = [];
     this.wave = 0;
     this.bossPending = null;
+    this.bossLate = null;
+    // after a Blood Moon the day's first air drop carries a heavy weapon (spawnSupplyDrop)
+    this.heavyDrop = isBloodMoon(night);
     this.scheduleSupplyDrops();
     const st = this.nightStats;
     this.emit((w) => {
@@ -2712,6 +2737,13 @@ export class Game {
         const [item, cnt] = this.rollTable(CRATE_TABLE);
         this.dropItem(item, cnt, e.x, e.y, e.z, { spread: 1.4 + this.rng() * 1.2, life: 400 });
       }
+      // the first drop after a Blood Moon: a heavy weapon on top, loaded twice over
+      if (e.heavy) {
+        const w = [ITEM.AT_RIFLE, ITEM.RPG, ITEM.FLAMETHROWER][Math.floor(this.rng() * 3)];
+        this.dropItem(w, 1, e.x, e.y, e.z, { spread: 1, life: 400 });
+        const ammo = loadedAmmo(w, 2);
+        if (ammo) this.dropItem(ammo[0], ammo[1], e.x, e.y, e.z, { spread: 1.2, life: 400 });
+      }
       // supply drops often carry a schematic the team is still missing
       const missing = SCHEMATICS.filter((it) => !(this.unlocked & (1 << SCHEM_BIT[it])));
       if (missing.length && this.rng() < 0.45) this.dropItem(missing[Math.floor(this.rng() * missing.length)], 1, e.x, e.y, e.z, { spread: 1 });
@@ -2880,12 +2912,12 @@ export class Game {
     if (!p.alive || p.zombie || !humans.length) return;
     const count = Math.max(2, Math.round((CAR_ALARM_MIN_ZOMBIES + Math.floor(this.rng() * (CAR_ALARM_MAX_ZOMBIES - CAR_ALARM_MIN_ZOMBIES + 1))) * this.diff.zombies));
     this.makeZombieRoom(count, humans);
-    if (this.zombies.length >= MAX_ZOMBIES_ALIVE) return;
+    if (this.zombies.length >= this.zombieCap) return;
     this.notify(NOTIFY.CAR_ALARM, 0);
     this.sound(SOUND.HORDE_HORN, c.x, c.y, c.z, 140);
     this.zm.noise(c.x, c.z, NOISE.CAR_ALARM);
     let spawned = 0;
-    for (let i = 0; i < count && this.zombies.length < MAX_ZOMBIES_ALIVE; i++) {
+    for (let i = 0; i < count && this.zombies.length < this.zombieCap; i++) {
       const sp = this.pickCarAlarmSpawn(p, c, humans);
       if (!sp) break;
       const r = this.rng();
@@ -2910,7 +2942,7 @@ export class Game {
   // the day's wanderers fill most of the zombie cap: idle ones far out of everyone's sight drift off so n more fit
   // (not the dog packs or the wandering herd: the day's upkeep would only spawn them again)
   makeZombieRoom(n, humans) {
-    let over = this.zombies.length + n - MAX_ZOMBIES_ALIVE;
+    let over = this.zombies.length + n - this.zombieCap;
     if (over <= 0) return;
     const far = [];
     for (const z of this.zombies) {
@@ -3888,6 +3920,35 @@ export class Game {
           this.globalDirty = true;
         }
         break;
+      case 'bloodmoon':
+      case 'redmoon': {
+        // /bloodmoon [s]: to 5 s (or that many) before the next Blood Moon falls: tonight's, if it is one and the sun is
+        // still up, else the next (shared/nights.js). The days between are skipped, not played: no XP and no nights on
+        // anyone's record, today's drops still to come are skipped, and the dead out now burn as at dawn
+        if (this.phase !== PHASE.DAY && this.phase !== PHASE.NIGHT) return;
+        if (this.escape.active) return this.sendChat(p, 0, CHATF.SYSTEM, 'Not during the final stand.');
+        const n = nextBloodMoon(this.phase === PHASE.DAY ? this.day : this.day + 1);
+        if (this.phase === PHASE.NIGHT) {
+          for (const z of this.zombies) {
+            if (z.dead || !(z.horde || z.def.flying)) continue;
+            if (z.under || this.zm.inDark(z)) z.spared = true;
+            else z.burning = 0.5 + this.rng() * 5;
+          }
+        }
+        this.phase = PHASE.DAY;
+        this.day = n;
+        this.timeLeft = Math.max(0.05, +args[1] || 5);
+        this.warned = false;
+        this.waves = [];
+        this.wave = 0;
+        this.bossPending = null;
+        this.bossLate = null;
+        this.heavyDrop = false;
+        this.supplyAt.length = 0;
+        this.globalDirty = true;
+        this.sendChat(p, 0, CHATF.SYSTEM, `Day ${n}: the Blood Moon rises in ${Math.ceil(this.timeLeft)} s.`);
+        break;
+      }
       case 'give': {
         // /give <item> [n]: the item by name or id (see findNamed); /items lists the names
         const words = args.slice(1);
@@ -4345,7 +4406,7 @@ export class Game {
     const humans = this.humans();
     if (!humans.length) return 0;
     const alive = this.zombies.length;
-    if (alive >= MAX_ZOMBIES_ALIVE) return 0;
+    if (alive >= this.zombieCap) return 0;
     // a group led by dogs comes out of the woods
     const dogs = type0Queue[type0Queue.length - 1] === ZTYPE.DOG;
     const sp = anchor ? this.zm.pickSpawnAround(anchor.x, anchor.z, humans, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, dogs) : this.zm.pickHordeSpawn(humans, dogs);
@@ -4353,7 +4414,7 @@ export class Game {
     const group = 3 + Math.floor(this.rng() * 3);
     const pack = this.zm.newPack(); // the group's dogs hunt as one pack
     let n = 0;
-    for (let i = 0; i < group && type0Queue.length && alive + i < MAX_ZOMBIES_ALIVE; i++) {
+    for (let i = 0; i < group && type0Queue.length && alive + i < this.zombieCap; i++) {
       const type = type0Queue.pop();
       const z = this.zm.spawn(type, sp.x + (this.rng() - 0.5) * 8, sp.z + (this.rng() - 0.5) * 8, { horde: true, hpMul: this.hordeHpMul, pack });
       if (!z) type0Queue.push(type);
@@ -4416,12 +4477,21 @@ export class Game {
         this.bossPending.t -= dt;
         if (this.bossPending.t <= 0) this.spawnBosses(this.bossPending.types);
       }
+      if (this.bossLate) {
+        this.bossLate.t -= dt;
+        if (this.bossLate.t <= 0) {
+          const types = this.bossLate.types;
+          this.bossLate = null;
+          this.spawnBosses(types, undefined, false);
+        }
+      }
       if (this.timeLeft <= 0) this.startDay();
     }
     this.trackBoss();
   }
 
-  spawnBosses(types, anchor) {
+  // clear: the night's boss is in (bossPending done); a Blood Moon's second one (bossLate) leaves it be
+  spawnBosses(types, anchor, clear = true) {
     const humans = this.humans();
     const sp = anchor ? this.zm.pickSpawnAround(anchor.x, anchor.z, humans) : this.zm.pickHordeSpawn(humans);
     if (!sp) return;
@@ -4435,7 +4505,7 @@ export class Game {
         this.sound(type === ZTYPE.TANK ? SOUND.TANK_ROAR : SOUND.BOSS_ROAR, sp.x, 2, sp.z, 0);
       }
     }
-    this.bossPending = null;
+    if (clear) this.bossPending = null;
     this.globalDirty = true;
   }
 
@@ -4492,7 +4562,7 @@ export class Game {
     const size = e.spawnT <= 0 ? this.finalStandSize() : 0; // 0: no group is due
     // a warm engine goes on drawing them once the stand is spent, so every second the team lingers at the car costs
     const linger = e.ready && size > 0 && e.sent >= size;
-    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE))) {
+    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(this.zombieCap, Math.round(size * FINAL_STAND_ALIVE))) {
       const spread = plane ? RUNWAY.FUEL_TIME + RUNWAY.WARM_TIME - 30 : FINAL_STAND_SPREAD;
       e.spawnT = ((spread / Math.ceil(size / 3.5)) * (0.7 + this.rng() * 0.6)) / (linger ? ESCAPE_LINGER_PACE : 1); // groups of 3-5, as a wave's
       const n = this.day;
@@ -4568,7 +4638,9 @@ export class Game {
     const eta = PLANE_LEAD / PLANE_SPEED;
     const px = rx + fx * PLANE_RAMP;
     const pz = rz + fz * PLANE_RAMP;
-    this.flyovers.push({ at: this.time + eta, x: rx, y: alt - 2.4, z: rz, vx: fx * PLANE_SPEED, vz: fz * PLANE_SPEED, tx: sp.x, tz: sp.z, gy });
+    const heavy = !!this.heavyDrop;
+    this.heavyDrop = false;
+    this.flyovers.push({ at: this.time + eta, x: rx, y: alt - 2.4, z: rz, vx: fx * PLANE_SPEED, vz: fz * PLANE_SPEED, tx: sp.x, tz: sp.z, gy, heavy });
     this.emit((w) => {
       w.u8(EVT.FLYOVER);
       w.i16(qpos(px));
@@ -4587,7 +4659,7 @@ export class Game {
       if (this.time < f.at) continue;
       this.flyovers.splice(i, 1);
       // state 3: tumbling off the ramp, the canopy still packed
-      const e = { kind: ENT.CRATE, x: f.x, y: f.y, z: f.z, vx: f.vx, vy: 0, vz: f.vz, tx: f.tx, tz: f.tz, gy: f.gy, free: CRATE_FREEFALL, state: 3, despawnAt: this.time + 600 };
+      const e = { kind: ENT.CRATE, x: f.x, y: f.y, z: f.z, vx: f.vx, vy: 0, vz: f.vz, tx: f.tx, tz: f.tz, gy: f.gy, free: CRATE_FREEFALL, state: 3, despawnAt: this.time + 600, heavy: f.heavy };
       if (this.spawnEntity(e)) this.crates.push(e);
     }
     for (let i = this.crates.length - 1; i >= 0; i--) {
@@ -4815,7 +4887,7 @@ export class Game {
     w.u8(this.unlocked);
     for (let i = 0; i < SCHEMATICS.length; i++) w.u8(this.schemHints[i] ?? 255);
     w.u8(this.phase === PHASE.NIGHT ? this.wave : 0);
-    w.u8(NIGHT_WAVES);
+    w.u8(this.phase === PHASE.NIGHT && this.waves.length ? this.waves.length : NIGHT_WAVES);
     w.u16(Math.round(Math.max(0, this.escape.t) * 10));
     const esc = this.escape;
     // 8: the warm-up has stalled (nobody on their feet at the car), 16: a survivor is getting in to drive

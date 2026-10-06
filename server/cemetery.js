@@ -18,8 +18,6 @@ import { CEMETERY, riseDepth } from '../shared/cemetery.js';
 import { mulberry32 } from '../shared/rng.js';
 import { groundAt } from '../shared/collision.js';
 
-const MAX_ALIVE = 120; // (MAX_ZOMBIES_ALIVE in game.js: the cap on the dead holds for what comes up here too)
-
 export class Cemetery {
   constructor(game) {
     this.g = game;
@@ -188,7 +186,8 @@ export class Cemetery {
       if (!p.stirred) {
         // its turn: a grave near the survivors, once there is room among the dead for one more
         humans ||= g.humans();
-        const i = p.grave >= 0 ? p.grave : g.zombies.length < MAX_ALIVE ? this.pick(humans) : -1;
+        // (Game.zombieCap: the cap on the dead holds for what comes up here too)
+        const i = p.grave >= 0 ? p.grave : g.zombies.length < g.zombieCap ? this.pick(humans) : -1;
         if (i < 0) p.t = 0.5;
         else this.stir(p, i);
         continue;

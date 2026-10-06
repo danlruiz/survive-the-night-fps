@@ -27,6 +27,7 @@ uniform vec3 uGlow;
 uniform vec3 uSunDir;
 uniform vec3 uMoonDir;
 uniform float uNight;
+uniform float uBlood;
 uniform float uTime;
 uniform float uCloud;
 uniform float uOvercast;
@@ -57,8 +58,9 @@ void main() {
   // moon + stars (hidden behind a storm deck)
   float clear = 1.0 - uOvercast * 0.94;
   float md = max(dot(d, uMoonDir), 0.0);
-  col += vec3(0.55, 0.62, 0.75) * pow(md, 300.0) * uNight * 0.6 * clear;
-  col += vec3(0.85, 0.88, 0.95) * smoothstep(0.99955, 0.99975, md) * uNight * 1.6 * clear;
+  // (a Blood Moon: red, a little larger, and a wider, stronger halo)
+  col += mix(vec3(0.55, 0.62, 0.75), vec3(0.9, 0.16, 0.08), uBlood) * pow(md, mix(300.0, 120.0, uBlood)) * uNight * (0.6 + 0.6 * uBlood) * clear;
+  col += mix(vec3(0.85, 0.88, 0.95), vec3(1.0, 0.3, 0.18), uBlood) * smoothstep(mix(0.99955, 0.9993, uBlood), mix(0.99975, 0.9996, uBlood), md) * uNight * 1.6 * clear;
   // stars
   if (uNight > 0.01 && h > 0.0) {
     vec3 sp = d * 420.0;
@@ -124,6 +126,9 @@ const KEYS = [
 ];
 // what is left of all that well down the mine: no sun, a trace of ambient to make shapes out by, dark haze
 const UNDER = { hemi: 0.1, hemiSky: C(0x566078), hemiGround: C(0x15141a), fog: C(0x020203), fogD: 0.03, exposure: 1.5 };
+// a Blood Moon's night: the palette at full night leans this far towards these (Environment.update, overrides.blood)
+const BLOOD = { zenith: C(0x1c0406), horizon: C(0x3a0c0a), glow: C(0x6a1410), hemiSky: C(0x7a3030), hemiGround: C(0x1a0c0c), dir: C(0xff6a50), fog: C(0x220a0a) };
+const BLOOD_MIX = 0.65;
 const COLOR_KEYS = ['zenith', 'horizon', 'glow', 'hemiSky', 'hemiGround', 'dir', 'fog'];
 const NUM_KEYS = ['hemi', 'dirI', 'fogD', 'mist', 'scatter', 'rays', 'exposure'];
 
@@ -157,6 +162,7 @@ export class Environment {
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uMoonDir: { value: new THREE.Vector3(0, 1, 0) },
       uNight: { value: 0 },
+      uBlood: { value: 0 },
       uTime: { value: 0 },
       uCloud: { value: 0.5 },
       uOvercast: { value: 0 },
@@ -197,6 +203,7 @@ export class Environment {
     this.cur = { hemi: 1, dirI: 1, fogD: 0.01, mist: 0, scatter: 0.5, rays: 0, exposure: 1 };
     for (const k of COLOR_KEYS) this.cur[k] = new THREE.Color();
     this.night = 0;
+    this.blood = 0; // how far a Blood Moon has turned the night red, 0..1 (update, overrides.blood)
     this.cycle = 0.46;
     this.sunHeight = 0;
     this.fogVisibility = 200;
@@ -244,7 +251,7 @@ export class Environment {
   }
 
   // w: weather state (client/game/weather.js), optional. overrides: { fogMul, mistMul } (look-dev), { under }: how
-  // far down the mine the eye is, 0..1 (Game)
+  // far down the mine the eye is, 0..1 (Game), { blood }: 1 on a Blood Moon's night (Game)
   update(dt, targetCycle, camPos, time, w = null, overrides = {}) {
     // smooth cycle (handles wrap)
     let d = targetCycle - this.cycle;
@@ -269,7 +276,12 @@ export class Environment {
     for (const key of NUM_KEYS) c[key] = A[key] + (B[key] - A[key]) * t;
     if (overrides.fogMul) c.fogD *= overrides.fogMul;
     this.night = 1 - Math.max(0, Math.min(1, (sunH + 0.12) / 0.3));
+    // a Blood Moon: the night turns red as it falls, over a few seconds (and back with the dawn)
+    this.blood += ((overrides.blood || 0) - this.blood) * Math.min(1, dt * 0.5);
+    const bl = this.blood * this.night;
+    if (bl > 0.001) for (const key in BLOOD) c[key].lerp(BLOOD[key], bl * BLOOD_MIX);
     const u = this.uniforms;
+    u.uBlood.value = bl;
     if (w) this.applyWeather(dt, w);
     this.applyFlare(overrides.under || 0);
     // down the mine none of it arrives: the sky's light and the sun go out, and the haze between the eye and
