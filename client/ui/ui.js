@@ -227,6 +227,7 @@ export class UI {
   // ------------------------------------------------------------ per-frame
   updateHud(h) {
     if (h) this.hud.update(h);
+    if (h) this.inventory.setVitals(h); // (health and stamina in the inventory's header)
   }
 
   // extra: hide the whole HUD (e.g. photo mode / cutscenes)

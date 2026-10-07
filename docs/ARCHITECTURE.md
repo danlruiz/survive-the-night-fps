@@ -1675,8 +1675,12 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   pointer, else what is selected. The keys are the screen's own listener: the game's input is off while it is open,
   and a key bound to opening a screen (`MENU_KEYS`) is left to the game. The backpack is grouped into sections in
   the order the server's Sort leaves it (`SECTIONS`, `BAG_TIER`), and a drag only swaps within one. Recipes are
-  grouped by what stops them (ready, needs a station, missing materials, locked); the one selected has a quantity
-  that `craftRun` caps.
+  grouped by what stops them (ready, needs a station, missing materials, locked), after "For what you carry" (the
+  ready ones that feed what is held: `carryWhy`, each with a Craft button); the one selected has a quantity that
+  `craftRun` caps. The layout (`ux-inventory.css`, issue #224) is a header with health and stamina (`setVitals`, from
+  `ui.updateHud`), "Your kit" (the loadout strip, Quick use, the ammo reserve, the backpack, the item card, which
+  compares a gun or a vest with the one held) and Crafting; type has a rem floor so browser zoom enlarges it, and
+  below `COMPACT` (1280 x 720 at 125% zoom and smaller) one panel shows at a time under tabs that Q / E switch.
 - **The tracked recipe** (`client/game/tracked.js`): one recipe at a time in `localStorage['stn.tracked']`, client
   only. The HUD checklist under the objective tracker (`Tracked` in `ui/hud2.js`), the "needed for" line on pickup
   prompts and the "may hold" line on containers whose table can roll a missing ingredient (`mayHold` in

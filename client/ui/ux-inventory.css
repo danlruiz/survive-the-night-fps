@@ -1,0 +1,1218 @@
+/* =====================================================================================
+   The inventory screen, laid out to fit any window (issue #224: "B's layout with A's content").
+   Imported by inventory.js; every rule is scoped to the screen's own root (.inv.ux-inv), so it outranks the older
+   rules for the same elements in ui.css / ui2.css without touching them.
+   - Type has a floor in rem (12 px and up at the browser's default size) and grows with the screen past it
+     (max(rem, calc(N * var(--u)))): zooming in makes it bigger, never smaller.
+   - Wide: a header across the top, "Your kit" (loadout strip, Quick use + ammo, the backpack, the item card) beside
+     Crafting. Small or zoomed (.compact, set by inventory.js from COMPACT): one panel at a time under tabs.
+   - Only lists scroll: the backpack grid, the recipe list, the Quick use / ammo line when small.
+   ===================================================================================== */
+
+.stn-ui .inv.ux-inv {
+  --fx: max(0.75rem, calc(12 * var(--u)));
+  --fs: max(0.8125rem, calc(13.5 * var(--u)));
+  --fm: max(0.875rem, calc(15 * var(--u)));
+  --fl: max(1.0625rem, calc(18 * var(--u)));
+  --fh: max(1.375rem, calc(24 * var(--u)));
+  --gap: max(0.5rem, calc(12 * var(--u)));
+  --pad: max(0.625rem, calc(14 * var(--u)));
+  padding: calc(66 * var(--u)) max(0.75rem, calc(20 * var(--u))) max(0.5rem, calc(16 * var(--u)));
+}
+
+/* ---------------------------------------------------------------- frame */
+.stn-ui .inv.ux-inv .inv-wrap {
+  grid-template-columns: minmax(0, 1fr) clamp(19rem, 32vw, 38rem);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'head head' 'kit craft';
+  gap: var(--gap);
+  width: min(100%, 110rem);
+  height: 100%;
+  max-height: 64rem;
+}
+
+.stn-ui .inv.ux-inv .inv-col {
+  padding: var(--pad);
+  min-width: 0;
+}
+
+/* the kit is one grid: the backpack's own parts (search, chips, cells, the locked line, the card) are laid in it
+   directly (.grid-wrap is display: contents), so the search and the chips run across above Quick use too */
+.stn-ui .inv.ux-inv .ux-kit {
+  grid-area: kit;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto clamp(10.5rem, 18vw, 16rem);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'h h h' 'load load load' 'find chips chips' 'pack pack side' 'lock lock side' 'card card side';
+  column-gap: max(0.625rem, calc(14 * var(--u)));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stn-ui .inv.ux-inv .ux-kit > .inv-h {
+  grid-area: h;
+}
+
+.stn-ui .inv.ux-inv .ux-craft {
+  grid-area: craft;
+}
+
+.stn-ui .inv.ux-inv .inv-h {
+  margin-bottom: max(0.5rem, calc(9 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .inv-h-t {
+  font-size: var(--fh);
+}
+
+.stn-ui .inv.ux-inv .inv-h-aside,
+.stn-ui .inv.ux-inv .inv-cap {
+  font-size: var(--fx);
+}
+
+/* ---------------------------------------------------------------- header: title / tabs, health, level, Close */
+.stn-ui .inv.ux-inv .ux-head {
+  grid-area: head;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: max(0.75rem, calc(18 * var(--u)));
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-title {
+  margin: 0;
+  font: 400 max(1.75rem, calc(34 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .ux-panes {
+  display: none;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-pane {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(230, 223, 207, 0.16);
+  color: var(--bone-dim);
+  font: 400 var(--fm) / 1 var(--f-num);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stn-ui .inv.ux-inv .ux-pane:hover {
+  border-color: rgba(230, 223, 207, 0.5);
+  color: var(--bone);
+}
+
+.stn-ui .inv.ux-inv .ux-pane.on {
+  background: linear-gradient(180deg, rgba(230, 223, 207, 0.92), rgba(200, 191, 172, 0.92));
+  border-color: var(--bone);
+  color: #14110e;
+}
+
+.stn-ui .inv.ux-inv .ux-pane-n {
+  font: 400 var(--fs) / 1 var(--f-mono);
+  color: var(--amber);
+}
+
+.stn-ui .inv.ux-inv .ux-pane.on .ux-pane-n {
+  color: var(--blood);
+}
+
+.stn-ui .inv.ux-inv .ux-pane .kbd.sm,
+.stn-ui .inv.ux-inv .inv-close .kbd.sm {
+  font-size: var(--fx);
+}
+
+/* health over stamina, and the number */
+.stn-ui .inv.ux-inv .ux-vit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-vit-ico {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--blood-lite);
+}
+
+.stn-ui .inv.ux-inv .ux-vit-ico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .inv.ux-inv .ux-vit-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: clamp(5rem, 12vw, 11rem);
+}
+
+.stn-ui .inv.ux-inv .ux-hp,
+.stn-ui .inv.ux-inv .ux-st {
+  position: relative;
+  display: block;
+  height: 0.5rem;
+  background: rgba(230, 223, 207, 0.1);
+  overflow: hidden;
+}
+
+.stn-ui .inv.ux-inv .ux-st {
+  height: 3px;
+}
+
+.stn-ui .inv.ux-inv .ux-hp i,
+.stn-ui .inv.ux-inv .ux-st i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, var(--blood), var(--blood-hi));
+  transition: transform 0.2s;
+}
+
+.stn-ui .inv.ux-inv .ux-st i {
+  background: var(--sick);
+}
+
+.stn-ui .inv.ux-inv .ux-vit.ex .ux-st i {
+  background: var(--amber);
+}
+
+.stn-ui .inv.ux-inv .ux-hp-t {
+  font: 400 var(--fl) / 1 var(--f-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .ux-vit.low .ux-hp-t {
+  color: var(--blood-lite);
+}
+
+/* the level and the perks, in a line */
+.stn-ui .inv.ux-inv .ux-lvl {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-lvl .xpb {
+  width: clamp(6rem, 11vw, 10rem);
+}
+
+.stn-ui .inv.ux-inv .ux-lvl .xpb-t {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .ux-lvl .xpb-lv small {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .inv-xpb .xpb-lv b {
+  font-size: var(--fl);
+}
+
+.stn-ui .inv.ux-inv .inv-perks {
+  align-self: center;
+  font-size: var(--fx);
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .inv-close {
+  position: static;
+  flex: none;
+  font-size: var(--fx);
+}
+
+/* ---------------------------------------------------------------- the loadout strip: five slots, then what is worn */
+.stn-ui .inv.ux-inv .ux-load {
+  grid-area: load;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: max(0.25rem, calc(6 * var(--u)));
+  margin-bottom: max(0.5rem, calc(10 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .eq-list,
+.stn-ui .inv.ux-inv .worn {
+  display: contents;
+}
+
+.stn-ui .inv.ux-inv .eq,
+.stn-ui .inv.ux-inv .armor {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.375rem 0.4375rem 0.4375rem;
+}
+
+.stn-ui .inv.ux-inv .eq-key {
+  position: absolute;
+  left: 0.25rem;
+  top: 0.25rem;
+  width: auto;
+  height: auto;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  padding: 0 0.1875rem;
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .eq-ico,
+.stn-ui .inv.ux-inv .arm-ico {
+  width: auto;
+  min-width: 0;
+  height: max(1.75rem, calc(30 * var(--u)));
+  margin: 0 0.75rem 0 1.125rem;
+}
+
+.stn-ui .inv.ux-inv .arm-ico {
+  margin: 0 auto;
+  width: max(1.75rem, calc(30 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .eq-txt,
+.stn-ui .inv.ux-inv .arm-txt {
+  gap: 0.1875rem;
+  flex: none;
+}
+
+.stn-ui .inv.ux-inv .eq-lab {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .eq-name,
+.stn-ui .inv.ux-inv .arm-name {
+  font-size: var(--fm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stn-ui .inv.ux-inv .eq.empty .eq-name {
+  font-family: var(--f-mono);
+  font-size: var(--fx);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+/* a gun: what is in the magazine, and the spare rounds (the calibre is in the ammo list under it) */
+.stn-ui .inv.ux-inv .eq-ammo {
+  flex-wrap: wrap;
+  gap: 0.1875rem 0.375rem;
+  font-size: var(--fx);
+  white-space: normal;
+}
+
+.stn-ui .inv.ux-inv .eq-cal,
+.stn-ui .inv.ux-inv .eq-bar {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .eq-cnt {
+  position: absolute;
+  right: 0.3125rem;
+  top: 0.3125rem;
+  font-size: var(--fs);
+  color: var(--bone);
+}
+
+.stn-ui .inv.ux-inv .tw {
+  padding: 0.125rem 0.3125rem;
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .tw-ico svg {
+  height: 0.875rem;
+}
+
+.stn-ui .inv.ux-inv .arm-sub {
+  font-size: var(--fx);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stn-ui .inv.ux-inv .armor .arm-bar {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- Quick use, and the ammunition carried: a column
+   beside the backpack (a line over it, small) */
+.stn-ui .inv.ux-inv .ux-row {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: max(0.625rem, calc(14 * var(--u)));
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(230, 223, 207, 0.25) transparent;
+}
+
+.stn-ui .inv.ux-inv .ux-quick,
+.stn-ui .inv.ux-inv .ux-ammo {
+  flex: none;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  margin-bottom: 0.3125rem;
+  font: var(--fx) / 1 var(--f-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .inv.ux-inv .ux-sub-a {
+  letter-spacing: 0.08em;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+.stn-ui .inv.ux-inv .ux-qlist,
+.stn-ui .inv.ux-inv .pouch {
+  display: flex;
+  flex-direction: column;
+  gap: max(0.25rem, calc(5 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .ux-qlist:empty {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .ux-qnone {
+  padding: 0.375rem 0;
+  font: var(--fs) / 1.2 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .inv.ux-inv .ux-qnone[hidden] {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .ux-q {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  min-height: 2.375rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.375rem;
+  background: linear-gradient(to top, color-mix(in srgb, var(--cat) 22%, transparent), color-mix(in srgb, var(--cat) 8%, transparent)), rgba(0, 0, 0, 0.35);
+  border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent);
+  color: var(--bone);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.stn-ui .inv.ux-inv .ux-q.drink {
+  --cat: #4fa39a;
+}
+
+.stn-ui .inv.ux-inv .ux-q:not(.heal):not(.drink) {
+  --cat: #8f7f63;
+}
+
+.stn-ui .inv.ux-inv .ux-q:hover {
+  border-color: var(--bone);
+}
+
+/* a heal that would do nothing at full health */
+.stn-ui .inv.ux-inv .ux-q.full {
+  opacity: 0.5;
+}
+
+.stn-ui .inv.ux-inv .ux-q-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+}
+
+.stn-ui .inv.ux-inv .ux-q-ico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .inv.ux-inv .ux-q-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .ux-q-name {
+  font: 400 var(--fs) / 1 var(--f-num);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .ux-q-fx {
+  font: var(--fx) / 1 var(--f-mono);
+  color: var(--bone-2);
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .ux-q .kbd.sm {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .ux-q-n {
+  margin-left: auto;
+  font: 400 var(--fl) / 1 var(--f-num);
+  font-variant-numeric: tabular-nums;
+}
+
+/* a calibre: icon, name and rounds, the gun that fires it under them */
+.stn-ui .inv.ux-inv .pouch-cal {
+  min-width: 0;
+  min-height: 2.375rem;
+  padding: 0.25rem 0.5rem;
+  gap: 0.125rem 0.4375rem;
+}
+
+.stn-ui .inv.ux-inv .pc-name {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .pc-n {
+  font-size: var(--fl);
+}
+
+.stn-ui .inv.ux-inv .pc-who {
+  font-size: var(--fx);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stn-ui .inv.ux-inv .pouch-foot {
+  margin-top: 0.3125rem;
+  font-size: var(--fx);
+}
+
+/* ---------------------------------------------------------------- the backpack */
+.stn-ui .inv.ux-inv .grid-wrap {
+  display: contents;
+}
+
+/* (a weapon dragged out of its slot lights the backpack up: the cells' box, the wrapper drawing nothing) */
+.stn-ui .inv.ux-inv .grid-wrap.drop-in .grid-scroll {
+  outline: 1px solid var(--amber);
+  box-shadow: inset 0 0 18px rgba(232, 163, 61, 0.2);
+}
+
+.stn-ui .inv.ux-inv .bp-find {
+  grid-area: find;
+  min-width: 9rem;
+  height: 2.125rem;
+  margin: 0 0 max(0.375rem, calc(8 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .bp-chips {
+  grid-area: chips;
+  align-self: center;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: 0;
+  margin: 0 0 max(0.375rem, calc(8 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .grid-scroll {
+  grid-area: pack;
+}
+
+.stn-ui .inv.ux-inv .bp-locked {
+  grid-area: lock;
+}
+
+.stn-ui .inv.ux-inv .card {
+  grid-area: card;
+}
+
+.stn-ui .inv.ux-inv .cf-field {
+  font-size: var(--fm);
+}
+
+.stn-ui .inv.ux-inv .bp-count {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .chip {
+  min-height: 2.125rem;
+  font-size: var(--fx);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* (a category with nothing in it is not offered at all) */
+.stn-ui .inv.ux-inv .chip.zero:not(.c-all) {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .grid {
+  grid-template-columns: repeat(auto-fill, minmax(max(4.5rem, calc(78 * var(--u))), 1fr));
+  gap: max(0.3125rem, calc(6 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .bp-sec {
+  margin-top: 0.25rem;
+  font-size: var(--fx);
+  letter-spacing: 0.18em;
+}
+
+.stn-ui .inv.ux-inv .bp-sec:first-child {
+  margin-top: 0;
+}
+
+.stn-ui .inv.ux-inv .cell-name {
+  bottom: 0.4375rem;
+  font-size: var(--fx);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bone);
+}
+
+.stn-ui .inv.ux-inv .cell-n {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .cell-use {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .bp-locked {
+  margin-top: max(0.375rem, calc(7 * var(--u)));
+  font-size: var(--fx);
+}
+
+/* ---------------------------------------------------------------- the item card (and the comparison beside it) */
+.stn-ui .inv.ux-inv .card {
+  min-height: 0;
+  margin-top: max(0.375rem, calc(8 * var(--u)));
+  padding: max(0.5rem, calc(10 * var(--u))) max(0.625rem, calc(12 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .card-empty {
+  min-height: 1.5rem;
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .card-body:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'head cmp' 'btns cmp' 'foot cmp';
+  column-gap: max(0.75rem, calc(18 * var(--u)));
+  align-items: start;
+}
+
+.stn-ui .inv.ux-inv .card-head {
+  grid-area: head;
+}
+
+.stn-ui .inv.ux-inv .card-btns {
+  grid-area: btns;
+}
+
+.stn-ui .inv.ux-inv .card-foot {
+  grid-area: foot;
+  font-size: var(--fx);
+  -webkit-line-clamp: 1;
+}
+
+.stn-ui .inv.ux-inv .card-cmp {
+  grid-area: cmp;
+  padding-left: max(0.75rem, calc(16 * var(--u)));
+  border-left: 1px solid rgba(230, 223, 207, 0.14);
+}
+
+.stn-ui .inv.ux-inv .card-name {
+  font-size: var(--fl);
+}
+
+.stn-ui .inv.ux-inv .card-cat,
+.stn-ui .inv.ux-inv .card-key {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .card-desc {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .card-b {
+  min-height: 2.125rem;
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .card-b .kbd {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .cc-h {
+  margin-bottom: 0.3125rem;
+  font: var(--fx) / 1.2 var(--f-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .inv.ux-inv .cc-h b {
+  font-weight: 400;
+  color: var(--bone);
+}
+
+.stn-ui .inv.ux-inv .cc-t {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  gap: 0.1875rem max(0.625rem, calc(14 * var(--u)));
+  align-items: baseline;
+  font: var(--fs) / 1.1 var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stn-ui .inv.ux-inv .cc-k {
+  font-size: var(--fx);
+  color: var(--bone-dim);
+  text-align: right;
+}
+
+.stn-ui .inv.ux-inv .cc-lab {
+  color: var(--bone-2);
+}
+
+.stn-ui .inv.ux-inv .cc-a {
+  font-weight: 400;
+  color: var(--bone);
+  text-align: right;
+}
+
+.stn-ui .inv.ux-inv .cc-b {
+  color: var(--bone-dim);
+  text-align: right;
+}
+
+.stn-ui .inv.ux-inv .cc-d {
+  color: var(--bone-dim);
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .cc-a.up,
+.stn-ui .inv.ux-inv .cc-d.up {
+  color: var(--good);
+}
+
+.stn-ui .inv.ux-inv .cc-a.down,
+.stn-ui .inv.ux-inv .cc-d.down {
+  color: var(--blood-lite);
+}
+
+/* ---------------------------------------------------------------- crafting */
+.stn-ui .inv.ux-inv .station {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .craft-find {
+  height: 2.125rem;
+}
+
+.stn-ui .inv.ux-inv .craft-ready {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .ct {
+  min-height: 1.875rem;
+  padding-left: 0.4375rem;
+  padding-right: 0.4375rem;
+  letter-spacing: 0.04em;
+}
+
+.stn-ui .inv.ux-inv .ct-lab {
+  letter-spacing: 0.06em;
+}
+
+.stn-ui .inv.ux-inv .ct-lab,
+.stn-ui .inv.ux-inv .ct-n {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .craft-group {
+  font-size: var(--fx);
+  letter-spacing: 0.2em;
+}
+
+.stn-ui .inv.ux-inv .craft-group .cg-aside {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+/* a group that folds: an arrow before it, down while open */
+.stn-ui .inv.ux-inv .cg-fold {
+  display: none;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+}
+
+.stn-ui .inv.ux-inv .cg-fold svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .inv.ux-inv .craft-group.can-fold {
+  cursor: pointer;
+}
+
+.stn-ui .inv.ux-inv .craft-group.can-fold .cg-fold {
+  display: block;
+}
+
+.stn-ui .inv.ux-inv .craft-group.can-fold:hover {
+  color: var(--bone);
+}
+
+.stn-ui .inv.ux-inv .craft-group.folded {
+  margin-bottom: 0.25rem;
+  padding: 0.4375rem 0.5rem;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px dashed rgba(230, 223, 207, 0.16);
+}
+
+.stn-ui .inv.ux-inv .craft-group.folded .cg-fold {
+  transform: none;
+}
+
+.stn-ui .inv.ux-inv .craft-group.folded::after {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .craft-group.folded .cg-aside {
+  order: 0;
+  margin-left: auto;
+}
+
+.stn-ui .inv.ux-inv .craft-group.g-carry {
+  color: var(--amber);
+}
+
+/* a recipe: icon | name (and why, for what you carry) | max / what stops it | mark | Craft */
+.stn-ui .inv.ux-inv .rr {
+  grid-template-columns: max(1.75rem, calc(36 * var(--u))) minmax(0, 1fr) auto auto auto;
+  gap: max(0.4375rem, calc(9 * var(--u)));
+  min-height: 2.25rem;
+  padding: 0.1875rem 0.5rem;
+}
+
+.stn-ui .inv.ux-inv .rr-ico {
+  height: max(1.25rem, calc(24 * var(--u)));
+}
+
+.stn-ui .inv.ux-inv .rr-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv .rr-name {
+  font-size: var(--fm);
+}
+
+.stn-ui .inv.ux-inv .rr-n,
+.stn-ui .inv.ux-inv .rr-aside {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .rr-why {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--fx) / 1.1 var(--f-mono);
+  color: var(--amber);
+}
+
+.stn-ui .inv.ux-inv .rr-why[hidden],
+.stn-ui .inv.ux-inv .rr-go[hidden] {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv .rr-mark {
+  width: 0.875rem;
+}
+
+.stn-ui .inv.ux-inv .rr-mark:empty {
+  width: 0;
+}
+
+.stn-ui .inv.ux-inv .rr.carry {
+  min-height: 2.75rem;
+  background: rgba(232, 163, 61, 0.06);
+}
+
+.stn-ui .inv.ux-inv .rr-go {
+  display: inline-grid;
+  place-items: center;
+  min-height: 1.875rem;
+  padding: 0 0.75rem;
+  border: 1px solid rgba(182, 208, 138, 0.6);
+  background: rgba(182, 208, 138, 0.08);
+  font: 500 var(--fs) / 1 var(--f-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+.stn-ui .inv.ux-inv .rr-go:hover {
+  border-color: var(--good);
+  background: rgba(182, 208, 138, 0.2);
+  color: #f4eddd;
+}
+
+.stn-ui .inv.ux-inv .rc-bulk {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .craft-none,
+.stn-ui .inv.ux-inv .craft-none .cf-reset,
+.stn-ui .inv.ux-inv .cd-empty {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .cd-name {
+  font-size: var(--fl);
+}
+
+.stn-ui .inv.ux-inv .cd-sub,
+.stn-ui .inv.ux-inv .cd-req-src {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .cd-desc,
+.stn-ui .inv.ux-inv .cd-req {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .cd-go {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .cd-track {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .kbd.sm {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .cd-sb,
+.stn-ui .inv.ux-inv .cd-max {
+  font-size: var(--fs);
+}
+
+.stn-ui .inv.ux-inv .cd-qty {
+  font-size: var(--fl);
+}
+
+/* ---------------------------------------------------------------- the popovers and the menu */
+.stn-ui .inv.ux-inv .split-name,
+.stn-ui .inv.ux-inv .ctx-name {
+  font-size: var(--fm);
+}
+
+.stn-ui .inv.ux-inv .split-of,
+.stn-ui .inv.ux-inv .split-note,
+.stn-ui .inv.ux-inv .salv-h,
+.stn-ui .inv.ux-inv .ctx-n,
+.stn-ui .inv.ux-inv .ap-p,
+.stn-ui .inv.ux-inv .dz-what {
+  font-size: var(--fx);
+}
+
+.stn-ui .inv.ux-inv .split-num,
+.stn-ui .inv.ux-inv .split-b,
+.stn-ui .inv.ux-inv .ctx-item {
+  font-size: var(--fs);
+}
+
+/* the tooltip over the screen (its layer is outside the screen's root) */
+.stn-ui .tip.ux-inv-tip {
+  max-width: 18rem;
+}
+
+.stn-ui .tip.ux-inv-tip .tip-name {
+  font-size: max(0.9375rem, calc(15 * var(--u)));
+}
+
+.stn-ui .tip.ux-inv-tip .tip-cat,
+.stn-ui .tip.ux-inv-tip .tip-hint {
+  font-size: max(0.75rem, calc(12 * var(--u)));
+}
+
+.stn-ui .undo.ux-inv-undo .undo-t,
+.stn-ui .undo.ux-inv-undo .undo-b {
+  font-size: max(0.8125rem, calc(13 * var(--u)));
+}
+
+/* ---------------------------------------------------------------- small or zoomed in: one panel at a time */
+.stn-ui .inv.ux-inv.compact {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.stn-ui .inv.ux-inv.compact .inv-wrap {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'head' 'pane';
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-kit,
+.stn-ui .inv.ux-inv.compact .ux-craft {
+  grid-area: pane;
+  padding: 0.5rem 0.625rem;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-kit {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'load load' 'side side' 'find chips' 'pack pack' 'lock lock' 'card card';
+  column-gap: 0.5rem;
+}
+
+.stn-ui .inv.ux-inv.compact:not(.pane-craft) .ux-craft,
+.stn-ui .inv.ux-inv.compact.pane-craft .ux-kit {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-title,
+.stn-ui .inv.ux-inv.compact .ux-lvl .xpb,
+.stn-ui .inv.ux-inv.compact .inv-close-t,
+.stn-ui .inv.ux-inv.compact .ux-kit > .inv-h,
+.stn-ui .inv.ux-inv.compact .ux-sub,
+.stn-ui .inv.ux-inv.compact .pc-who,
+.stn-ui .inv.ux-inv.compact .pouch-foot {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-panes {
+  display: flex;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-head {
+  gap: 0.625rem;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-vit-bars {
+  width: clamp(4rem, 14vw, 8rem);
+}
+
+.stn-ui .inv.ux-inv.compact .ux-load {
+  margin-bottom: 0.375rem;
+}
+
+/* each slot in a line: its icon and its name (the rounds are in the ammo list) */
+.stn-ui .inv.ux-inv.compact .eq,
+.stn-ui .inv.ux-inv.compact .armor {
+  flex-direction: row;
+  align-items: center;
+  padding: 0.25rem 0.375rem;
+  gap: 0.375rem;
+  min-height: 2.125rem;
+}
+
+.stn-ui .inv.ux-inv.compact .eq-ico,
+.stn-ui .inv.ux-inv.compact .arm-ico {
+  flex: 0 1 2.75rem;
+  height: 1.25rem;
+  margin: 0;
+}
+
+.stn-ui .inv.ux-inv.compact .arm-ico {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+}
+
+.stn-ui .inv.ux-inv.compact .eq-txt,
+.stn-ui .inv.ux-inv.compact .arm-txt {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.stn-ui .inv.ux-inv.compact .eq-key,
+.stn-ui .inv.ux-inv.compact .eq-ammo,
+.stn-ui .inv.ux-inv.compact .eq-throws,
+.stn-ui .inv.ux-inv.compact .arm-sub,
+.stn-ui .inv.ux-inv.compact .arm-bar {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv.compact .eq-cnt {
+  top: 0.125rem;
+  right: 0.25rem;
+  font-size: var(--fx);
+}
+
+/* Quick use and the ammunition on one line that scrolls sideways */
+.stn-ui .inv.ux-inv.compact .ux-row {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0.75rem;
+  margin-bottom: 0.375rem;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(230, 223, 207, 0.25) transparent;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-quick,
+.stn-ui .inv.ux-inv.compact .ux-ammo {
+  flex: none;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-qlist,
+.stn-ui .inv.ux-inv.compact .pouch {
+  flex-direction: row;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-q-n {
+  margin-left: 0.125rem;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-q,
+.stn-ui .inv.ux-inv.compact .pouch-cal {
+  min-height: 2.125rem;
+}
+
+.stn-ui .inv.ux-inv.compact .pouch-cal {
+  min-width: 0;
+  grid-template-areas: 'ico name n';
+}
+
+.stn-ui .inv.ux-inv.compact .ux-q-fx {
+  display: none;
+}
+
+/* the card only while something is picked, sliding up over the foot of the backpack (which scrolls clear of it) */
+.stn-ui .inv.ux-inv.compact .card:has(.card-body[hidden]) {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv.compact .card {
+  position: absolute;
+  left: 0.375rem;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  z-index: 2;
+  margin: 0;
+  background: linear-gradient(175deg, rgba(34, 29, 25, 0.98), rgba(14, 12, 10, 0.98));
+  border-color: rgba(230, 223, 207, 0.3);
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.6);
+  animation: ux-inv-sheet 0.16s ease-out;
+}
+
+@keyframes ux-inv-sheet {
+  from {
+    transform: translateY(1.5rem);
+    opacity: 0;
+  }
+}
+
+.stn-ui .inv.ux-inv.compact .ux-kit:has(.card-body:not([hidden])) .grid-scroll {
+  padding-bottom: var(--sheet, 9.5rem);
+  scroll-padding-bottom: var(--sheet, 9.5rem);
+}
+
+.stn-ui .inv.ux-inv.compact .card-foot {
+  display: none;
+}
+
+.stn-ui .inv.ux-inv.compact .card-desc {
+  -webkit-line-clamp: 1;
+}
+
+.stn-ui .inv.ux-inv.compact .cd {
+  margin-top: 0.375rem;
+  padding-top: 0.375rem;
+}
+
+/* what an ingredient comes to, in a wrapping line rather than a list */
+.stn-ui .inv.ux-inv.compact .cd-reqs {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.stn-ui .inv.ux-inv.compact .cd-req {
+  display: inline-flex;
+  gap: 0.3125rem;
+  padding: 0;
+}
+
+.stn-ui .inv.ux-inv.compact .cd-req-mark {
+  width: 0.75rem;
+}
+
+.stn-ui .inv.ux-inv.compact .cd-act {
+  margin-top: 0.375rem;
+}
+
+/* crafting, small: the station alone on the head line, the tabs in one line that scrolls sideways, the detail short */
+.stn-ui .inv.ux-inv.compact .ux-craft > .inv-h {
+  margin-bottom: 0.375rem;
+  padding-bottom: 0.25rem;
+}
+
+.stn-ui .inv.ux-inv.compact .ux-craft > .inv-h .inv-h-t {
+  font-size: var(--fm);
+}
+
+.stn-ui .inv.ux-inv.compact .craft-find {
+  margin-bottom: 0.375rem;
+}
+
+.stn-ui .inv.ux-inv.compact .craft-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stn-ui .inv.ux-inv.compact .ct {
+  flex: none;
+}
+
+.stn-ui .inv.ux-inv.compact .cd-desc,
+.stn-ui .inv.ux-inv.compact .cd-req-src {
+  display: none;
+}

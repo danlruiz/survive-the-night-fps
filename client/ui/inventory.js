@@ -1,14 +1,18 @@
 // Inventory / crafting screen (I). The game does not pause while it is open (the survivor stands still while the world
-// goes on), so everything here is one click or one key away:
-// - left: the loadout as the hotbar has it, each gun with its own ammunition; what is worn; the ammo pouch (only the
-//   calibres carried, each with the gun that fires it)
-// - centre: the backpack, searchable (/), filtered by category, in labelled sections with names under the icons. A
-//   click selects (the item card under the grid says what it is and has the buttons), a double-click does the main
-//   thing, a right click opens a menu of drop amounts. The same keys work on whatever is under the pointer or selected:
+// goes on), so everything here is one click or one key away. Laid out to fit any window (issue #224, ux-inventory.css):
+// - a header across the top: health and stamina, the level and perks, Close
+// - "Your kit": the loadout as a strip of tiles in hotbar order (each gun with its own ammunition), what is worn beside
+//   it; Quick use (every heal and drink carried, one click each, the one [H] takes marked) and the ammo reserve (only
+//   the calibres carried, each with the gun that fires it); then the backpack, searchable (/), filtered by category, in
+//   labelled sections with names under the icons. A click selects (the item card at the foot says what it is, compares
+//   a gun or a vest with the one you hold, and has the buttons), a double-click does the main thing, a right click
+//   opens a menu of drop amounts. The same keys work on whatever is under the pointer or selected:
 //   F use / equip · S split · G drop one (Shift+G all) · X salvage. A drop can be taken back for a few seconds (Z).
-// - right: crafting (crafting.js)
+// - crafting (crafting.js), "For what you carry" first
+// A small or zoomed window (COMPACT) shows one of the two panels at a time, with tabs that Q / E switch.
 // The grid always has INVENTORY_MAX cells: the last BACKPACK_SLOTS of them only exist while a backpack is worn. (The car
 // supplies are on the HUD's objective tracker and the map, not in here.)
+import './ux-inventory.css';
 import { usedIn, foundIn, sourcesOf } from '../game/itemguide.js';
 import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, isFirearm, AMMO_NAMES, AMMO_ITEMS, SCHEM_BIT, CONSUMABLES } from '../../shared/defs.js';
 import { INVENTORY_SIZE, INVENTORY_MAX, BACKPACK_SLOTS, inventoryCap } from '../../shared/constants.js';
@@ -41,6 +45,14 @@ const secOf = (s) => (s ? SEC_OF_CAT[ITEM_DEFS[s.item]?.cat] || 'res' : '');
 const CAP_WARN = 0.8; // the capacity bar turns amber this full
 const UNDO_TIME = 5; // s the undo toast offers to take a drop back (the server allows a little more: UNDO_DROP_TIME)
 const PACK_RECIPE = RECIPES.find((r) => r.out === ITEM.BACKPACK);
+// One panel at a time, with tabs, below this (CSS px, so it follows the browser's zoom): the two side by side need
+// about 1,100 px across, and the backpack a few rows of height (1280 x 720 at 125% zoom is 1024 x 576: one at a
+// time). ux-inventory.css keys off the class it sets
+const COMPACT = '(max-width: 1099px), (max-height: 619px)';
+// The order [H] takes heals in (Game.quickHeal in game/game.js: change the two together): the big ones first when low
+const HEAL_ORDER = [ITEM.BANDAGE, ITEM.TUNA, ITEM.VENISON, ITEM.PAINKILLERS, ITEM.MEDKIT];
+const HEAL_ORDER_LOW = [ITEM.MEDKIT, ITEM.VENISON, ITEM.BANDAGE, ITEM.TUNA, ITEM.PAINKILLERS];
+const HEAL_LOW = 45;
 
 // what a double-click (or F) does with a backpack stack, by category
 const MAIN_OF = { cons: 'Use', weapon: 'Equip', throw: 'Equip', armor: 'Wear', pack: 'Wear' };
@@ -49,6 +61,55 @@ function quickKey(id) {
   const c = CONSUMABLES[id];
   if (c?.drink) return ['Drink', 'drink'];
   if (c?.heal && c.meat !== 1) return ['Quick heal', 'heal'];
+  return null;
+}
+// what a consumable does, in a few words, for its Quick use button
+function effectOf(id) {
+  const c = CONSUMABLES[id];
+  if (!c) return '';
+  if (c.heal) return `+${c.heal} HP`;
+  if (c.stamina) return 'stamina';
+  if (c.flashlight) return 'flashlight';
+  return '';
+}
+
+// A gun or melee weapon from the backpack against the one held in its slot, or a vest against the one worn: rows of
+// { label, a: its value, b: the held one's, d: 1 it is better, -1 worse, 0 neither }. Only the numbers both have.
+// worn: the armor worn ({ item, points, max }), whose points left are what a fresh vest is up against. null: nothing
+function compareRows(id, held, worn = null) {
+  const a = WEAPONS[id];
+  const b = WEAPONS[held];
+  if (a && b) {
+    if (a.nunchaku || b.nunchaku) return null;
+    const rows = [];
+    const row = (label, x, y, dir, fmt = String) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      rows.push({ label, a: fmt(x), b: fmt(y), d: x === y || !dir ? 0 : (x > y) === dir > 0 ? 1 : -1 });
+    };
+    if (a.melee && b.melee) {
+      row('Damage', a.damage, b.damage, 1);
+      row('Heavy', a.altDamage, b.altDamage, 1);
+      row('Swing', a.rate, b.rate, -1, (v) => v.toFixed(2) + ' s');
+      row('Reach', a.range, b.range, 1, (v) => v + ' m');
+      return rows;
+    }
+    if (a.melee || b.melee) return null;
+    rows.push({ label: 'Damage', a: a.damage + (a.pellets > 1 ? ' × ' + a.pellets : ''), b: b.damage + (b.pellets > 1 ? ' × ' + b.pellets : ''), d: Math.sign(a.damage * a.pellets - b.damage * b.pellets) });
+    row('Shots / s', 1 / a.rate, 1 / b.rate, 1, (v) => (v >= 10 ? Math.round(v) : v.toFixed(1)));
+    row('Magazine', a.mag, b.mag, 1);
+    row('Reload', a.reload, b.reload, -1, (v) => v + ' s');
+    if (a.range && b.range) row('Range', a.range, b.range, 1, (v) => v + ' m');
+    return rows;
+  }
+  const da = ITEM_DEFS[id];
+  const db = ITEM_DEFS[held];
+  if (da?.cat === 'armor' && db?.cat === 'armor') {
+    const left = worn ? Math.ceil(worn.points) : db.armor;
+    return [
+      { label: 'Armor', a: String(da.armor), b: worn ? `${left} / ${worn.max}` : String(left), d: Math.sign(da.armor - left) },
+      { label: 'Absorbs', a: Math.round(da.absorb * 100) + '%', b: Math.round(db.absorb * 100) + '%', d: Math.sign(da.absorb - db.absorb) },
+    ];
+  }
   return null;
 }
 // keys that open or shut a screen are the game's even here (passesMenus in game/input.js)
@@ -79,7 +140,7 @@ function takesOf(cost, n, slots) {
 // The name of what is under the pointer (the item card has the rest), and a line of what to do with it
 class Tooltip {
   constructor(parent) {
-    this.root = el('div', 'tip', parent);
+    this.root = el('div', 'tip ux-inv-tip', parent);
     this.root.hidden = true;
     this.name = el('div', 'tip-name', this.root);
     this.cat = el('div', 'tip-cat', this.root);
@@ -141,39 +202,68 @@ export class Inventory {
     this.menu = null; // the right-click menu: { ref }
     this.undoAt = 0; // when the undo toast went up (0: it is down)
 
-    const root = (this.root = el('div', 'inv', parent));
+    this.vit = { hp: -1, maxHp: 100, stamina: 100, exhausted: false }; // as the HUD last had it (setVitals)
+    this.pane = 'kit'; // the panel shown while COMPACT: 'kit' or 'craft'
+
+    const root = (this.root = el('div', 'inv ux-inv', parent));
     root.hidden = true;
     const bg = el('div', 'inv-bg', root);
-    const close = el('button', 'inv-close', root);
-    close.type = 'button';
-    liveText(close, () => `Close inventory (${bindLabel('inventory')})`, 'title');
-    liveText(el('span', 'kbd sm', close), () => bindLabel('inventory'));
-    el('span', 'inv-close-t', close, 'Close');
-    svgEl('i', 'inv-close-x', close, glyph('xmark'));
-    close.addEventListener('click', () => this.ui.cb.onCloseInventory());
     const wrap = (this.wrap = el('div', 'inv-wrap', root));
 
-    this._buildLeft(wrap);
-    this._buildMid(wrap);
-    const right = el('section', 'inv-col inv-right paper', wrap);
+    this._buildHead(wrap);
+    this._buildKit(wrap);
+    const right = (this.craftCol = el('section', 'inv-col inv-right paper ux-craft', wrap));
     this.craft = new Crafting(this, right);
     this._buildPopovers(root);
 
     this._bind(root, wrap, bg);
+    // small or zoomed in: one panel at a time
+    this.mq = matchMedia(COMPACT);
+    const fit = () => {
+      this.compact = this.mq.matches;
+      root.classList.toggle('compact', this.compact);
+    };
+    this.mq.addEventListener?.('change', fit);
+    fit();
+    this._setPane('kit');
     this._renderAll();
   }
 
-  _h(parent, title, aside) {
-    const h = el('h3', 'inv-h', parent);
-    el('span', 'inv-h-t', h, title);
-    if (aside) el('span', 'inv-h-aside', h, aside);
-    return h;
-  }
+  // ---- the header: the title (or, small, the two panels' tabs), health and stamina, the level and perks, Close
+  _buildHead(wrap) {
+    const head = el('header', 'ux-head', wrap);
+    el('h2', 'ux-title', head, 'Inventory');
+    const panes = (this.paneBar = el('div', 'ux-panes', head));
+    const pane = (id, label, key) => {
+      const b = el('button', 'ux-pane', panes);
+      b.type = 'button';
+      b.dataset.pane = id;
+      if (key === 'Q') el('span', 'kbd sm', b, key);
+      el('span', 'ux-pane-t', b, label);
+      const n = el('b', 'ux-pane-n', b, '');
+      if (key === 'E') el('span', 'kbd sm', b, key);
+      b.addEventListener('click', () => {
+        this.ui.sound('ui_click');
+        this._setPane(id);
+      });
+      return { b, n };
+    };
+    this.paneKit = pane('kit', 'Your kit', 'Q');
+    this.paneCraft = pane('craft', 'Crafting', 'E');
 
-  // ---- left: your level (progress.js) and the perks to pick, the loadout, what is worn, the ammo pouch
-  _buildLeft(wrap) {
-    const left = el('section', 'inv-col inv-left paper', wrap);
-    const lvl = el('div', 'inv-lvl', left);
+    // health, its number, and stamina under it
+    const vit = (this.vitEl = el('div', 'ux-vit', head));
+    vit.title = 'Health and stamina';
+    svgEl('i', 'ux-vit-ico', vit, glyph('heart'));
+    const bars = el('div', 'ux-vit-bars', vit);
+    const hb = el('i', 'ux-hp', bars);
+    this.hpFill = el('i', '', hb);
+    const sb = el('i', 'ux-st', bars);
+    this.stFill = el('i', '', sb);
+    this.hpTxt = el('span', 'ux-hp-t', vit, '');
+
+    // the level, and the perks to pick
+    const lvl = (this.lvlEl = el('div', 'inv-lvl ux-lvl', head));
     this.lvlBar = xpBar(lvl, 'inv-xpb');
     const perks = (this.perksBtn = el('button', 'inv-perks', lvl));
     perks.type = 'button';
@@ -191,11 +281,46 @@ export class Inventory {
       this.perksBadge.textContent = v?.pending ? String(v.pending) : '';
     });
 
-    this._h(left, 'Loadout', 'matches your hotbar');
-    const eqs = el('div', 'eq-list', left);
+    const close = el('button', 'inv-close', head);
+    close.type = 'button';
+    liveText(close, () => `Close inventory (${bindLabel('inventory')})`, 'title');
+    liveText(el('span', 'kbd sm', close), () => bindLabel('inventory'));
+    el('span', 'inv-close-t', close, 'Close');
+    svgEl('i', 'inv-close-x', close, glyph('xmark'));
+    close.addEventListener('click', () => this.ui.cb.onCloseInventory());
+  }
+
+  // which panel shows while the window is small (both show otherwise)
+  _setPane(id) {
+    this.pane = id === 'craft' ? 'craft' : 'kit';
+    this.root.classList.toggle('pane-craft', this.pane === 'craft');
+    this.paneKit.b.classList.toggle('on', this.pane === 'kit');
+    this.paneCraft.b.classList.toggle('on', this.pane === 'craft');
+  }
+
+  _h(parent, title, aside) {
+    const h = el('h3', 'inv-h', parent);
+    el('span', 'inv-h-t', h, title);
+    if (aside) el('span', 'inv-h-aside', h, aside);
+    return h;
+  }
+
+  // ---- "Your kit": the loadout and what is worn as one strip, Quick use and the ammo reserve, the backpack, the card
+  _buildKit(wrap) {
+    const kit = (this.kitCol = el('section', 'inv-col ux-kit paper', wrap));
+    const kh = this._h(kit, 'Your kit', 'loadout matches the hotbar');
+    const khr = el('span', 'inv-h-right', kh);
+    const capBar = (this.capBar = el('i', 'inv-capbar', khr));
+    this.capFill = el('i', '', capBar);
+    this.capEl = el('span', 'inv-cap', khr, '0 / ' + INVENTORY_SIZE);
+
+    // (ux-load: where a weapon, throwable or vest dragged out of the backpack is let go of to equip it - _dropMark)
+    const strip = el('div', 'ux-load', kit);
+    const eqs = el('div', 'eq-list', strip);
     this.eqEls = SLOT_LABELS.map((lab, i) => {
       const r = el('div', 'eq empty', eqs);
       r.dataset.slot = i;
+      r.dataset.lab = lab;
       el('span', 'eq-key', r, String(i + 1));
       const ico = el('i', 'eq-ico', r);
       const txt = el('div', 'eq-txt', r);
@@ -216,8 +341,7 @@ export class Inventory {
     this.throwAlt = el('div', 'eq-throws', this.eqEls[3].r.querySelector('.eq-txt'));
 
     // what is worn: the armor, and beside it the backpack (its pockets are the grid's last BACKPACK_SLOTS cells)
-    this._h(left, 'Worn');
-    const worn = el('div', 'worn', left);
+    const worn = el('div', 'worn', strip);
     const arm = (this.armEl = el('div', 'armor empty', worn));
     this.armIco = el('i', 'arm-ico', arm);
     const at = el('div', 'arm-txt', arm);
@@ -231,10 +355,29 @@ export class Inventory {
     this.packName = el('span', 'arm-name', pt, 'No backpack');
     this.packSub = el('span', 'arm-sub', pt, '');
 
+    // Quick use: every heal and drink in the backpack, one click each (the stack [H] / [B] would take from)
+    const row = el('div', 'ux-row', kit);
+    const qu = el('div', 'ux-quick', row);
+    const qh = el('div', 'ux-sub', qu);
+    el('span', 'ux-sub-t', qh, 'Quick use');
+    el('span', 'ux-sub-a', qh, 'one click');
+    this.quickEl = el('div', 'ux-qlist', qu);
+    this.quickNone = el('div', 'ux-qnone', qu, 'No heals or drinks carried');
+    this.quickKey = '';
+    this.quickEl.addEventListener('click', (e) => {
+      const b = e.target.closest('.ux-q');
+      if (!b) return;
+      const i = smallestStack(this.inv.slots.slice(0, this.inv.cap), +b.dataset.item);
+      if (i >= 0) this._useSlot(i);
+    });
+
     // Ammunition is carried apart from the backpack, a reserve per calibre: the pouch lists the ones carried, each with
     // the gun that fires it. A click opens the amount popover (drop some for a teammate, craft more)
-    this._h(left, 'Ammo pouch', 'click to share');
-    const pouch = (this.pouchEl = el('div', 'pouch', left));
+    const am = el('div', 'ux-ammo', row);
+    const ah = el('div', 'ux-sub', am);
+    el('span', 'ux-sub-t', ah, 'Ammo');
+    el('span', 'ux-sub-a', ah, 'click to share');
+    const pouch = (this.pouchEl = el('div', 'pouch', am));
     this.calEls = AMMO_ITEMS.map((id, cal) => {
       const b = el('button', 'pouch-cal', pouch);
       b.type = 'button';
@@ -245,7 +388,7 @@ export class Inventory {
       const who = el('span', 'pc-who', b, '');
       return { b, who, n, key: '' };
     });
-    const foot = (this.pouchFoot = el('div', 'pouch-foot', left));
+    const foot = (this.pouchFoot = el('div', 'pouch-foot', am));
     this.pouchHidden = el('span', 'pf-t', foot, '');
     const more = (this.pouchMore = el('button', 'pf-more', foot, 'show all'));
     more.type = 'button';
@@ -254,17 +397,13 @@ export class Inventory {
       this.showAllAmmo = !this.showAllAmmo;
       this._renderPouch(true);
     });
+
+    this._buildMid(kit);
   }
 
-  // ---- centre: the backpack
-  _buildMid(wrap) {
-    const mid = el('section', 'inv-col inv-mid', wrap);
-    const gp = (this.gridWrap = el('div', 'grid-wrap paper', mid));
-    const gh = this._h(gp, 'Backpack');
-    const ghr = el('span', 'inv-h-right', gh);
-    const capBar = (this.capBar = el('i', 'inv-capbar', ghr));
-    this.capFill = el('i', '', capBar);
-    this.capEl = el('span', 'inv-cap', ghr, '0 / ' + INVENTORY_SIZE);
+  // ---- the backpack, and the item card under it
+  _buildMid(kit) {
+    const gp = (this.gridWrap = el('div', 'grid-wrap', kit));
 
     // search: matches light up and the rest dims
     const find = (this.bpFind = el('label', 'craft-find bp-find', gp));
@@ -338,6 +477,9 @@ export class Inventory {
     this.cardCat = el('span', 'card-cat', nl);
     this.cardKey = el('span', 'card-key', nl);
     this.cardDesc = el('div', 'card-desc', t);
+    // a gun, a melee weapon or a vest from the backpack against the one held in its slot (or worn)
+    this.cardCmp = el('div', 'card-cmp', body);
+    this.cardCmp.hidden = true;
     const btns = el('div', 'card-btns', body);
     const btn = (label, key, act) => {
       const b = el('button', 'card-b', btns);
@@ -449,7 +591,7 @@ export class Inventory {
 
     // ---- after a drop: what went down, and the key that takes it back. Over the compass, which says nothing while the
     // screen is up (the tooltips' layer is the one above the HUD's top strip)
-    const u = (this.undoEl = el('div', 'undo', this.tip.root.parentElement));
+    const u = (this.undoEl = el('div', 'undo ux-inv-undo', this.tip.root.parentElement));
     u.hidden = true;
     this.undoIco = el('i', 'undo-ico', u);
     this.undoTxt = el('span', 'undo-t', u, '');
@@ -682,6 +824,13 @@ export class Inventory {
         e.preventDefault();
         return this._undo();
       }
+      // (small: Q / E switch between the two panels instead of the crafting tabs)
+      if (this.compact && (e.code === 'KeyQ' || e.code === 'KeyE')) {
+        e.preventDefault();
+        const to = e.code === 'KeyQ' ? 'kit' : 'craft';
+        if (to !== this.pane) this.ui.sound('ui_click');
+        return this._setPane(to);
+      }
       if (this.craft.key(e)) return void e.preventDefault();
       const act = { KeyF: 'main', KeyS: 'split', KeyG: e.shiftKey ? 'dropAll' : 'drop', KeyX: 'salvage' }[e.code];
       if (!act) return;
@@ -839,6 +988,11 @@ export class Inventory {
     this.craft.setItemFocus(ref?.item || 0);
     this._renderMarks();
     this._renderCard();
+    // (small: the card slides up over the foot of the backpack - the grid scrolls clear of it, the stack kept in view)
+    if (this.compact && ref) {
+      this.kitCol.style.setProperty('--sheet', this.cardEl.offsetHeight + 12 + 'px');
+      if (ref.kind === 'slot') this.cells[ref.i].c.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   // the selection against the inventory as the server last left it: a stack that moved is followed (a sort, a swap), one
@@ -895,6 +1049,33 @@ export class Inventory {
     const desc = (d.desc || '').toLowerCase();
     const stats = statLines(id).filter((x) => !desc.includes(x.toLowerCase()));
     this.cardDesc.textContent = [d.desc, [...stats.slice(0, 2), ...extra].join(' · ')].filter(Boolean).join(' ');
+
+    // against what is held: a weapon for a slot that has another in it, a vest while another is worn
+    const held = r.kind === 'slot' ? (d.cat === 'weapon' && WEAPONS[id] ? inv.weapons[WEAPONS[id].slot] | 0 : d.cat === 'armor' ? inv.armor?.item | 0 : 0) : 0;
+    const rows = held && held !== id ? compareRows(id, held, d.cat === 'armor' ? inv.armor : null) : null;
+    const cmp = this.cardCmp;
+    cmp.textContent = '';
+    cmp.hidden = !rows?.length;
+    if (rows?.length) {
+      const hn = ITEM_DEFS[held].name;
+      const top = el('div', 'cc-h', cmp);
+      el('span', 'cc-l', top, `Against ${d.cat === 'armor' ? 'your' : 'the'} `);
+      el('b', '', top, hn);
+      el('span', 'cc-l', top, d.cat === 'armor' ? ' worn' : ' in your hands');
+      const tb = el('div', 'cc-t', cmp);
+      el('span', 'cc-c cc-k', tb, '');
+      el('span', 'cc-c cc-k', tb, shortName(id));
+      el('span', 'cc-c cc-k', tb, shortName(held));
+      el('span', 'cc-c cc-k', tb, '');
+      for (const x of rows) {
+        el('span', 'cc-c cc-lab', tb, x.label);
+        el('b', 'cc-c cc-a' + (x.d > 0 ? ' up' : x.d < 0 ? ' down' : ''), tb, x.a);
+        el('span', 'cc-c cc-b', tb, x.b);
+        el('span', 'cc-c cc-d' + (x.d > 0 ? ' up' : x.d < 0 ? ' down' : ''), tb, x.d > 0 ? '▲' : x.d < 0 ? '▼' : '=');
+      }
+    }
+    // (equipping or wearing it when its place is taken swaps the two: said so)
+    if (held && held !== id && acts.main?.ok) acts.main = { ...acts.main, label: `Swap with ${shortName(held)}` };
 
     const set = (btn, a, primary) => {
       btn.b.hidden = !a;
@@ -1134,7 +1315,7 @@ export class Inventory {
   // throwable or vest from the backpack would be equipped in, over the Loadout. Null: nothing
   _dropMark(d, t) {
     if (d.eq >= 0) return t?.closest('.grid-wrap') && !(d.over >= 0 && this._canDrop(d, d.over)) ? this.gridWrap : null;
-    if (!t?.closest('.inv-left')) return null;
+    if (!t?.closest('.ux-load')) return null;
     const item = this.inv.slots[d.i]?.item;
     const cat = ITEM_DEFS[item]?.cat;
     if (cat === 'weapon') return this.eqEls[WEAPONS[item].slot]?.r || null;
@@ -1432,9 +1613,82 @@ export class Inventory {
     this._renderLoadout();
     this._renderWorn();
     this._renderPouch(false);
+    this._renderQuick();
     this._renderCard();
     this.craft.render();
     this.renderUses();
+  }
+
+  // Quick use: each heal or drink carried once, with how many, what it does, and the key that takes it outside the
+  // screen ([H] on the heal it would take now, [B] on the drink). Heals first in the order [H] takes them
+  _renderQuick() {
+    const inv = this.inv;
+    const hp = this.vit.hp;
+    const low = hp >= 0 && hp < HEAL_LOW;
+    const order = low ? HEAL_ORDER_LOW : HEAL_ORDER;
+    const have = new Map();
+    for (let i = 0; i < inv.cap; i++) {
+      const s = inv.slots[i];
+      if (s && CONSUMABLES[s.item] && ITEM_DEFS[s.item]?.cat === 'cons') have.set(s.item, (have.get(s.item) || 0) + s.count);
+    }
+    const rank = (id) => {
+      const k = order.indexOf(id);
+      if (k >= 0) return k;
+      const c = CONSUMABLES[id];
+      return c.heal ? 10 : c.drink ? 20 : 30;
+    };
+    const items = [...have.keys()].sort((a, b) => rank(a) - rank(b));
+    const hKey = items.find((id) => order.includes(id)) || 0;
+    const full = hp >= this.vit.maxHp;
+    const key = items.map((id) => id + 'x' + have.get(id)).join(',') + '|' + hKey + '|' + full + '|' + bindLabel('heal') + bindLabel('drink');
+    this.paneKit.n.textContent = `${inv.slots.filter((x, i) => x && i < inv.cap).length}/${inv.cap}`;
+    if (key === this.quickKey) return;
+    this.quickKey = key;
+    this.quickEl.textContent = '';
+    this.quickNone.hidden = items.length > 0;
+    for (const id of items) {
+      const c = CONSUMABLES[id];
+      const b = el('button', 'ux-q c-cons' + (c.heal ? ' heal' : c.drink || c.stamina ? ' drink' : '') + (c.heal && !c.stamina && full ? ' full' : ''), this.quickEl);
+      b.type = 'button';
+      b.dataset.item = id;
+      svgEl('i', 'ux-q-ico', b, itemIcon(id));
+      const t = el('span', 'ux-q-txt', b);
+      el('span', 'ux-q-name', t, shortName(id));
+      el('span', 'ux-q-fx', t, effectOf(id));
+      const k = id === hKey ? bindLabel('heal') : c.drink ? bindLabel('drink') : '';
+      if (k) el('span', 'kbd sm', b, k);
+      el('b', 'ux-q-n', b, String(have.get(id)));
+      b.title = `${ITEM_DEFS[id].name}: ${ITEM_DEFS[id].desc || ''}${k ? ` · [${k}] outside this screen` : ''}`;
+    }
+  }
+
+  // Health and stamina as the HUD has them ({ hp, maxHp, stamina, exhausted }: ui.updateHud, every frame)
+  setVitals(h) {
+    if (!h || h.hp == null) return;
+    // (kept for when the screen opens: nothing is drawn behind a closed one)
+    if (!this.open) {
+      const l = (this.vitLast ||= {});
+      l.hp = h.hp;
+      l.maxHp = h.maxHp;
+      l.stamina = h.stamina;
+      l.exhausted = h.exhausted;
+      return;
+    }
+    const hp = Math.max(0, Math.ceil(h.hp));
+    const maxHp = h.maxHp || 100;
+    const st = Math.round(clamp((h.stamina ?? 100) / 100, 0, 1) * 100);
+    const v = this.vit;
+    if (v.hp === hp && v.maxHp === maxHp && v.stamina === st && v.exhausted === !!h.exhausted) return;
+    const hpMoved = v.hp !== hp || v.maxHp !== maxHp;
+    Object.assign(v, { hp, maxHp, stamina: st, exhausted: !!h.exhausted });
+    this.hpFill.style.transform = `scaleX(${clamp(hp / maxHp, 0, 1)})`;
+    this.stFill.style.transform = `scaleX(${st / 100})`;
+    this.hpTxt.textContent = `${hp} / ${maxHp}`;
+    this.vitEl.classList.toggle('low', hp < maxHp * 0.3);
+    this.vitEl.classList.toggle('ex', !!h.exhausted);
+    if (!hpMoved) return;
+    this._renderQuick();
+    this.craft.render(); // ("For what you carry" names a heal while hurt)
   }
 
   // the backpack: its cells, their order in sections, the chips' counts, the capacity
@@ -1562,7 +1816,8 @@ export class Inventory {
         q.item = id;
         q.r.classList.toggle('empty', !id);
         q.ico.innerHTML = id ? itemIcon(id) : '';
-        q.name.textContent = id ? ITEM_DEFS[id]?.name || '?' : 'Empty';
+        q.name.textContent = id ? ITEM_DEFS[id]?.name || '?' : SLOT_LABELS[i];
+        q.r.title = id ? `${SLOT_LABELS[i]} · ${bindLabel('slot' + (i + 1)) || i + 1}` : `${SLOT_LABELS[i]}: empty`;
       }
       const cnt = i === 3 && id && tc[id] > 0 ? '×' + tc[id] : '';
       if (q.cntTxt !== cnt) q.cnt.textContent = q.cntTxt = cnt;
@@ -1578,9 +1833,9 @@ export class Inventory {
       q.cal.textContent = AMMO_NAMES[gun.ammo];
       q.mag.textContent = gun.mag > 1 ? `${mag}/${gun.mag}` : mag ? 'loaded' : 'empty';
       q.fill.style.transform = `scaleX(${clamp(mag / gun.mag, 0, 1)})`;
-      q.spare.textContent = `· ${spare} spare`;
+      q.spare.textContent = `· ${spare}`;
       q.ammo.classList.toggle('low', spare < gun.mag);
-      q.ammo.title = spare < gun.mag ? `Less than one magazine of ${AMMO_NAMES[gun.ammo]} left to reload with` : '';
+      q.ammo.title = `${mag} in the ${gun.mag > 1 ? 'magazine' : 'chamber'} · ${spare} ${AMMO_NAMES[gun.ammo]} spare` + (spare < gun.mag ? ': less than one magazine left to reload with' : '');
     });
     // other throwables to switch to
     const throws = Object.entries(tc).filter(([, n]) => n > 0);
@@ -1675,6 +1930,7 @@ export class Inventory {
   setProgress(p) {
     this.prog = p;
     this.lvlBar.set(p ? p.xp : 0);
+    this.lvlEl.title = this.lvlEl.querySelector('.xpb-t')?.textContent || '';
     if (this.open) this._askPerks();
   }
   // whether a perk is waiting is the server's to say (the picks are kept there): asked as the screen opens, at most
@@ -1698,6 +1954,7 @@ export class Inventory {
       void this.root.offsetWidth;
       this.root.classList.add('in');
       this._askPerks();
+      if (this.vitLast) this.setVitals(this.vitLast);
       this.craft.render();
     } else {
       if (this.ui.progress.visible) this.ui.progress.hide(); // (opened from here: it goes with the screen)
