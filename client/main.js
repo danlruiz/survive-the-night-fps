@@ -1,13 +1,13 @@
 // Client bootstrap: wires the UI, audio engine, renderer and game together and runs the frame loop.
 import './render/globals.js'; // must run before any material is created (global fog + shared uniforms)
 import { GameRenderer } from './render/renderer.js';
+import { comfort, REDUCED_FLASH } from './render/comfort.js';
 import { UI } from './ui/ui.js';
 import { DEFAULT_SETTINGS } from './ui/settings.js';
 import { AudioEngine } from './audio/audio.js';
 import { Game } from './game/game.js';
-import { loadBinds, askLayout, bindPair } from './game/binds.js';
+import { loadBinds, askLayout } from './game/binds.js';
 import { startBindsSync } from './net/accountbinds.js';
-import { keysOf, moveKeys, slotKeys } from './ui/menus.js';
 import { playerId } from './net/identity.js';
 import { PROTOCOL_VERSION, REJECT_REASON } from '../shared/protocol.js';
 import { refreshAccount } from './net/account.js';
@@ -261,35 +261,6 @@ const callbacks = {
 };
 
 const ui = new UI(document.getElementById('ui'), callbacks);
-// the full controls list (the Controls button on the splash and the pause menu), from the keybinds as they are when it
-// is opened (Settings > Keybinds rebinds them)
-ui.setControls(() => [
-  [moveKeys(), 'Move'],
-  [keysOf('sprint'), 'Sprint'],
-  [keysOf('jump'), 'Jump / vault barricades & windows'],
-  [keysOf('crouch'), 'Crouch (stealth)'],
-  [keysOf('fire'), 'Fire / attack'],
-  [keysOf('aim'), 'Aim / heavy attack (hold)'],
-  [slotKeys(), 'Primary · Pistol · Melee · Throwable · Build · Walkie-talkie'],
-  [[...keysOf('lastWeapon'), 'Wheel'], `Last weapon / cycle (build: ${bindPair('buildPrev')} / ${bindPair('buildNext')} cycle structure)`],
-  [keysOf('reload'), 'Reload · a flourish, with nunchucks in hand'],
-  [keysOf('interact'), 'Interact · hold: search, revive, start the car'],
-  ['Melee', 'Hit trees for wood, wrecks for scrap'],
-  [keysOf('ping'), 'Ping (go · danger · loot)'],
-  [keysOf('map'), 'Field map'],
-  [keysOf('board'), 'Leaderboard'],
-  [keysOf('bestiary'), 'Bestiary: the monsters you have seen'],
-  [keysOf('flashlight'), 'Flashlight'],
-  [keysOf('heal'), 'Quick heal'],
-  [keysOf('drink'), 'Energy drink (refills stamina)'],
-  [keysOf('inventory'), 'Inventory & crafting'],
-  [keysOf('players'), 'Player list (hold)'],
-  [keysOf('chat'), 'Chat'],
-  [keysOf('talk'), 'Push to talk'],
-  [keysOf('slot6'), 'Walkie-talkie: hold fire to talk to everyone'],
-  [keysOf('drop'), 'Drop weapon (hold)'],
-  [keysOf('demolish'), 'Demolish (build mode)'],
-]);
 const settings = ui.getSettings();
 const renderer = new GameRenderer(document.getElementById('game'), settings.quality || 'medium');
 setMaxAnisotropy(Math.min(8, renderer.renderer.capabilities.getMaxAnisotropy()));
@@ -316,6 +287,8 @@ function applySettings(s) {
   game.input.invertY = !!s.invertY;
   game.input.rawInput = s.rawMouse !== false;
   game.keyGuard.fullscreen = s.fullscreen !== false;
+  game.input.setToggles({ aim: s.aimMode === 'toggle', sprint: s.sprintMode === 'toggle', crouch: s.crouchMode === 'toggle' });
+  comfort.flash = s.reduceFlashes ? REDUCED_FLASH : 1;
   game.foliage?.setQuality(renderer.q, s.grassDistance);
   game.weatherFx?.setQuality(renderer.quality);
   game.lights.setShadows(renderer.q.flashShadows, renderer.q.shadows);

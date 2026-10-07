@@ -6,6 +6,7 @@ import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometr
 import { IMPACT } from '../../shared/defs.js';
 import { raycastWorld } from '../../shared/collision.js';
 import { getTexture } from './textures.js';
+import { comfort } from './comfort.js';
 
 // atlas cells (3x3)
 export const TEX = { FIRE: 0, SMOKE: 1, SPARK: 2, BLOOD: 3, GLOW: 4, MUZZLE: 5, DUST: 6 };
@@ -720,8 +721,8 @@ export class Effects {
       return;
     }
     const green = kind === 2;
-    // flash
-    D.emit(x, y, z, 0, 0, 0, 0.18, radius * 2.5, radius * 4, 1, green ? 1 : 0.85, green ? 0.5 : 0.5, 1, 1, 0.4, 0.1, 0, 0, 0, TEX.GLOW);
+    // flash (dimmed by Settings > Accessibility: Reduce flashes)
+    D.emit(x, y, z, 0, 0, 0, 0.18, radius * 2.5, radius * 4, 1, green ? 1 : 0.85, green ? 0.5 : 0.5, comfort.flash, 1, 0.4, 0.1, 0, 0, 0, TEX.GLOW);
     for (let i = 0; i < 36; i++) {
       const vx = this.rnd(-1, 1);
       const vy = this.rnd(0.2, 1.2);
@@ -959,6 +960,7 @@ export class Effects {
     this.vmFlash.position.copy(pos);
     this.vmFlash.scale.setScalar(this.rnd(0.18, 0.28) * scale);
     this.vmFlash.material.rotation = Math.random() * 6.28;
+    this.vmFlash.material.opacity = comfort.flash;
     this.vmFlash.visible = true;
     this.vmFlashT = time;
   }
@@ -968,6 +970,7 @@ export class Effects {
     f.s.position.copy(pos);
     f.s.scale.setScalar(this.rnd(0.5, 0.8) * scale);
     f.s.material.rotation = Math.random() * 6.28;
+    f.s.material.opacity = comfort.flash;
     f.s.visible = true;
     f.t = 0.06;
     this.add.emit(pos.x, pos.y, pos.z, 0, 0.6, 0, 0.5, 0.3, 1.1, 0.4, 0.4, 0.4, 0.25, 0.3, 0.3, 0.3, 0, 0, 1, TEX.SMOKE);

@@ -5798,16 +5798,6 @@ body {
   color: #ff7a66;
 }
 
-.stn-ui .stn-controls .set-card {
-  width: calc(520 * var(--u));
-  min-width: 380px;
-}
-
-.stn-ui .stn-controls .set-body {
-  padding-top: calc(16 * var(--u));
-  padding-bottom: calc(16 * var(--u));
-}
-
 .stn-ui .stn-updating .set-card {
   width: calc(460 * var(--u));
   min-width: 340px;
@@ -5817,39 +5807,6 @@ body {
   margin: calc(10 * var(--u)) 0 calc(14 * var(--u));
   font: max(12px, calc(15 * var(--u))) / 1.5 var(--f-type);
   color: var(--bone);
-}
-
-/* one grid for every row, so the key column is as wide as its widest keys (rebound ones can be long) */
-.stn-ui .ctl-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: center;
-  gap: calc(5 * var(--u)) calc(10 * var(--u));
-  font: max(10.5px, calc(12.5 * var(--u))) / 1.2 var(--f-type);
-  color: var(--bone-2);
-}
-
-.stn-ui .ctl-row {
-  display: contents;
-}
-
-.stn-ui .ctl-keys {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: calc(4 * var(--u));
-  min-width: calc(118 * var(--u));
-}
-
-/* between an action's two binds */
-.stn-ui .ctl-or {
-  font: max(9.5px, calc(11 * var(--u))) / 1 var(--f-mono);
-  color: var(--bone-dim);
-}
-
-.stn-ui .ctl-none {
-  opacity: 0.45;
-  font-style: italic;
 }
 
 .stn-ui .sp-foot {

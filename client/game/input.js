@@ -48,6 +48,10 @@ export class Input {
     this.locked = false;
     this.enabled = false; // gameplay input enabled (not typing / not in menus)
     this.down = new Map(); // code held -> the actions it went down as (what letting it go lets go of, rebound since or not)
+    // Settings > Accessibility "Hold or toggle": a held action on toggle is latched on by one press and let go by the
+    // next, not held (aim, sprint, crouch). toggled: the buttons latched on that way
+    this.toggle = { aim: false, sprint: false, crouch: false };
+    this.toggled = 0;
     this.wheel = 0;
     this.handlers = {}; // onKey(code, actions) for discrete actions, onKeyUp(code, actions, cancelled)
     this.buildMode = false;
@@ -60,6 +64,7 @@ export class Input {
       if (!this.locked) {
         // (the mouse buttons, and fire / aim on whatever keys: nothing is fired or aimed with the pointer free)
         for (const [code, acts] of [...this.down]) if (code.startsWith('Mouse') || acts.includes('fire') || acts.includes('aim')) this.release(code, true);
+        this.clearToggle('aim');
       }
       this.handlers.onLockChange?.(this.locked);
     });
@@ -150,9 +155,11 @@ export class Input {
     if (!acts) {
       acts = actionsOf(code).slice();
       this.down.set(code, acts);
+      // (a toggled action flips on its first press only, never on a key's auto-repeat)
+      for (const a of acts) if (this.toggle[a]) this.toggled ^= HOLD_BTN[a];
       this.recompute();
     }
-    for (const a of acts) this.latched |= HOLD_BTN[a] || 0;
+    for (const a of acts) if (!this.toggle[a]) this.latched |= HOLD_BTN[a] || 0;
     if (!repeat) this.handlers.onKey?.(code, acts);
   }
 
@@ -161,20 +168,40 @@ export class Input {
     const acts = this.down.get(code);
     if (!acts) return this.handlers.onKeyUp?.(code, [], cancelled);
     this.down.delete(code);
+    // a toggled sprint runs until we stop going forward or back (the way a run stops when you stop)
+    if (this.toggled & HOLD_BTN.sprint && (acts.includes('forward') || acts.includes('back')) && !this.held('forward') && !this.held('back')) this.toggled &= ~HOLD_BTN.sprint;
     this.recompute();
     this.handlers.onKeyUp?.(code, acts, cancelled);
   }
 
-  // everything held is let go (opening the chat, the map, the leaderboard: what the keys were doing stops)
+  // everything held is let go (opening the chat, the map, the leaderboard: what the keys were doing stops). A toggled
+  // aim and sprint stop with them; a toggled crouch stays down
   releaseAll() {
     for (const code of [...this.down.keys()]) this.release(code, true);
-    this.buttons = 0;
+    this.toggled &= HOLD_BTN.crouch;
+    this.recompute();
   }
 
   recompute() {
     let b = 0;
-    for (const acts of this.down.values()) for (const a of acts) b |= HOLD_BTN[a] || 0;
-    this.buttons = b;
+    for (const acts of this.down.values()) for (const a of acts) if (!this.toggle[a]) b |= HOLD_BTN[a] || 0;
+    this.buttons = b | this.toggled;
+  }
+
+  // which held actions are on toggle ({ aim, sprint, crouch }: booleans); one put back on hold is let go
+  setToggles(on) {
+    for (const a of Object.keys(this.toggle)) {
+      this.toggle[a] = !!on[a];
+      if (!this.toggle[a]) this.toggled &= ~HOLD_BTN[a];
+    }
+    this.recompute();
+  }
+
+  // a toggled action let go of by the game (aim, when the weapon in the hands changes or the pointer is freed)
+  clearToggle(action) {
+    if (!(this.toggled & HOLD_BTN[action])) return;
+    this.toggled &= ~HOLD_BTN[action];
+    this.recompute();
   }
 
   // The mouse buttons held, as a mask (1 left, 2 right): the e2e scripts hold the trigger down by setting it
