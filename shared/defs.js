@@ -935,9 +935,15 @@ export const ZONE = {
   NURSERY: 61,
   MOTORPOOL: 62, // the Guard's trucks
   HELIPAD: 63,
-  AGGREGATES: 64, // a gravel works
+  AGGREGATES: 64, // a gravel works: on Layout 12 (issue #232), the quarry
+  // ...and the places of Layout 12 that none of those is (issue #232)
+  NORTH_COAST: 65, // the village on the north coast: a church, houses, a pier
+  OUTPOST: 66, // North Ridge Outpost: the radio tower, past North Pass
+  SOUTH_FOREST: 67, // the campsites of South Forest
+  PASSAGE: 68, // the South Passage Mines: the workings under the river, and their yard
+  LIGHTHOUSE: 69, // on its islet off the south-west coast
 };
-export const MAINLAND_ZONES = [27, 64]; // the first and the last of the mainland's places
+export const MAINLAND_ZONES = [27, 69]; // the first and the last of the mainland's places
 // NOTIFY.CACHE: what the bridgehead cache handed a survivor (acts.js BRIDGEHEAD)
 export const CACHE_GAVE = { PISTOL: 1, AMMO: 2, BANDAGE: 4, MELEE: 8, BUILD: 16 };
 
@@ -970,18 +976,18 @@ export const ZONE_NAMES = [
   'Mercy Clinic',
   'Tri-County Fair',
   'The Bridgehead',
-  'Port Calder',
-  'Kessler Ironworks',
-  'Calder Field Terminal',
-  'Calder Field Hangars',
-  'Calder Fuel Depot',
-  'Eastgate',
-  'Mile 9 Truck Stop',
+  'Town Center',
+  'Industrial Docks',
+  'Airport Terminal',
+  'Airport Hangars',
+  'Airport Fuel Depot',
+  'North Suburbs',
+  'Gas Station',
   'Camp Hollis Quarantine',
   'Route 9 Checkpoint',
   'Calder Substation',
   'Calder Waterworks',
-  'Lake Morrow Marina',
+  'Pine Lake Marina',
   'Sunset Acres',
   "Benny's Auto Salvage",
   'Gateway Plaza',
@@ -991,7 +997,7 @@ export const ZONE_NAMES = [
   'Hillside Cemetery',
   'Dunmore Logging Camp',
   'Flight 212',
-  'Westgate',
+  'East Suburbs',
   'Calder Freight Yard',
   'Hale Farm',
   'Pruitt Farm',
@@ -1006,7 +1012,12 @@ export const ZONE_NAMES = [
   'Greenacre Nursery',
   'Guard Motor Pool',
   'Landing Zone Kilo',
-  'Calder Aggregates',
+  'Quarry',
+  'North Coast Village',
+  'North Ridge Outpost',
+  'South Forest',
+  'South Passage Mines',
+  'Lighthouse',
 ];
 
 // weighted loot tables per zone: [item, weight, min, max]
@@ -1084,6 +1095,12 @@ LOOT_TABLES[ZONE.NURSERY] = LOOT_TABLES[ZONE.BARN];
 LOOT_TABLES[ZONE.MOTORPOOL] = LOOT_TABLES[ZONE.HELIPAD] = LOOT_TABLES[ZONE.ROADBLOCK];
 LOOT_TABLES[ZONE.AGGREGATES] = LOOT_TABLES[ZONE.INDUSTRIAL];
 LOOT_TABLES[ZONE.FARM_A] = LOOT_TABLES[ZONE.FARM_B] = LOOT_TABLES[ZONE.BARN];
+// (Layout 12's own places, issue #232)
+LOOT_TABLES[ZONE.NORTH_COAST] = LOOT_TABLES[ZONE.SUBURB];
+LOOT_TABLES[ZONE.OUTPOST] = LOOT_TABLES[ZONE.ROADBLOCK];
+LOOT_TABLES[ZONE.SOUTH_FOREST] = LOOT_TABLES[ZONE.CAMPGROUND];
+LOOT_TABLES[ZONE.PASSAGE] = LOOT_TABLES[ZONE.MINE];
+LOOT_TABLES[ZONE.LIGHTHOUSE] = LOOT_TABLES[ZONE.MARINA];
 
 // ---------------------------------------------------------------- searchable containers
 // Every place (and many roadside / woodland sites) has containers: hold [E] to search.

@@ -1,12 +1,14 @@
-// Renders the baked field map for a seed (?seed=123&debug=1 shows sites, containers, part spots, doorways).
-import { createWorld } from '../../shared/world.js';
+// Renders the baked field map for a seed (?seed=123&debug=1 shows sites, containers, part spots, doorways; ?act=2:
+// the mainland; ?export=1: the map with its names drawn in, as window.__mapPNG, for scripts/clip/map-layout.js).
+import { worldFor } from '../../shared/worlds.js';
 import { ZONE_NAMES } from '../../shared/defs.js';
 import { renderMapCanvas, mapX, mapY } from '../ui/mapcanvas.js';
 
 const q = new URLSearchParams(location.search);
 const seed = +(q.get('seed') || 12345);
+const act = +(q.get('act') || 1);
 const t0 = performance.now();
-const world = createWorld(seed);
+const world = worldFor(seed, act);
 const t1 = performance.now();
 const cv = renderMapCanvas(world);
 const t2 = performance.now();
@@ -15,7 +17,7 @@ const wrap = document.getElementById('wrap');
 wrap.appendChild(cv);
 if (q.get('debug')) {
   const ov = document.createElement('canvas');
-  ov.width = ov.height = 1280;
+  ov.width = ov.height = cv.width;
   wrap.appendChild(ov);
   const g = ov.getContext('2d');
   const dot = (x, z, r, c) => {
@@ -43,4 +45,28 @@ for (const z of world.zones) {
   l.style.left = mapX(z.x) + 'px';
   l.style.top = mapY(z.z) + 'px';
   wrap.appendChild(l);
+}
+
+// the names as the map screen puts them (client/ui/mapscreen.js: the places, then what a place's map names in it),
+// drawn into a copy of the canvas for a script to take
+window.__mapTimes = { world: t1 - t0, map: t2 - t1 };
+if (q.get('export')) {
+  const out = document.createElement('canvas');
+  out.width = out.height = cv.width;
+  const g = out.getContext('2d');
+  g.drawImage(cv, 0, 0);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const k = cv.width / 2560;
+  const name = (text, x, z, size) => {
+    g.font = `bold ${Math.round(size * k)}px Georgia, serif`;
+    g.lineWidth = 6 * k;
+    g.strokeStyle = 'rgba(232, 220, 192, 0.85)';
+    g.strokeText(text, mapX(x), mapY(z));
+    g.fillStyle = '#1b120b';
+    g.fillText(text, mapX(x), mapY(z));
+  };
+  for (const z of world.zones) name(ZONE_NAMES[z.id].toUpperCase(), z.x, z.z, 34);
+  for (const m of world.landmarks || []) name(m.name, m.x, m.z, 24);
+  window.__mapPNG = out.toDataURL('image/png');
 }
