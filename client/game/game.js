@@ -3847,6 +3847,7 @@ export class Game {
       carried,
       waypoint: this.waypoint,
       teamWays: this.teamWaypoints(),
+      clock: { phase: g.phase, day: g.day, timeLeft: g.timeLeft }, // (the field map's head: how long the light lasts)
     };
   }
 }

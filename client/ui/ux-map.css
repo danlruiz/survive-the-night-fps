@@ -1,0 +1,997 @@
+/* The field map [M] and the minimap's markers (issue #225). Everything here is scoped under .mapscr (the field map)
+   or .mmap (the minimap); imported by mapscreen.js. Text stays 12 px or more, and the map fits the window: at 854 x 480
+   (1280 x 720 at 150% browser zoom) the panel folds into chips and the key into a popover. */
+
+/* ------------------------------------------------------------------ badges: one look per kind (mapmarks.js) */
+.stn-ui .mapscr .mk,
+.stn-ui .mmap .mk {
+  --b: max(18px, calc(24 * var(--u)));
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  width: var(--b);
+  height: var(--b);
+  border-radius: 50%;
+  color: #f4ecd8;
+  background: #3a3027;
+  box-shadow: 0 0 0 1.5px rgba(244, 236, 216, 0.92), 0 1px 3px rgba(0, 0, 0, 0.45);
+  font: 700 calc(var(--b) * 0.56) / 1 var(--f-num);
+  font-style: normal;
+}
+.stn-ui .mapscr .mk svg,
+.stn-ui .mmap .mk svg {
+  display: block;
+  width: 64%;
+  height: 64%;
+}
+.stn-ui .mapscr .mk.k-you,
+.stn-ui .mmap .mk.k-you {
+  background: #c0281f;
+}
+.stn-ui .mapscr .mk.k-mate,
+.stn-ui .mmap .mk.k-mate {
+  background: #1f4f8a;
+}
+/* a downed mate: red like you, but the fallen figure and a second ring round it */
+.stn-ui .mapscr .mk.k-down,
+.stn-ui .mmap .mk.k-down {
+  background: #c0281f;
+  box-shadow: 0 0 0 1.5px rgba(244, 236, 216, 0.95), 0 0 0 3.5px #c0281f, 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.stn-ui .mapscr .mk.k-car,
+.stn-ui .mmap .mk.k-car {
+  border-radius: 24%;
+  background: #15110d;
+}
+.stn-ui .mapscr .mk.k-part,
+.stn-ui .mmap .mk.k-part {
+  border-radius: 24%;
+  background: #c4610c;
+}
+.stn-ui .mapscr .mk.k-bench,
+.stn-ui .mmap .mk.k-bench {
+  border-radius: 24%;
+  background: #2f6a52;
+}
+.stn-ui .mapscr .mk.k-veh,
+.stn-ui .mmap .mk.k-veh {
+  border-radius: 24%;
+  background: #2a5f9e;
+}
+.stn-ui .mapscr .mk.k-veh.down {
+  background: #7a6a55;
+}
+/* a supply drop: a red triangle */
+.stn-ui .mapscr .mk.k-crate,
+.stn-ui .mmap .mk.k-crate {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #c0281f;
+  filter: drop-shadow(0 0 1.5px rgba(244, 236, 216, 0.95)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+.stn-ui .mapscr .mk.k-crate svg,
+.stn-ui .mmap .mk.k-crate svg {
+  width: 100%;
+  height: 100%;
+}
+/* rumours: a dashed ring (on the map it rings the whole place) */
+.stn-ui .mapscr .mk.k-sup,
+.stn-ui .mapscr .mk.k-schem {
+  background: rgba(244, 236, 216, 0.14);
+  box-shadow: none;
+  border: 2px dashed #e07a1f;
+  color: #e8a33d;
+}
+.stn-ui .mapscr .mk.k-schem {
+  border-color: #5b9ad8;
+  color: #8fb4dc;
+}
+/* (on the minimap a rumour in range is a tab: the place is too small there to ring) */
+.stn-ui .mmap .mk.k-sup,
+.stn-ui .mmap .mk.k-schem {
+  border-radius: 3px;
+  background: #c4610c;
+}
+.stn-ui .mmap .mk.k-schem {
+  background: #2f6fb0;
+}
+/* pings: a pin, its colour its kind (go / danger / loot) */
+.stn-ui .mapscr .mk.k-ping,
+.stn-ui .mmap .mk.k-ping {
+  background: transparent;
+  box-shadow: none;
+  color: #3e7a18;
+  filter: drop-shadow(0 0 1.5px rgba(244, 236, 216, 0.95));
+}
+.stn-ui .mapscr .mk.k-ping svg,
+.stn-ui .mmap .mk.k-ping svg {
+  width: 92%;
+  height: 92%;
+}
+.stn-ui .mapscr .mk.k-ping.p1,
+.stn-ui .mmap .mk.k-ping.p1 {
+  color: #c0281f;
+}
+.stn-ui .mapscr .mk.k-ping.p2,
+.stn-ui .mmap .mk.k-ping.p2 {
+  color: #c8960e;
+}
+/* your waypoint: a flag in a purple ring; a teammate's: a teal flag */
+.stn-ui .mapscr .mk.k-way,
+.stn-ui .mmap .mk.k-way {
+  background: rgba(244, 236, 216, 0.82);
+  box-shadow: 0 0 0 2px #6a35b5, 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: #6a35b5;
+}
+.stn-ui .mapscr .mk.k-teamway,
+.stn-ui .mmap .mk.k-teamway {
+  background: transparent;
+  box-shadow: none;
+  color: #1d7a90;
+  filter: drop-shadow(0 0 1.5px rgba(244, 236, 216, 0.95));
+}
+.stn-ui .mapscr .mk.k-teamway svg,
+.stn-ui .mmap .mk.k-teamway svg {
+  width: 86%;
+  height: 86%;
+}
+
+/* ------------------------------------------------------------------ the frame */
+.stn-ui .mapscr .map-frame.mx {
+  --side: clamp(270px, 25vw, 360px);
+  --mv: min(calc(100vh - 7.5rem), calc(100vw - var(--side) - 5rem));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  padding: 0.7rem 0.9rem 0.75rem;
+  box-sizing: border-box;
+}
+.stn-ui .mapscr .mx-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.55rem;
+  min-width: 0;
+}
+.stn-ui .mapscr .mx-head .map-title {
+  font-size: max(18px, calc(26 * var(--u)));
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-grow {
+  flex: 1;
+}
+.stn-ui .mapscr .mx-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.55rem;
+  font: max(12px, calc(13 * var(--u))) / 1 var(--f-mono);
+  color: var(--amber);
+  border: 1px solid rgba(232, 163, 61, 0.45);
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-clock.night {
+  color: #9fb6e0;
+  border-color: rgba(159, 182, 224, 0.45);
+}
+.stn-ui .mapscr .mx-clock[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-clock-ico svg {
+  display: block;
+  width: max(13px, calc(15 * var(--u)));
+  height: max(13px, calc(15 * var(--u)));
+}
+.stn-ui .mapscr .mx-you {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  height: auto;
+  line-height: 1;
+  padding: 0.22rem 0.55rem;
+  background: transparent;
+  border: 1px solid rgba(230, 223, 207, 0.2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-you .map-coords {
+  font-size: max(12px, calc(13 * var(--u)));
+  color: var(--bone-2);
+}
+.stn-ui .mapscr .mx-you:hover {
+  border-color: var(--bone);
+}
+/* the map has been moved off you: this brings it back */
+.stn-ui .mapscr .mx-you.away {
+  border-color: var(--amber);
+}
+.stn-ui .mapscr .mx-you.away .map-coords {
+  color: var(--amber);
+}
+.stn-ui .mapscr .mx-head .map-rot {
+  margin-left: 0;
+  font-size: max(12px, calc(12 * var(--u)));
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-head .map-close {
+  margin-left: 0;
+}
+
+.stn-ui .mapscr .mx-body {
+  display: flex;
+  gap: 0.9rem;
+  min-height: 0;
+}
+.stn-ui .mapscr .mx .map-view {
+  flex: none;
+  width: var(--mv);
+  height: var(--mv);
+  background: #6f8a92; /* (the sea, under the chart: shows only while a turned map's corners are in view) */
+}
+
+/* ------------------------------------------------------------------ the chart: the sea round the island, the map */
+.stn-ui .mapscr .mx-sea,
+.stn-ui .mapscr .mx-rings,
+.stn-ui .mapscr .mx-marks {
+  position: absolute;
+  inset: 0;
+}
+.stn-ui .mapscr .mx-sea[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-rings,
+.stn-ui .mapscr .mx-marks {
+  pointer-events: none;
+}
+.stn-ui .mapscr .map-lab {
+  font-size: max(12px, calc(13 * var(--u)));
+}
+.stn-ui .mapscr .map-lab.sub {
+  font-size: max(12px, calc(11 * var(--u)));
+}
+
+/* a rumour: a dashed ring round the place, a tab on it with what is rumoured there */
+.stn-ui .mapscr .mx-ring {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px dashed #c4610c;
+  background: rgba(196, 97, 12, 0.1);
+}
+.stn-ui .mapscr .mx-ring.schem {
+  border-color: #2f6fb0;
+  background: rgba(47, 111, 176, 0.1);
+}
+.stn-ui .mapscr .mx-ring.both {
+  border-color: #2f6fb0;
+  background: rgba(196, 97, 12, 0.08);
+  outline: 2px dashed #c4610c;
+  outline-offset: 3px;
+}
+.stn-ui .mapscr .mx-tab {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  display: flex;
+  gap: 2px;
+  transform: translate(-50%, -60%);
+}
+.stn-ui .mapscr .mx-tab-i {
+  display: grid;
+  place-items: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #f4ecd8;
+  background: #c4610c;
+  box-shadow: 0 0 0 1px rgba(244, 236, 216, 0.85), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.stn-ui .mapscr .mx-tab-i.schem {
+  background: #2f6fb0;
+}
+.stn-ui .mapscr .mx-tab-i svg {
+  display: block;
+  width: auto;
+  height: max(13px, calc(15 * var(--u)));
+}
+
+/* a marker: its badge on the spot, its name to the right */
+.stn-ui .mapscr .mx-m {
+  position: absolute;
+  transform-origin: 0 0;
+  transform: rotate(var(--unrot, 0rad)) translate(-50%, -50%);
+  line-height: 0;
+  z-index: 1;
+}
+.stn-ui .mapscr .mx-m .mk {
+  --b: max(18px, calc(22 * var(--u)));
+}
+.stn-ui .mapscr .mx-ml {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  font: 600 max(12px, calc(12.5 * var(--u))) / 1 var(--f-num);
+  letter-spacing: 0.03em;
+  color: #2a1c10;
+  text-shadow: 0 0 3px rgba(232, 220, 192, 0.98), 0 0 6px rgba(232, 220, 192, 0.85);
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-ml:empty {
+  display: none;
+}
+.stn-ui .mapscr .mx-m.you {
+  z-index: 4;
+}
+.stn-ui .mapscr .mx-m.mate,
+.stn-ui .mapscr .mx-m.down,
+.stn-ui .mapscr .mx-m.car {
+  z-index: 3;
+}
+.stn-ui .mapscr .mx-m.mate .mx-ml {
+  color: #1a3f6e;
+}
+.stn-ui .mapscr .mx-m.down .mx-ml {
+  color: #b31212;
+}
+.stn-ui .mapscr .mx-m.part .mx-ml {
+  color: #8a3f06;
+}
+.stn-ui .mapscr .mx-m.crate .mx-ml,
+.stn-ui .mapscr .mx-m.ping.p1 .mx-ml {
+  color: #b31212;
+}
+.stn-ui .mapscr .mx-m.ping.p0 .mx-ml {
+  color: #2f5f12;
+}
+.stn-ui .mapscr .mx-m.ping.p2 .mx-ml {
+  color: #7a5a06;
+}
+.stn-ui .mapscr .mx-m.bench .mx-ml {
+  color: #2f5a4a;
+}
+.stn-ui .mapscr .mx-m.teamway .mx-ml {
+  color: #155f70;
+}
+.stn-ui .mapscr .mx-m.way {
+  z-index: 0;
+  pointer-events: auto; /* a click on it takes it back */
+  cursor: pointer;
+}
+.stn-ui .mapscr .mx-m.way .mk {
+  --b: max(24px, calc(30 * var(--u)));
+}
+.stn-ui .mapscr .mx-m.way .mx-ml {
+  color: #5b2a9d;
+}
+.stn-ui .mapscr .mx-m.down .mk {
+  animation: mx-down 1.4s ease-in-out infinite;
+}
+@keyframes mx-down {
+  50% {
+    box-shadow: 0 0 0 1.5px rgba(244, 236, 216, 0.95), 0 0 0 7px rgba(192, 40, 31, 0.35), 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* a click on a row: a ring flashes round what it found */
+.stn-ui .mapscr .mx-flash {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border: 3px solid #f1c24a;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  z-index: 5;
+}
+.stn-ui .mapscr .mx-flash.go {
+  animation: mx-flash 1.5s ease-out;
+}
+@keyframes mx-flash {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+}
+
+/* the bridge's name, a card on the water */
+.stn-ui .mapscr .mx-bridge {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  transform-origin: 0 0;
+  transform: rotate(var(--unrot, 0rad)) translate(-50%, -50%);
+  color: #2a1c10;
+  background: rgba(232, 220, 192, 0.92);
+  border: 1px solid rgba(42, 28, 16, 0.55);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.stn-ui .mapscr .mx-bridge[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-bridge b {
+  font: 400 max(13px, calc(15 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.stn-ui .mapscr .mx-bridge span {
+  font: max(12px, calc(12 * var(--u))) / 1.1 var(--f-type);
+}
+
+/* ------------------------------------------------------------------ the view's edges: grid letters, edge pins */
+.stn-ui .mapscr .mx-rule {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+.stn-ui .mapscr .mx-rule.top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: max(18px, calc(20 * var(--u)));
+  background: linear-gradient(rgba(232, 220, 192, 0.78), rgba(232, 220, 192, 0));
+}
+.stn-ui .mapscr .mx-rule.left {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: max(18px, calc(20 * var(--u)));
+  background: linear-gradient(90deg, rgba(232, 220, 192, 0.78), rgba(232, 220, 192, 0));
+}
+.stn-ui .mapscr .map-view.turned .mx-rule {
+  display: none;
+}
+.stn-ui .mapscr .mx-rule span {
+  position: absolute;
+  font: 700 max(12px, calc(12 * var(--u))) / 1 Georgia, 'Times New Roman', serif;
+  color: rgba(42, 28, 16, 0.8);
+}
+.stn-ui .mapscr .mx-rule span[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-rule.top span {
+  left: var(--at);
+  top: 3px;
+  transform: translateX(-50%);
+}
+.stn-ui .mapscr .mx-rule.left span {
+  top: var(--at);
+  left: 4px;
+  transform: translateY(-50%);
+}
+
+.stn-ui .mapscr .mx-pins {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.stn-ui .mapscr .mx-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 3px;
+  font: 500 max(12px, calc(12.5 * var(--u))) / 1 var(--f-num);
+  letter-spacing: 0.02em;
+  color: #f4ecd8;
+  background: rgba(20, 16, 12, 0.88);
+  border: 1px solid rgba(244, 236, 216, 0.3);
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.stn-ui .mapscr .mx-pin:hover {
+  border-color: #f4ecd8;
+}
+.stn-ui .mapscr .mx-pin[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-pin.r {
+  translate: -100% -50%;
+  flex-direction: row-reverse;
+  padding: 2px 3px 2px 9px;
+}
+.stn-ui .mapscr .mx-pin.l {
+  translate: 0 -50%;
+}
+.stn-ui .mapscr .mx-pin.t {
+  translate: -50% 0;
+}
+.stn-ui .mapscr .mx-pin.b {
+  translate: -50% -100%;
+}
+.stn-ui .mapscr .mx-pin.down {
+  border-color: #ff5446;
+  color: #ffb4ab;
+}
+.stn-ui .mapscr .mx-pin .mk {
+  --b: max(18px, calc(20 * var(--u)));
+}
+.stn-ui .mapscr .mx-pin-arr {
+  display: block;
+  width: 12px;
+  height: 12px;
+  color: #f4ecd8;
+}
+.stn-ui .mapscr .mx-pin-arr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* a place's card */
+.stn-ui .mapscr .mx-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 13rem;
+  max-width: 18rem;
+  padding: 8px 11px;
+  font: max(12px, calc(12.5 * var(--u))) / 1.25 var(--f-type);
+  color: var(--bone-2);
+  background: rgba(16, 13, 11, 0.95);
+  border: 1px solid rgba(230, 223, 207, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.stn-ui .mapscr .mx-card[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-card-h {
+  font: 400 max(14px, calc(17 * var(--u))) / 1.1 var(--f-head);
+  letter-spacing: 0.08em;
+  color: var(--bone);
+  text-transform: uppercase;
+}
+.stn-ui .mapscr .mx-card-sup {
+  color: var(--amber);
+}
+.stn-ui .mapscr .mx-card-schem {
+  color: #8fb4dc;
+}
+.stn-ui .mapscr .mx-card-team {
+  color: #9fc3f0;
+}
+.stn-ui .mapscr .mx-card-k {
+  margin-top: 3px;
+  font-family: var(--f-mono);
+  color: var(--bone-dim);
+}
+
+/* ------------------------------------------------------------------ the panel */
+.stn-ui .mapscr .mx-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: var(--side);
+  height: var(--mv);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.stn-ui .mapscr .mx-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 0.35rem;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(230, 223, 207, 0.14);
+}
+.stn-ui .mapscr .mx-h:first-child {
+  margin-top: 0;
+}
+.stn-ui .mapscr .mx-h-t {
+  font: 400 max(17px, calc(21 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+  color: var(--bone);
+}
+.stn-ui .mapscr .mx-h-n {
+  font: max(12px, calc(13 * var(--u))) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+.stn-ui .mapscr .mx-bar {
+  display: flex;
+  gap: 3px;
+  margin: 2px 0;
+}
+.stn-ui .mapscr .mx-bar i {
+  flex: 1;
+  height: 5px;
+  background: rgba(230, 223, 207, 0.14);
+}
+.stn-ui .mapscr .mx-bar i.in {
+  background: var(--good);
+}
+.stn-ui .mapscr .mx-bar i.pack {
+  background: var(--amber);
+}
+.stn-ui .mapscr .mx-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stn-ui .mapscr .mx-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 5px 6px;
+  text-align: left;
+  color: var(--bone);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+.stn-ui .mapscr .mx-row[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-row:hover:not(:disabled) {
+  background: rgba(230, 223, 207, 0.07);
+}
+.stn-ui .mapscr .mx-row:disabled {
+  cursor: default;
+}
+.stn-ui .mapscr .mx-row-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stn-ui .mapscr .mx-row-t b {
+  font: 500 max(13px, calc(15 * var(--u))) / 1.1 var(--f-num);
+  letter-spacing: 0.02em;
+}
+.stn-ui .mapscr .mx-row-t span {
+  font: max(12px, calc(12 * var(--u))) / 1.2 var(--f-type);
+  color: rgba(230, 223, 207, 0.6);
+}
+.stn-ui .mapscr .mx-row-t span:empty {
+  display: none;
+}
+.stn-ui .mapscr .mx-row-d {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-row-d b {
+  font: 500 max(13px, calc(15 * var(--u))) / 1 var(--f-num);
+}
+.stn-ui .mapscr .mx-row-d span {
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+.stn-ui .mapscr .mx-row.pack {
+  background: rgba(232, 163, 61, 0.13);
+  border-left-color: var(--amber);
+}
+.stn-ui .mapscr .mx-row.pack .mx-row-t b {
+  color: var(--amber);
+}
+.stn-ui .mapscr .mx-row.alarm {
+  background: rgba(193, 18, 31, 0.22);
+  border-left-color: #ff5446;
+}
+.stn-ui .mapscr .mx-row.alarm .mx-row-t b {
+  color: #ff8a7e;
+}
+.stn-ui .mapscr .mx-row.dim {
+  opacity: 0.6;
+}
+.stn-ui .mapscr .mx-row.sub {
+  padding-left: 1.6rem;
+}
+.stn-ui .mapscr .mx-row.sub .mk {
+  --b: max(16px, calc(18 * var(--u)));
+}
+.stn-ui .mapscr .mx-row.sub .mx-row-t b {
+  font-size: max(12px, calc(13 * var(--u)));
+  color: var(--bone-2);
+}
+.stn-ui .mapscr .mx-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-type);
+  color: var(--good);
+}
+.stn-ui .mapscr .mx-done:empty {
+  display: none;
+}
+.stn-ui .mapscr .mx-done-i svg {
+  display: block;
+  width: auto;
+  height: max(14px, calc(16 * var(--u)));
+}
+.stn-ui .mapscr .mx-schems {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.stn-ui .mapscr .mx-schem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 2px;
+  font: max(12px, calc(12 * var(--u))) / 1.1 var(--f-num);
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--bone-2);
+  background: transparent;
+  border: 1px solid rgba(230, 223, 207, 0.18);
+  cursor: pointer;
+}
+.stn-ui .mapscr .mx-schem.got {
+  color: var(--good);
+  border-color: rgba(182, 208, 138, 0.5);
+}
+.stn-ui .mapscr .mx-schem.rumour {
+  color: #b9d3f0;
+  background: rgba(47, 111, 176, 0.22);
+  border: 1px dashed #5b9ad8;
+}
+.stn-ui .mapscr .mx-schem.rumour:hover {
+  background: rgba(47, 111, 176, 0.36);
+}
+.stn-ui .mapscr .mx-schem.none {
+  opacity: 0.5;
+  border-style: dashed;
+  cursor: default;
+}
+.stn-ui .mapscr .mx-schem-i svg {
+  display: block;
+  width: auto;
+  height: max(15px, calc(18 * var(--u)));
+}
+.stn-ui .mapscr .mx-key {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 10px;
+}
+.stn-ui .mapscr .mx-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: max(12px, calc(12.5 * var(--u))) / 1.1 var(--f-num);
+  color: var(--bone-2);
+}
+.stn-ui .mapscr .mx-k[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-k .mk {
+  --b: max(16px, calc(19 * var(--u)));
+}
+.stn-ui .mapscr .mx-k .mk.k-ping {
+  --b: max(13px, calc(15 * var(--u)));
+  margin-right: -4px;
+}
+
+.stn-ui .mapscr .mx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.55rem;
+}
+.stn-ui .mapscr .mx-keys {
+  margin-top: 0;
+  font-size: max(12px, calc(12 * var(--u)));
+}
+.stn-ui .mapscr .mx-foot-hint {
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-mono);
+  color: var(--bone-dim);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ small windows: chips */
+.stn-ui .mapscr .mx-chips {
+  position: relative;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  width: var(--chips);
+  max-height: var(--mv);
+  min-height: 0;
+}
+.stn-ui .mapscr .mx-chiplist {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.stn-ui .mapscr .mx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 3px;
+  font: 500 max(12px, calc(13 * var(--u))) / 1 var(--f-num);
+  color: var(--bone);
+  background: rgba(20, 16, 12, 0.9);
+  border: 1px solid rgba(230, 223, 207, 0.22);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stn-ui .mapscr .mx-chip[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-chip:hover {
+  border-color: var(--bone);
+}
+.stn-ui .mapscr .mx-chip .mk {
+  --b: max(18px, calc(20 * var(--u)));
+}
+.stn-ui .mapscr .mx-chip.alarm {
+  color: #ff8a7e;
+  border-color: #ff5446;
+  background: rgba(90, 10, 14, 0.85);
+}
+.stn-ui .mapscr .mx-chip b:empty,
+.stn-ui .mapscr .mx-chip-items:empty,
+.stn-ui .mapscr .mx-chip-d:empty {
+  display: none;
+}
+.stn-ui .mapscr .mx-chip-items {
+  display: inline-flex;
+  gap: 3px;
+  color: rgba(230, 223, 207, 0.55);
+}
+.stn-ui .mapscr .mx-chip-items i.pack {
+  color: var(--amber);
+}
+.stn-ui .mapscr .mx-chip-items svg {
+  display: block;
+  width: auto;
+  height: 14px;
+}
+.stn-ui .mapscr .mx-chip-d {
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-mono);
+  color: var(--bone-2);
+}
+.stn-ui .mapscr .mx-keysbtn {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 4px 6px 4px 10px;
+}
+/* (over the chips, above the button that opens it) */
+.stn-ui .mapscr .mx-pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: calc(max(18px, calc(20 * var(--u))) + 14px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px;
+  overflow-y: auto;
+  background: rgba(16, 13, 11, 0.96);
+  border: 1px solid rgba(230, 223, 207, 0.2);
+}
+.stn-ui .mapscr .mx-pop[hidden] {
+  display: none;
+}
+.stn-ui .mapscr .mx-pop .mx-key {
+  grid-template-columns: 1fr;
+}
+
+@media (max-height: 640px), (max-width: 1000px) {
+  .stn-ui .mapscr .map-frame.mx {
+    --chips: clamp(150px, 30vw, 300px);
+    --mv: min(calc(100vh - 4.6rem), calc(100vw - var(--chips) - 3.4rem));
+    padding: 0.5rem 0.6rem 0.6rem;
+  }
+  .stn-ui .mapscr .mx-head {
+    gap: 0.45rem;
+    margin-bottom: 0.4rem;
+  }
+  .stn-ui .mapscr .mx-head .map-title {
+    font-size: max(16px, calc(22 * var(--u)));
+  }
+  .stn-ui .mapscr .mx-tpre,
+  .stn-ui .mapscr .mx-xy {
+    display: none;
+  }
+  .stn-ui .mapscr .mx-body {
+    gap: 0.6rem;
+  }
+  .stn-ui .mapscr .mx-side,
+  .stn-ui .mapscr .mx-foot {
+    display: none;
+  }
+  .stn-ui .mapscr .mx-chips {
+    display: flex;
+  }
+}
+/* a tall, narrow window: the chips go under the map */
+@media (max-width: 700px) and (min-height: 641px) {
+  .stn-ui .mapscr .map-frame.mx {
+    --chips: 100%;
+    --mv: min(calc(100vw - 2rem), calc(100vh - 14rem));
+  }
+  .stn-ui .mapscr .mx-body {
+    flex-direction: column;
+  }
+}
+
+/* ------------------------------------------------------------------ the minimap's markers */
+/* B's size on small screens: 110 px across at 854 x 480, where it was held at 150 px (a third of the height) */
+@media (max-height: 560px) {
+  html .stn-ui {
+    --mm: 110px;
+  }
+  /* (the objective tracker under it keeps the width it had, and only moves up with it) */
+  html .stn-ui .obj.slim {
+    width: 150px;
+  }
+}
+.stn-ui .mmap .mk {
+  --b: max(14px, calc(17 * var(--u)));
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: calc(var(--b) / -2) 0 0 calc(var(--b) / -2);
+  box-shadow: 0 0 0 1.2px rgba(244, 236, 216, 0.92), 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.stn-ui .mmap .mk.k-down {
+  box-shadow: 0 0 0 1.2px rgba(244, 236, 216, 0.95), 0 0 0 2.8px #c0281f;
+}
+.stn-ui .mmap .mk.k-way {
+  box-shadow: 0 0 0 1.6px #6a35b5;
+}
+.stn-ui .mmap .mk.k-ping,
+.stn-ui .mmap .mk.k-crate,
+.stn-ui .mmap .mk.k-teamway {
+  box-shadow: none;
+}
+.stn-ui .mmap .mk[hidden] {
+  display: none;
+}
+.stn-ui .mmap-d {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  padding: 1px 3px;
+  font: 600 max(11px, calc(12 * var(--u))) / 1 var(--f-num);
+  color: #f4ecd8;
+  background: rgba(20, 16, 12, 0.82);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.stn-ui .mmap-d[hidden] {
+  display: none;
+}

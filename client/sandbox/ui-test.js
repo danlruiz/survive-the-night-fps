@@ -690,6 +690,11 @@ switch (screen) {
     }, 50);
     break;
   }
+  case 'map': {
+    // the field map [M]: client/sandbox/ui-test-map.js
+    await (await import('./ui-test-map.js')).mapScene(ui, q, buildScene);
+    break;
+  }
   case 'icons': {
     const g = document.createElement('div');
     g.className = 'gallery';
