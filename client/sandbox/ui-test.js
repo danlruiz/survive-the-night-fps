@@ -8,6 +8,7 @@ import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
 import { itemIcon, structIcon, glyph, GLYPH_NAMES } from '../ui/icons.js';
 import { ACH_BY_ID } from '../../shared/achievements.js';
 import { BESTIARY } from '../../shared/bestiary.js';
+import { reloadTracked } from '../ui/books.js';
 import { perkMask, progressView, perkLock, perkDependents, levelOf, xpForLevel } from '../../shared/progress.js';
 
 const q = new URLSearchParams(location.search);
@@ -332,6 +333,7 @@ function fakeAchievements() {
   ['kills_10', 'kills_100', 'nights_1', 'escapes_1', 'headshots_25', 'revives_1', 'crafted_10', 'salvaged_10', 'trees_1', 'distance_1k', 'kill_pistol', 'kill_shotgun', 'kill_knife', 'kill_boss', 'mine_enter', 'radio_call', 'flare', 'leaper_off', 'invited', 'walkie', 'cat_lift', 'fall_death'].forEach((id, i) => (unlocked[id] = now - i * day * 0.7 - 3600_000));
   localStorage.setItem('stn.achievements', JSON.stringify({ v: 1, stats: { kills: 340, nights: 7, escapes: 1, headshots: 61, revives: 3, crafted: 41, salvaged: 12, trees: 4, distance: 6300, days: 2 }, unlocked }));
   localStorage.setItem('stn.achTracked', JSON.stringify({ v: 1, ids: (q.get('tracked') ?? 'nights_10,distance_10k,days_3').split(',').filter(Boolean) }));
+  reloadTracked();
 }
 // the pause menu's field notes: night &night= (default 3) of seed 1 on the island, by day (&phase=night for the night)
 ui.fieldNotes.ctx = () => ({ seed: 1, act: 1, day: +(q.get('night') || 3), phase: q.get('phase') === 'night' ? PHASE.NIGHT : PHASE.DAY });

@@ -180,6 +180,11 @@ function saveTracked(ids) {
   }
 }
 
+// read the list again (another tab, or the UI sandbox, wrote it)
+export function reloadTracked() {
+  tracked = null;
+  saveTracked(loadTracked());
+}
 export const onTracked = (fn) => (trackSubs.add(fn), () => trackSubs.delete(fn));
 export const isTracked = (id) => loadTracked().includes(id);
 // the tracked ones still locked in this record, in the order they were tracked
