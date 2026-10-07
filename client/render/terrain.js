@@ -568,8 +568,9 @@ export function buildWater(world) {
     const z0 = -MAP_HALF - far;
     const z1 = MAP_HALF + far;
     quads.push(x1 - far, 0, z0, x1 - far, 0, z1, x1, 0, z0, x1, 0, z0, x1 - far, 0, z1, x1, 0, z1);
-    // (and round the corners of the map, where the shore runs out through its north and south edges)
-    for (const [za, zb] of [[z0, -MAP_HALF], [MAP_HALF, z1]]) quads.push(x1, 0, za, x1, 0, zb, world.sea.x, 0, za, world.sea.x, 0, za, x1, 0, zb, world.sea.x, 0, zb);
+    // (and round the corners of the map, where the shore runs out through its north and south edges: as far east as
+    // the sea reaches along each - sea.south, where it reaches further along the south one)
+    for (const [za, zb, sx] of [[z0, -MAP_HALF, world.sea.x], [MAP_HALF, z1, world.sea.south ?? world.sea.x]]) quads.push(x1, 0, za, x1, 0, zb, sx, 0, za, sx, 0, za, x1, 0, zb, sx, 0, zb);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(quads, 3));

@@ -608,6 +608,7 @@ export function designOf(kind, mode, owner) {
   if (kind === 'hole' && owner === 'boom_gate') return 'the arm of a boom gate stops nobody';
   if (kind === 'hole' && /^(wall|city):/.test(owner)) return 'drawn without a collider: a roof slope, a tilted slab, a fire escape, a cornice';
   if (kind === 'hole' && owner === 'bridge') return 'the bridge is stood on by its own floor (shared/bridge.js), its trusses are not colliders';
+  if (kind === 'air' && owner === 'wall:cliff') return 'the wall at the foot of a mainland mountain\'s cliff (shared/mainland.js): the cliff is the terrain, which this sweep does not draw';
   return null;
 }
 export function summary(run) {

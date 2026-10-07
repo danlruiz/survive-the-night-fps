@@ -818,8 +818,13 @@ export class Takeoff {
     const w = game.world;
     const city = w.city || w.zoneById?.[ZONE.CITY] || { x: this.home.x - 600, z: this.home.z };
     this.city = { x: city.x, z: city.z };
+    // The runway's frame: it runs along -Z turned by the plane's heading (Layout 12's runway is turned off north, issue
+    // #232); loc() is a point of that frame, from where the plane stood, in the world
+    const ry = game.world.car?.ry || 0;
+    this.rc = Math.cos(ry);
+    this.rs = Math.sin(ry);
     // which way the city is from the runway: the last shot looks that way, and the plane banks towards it
-    this.west = Math.sign(city.x - this.home.x) || -1;
+    this.west = Math.sign(this.rc * (city.x - this.home.x) - this.rs * (city.z - this.home.z)) || -1;
     // the dead it leaves behind: the game's own, wherever the stand left them; a few more on the runway if those
     // are not there (the plane is taken up with the runway clear, so there may be none in sight)
     this.dead = [];
@@ -833,12 +838,17 @@ export class Takeoff {
       // the second shot looks along, from where the plane stood to where it has got to)
       let off = (k % 2 ? 1 : -1) * (0.8 + ((k * 2.3) % 8.4));
       if (off > RUN_CAM - 1.5 && off < 0.4) off = off < RUN_CAM / 2 ? RUN_CAM - 1.5 - (RUN_CAM / 2 - off) : 0.4 + (off - RUN_CAM / 2) * 0.6;
-      this.dead.push({ view, x: this.home.x + off, z: this.home.z + (type === ZTYPE.RUNNER ? 9 : 16) + ((k * 7.7) % 30), v: ZOMBIE_DEFS[type].speed * (0.9 + ((k * 0.37) % 0.3)), anim: type === ZTYPE.RUNNER ? ZANIM.RUN : ZANIM.WALK });
+      this.dead.push({ view, x: off, z: (type === ZTYPE.RUNNER ? 9 : 16) + ((k * 7.7) % 30), v: ZOMBIE_DEFS[type].speed * (0.9 + ((k * 0.37) % 0.3)), anim: type === ZTYPE.RUNNER ? ZANIM.RUN : ZANIM.WALK }); // (in the runway's frame)
     }
   }
   worldChanged() {}
   sync(t) {
     if (this.pin === undefined && Math.abs(t - this.t) > 0.35) this.t = t;
+  }
+  // (lx, ly, lz) of the runway's frame from where the plane stood, into v
+  loc(v, lx, ly, lz) {
+    const H = this.home;
+    return v.set(H.x + this.rc * lx + this.rs * lz, H.y + ly, H.z - this.rs * lx + this.rc * lz);
   }
   update(dt, cam) {
     this.t += dt;
@@ -847,13 +857,12 @@ export class Takeoff {
     const p = this.plane.group;
     const w = this.g.world;
     const car = w.car;
-    const H = this.home;
-    // down the runway (north: -Z), faster and faster; then up, and a bank away towards the city
+    // down the runway (its -Z), faster and faster; then up, and a bank away towards the city
     const run = 0.5 * ACCEL * Math.min(t, ROTATE_AT) ** 2 + Math.max(0, t - ROTATE_AT) * ACCEL * ROTATE_AT;
     const air = Math.max(0, t - ROTATE_AT);
     const climb = 1.1 * air * air + 2.4 * air;
     const bank = smooth(1.6, 5, air) * 0.3 * -this.west; // (a left bank is a positive roll for a nose to -Z)
-    p.position.set(H.x + this.west * smooth(1.6, 6, air) * 9, H.y + climb, H.z - run);
+    this.loc(p.position, this.west * smooth(1.6, 6, air) * 9, climb, -run);
     p.rotation.set(Math.min(0.21, smooth(-0.5, 1.4, t - ROTATE_AT + 0.5) * 0.21), car.ry + bank * 0.35, bank + Math.sin(t * 1.9) * 0.012 * Math.min(1, air));
     this.spin += dt * 46;
     for (const pr of this.plane.props) pr.rotation.z = this.spin;
@@ -862,28 +871,30 @@ export class Takeoff {
     this.far = 520;
     if (t < RUN_CUT) {
       // off its nose, low: the propellers, the whole of it, and behind it what is coming down the runway
-      cam.position.set(H.x + 7.5, H.y + 1.2, H.z - 17 - t * 0.8);
-      _look.set(P.x, P.y + 1.7, P.z + 2);
+      this.loc(cam.position, 7.5, 1.2, -17 - t * 0.8);
+      _look.set(P.x + this.rs * 2, P.y + 1.7, P.z + this.rc * 2);
       this.fov = 44;
     } else if (t < OVER_CUT) {
       // on the runway where it stood, among the dead, at the height of their heads: they go past the lens after it
       // on both sides, and over them it is away down the strip
       const u = (t - RUN_CUT) / (OVER_CUT - RUN_CUT);
-      cam.position.set(H.x + RUN_CAM, H.y + 1.95 + u * 0.35, H.z + 13 - u * 5);
+      this.loc(cam.position, RUN_CAM, 1.95 + u * 0.35, 13 - u * 5);
       _look.set(P.x, P.y + 1.5, P.z);
       this.fov = 42;
     } else if (t < AWAY_CUT) {
       // on the runway ahead of it, down on the centre line: it comes at the lens, lifts, and goes over it
       const over = 0.5 * ACCEL * ROTATE_AT ** 2 + 18; // (where it is a few metres up)
-      cam.position.set(H.x + 1.35, H.y + 0.45, H.z - over); // (between its nose wheel and a main wheel)
+      this.loc(cam.position, 1.35, 0.45, -over); // (between its nose wheel and a main wheel)
       _look.set(P.x, P.y + 1.4, P.z);
       this.fov = 40;
     } else {
       // from out off its wing and above it, on the side away from the city: the airfield going away below, the
       // city and its smoke beyond, and the plane banking off over all of it
       const u = (t - AWAY_CUT) / (TAKEOFF_TIME - AWAY_CUT);
-      cam.position.set(P.x - this.west * (24 + u * 6), P.y + 7 + u * 3, P.z + 16);
-      _look.set(P.x + this.west * 30, P.y - 5, P.z - 22);
+      const [ax, az] = [-this.west * (24 + u * 6), 16];
+      const [lx, lz] = [this.west * 30, -22];
+      cam.position.set(P.x + this.rc * ax + this.rs * az, P.y + 7 + u * 3, P.z - this.rs * ax + this.rc * az);
+      _look.set(P.x + this.rc * lx + this.rs * lz, P.y - 5, P.z - this.rs * lx + this.rc * lz);
       this.fov = 46;
       this.fogMul = 0.18;
       this.far = 1100;
@@ -897,11 +908,11 @@ export class Takeoff {
     // the dead: after it down the runway, and left there (near or far copies by this shot's camera)
     setZombieViewer(cam.position.x, cam.position.y, cam.position.z);
     this.dead.forEach((z, k) => {
-      const zz = z.z - z.v * t;
       const o = z.view.object;
-      o.position.set(z.x, w.heightAt(z.x, zz), zz);
-      o.rotation.y = 0;
-      const farOff = (z.x - cam.position.x) ** 2 + (zz - cam.position.z) ** 2 > 40 * 40;
+      this.loc(o.position, z.x, 0, z.z - z.v * t);
+      o.position.y = w.heightAt(o.position.x, o.position.z);
+      o.rotation.y = car.ry || 0;
+      const farOff = (o.position.x - cam.position.x) ** 2 + (o.position.z - cam.position.z) ** 2 > 40 * 40;
       if (!farOff || ((k + Math.round(t * 60)) & 1) === 0) z.view.update(farOff ? dt * 2 : dt, z.anim, z.v, t, true);
     });
     if (this.loop) {

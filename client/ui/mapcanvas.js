@@ -51,6 +51,7 @@ export function renderMapCanvas(world) {
   let seed = 1234567;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const rock = world.cliffAt || null;
+  const forest = world.forestAt || null;
   for (let py = 0; py < R; py++) {
     for (let px = 0; px < R; px++) {
       const k = py * R + px;
@@ -81,6 +82,16 @@ export function renderMapCanvas(world) {
         r = r * (1 - a) + 96 * a;
         gg = gg * (1 - a) + 64 * a;
         b = b * (1 - a) + 38 * a;
+      }
+      // the mainland's forest (mainland.js forestAt): the woods a shade darker and greener under their stipple
+      if (forest) {
+        const f = forest(px - MAP_HALF + 0.5, py - MAP_HALF + 0.5);
+        if (f > 0.15 && h > WATER_LEVEL) {
+          const u = Math.min(1, (f - 0.15) * 0.9) * 0.32;
+          r = r * (1 - u) + 92 * u;
+          gg = gg * (1 - u) + 104 * u;
+          b = b * (1 - u) + 72 * u;
+        }
       }
       // the mainland's mountains (shared/mainland.js cliffAt): rock, grey and hatched with light, no contours on them
       // but every 10 m; their cliffs at the foot inked

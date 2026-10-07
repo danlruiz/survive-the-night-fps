@@ -14,6 +14,7 @@ import { Herds, HERD_RUSH } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
 import { ColliderGrid, makeBox, rayCollider, CYL } from '../shared/collision.js'; // (bat flight: flyCollide, roofBoxes)
 
+const MAP_SPREAD_MAX = 4; // (spread(): the most a map's dead come over, against the island's)
 const GRAV = 16;
 const CELL = 4;
 // forest: trees are counted per FCELL m cell; a spot's density is the tree count of the 3x3 cells around it
@@ -330,11 +331,12 @@ export class Zombies {
     return r < 1 ? ZTYPE.SPITTER : r < 2 ? ZTYPE.BOOMER : r < 3 ? ZTYPE.LEAPER : ZTYPE.ROPER;
   }
 
-  // The ground this map covers against the island's: 1 there, 4 on the mainland (twice as far across). What is
-  // scattered over the whole map - the roaming dead, the dog packs, the herds - comes that many times over, or a
-  // bigger map is only a thinner one
+  // The ground this map covers against the island's: 1 there, MAP_SPREAD_MAX at the most. What is scattered over the
+  // whole map - the roaming dead, the dog packs, the herds - comes that many times over, or a bigger map is only a
+  // thinner one. (Layout 12's mainland is 2048 m across, ten islands of ground, a third of it mountain, sea or lake:
+  // it keeps the four of the 1280 m mainland it replaced, so a tick costs what it did - issue #232)
   spread() {
-    return (this.g.world.size / MAP_SIZE) ** 2;
+    return Math.min(MAP_SPREAD_MAX, (this.g.world.size / MAP_SIZE) ** 2);
   }
 
   // inside the clearing round where a run on this map begins (START_CLEAR), which the day spawns nothing in

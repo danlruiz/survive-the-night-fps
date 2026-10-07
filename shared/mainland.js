@@ -2947,6 +2947,9 @@ export function createMainland(seed) {
     if (t.name) landmarks.push({ x: t.a[0] + t.dx * ((s0 + s1) / 2), z: t.a[1] + t.dz * ((s0 + s1) / 2), name: t.name, pass: true });
   }
 
+  // what the field map names that is no place: the range, the lake
+  landmarks.push({ x: FX(0.668), z: FX(0.395), name: 'The Ridge' }, { x: lake.x, z: lake.z + 30, name: 'Pine Lake' });
+
   // THE MOUNTAINS' WALLS: along the foot of every cliff a wall nobody sees, WALL_T thick on the mountain's side of the
   // line, from under the ground to well over the cliff's lip. Nothing walks, drives, climbs or is shot through it, and
   // the dead's nav grid takes it for the wall it is. (A tunnel's corridor is out of the mountain: its cuttings are
@@ -2965,7 +2968,7 @@ export function createMainland(seed) {
       const cz = (az + bz) / 2 + ux * (WALL_T / 2 - 0.25);
       const foot = Math.min(heightAt(ax, az), heightAt(bx, bz), heightAt(cx, cz)) - 3;
       const col = makeBox(cx, cz, foot, foot + CLIFF + 14, len + WALL_T * 0.6, WALL_T, Math.atan2(-uz, ux), COL.STATIC);
-      col.tag = 'rock';
+      col.tag = 'cliff'; // (a bullet strikes stone: shared/surfaces.js)
       staticGrid.add(col);
     }
   }
