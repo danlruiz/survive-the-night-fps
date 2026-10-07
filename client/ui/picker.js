@@ -252,6 +252,7 @@ export class CharacterCard {
     this.role.textContent = ch ? ch.role : 'A different survivor every time';
     this.line.textContent = ch ? ch.line : 'Who you are is drawn from the ten when you join.';
     this.root.classList.toggle('random', !ch);
+    this.onChange?.(); // (the splash's "as <name> playing <survivor>" line)
     this.q.hidden = !!ch;
     this.img.hidden = !ch;
     if (ch) {
