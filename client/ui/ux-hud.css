@@ -1,0 +1,541 @@
+/* =====================================================================================
+   In-game HUD layout (issue #221: B + C, with A's three rules). Imported by hud.js; every rule is under
+   .stn-ui.hud-b, the class the HUD puts on the UI's root.
+   - B, four corners and one feed: where (map, objective) top left, when (clock) top right, me and my team (vitals)
+     bottom left, hands (the weapon, the six slots in one row) bottom right. One feed (kills, pickups) down the right
+     edge and the chat down the left, each held between what hud.js measures above and below it (--hud-rt / --hud-rb,
+     --hud-lt / --hud-lb), so they shrink instead of overlapping. A wall's health joins the prompt line, off the aim.
+   - C, fits any window: the HUD size setting scales the HUD's unit (--hud-k), and a short window at that size goes
+     compact (.hud-compact): the clock folds to two lines, the map shrinks with the objective beside it, the compass
+     drops its distances, the feed keeps 3 rows (feed.js). Text stays at 11 px or more.
+   - A, by moment: at night (.hud-night) the objective folds to its one line and the tracked recipe to its name, the
+     feed keeps only the team's deaths (feed.js); by day, steady vitals fade back (.vitals.steady), never out.
+   ===================================================================================== */
+
+/* ------------------------------------------------------------------ the HUD's unit, at the HUD size */
+.stn-ui.hud-b .hud-info,
+.stn-ui.hud-b .mmap,
+.stn-ui.hud-b .hud-center,
+.stn-ui.hud-b .vitals,
+.stn-ui.hud-b .weap,
+.stn-ui.hud-b .zpanel,
+.stn-ui.hud-b .hud-feed,
+.stn-ui.hud-b .chat,
+.stn-ui.hud-b .toasts,
+.stn-ui.hud-b .top-left,
+.stn-ui.hud-b .top-center,
+.stn-ui.hud-b .top-right {
+  --u: calc((0.4px + min(0.03125vw, 0.0556vh)) * var(--hud-k, 1));
+  --mm: max(calc(150px * var(--hud-k, 1)), calc(200 * var(--u)));
+  /* the chat's width, and so what the prompt line in the middle has left (it wraps in two before it reaches the chat) */
+  --chat-w: max(240px, min(calc(460 * var(--u)), 30vw));
+}
+
+/* ------------------------------------------------------------------ right edge: the one feed */
+.stn-ui.hud-b .hud-feed {
+  position: absolute;
+  right: calc(24 * var(--u));
+  top: calc(var(--hud-rt, 240px) + 10 * var(--u));
+  bottom: calc(var(--hud-rb, 260px) + 10 * var(--u));
+  width: min(calc(440 * var(--u)), 46vw);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: calc(4 * var(--u));
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.stn-ui.hud-b .hud-feed > * {
+  flex: none;
+  max-width: 100%;
+}
+
+.stn-ui.hud-b .kf-row,
+.stn-ui.hud-b .pk-row {
+  font-size: max(12px, calc(14.5 * var(--u)));
+}
+
+.stn-ui.hud-b .pk-row {
+  border-right: 2px solid rgba(182, 208, 138, 0.45);
+  padding-right: calc(10 * var(--u));
+}
+
+.stn-ui.hud-b .pk-ico svg {
+  height: calc(18 * var(--u));
+  min-height: 13px;
+}
+
+/* ------------------------------------------------------------------ left edge: the chat, between the map and the vitals */
+.stn-ui.hud-b .chat {
+  bottom: calc(var(--hud-lb, 200px) + 8 * var(--u));
+  width: var(--chat-w);
+  min-width: 0;
+}
+
+.stn-ui.hud-b .chat-log {
+  max-height: max(calc(44 * var(--u)), min(calc(210 * var(--u)), calc(100vh - var(--hud-lt, 300px) - var(--hud-lb, 200px) - 28 * var(--u))));
+}
+
+.stn-ui.hud-b .chat.open .chat-log {
+  max-height: max(calc(60 * var(--u)), min(calc(210 * var(--u)), calc(100vh - var(--hud-lt, 300px) - var(--hud-lb, 200px) - 72 * var(--u))));
+}
+
+.stn-ui.hud-b .chat-line,
+.stn-ui.hud-b .chat-line.sys {
+  font-size: max(12px, calc(15 * var(--u)));
+}
+
+/* ------------------------------------------------------------------ centre: the prompt line, a wall's health in it */
+.stn-ui.hud-b .hud-line {
+  position: absolute;
+  left: 0;
+  top: calc(64 * var(--u));
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: calc(4 * var(--u)) calc(8 * var(--u));
+  width: max-content;
+  max-width: calc(100vw - 2 * (26 * var(--u) + var(--chat-w) + 12px));
+  white-space: nowrap;
+}
+
+.stn-ui.hud-b .hud-line > .prompt {
+  position: static;
+  transform: none;
+}
+
+/* (the inventory's right-click menu shares the .ctx class: everything it sets is undone here) */
+.stn-ui.hud-b .hud-line > .ctx {
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  transform: none;
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  width: auto;
+  min-width: 0;
+  padding: calc(8 * var(--u)) calc(20 * var(--u)) calc(8 * var(--u)) calc(16 * var(--u));
+  border: 0;
+  box-shadow: none;
+  background: var(--brush-ink) center / 100% 100% no-repeat;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.stn-ui.hud-b .hud-line > .ctx::before {
+  display: none;
+}
+
+.stn-ui.hud-b .hud-line .ctx-head {
+  display: contents;
+}
+
+.stn-ui.hud-b .hud-line .ctx-ico {
+  order: 0;
+}
+
+.stn-ui.hud-b .hud-line .ctx-title {
+  order: 1;
+  flex: none;
+  font-size: max(12px, calc(14 * var(--u)));
+  letter-spacing: 0.14em;
+}
+
+.stn-ui.hud-b .hud-line .ctx-bar {
+  order: 2;
+  width: calc(96 * var(--u));
+  min-width: 60px;
+  height: calc(5 * var(--u));
+  min-height: 4px;
+  margin: 0;
+}
+
+.stn-ui.hud-b .hud-line .ctx-val {
+  order: 3;
+  font-size: max(12px, calc(14 * var(--u)));
+}
+
+/* ------------------------------------------------------------------ bottom right: the six slots in one row */
+.stn-ui.hud-b .weap {
+  gap: calc(8 * var(--u));
+}
+
+.stn-ui.hud-b .weap .slots {
+  order: 2;
+  flex-direction: row;
+  align-items: stretch;
+  gap: calc(4 * var(--u));
+}
+
+.stn-ui.hud-b .weap .slot {
+  position: relative;
+  justify-content: center;
+  gap: 0;
+  width: calc(54 * var(--u));
+  min-width: 36px;
+  height: calc(34 * var(--u));
+  min-height: 25px;
+  border: 1px solid rgba(230, 223, 207, 0.2);
+  background: rgba(8, 6, 5, 0.38);
+  opacity: 0.72;
+  transform: none;
+}
+
+.stn-ui.hud-b .weap .slot.empty {
+  opacity: 0.3;
+}
+
+.stn-ui.hud-b .weap .slot.active {
+  opacity: 1;
+  border-color: rgba(230, 223, 207, 0.85);
+  background: rgba(230, 223, 207, 0.13);
+  box-shadow: inset 0 -2px 0 var(--accent);
+  transform: none;
+}
+
+.stn-ui.hud-b .weap .slot-ico {
+  justify-content: center;
+  width: 100%;
+  padding: 0 calc(5 * var(--u));
+}
+
+.stn-ui.hud-b .weap .slot-ico svg {
+  height: 70%;
+}
+
+.stn-ui.hud-b .weap .slot-name {
+  display: none;
+}
+
+.stn-ui.hud-b .weap .slot-key {
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  display: block;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--bone-2);
+  font: max(11px, calc(11 * var(--u))) / 1 var(--f-mono);
+  text-shadow: var(--shadow-s);
+}
+
+.stn-ui.hud-b .weap .slot.active .slot-key {
+  background: none;
+  box-shadow: none;
+  color: var(--bone);
+}
+
+.stn-ui.hud-b .weap .slot-cnt {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  min-width: 0;
+  font-size: max(11px, calc(11 * var(--u)));
+}
+
+/* ------------------------------------------------------------------ bottom left: the team over your own vitals */
+.stn-ui.hud-b .hud-team {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--u));
+  width: calc(310 * var(--u));
+  min-width: 220px;
+  margin-bottom: calc(4 * var(--u));
+}
+
+.stn-ui.hud-b .tm-row {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  padding: calc(2 * var(--u)) calc(10 * var(--u)) calc(2 * var(--u)) calc(7 * var(--u));
+  border-left: 2px solid rgba(182, 208, 138, 0.7);
+  background: linear-gradient(90deg, rgba(8, 6, 5, 0.6), rgba(8, 6, 5, 0.25) 70%, rgba(8, 6, 5, 0));
+  font: 400 max(12px, calc(14 * var(--u))) / 1.2 var(--f-num);
+  letter-spacing: 0.03em;
+  text-shadow: var(--shadow-s);
+}
+
+.stn-ui.hud-b .tm-ico svg {
+  display: block;
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+  min-width: 11px;
+  min-height: 11px;
+  color: var(--bone-2);
+}
+
+.stn-ui.hud-b .tm-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stn-ui.hud-b .tm-bar {
+  position: relative;
+  flex: none;
+  width: calc(90 * var(--u));
+  min-width: 56px;
+  height: calc(4 * var(--u));
+  min-height: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.stn-ui.hud-b .tm-bar i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: var(--good);
+  transition: transform 0.3s;
+}
+
+.stn-ui.hud-b .tm-bar.unknown i {
+  background: rgba(230, 223, 207, 0.22);
+}
+
+.stn-ui.hud-b .tm-row.hurt .tm-bar i {
+  background: var(--amber);
+}
+
+.stn-ui.hud-b .tm-row.crit .tm-bar i {
+  background: var(--blood-lite);
+}
+
+.stn-ui.hud-b .tm-st {
+  flex: none;
+  min-width: 3.4em;
+  text-align: right;
+  font: max(11px, calc(12 * var(--u))) / 1 var(--f-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+
+.stn-ui.hud-b .tm-row.talking .tm-ico svg {
+  color: var(--good);
+}
+
+.stn-ui.hud-b .tm-row.st-downed {
+  border-left-color: var(--blood-hi);
+  background: linear-gradient(90deg, rgba(110, 6, 10, 0.7), rgba(110, 6, 10, 0.3) 70%, rgba(110, 6, 10, 0));
+}
+
+.stn-ui.hud-b .tm-row.st-downed .tm-st,
+.stn-ui.hud-b .tm-row.st-downed .tm-ico svg {
+  color: #ff8c7c;
+}
+
+.stn-ui.hud-b .tm-row.st-downed .tm-st {
+  animation: stn-warnpulse 1.2s ease-in-out infinite;
+}
+
+.stn-ui.hud-b .tm-row.st-zombie {
+  border-left-color: var(--sick);
+}
+
+.stn-ui.hud-b .tm-row.st-zombie .tm-st,
+.stn-ui.hud-b .tm-row.st-zombie .tm-ico svg {
+  color: var(--sick);
+}
+
+.stn-ui.hud-b .tm-row.st-dead {
+  border-left-color: rgba(230, 223, 207, 0.25);
+  opacity: 0.6;
+}
+
+.stn-ui.hud-b .tm-more {
+  padding-left: calc(9 * var(--u));
+  font: max(11px, calc(12 * var(--u))) / 1.2 var(--f-mono);
+  letter-spacing: 0.08em;
+  color: var(--bone-dim);
+  text-shadow: var(--shadow-s);
+}
+
+/* ------------------------------------------------------------------ A: steady vitals fade back (never out) */
+.stn-ui.hud-b .vitals > .vrow,
+.stn-ui.hud-b .vitals > .v-flash {
+  transition: opacity 0.2s;
+}
+
+.stn-ui.hud-b .vitals.steady > .vrow,
+.stn-ui.hud-b .vitals.steady > .v-flash {
+  opacity: 0.45;
+  transition: opacity 1.2s ease-in;
+}
+
+/* ------------------------------------------------------------------ A: the night */
+/* the objective folds to its one line (what to do now: survive the night, wave n of m), the supplies wait for dawn.
+   (Over the inventory its strip stays as it is: the directive is not in it) */
+.stn-ui.hud-b.hud-night:not(.inv-open) .obj.slim .obj-head,
+.stn-ui.hud-b.hud-night:not(.inv-open) .obj.slim .obj-list {
+  display: none;
+}
+
+.stn-ui.hud-b.hud-night:not(.inv-open) .obj.slim .obj-dir {
+  margin-top: 0;
+}
+
+/* the tracked recipe folds to its name */
+.stn-ui.hud-b.hud-night .trk-list,
+.stn-ui.hud-b.hud-night .trk-foot {
+  display: none;
+}
+
+.stn-ui.hud-b.hud-night .trk-tag::after {
+  content: ' · at dawn';
+}
+
+/* ------------------------------------------------------------------ C: compact (a short window at the HUD size) */
+.stn-ui.hud-b.hud-compact .mmap,
+.stn-ui.hud-b.hud-compact .top-left {
+  --mm: max(calc(96px * var(--hud-k, 1)), calc(140 * var(--u)));
+}
+
+/* the objective beside the map instead of under it, and the tracked recipe under that */
+.stn-ui.hud-b.hud-compact:not(.inv-open) .obj.slim,
+.stn-ui.hud-b.hud-compact .trk {
+  left: calc(24 * var(--u) + var(--mm) + 10 * var(--u));
+  width: max(140px, calc(180 * var(--u)));
+  min-width: 0;
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .obj.slim {
+  top: calc(46 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact .obj.slim .obj-list {
+  gap: calc(3 * var(--u));
+  margin-top: calc(6 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact .obj.slim .obj-dir {
+  font-size: max(11px, calc(12 * var(--u)));
+}
+
+/* the clock folds to two lines: the day or night and the horde left, then the time */
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-dial {
+  display: none;
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clock {
+  width: auto;
+  min-width: 0;
+  padding: calc(12 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u)) calc(16 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clock::before {
+  inset: -10% -14% -20% -14%;
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-text {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  justify-items: end;
+  align-items: center;
+  column-gap: calc(14 * var(--u));
+  margin: 0;
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-title {
+  font-size: max(20px, calc(28 * var(--u)));
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-sub {
+  grid-column: 1 / -1;
+  margin: calc(2 * var(--u)) 0 0;
+  font-size: max(11px, calc(12 * var(--u)));
+  letter-spacing: 0.16em;
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-remain {
+  grid-row: 1;
+  grid-column: 2;
+  margin: 0;
+  padding: calc(2 * var(--u)) calc(6 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact:not(.inv-open) .clk-remain span {
+  display: none;
+}
+
+.stn-ui.hud-b.hud-compact .tonight {
+  min-width: 0;
+}
+
+/* the compass and the boss bar narrow to what is left between the corners; the compass keeps its names, not its
+   distances */
+.stn-ui.hud-b.hud-compact .compass,
+.stn-ui.hud-b.hud-compact .boss {
+  width: clamp(240px, calc(100vw - 560px), 460px);
+  min-width: 0;
+}
+
+.stn-ui.hud-b.hud-compact .cmp-mk:not(.k-mate):not(.k-way):not(.k-teamway) .cmp-mk-lab {
+  visibility: hidden;
+}
+
+.stn-ui.hud-b.hud-compact .hud-team {
+  min-width: 200px;
+}
+
+.stn-ui.hud-b.hud-compact .hud-line {
+  top: calc(56 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact .toasts {
+  bottom: calc(118 * var(--u));
+}
+
+/* ------------------------------------------------------------------ the title card stays between the side columns */
+.stn-ui.hud-b .cine {
+  --hud-side: max(calc(300px * var(--hud-k, 1)), calc(370 * var(--u) * var(--hud-k, 1)));
+}
+
+.stn-ui.hud-b .cine-title {
+  font-size: min(max(40px, calc(112 * var(--u))), calc((100vw - 2 * var(--hud-side)) / (var(--n) * 0.64)));
+}
+
+.stn-ui.hud-b .cine-brush {
+  width: 110%;
+}
+
+/* (compact: the side columns are narrower, and so is the title) */
+.stn-ui.hud-b.hud-compact .cine {
+  --hud-side: calc(250px * var(--hud-k, 1));
+}
+
+.stn-ui.hud-b.hud-compact .cine-title {
+  font-size: min(max(26px, calc(84 * var(--u))), calc((100vw - 2 * var(--hud-side)) / (var(--n) * 0.64)));
+}
+
+.stn-ui.hud-b.hud-compact .cine-brush {
+  width: 104%;
+}
+
+.stn-ui.hud-b.hud-compact .cine-sub {
+  font-size: max(12px, calc(17 * var(--u)));
+}
+
+/* (at night the objective's one line runs as wide as it needs, beside or under the map) */
+.stn-ui.hud-b.hud-night:not(.inv-open) .obj.slim {
+  width: max-content;
+  max-width: calc(var(--mm) + 160 * var(--u));
+}
+
+.stn-ui.hud-b.hud-compact.hud-night:not(.inv-open) .obj.slim {
+  max-width: max(140px, calc(180 * var(--u)));
+}

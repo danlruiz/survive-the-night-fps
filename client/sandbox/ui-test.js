@@ -7,6 +7,7 @@ import { ITEM, ITEM_DEFS, RECIPES, STRUCT, STRUCT_ORDER, ZTYPE, ZOMBIE_DEFS } fr
 import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
 import { itemIcon, structIcon, glyph, GLYPH_NAMES } from '../ui/icons.js';
 import { ACH_BY_ID } from '../../shared/achievements.js';
+import { tonightBrief } from '../ui/hud2.js';
 import { perkMask, progressView, perkLock, perkDependents, levelOf, xpForLevel } from '../../shared/progress.js';
 
 const q = new URLSearchParams(location.search);
@@ -137,7 +138,7 @@ const baseHud = {
   maxHp: 100,
   armor: 42,
   armorMax: 60,
-  stamina: 64,
+  stamina: +(q.get('stamina') ?? 64),
   exhausted: false,
   heals: +(q.get('heals') ?? 3),
   drinks: +(q.get('drinks') ?? 2),
@@ -165,6 +166,15 @@ const baseHud = {
   ping: 42,
   fps: 118,
   players: { alive: 3, total: 4 },
+  // the team over the vitals (Game.hudTeam); &solo=1: nobody else
+  team: q.get('solo')
+    ? []
+    : [
+        { id: 2, name: 'Marlowe', status: 'alive', hp: 0.45, d: 38, talking: true },
+        { id: 4, name: 'Old Hank', status: 'downed', hp: -1, d: 61, talking: false },
+        { id: 3, name: 'deadeye_kat', status: 'zombie', hp: -1, d: 120, talking: false },
+        { id: 5, name: 'Ruth', status: 'dead', hp: -1, d: -1, talking: false },
+      ],
   yaw: 0.6,
   compassMarks: [
     { kind: 'car', bearing: -0.3, icon: glyph('car'), label: '142m' },
@@ -327,6 +337,7 @@ let bg = q.get('bg');
 if (q.get('conn')) setTimeout(() => ui.setConnectionStatus('Reconnecting'), 300);
 if (q.get('tx')) setTimeout(() => ui.setVoiceState({ enabled: true, transmitting: true, speakers: ['Marlowe', 'Old Hank'] }), 300);
 if (q.get('fps')) ui._applySettings({ ...ui.getSettings(), showFps: true });
+if (q.get('hudk')) ui._applySettings({ ...ui.getSettings(), hudScale: +q.get('hudk') }); // &hudk=1.3: the HUD size setting
 // &ach=kills_1000,kill_pistol: those achievements' unlock banners, one after another
 if (q.get('ach')) setTimeout(() => ui.achToasts.show(q.get('ach').split(',').map((id) => ACH_BY_ID.get(id)).filter(Boolean)), 300);
 switch (screen) {
@@ -373,6 +384,9 @@ switch (screen) {
       flashlight: 12,
       boss: { name: ZOMBIE_DEFS[ZTYPE.BOSS_ABOMINATION].name, hp: 0.64 },
       prompt: '[E] Install Car Battery',
+      wave: 2,
+      waves: 3,
+      objective: { ...baseHud.objective, phase: PHASE.NIGHT, wave: 2, waves: 3 },
     };
     ui.hideSplash();
     feedSome();
@@ -400,6 +414,7 @@ switch (screen) {
       useLabel: 'Bandaging',
       crosshair: { spread: 5, visible: true },
       objective: { ...baseHud.objective, carried: {}, anyCarried: false, timeLeft: 23 },
+      tonight: { key: 'sandbox:3', rows: tonightBrief(1337, 3, 1) }, // the dusk card under the clock (Game.tonight)
     };
     ui.hideSplash();
     feedSome();

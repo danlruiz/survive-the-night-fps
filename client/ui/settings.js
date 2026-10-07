@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   showFps: true,
   achBanners: true, // a banner when an achievement unlocks (ui/achievements.js)...
   achSound: true, // ...and its chime
+  hudScale: 1, // the HUD's size (ui/hud.js, ux-hud.css): a short window at this size gets the compact layout
 });
 
 const NUM_RANGES = {
@@ -45,6 +46,7 @@ const NUM_RANGES = {
   renderScale: [0.5, 1],
   grassDistance: [0.5, 3],
   ps1Strength: [0.1, 1],
+  hudScale: [0.75, 1.5],
 };
 
 export function sanitizeSettings(s) {
@@ -144,6 +146,7 @@ const TABS = [
       { k: 'highlight', label: 'Interaction highlight', type: 'seg', options: ['off', 'subtle', 'strong'], hint: 'A faint outline on what you can use, while you look at it up close' },
       { k: 'keyHints', label: 'Key hints', type: 'toggle', hint: 'Names a key when it would help, until you have used it twice' },
       { k: 'showFps', label: 'Show FPS counter', type: 'toggle' },
+      { k: 'hudScale', label: 'HUD size', type: 'range', min: 0.75, max: 1.5, step: 0.05, fmt: pct, hint: 'Text and blocks on screen while you play. On a small window the HUD folds to a compact layout' },
       { head: 'Achievements' },
       { k: 'achBanners', label: 'Unlock banners', type: 'toggle', hint: 'A banner at the top of the screen when you unlock an achievement' },
       { k: 'achSound', label: 'Unlock sound', type: 'toggle', hint: 'A chime when you unlock one' },
