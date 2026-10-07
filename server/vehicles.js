@@ -357,6 +357,7 @@ export class Vehicles {
           _ev.length = 0;
           for (let k = 0; k < 3; k++) stepVehicle(e, 0, 0, !!e.brake, false, world, CMD_DT, _ev);
           for (const ev of _ev) if (ev.type === 'veh_crash') this.crash(e, ev.v, ev.col);
+          for (const ev of _ev) if (ev.type === 'veh_river') this.swept(e);
           if (e.removed) continue;
           if (Math.hypot(e.vx, e.vz) < 0.15) this.rest(e);
         } else if (!e.col && this.empty(e)) this.rest(e);
@@ -926,6 +927,26 @@ export class Vehicles {
     for (const id of e.seats) if (id) g.notify(NOTIFY.VEH_BROKE, 0, id);
     g.sound(SOUND.VEH_BREAK, e.x, e.y + 0.8, e.z, 70);
     this.wire(e);
+  }
+
+  // 'veh_river': it went into the mainland's river (shared/vehicles.js). The current has it: whoever was in it is
+  // thrown out on the bank, and it is gone downstream.
+  riverEvent(p, ev) {
+    const e = this.g.ents[ev.id];
+    if (e && e.kind === ENT.VEHICLE && !e.removed) this.swept(e);
+  }
+  swept(e) {
+    const g = this.g;
+    for (const id of e.seats) {
+      const q = id ? g.players.get(id) : null;
+      if (q) {
+        g.notify(NOTIFY.VEH_WRECKED, 0, q.id);
+        this.exit(q);
+      }
+    }
+    g.sound(SOUND.VEH_CRASH, e.x, e.y + 0.6, e.z, 80);
+    this.unpark(e);
+    g.removeEntity(e);
   }
 
   // 'veh_crash' from a driver's command (or from one rolling on empty): it struck something solid at v m/s

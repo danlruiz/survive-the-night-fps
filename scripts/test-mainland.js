@@ -1,6 +1,7 @@
-// The mainland (shared/mainland.js): the second map of a run, twice the island across. This generates it for a
-// handful of seeds and checks what the server and the client count on:
-//   - it is the same world every time for a seed, another for another seed, 1280 m across at 1/32 m on the wire
+// The mainland (shared/mainland.js): the second map of a run, Mainland Layout 12 (issue #232). This generates it for
+// a handful of seeds and checks what the server and the client count on (scripts/test-layout12.js checks the layout's
+// own rules: the two ways to the airport, the river, the walls, the parts by route):
+//   - it is the same world every time for a seed, another for another seed, MAINLAND_SIZE across at 1/32 m on the wire
 //   - every field the game reads is there: the places, the plane and its runway, the bridge, the parts' set places
 //   - positions at its far corners go through the snapshot's quantisation and come back within half a step
 //   - nothing solid stands in anything else, and every prop stands on something (the ground, a floor, another prop)
@@ -133,22 +134,24 @@ for (const seed of SEEDS) {
     check('the same seed builds the same mainland twice', fingerprint(createMainland(seed)).hash === fp.hash, fp.hash);
     const viaActs = worldFor(seed, WORLD.MAINLAND);
     check('...and worldFor(seed, the mainland) is it', fingerprint(viaActs).hash === fp.hash && viaActs.kind === WORLD.MAINLAND);
-    check('...and the island of that seed is another world, half as far across', worldFor(seed, WORLD.ISLAND).size * 2 === w.size);
+    check('...and the island of that seed is another world, smaller', worldFor(seed, WORLD.ISLAND).size < w.size);
   }
 
   // ---- what it is
-  each('it is 1280 m across, at 1/32 m on the wire', seed, w.kind === WORLD.MAINLAND && w.size === MAINLAND_SIZE && w.half === MAINLAND_SIZE / 2 && w.gridN === MAINLAND_SIZE / GRID_STEP + 1 && w.posScale === POS_SCALE_WIDE && w.heights.length === w.gridN ** 2);
-  const need = [ZONE.BRIDGEHEAD, ZONE.CITY, ZONE.INDUSTRIAL, ZONE.SUBURB, ZONE.TRUCKSTOP, ZONE.TERMINAL, ZONE.HANGARS, ZONE.FUEL_DEPOT];
-  // ...and what lies about the plain (mainland-places.js): every one of them, on every map
-  for (let id = ZONE.QUARANTINE; id <= MAINLAND_ZONES[1]; id++) need.push(id);
+  each(`it is ${MAINLAND_SIZE} m across, at 1/32 m on the wire`, seed, w.kind === WORLD.MAINLAND && w.size === MAINLAND_SIZE && w.half === MAINLAND_SIZE / 2 && w.gridN === MAINLAND_SIZE / GRID_STEP + 1 && w.posScale === POS_SCALE_WIDE && w.heights.length === w.gridN ** 2);
+  // (the places of Layout 12, and no others: nothing important is on the map that is not in the picture)
+  const need = [ZONE.BRIDGEHEAD, ZONE.CITY, ZONE.INDUSTRIAL, ZONE.SUBURB, ZONE.WESTGATE, ZONE.NORTH_COAST, ZONE.TRUCKSTOP, ZONE.OUTPOST, ZONE.TERMINAL, ZONE.HANGARS, ZONE.FUEL_DEPOT, ZONE.AGGREGATES, ZONE.PASSAGE, ZONE.SOUTH_FOREST, ZONE.LIGHTHOUSE, ZONE.MARINA, ZONE.LOGGING, ZONE.FIREHOUSE];
+  void MAINLAND_ZONES;
   const zoneOk = (zn) => zn && [zn.x, zn.z, zn.ry, zn.h, zn.flat, zn.blend, zn.clear].every(Number.isFinite) && Math.max(Math.abs(zn.x), Math.abs(zn.z)) + zn.flat < w.half - 20 && w.heightAt(zn.x, zn.z) > WATER_LEVEL + 0.5;
   each('every place is on it, inside the map and dry', seed, need.every((id) => zoneOk(w.zoneById[id])) && w.zones.length === need.length, need.filter((id) => !zoneOk(w.zoneById[id])).map((id) => ZONE_NAMES[id]).join(', '));
-  const fields = ['heightAt', 'floorAt', 'rayTerrain', 'isDeepWater', 'zoneAt', 'roadDistAt', 'roadKindAt', 'openingNear', 'darkAt', 'roads', 'highway', 'sea', 'trees', 'rocks', 'bushes', 'parts', 'props', 'lights', 'roofs', 'staticGrid', 'structGrid', 'colliderGrids', 'lootSpawns', 'containers', 'partSpots', 'openings', 'sites', 'resourceSpawns', 'hordeSpawns', 'spawnPoints', 'start', 'car', 'bridge', 'runway', 'city', 'lake', 'ponds', 'river', 'landmarks'];
-  each('every field the game reads of a world is there', seed, fields.every((k) => w[k] !== undefined && w[k] !== null) && w.mine === null && w.rail === null && w.fair === null && w.clinic === null && w.cemetery === null && w.darkAt(0, 0, 0) === 0, fields.filter((k) => w[k] === undefined || w[k] === null).join(', '));
+  const fields = ['heightAt', 'floorAt', 'rayTerrain', 'isDeepWater', 'zoneAt', 'roadDistAt', 'roadKindAt', 'openingNear', 'darkAt', 'roads', 'highway', 'sea', 'trees', 'rocks', 'bushes', 'parts', 'props', 'lights', 'roofs', 'staticGrid', 'structGrid', 'colliderGrids', 'lootSpawns', 'containers', 'partSpots', 'openings', 'sites', 'resourceSpawns', 'hordeSpawns', 'spawnPoints', 'start', 'car', 'bridge', 'runway', 'city', 'lake', 'ponds', 'river', 'landmarks', 'mine', 'cliffAt', 'lakeAt', 'walls', 'tunnels'];
+  each('every field the game reads of a world is there', seed, fields.every((k) => w[k] !== undefined && w[k] !== null) && !!w.mine && w.rail === null && w.fair === null && w.clinic === null && w.cemetery === null && w.darkAt(0, 0, 0) === 0, fields.filter((k) => w[k] === undefined || w[k] === null).join(', '));
   // the parts, at their set places
   const at = PLANE_PARTS.map((_, i) => w.partSpots.filter((sp) => sp.supply === i));
-  const where = [[ZONE.HANGARS], [ZONE.CITY], [ZONE.INDUSTRIAL], [ZONE.TERMINAL], [ZONE.FUEL_DEPOT, ZONE.HANGARS, ZONE.INDUSTRIAL]];
-  each('every part of the plane has its set places: two or more each, four or more for the fuel', seed, at.every((list, i) => list.length >= (PLANE_NEED[i] > 1 ? 4 : 2) && list.every((sp) => where[i].includes(sp.zone))) && w.partSpots.every((sp) => sp.supply >= 0 && sp.supply < PLANE_PARTS.length), at.map((l) => l.length).join(' '));
+  // (the propeller and the fuel at the airport, the magneto in the city, the hydraulic pump down in the South Passage
+  // Mines, the flight radio at North Ridge Outpost: issue #232's deal)
+  const where = [[ZONE.HANGARS], [ZONE.CITY], [ZONE.PASSAGE], [ZONE.OUTPOST], [ZONE.FUEL_DEPOT, ZONE.HANGARS]];
+  each('every part of the plane has its set places: two or more each, four or more for the fuel', seed, at.every((list, i) => list.length >= (PLANE_NEED[i] > 1 ? 4 : 2) && list.every((sp) => where[i].includes(sp.zone))) && w.partSpots.every((sp) => sp.supply >= 0 && sp.supply < PLANE_PARTS.length) && at[2].every((sp) => w.mine.under(sp.x, sp.y + 0.5, sp.z)), at.map((l) => l.length).join(' '));
   // the bridgehead
   const sp = w.spawnPoints;
   const solidAt = (x, y, z) => w.staticGrid.query(x, z, 0.5, []).some((c) => !(c.flags & COL.NOBLOCK) && y + 0.5 < c.y1 && y + 1.7 > c.y0 && footprintContains(c, x, z, 0.36));
@@ -159,11 +162,17 @@ for (const seed of SEEDS) {
   // the plane and its runway
   const r = w.runway;
   const plane = w.props.find((p) => p.type === 'plane_wreck');
-  each('the plane stands at the south end of the runway, nose to the north, the fuel truck beside it', seed, w.car.plane === true && w.car.ry === 0 && w.car.x === r.x && w.car.z > r.z1 - 40 && w.car.z < r.z1 && !!plane && plane.live === true && plane.x === w.car.x && plane.z === w.car.z && Math.abs(plane.y - w.heightAt(plane.x, plane.z)) < 0.12 && w.props.some((p) => p.type === 'fuel_truck' && p.x === r.truck.x && p.z === r.truck.z) && Math.hypot(r.truck.x - w.car.x, r.truck.z - w.car.z) < 30);
+  // (the runway's own frame: it runs along -Z turned by r.ry from its middle, z0 to z1 along it)
+  const fwd = [-Math.sin(r.ry), -Math.cos(r.ry)];
+  const along = (x, z) => -((x - r.x) * fwd[0] + (z - r.z) * fwd[1]); // (z of the runway's frame: the plane's end is +)
+  const across = (x, z) => (x - r.x) * -fwd[1] + (z - r.z) * fwd[0];
+  const onLine = (s) => [r.x - fwd[0] * s, r.z - fwd[1] * s];
+  each('the plane stands at the south end of the runway, nose to the north, the fuel truck beside it', seed, w.car.plane === true && w.car.ry === r.ry && Math.abs(across(w.car.x, w.car.z)) < 0.01 && along(w.car.x, w.car.z) > r.z1 - 40 && along(w.car.x, w.car.z) < r.z1 && Math.abs(fwd[1]) > 0.9 && !!plane && plane.live === true && plane.x === w.car.x && plane.z === w.car.z && Math.abs(plane.y - w.heightAt(plane.x, plane.z)) < 0.12 && w.props.some((p) => p.type === 'fuel_truck' && p.x === r.truck.x && p.z === r.truck.z) && Math.hypot(r.truck.x - w.car.x, r.truck.z - w.car.z) < 30);
   let inWay = '';
-  for (let z = w.car.z - 14; z >= r.z0 && !inWay; z -= 1.5) { // (from ahead of the plane's own nose and engines)
-    for (const c of w.staticGrid.query(r.x, z, 9, [])) if (!(c.flags & COL.NOBLOCK) && c.y1 > r.y + 0.3 && footprintContains(c, r.x, z, 7)) inWay = `something solid at ${c.x.toFixed(1)}, ${c.z.toFixed(1)}`;
-    if (Math.abs(w.heightAt(r.x, z) - r.y) > 0.25) inWay = `the runway is not level at z ${z.toFixed(0)}`;
+  for (let s = along(w.car.x, w.car.z) - 14; s >= r.z0 && !inWay; s -= 1.5) { // (from ahead of the plane's own nose and engines)
+    const [x, z] = onLine(s);
+    for (const c of w.staticGrid.query(x, z, 9, [])) if (!(c.flags & COL.NOBLOCK) && c.y1 > r.y + 0.3 && footprintContains(c, x, z, 7)) inWay = `something solid at ${c.x.toFixed(1)}, ${c.z.toFixed(1)}`;
+    if (Math.abs(w.heightAt(x, z) - r.y) > 0.25) inWay = `the runway is not level at ${x.toFixed(0)} ${z.toFixed(0)}`;
   }
   each('the take-off run is level and clear, 7 m either side of its line', seed, !inWay, inWay);
   // the skyline
@@ -187,25 +196,28 @@ for (const seed of SEEDS) {
   const rv = w.river;
   let wetPts = 0;
   for (let i = 0; rv && i < rv.pts.length; i += 2) if (w.isDeepWater(rv.pts[i], rv.pts[i + 1])) wetPts++;
-  each('a river runs from the hills to the sea past the city, with two bridges or more over it', seed, !!rv && rv.pts.length / 2 > 100 && wetPts > (rv.pts.length / 2) * 0.75 && rv.bridges.length >= 2 && rv.bridges.every((br) => br.y > WATER_LEVEL + 1.2) && rv.bridges.filter((br) => w.isDeepWater(br.x, br.z) && br.len > 12).length >= 2 && rv.pts[rv.pts.length - 2] < w.sea.x, rv ? `${rv.bridges.length} bridges, ${wetPts} of ${rv.pts.length / 2} points in deep water` : 'none');
-  each('there is a lake, with the marina on its shore, and ponds', seed, !!w.lake && Math.abs(Math.hypot(w.zoneById[ZONE.MARINA].x - w.lake.x, w.zoneById[ZONE.MARINA].z - w.lake.z) - w.lake.r - 11.5) < 0.01 && w.isDeepWater(w.lake.x, w.lake.z) && w.ponds.length >= 2 && w.ponds.every((p) => w.isDeepWater(p.x, p.z)), JSON.stringify(w.lake));
+  each('the river runs from under North Pass to the south edge, deep all the way, one bridge over it', seed, !!rv && rv.pts.length / 2 > 100 && wetPts > (rv.pts.length / 2) * 0.9 && rv.bridges.length === 1 && rv.bridges.every((br) => br.y > WATER_LEVEL + 1.2 && w.isDeepWater(br.x, br.z) && br.len > 12) && rv.pts[rv.pts.length - 1] > w.half, rv ? `${rv.bridges.length} bridges, ${wetPts} of ${rv.pts.length / 2} points in deep water` : 'none');
+  const mz = w.zoneById[ZONE.MARINA];
+  each('Pine Lake is deep, with the marina on its shore; there are no ponds', seed, !!w.lake && w.isDeepWater(w.lake.x, w.lake.z) && w.lakeAt(mz.x, mz.z) > -40 && w.lakeAt(mz.x, mz.z) < 0 && w.ponds.length === 0, `marina ${w.lakeAt(mz.x, mz.z).toFixed(1)} m from the water`);
   // (a road of the map comes within the place's own ground: its gate is on it, or it runs through)
   const roadTo = (zn) => w.roads.some((r) => { for (let k = 0; k < r.pts.length; k += 2) if (Math.hypot(r.pts[k] - zn.x, r.pts[k + 1] - zn.z) < zn.flat + 4) return true; return false; });
-  each('a road reaches every place', seed, w.zones.every(roadTo), w.zones.filter((zn) => !roadTo(zn)).map((zn) => ZONE_NAMES[zn.id]).join(', '));
+  // (but the lighthouse, out on its islet)
+  each('a road reaches every place but the lighthouse', seed, w.zones.every((zn) => zn.id === ZONE.LIGHTHOUSE || roadTo(zn)), w.zones.filter((zn) => zn.id !== ZONE.LIGHTHOUSE && !roadTo(zn)).map((zn) => ZONE_NAMES[zn.id]).join(', '));
 
   // ---- quantisation: the far corners, and a walk across
   usePos(w);
   const lim = w.half - 3;
   let worst = 0;
   let clamped = false;
-  const probe = [-lim, lim, -w.half, w.half, 0, 0.015, -0.015, lim - 1 / 3, -lim + 1 / 7];
-  for (let k = 0; k < 400; k++) probe.push(-w.half + (k * 3.2000001 + 0.0137 * k));
+  // (out to its edge: 1/32 m reaches the 1024 m of it to within a step, the last of which nobody stands on)
+  const probe = [-lim, lim, -w.half + 0.1, w.half - 0.1, 0, 0.015, -0.015, lim - 1 / 3, -lim + 1 / 7];
+  for (let k = 0; k < 400; k++) probe.push(-w.half + 0.1 + (k * 5.1000001 + 0.0137 * k));
   for (const v of probe) {
     const q = qpos(v);
     if (q <= -32768 || q >= 32767) clamped = true;
     worst = Math.max(worst, Math.abs(dqpos(q) - v));
   }
-  each('positions out to its corners go through the wire and come back within half a step of 1/32 m', seed, !clamped && worst <= 0.5 / POS_SCALE_WIDE + 1e-9, `worst ${(worst * 1000).toFixed(1)} mm${clamped ? ', clamped' : ''}`);
+  each('positions out to its edges go through the wire and come back within half a step of 1/32 m', seed, !clamped && worst <= 0.5 / POS_SCALE_WIDE + 1e-9, `worst ${(worst * 1000).toFixed(1)} mm${clamped ? ', clamped' : ''}`);
 
   // ---- the layout: doors, reach, solids in solids, roads through walls (as test-world.js checks the island)
   checkWorld(w, seed, { found, mapsWith, counts });
@@ -220,7 +232,7 @@ for (const seed of SEEDS) {
   for (const p of w.props) {
     const def = PROPS[p.type];
     if (!def || !(def.boxes || def.cyls) || p.afloat) continue; // (afloat: a boat on the lake)
-    let under = w.heightAt(p.x, p.z);
+    let under = w.floorAt(p.x, p.z, p.y + 0.3); // (the ground, or the floor of the drift down in the mine)
     for (const q of slabs) {
       const top = q.y + q.sy / 2;
       if (top > p.y + 0.3 || top <= under) continue;
@@ -242,7 +254,8 @@ for (const seed of SEEDS) {
   const navMs = performance.now() - tn;
   const lost = [];
   for (const [list, name] of [[w.partSpots, 'part spot'], [w.containers, 'container'], [w.lootSpawns, 'loot'], [w.resourceSpawns, 'woodland loot'], [w.spawnPoints, 'spawn point'], [[w.car, r.truck], 'plane / fuel truck']]) {
-    for (const o of list) if (!near(o.x, o.z, name === 'plane / fuel truck' ? 9 : REACH)) lost.push(`${name} at /tp ${o.x.toFixed(1)} ${o.z.toFixed(1)}`);
+    // (what is down in the mine is the mine's nav's: server/minenav.js; the lighthouse's islet is swum to)
+    for (const o of list) if (!(o.y !== undefined && w.mine.under(o.x, o.y + 0.5, o.z)) && !(w.zoneAt(o.x, o.z) === ZONE.LIGHTHOUSE) && !near(o.x, o.z, name === 'plane / fuel truck' ? 9 : REACH)) lost.push(`${name} at /tp ${o.x.toFixed(1)} ${o.z.toFixed(1)}`);
   }
   each('every part spot, container and loot point, and the plane, is walked to from the bridgehead on the nav grid', seed, !lost.length, `${lost.length}: ${lost.slice(0, 4).join('; ')}`);
   for (const zn of w.zones) if (!near(zn.x, zn.z, 12)) lost.push(ZONE_NAMES[zn.id]);

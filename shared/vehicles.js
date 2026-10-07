@@ -173,6 +173,7 @@ export function parkedCollider(kind, id, x, y, z, yaw) {
 // v: { vk (its kind), id, x, y, z, vx, vz, yaw, steer, fuel, run (the engine can run: not broken down) }
 // thr: -1 / 0 / 1 (S / W). turn: -1 / 0 / 1 (A / D). hb: the handbrake. hard: (bicycle) standing on the pedals.
 // events (may be null): { type: 'veh_crash', v (m/s into it), col (what it hit, or null: the edge of the map, water) },
+//   { type: 'veh_river', id }: it went into the mainland's river (lost: server/vehicles.js swept),
 // { type: 'veh_skid' }. Returns the speed it struck something at this step (0: nothing).
 const _q = [];
 const _push = { x: 0, z: 0, nx: 0, nz: 0 };
@@ -405,6 +406,8 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   let y = wheelGround(world, v.x, v.z, v.y, P.step);
   const deep = y < WATER_LEVEL - P.wade && world.heightAt(v.x, v.z) < WATER_LEVEL - P.wade;
   if (deep || (world.mine && world.mine.inHole(v.x, v.z))) {
+    // (the mainland's river is no ford: what drives into it is lost - the server takes it out of the world)
+    if (deep && events && world.river && world.river.at && world.river.at(v.x, v.z) < world.river.hw + 0.5) events.push({ type: 'veh_river', id: v.id });
     const sp2 = Math.hypot(v.vx, v.vz);
     if (sp2 > impact) {
       impact = sp2 * (deep ? 0.35 : 1);

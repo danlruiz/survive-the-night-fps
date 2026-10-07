@@ -125,7 +125,7 @@ import { MineNav } from './minenav.js';
 import { createPlayerState, copyPlayerState, samePlayerState, snapPlayerState, hashPlayerState, simulatePlayer, eyeHeight, currentWeapon, DRAW_TIME, radioKeyed } from '../shared/playersim.js';
 import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, canReach } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
-import { swimming, DROWN_DPS } from '../shared/swim.js';
+import { swimming, inRiver, DROWN_DPS, RIVER_DPS } from '../shared/swim.js';
 import { nightTheme, nightBoss } from '../shared/nights.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
@@ -2393,6 +2393,9 @@ export class Game {
         break;
       case 'veh_crash':
         this.vehicles.crashEvent(p, ev);
+        break;
+      case 'veh_river':
+        this.vehicles.riverEvent(p, ev);
         break;
       case 'veh_off':
         this.vehicles.left(p, ev);
@@ -4753,10 +4756,12 @@ export class Game {
         continue;
       }
       // afloat with no stamina left (shared/swim.js): drowning, in gulps, until the feet find the bottom
-      if (s.stamina <= 0 && swimming(this.world, s)) {
+      // ...and in the mainland's river at once, and fast: the current has them (shared/swim.js)
+      const rapids = inRiver(this.world, s);
+      if (rapids || (s.stamina <= 0 && swimming(this.world, s))) {
         if ((p.drownT = (p.drownT || 0) + dt) >= 0.5) {
           p.drownT -= 0.5;
-          this.damagePlayer(p, DROWN_DPS * 0.5, { kind: KILLER.WORLD, drown: true });
+          this.damagePlayer(p, (rapids ? RIVER_DPS : DROWN_DPS) * 0.5, { kind: KILLER.WORLD, drown: true });
           if (!p.alive) continue;
           this.ach.drowning(p);
         }
