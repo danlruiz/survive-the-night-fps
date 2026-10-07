@@ -241,6 +241,7 @@ export class UI {
 
   damage(amount, angle) {
     this.hud.damage(amount, angle);
+    if (amount > 0) this.pause.hit(); // (the game never stops for the Esc menu: it says so)
   }
 
   showSummary(stats, nextText, theme, boss) {

@@ -1,0 +1,672 @@
+/* ------------------------------------------------------------------ the Esc menu (menus.js Pause, issue #218)
+   A rail down the left edge, the world left in view (the game never stops for it): the night clock and the game's
+   code on top, one big "Back to the game", the rows in three groups, Leave apart at the foot. A short window - a
+   zoomed-in browser: 1280x720 at 150% is 854x480 - folds it into two columns; a narrow one runs it across the width.
+   Sizes follow --u (ui.css) with floors, so no text is under 12px; only the group list scrolls. Everything here is
+   scoped under .stn-ui .pause. */
+
+.stn-ui .pause {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  --pm-gap: calc(18 * var(--u));
+  --pm-mono: max(12px, calc(13 * var(--u)));
+}
+
+.stn-ui .pause.in {
+  animation: stn-fadeIn 0.2s ease-out;
+}
+
+.stn-ui .pause.in .pm-rail {
+  animation: stn-slideInL 0.22s ease-out;
+}
+
+.stn-ui .pause .pause-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(4, 3, 3, 0.93) 0, rgba(4, 3, 3, 0.88) calc(620 * var(--u)), rgba(4, 3, 3, 0.18) calc(960 * var(--u)), rgba(4, 3, 3, 0.08) 100%);
+}
+
+/* ---------- the rail */
+.stn-ui .pause .pm-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(104 * var(--u));
+  width: calc(560 * var(--u));
+  min-width: 380px;
+  max-width: calc(100% - 32px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'head' 'back' 'groups' 'leave' 'keys';
+  align-content: center;
+  padding: calc(20 * var(--u)) 0;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+.stn-ui .pause .pm-head {
+  grid-area: head;
+  min-width: 0;
+}
+
+.stn-ui .pause .pm-live {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  font: var(--pm-mono) / 1.2 var(--f-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+
+.stn-ui .pause .pm-live-tag {
+  font-weight: 400;
+  color: var(--blood-lite);
+}
+
+.stn-ui .pause .pm-dot {
+  flex: none;
+  width: max(8px, calc(9 * var(--u)));
+  height: max(8px, calc(9 * var(--u)));
+  border-radius: 50%;
+  background: var(--blood-lite);
+  box-shadow: 0 0 8px var(--blood-hi);
+  animation: stn-pulse 1.6s ease-in-out infinite;
+}
+
+.stn-ui .pause .pm-title {
+  margin-top: calc(12 * var(--u));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 clamp(24px, calc(44 * var(--u)), 54px) / 1 var(--f-head);
+  letter-spacing: 0.1em;
+  color: var(--bone);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+}
+
+.stn-ui .pause .pm-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(8 * var(--u)) calc(16 * var(--u));
+  margin-top: calc(14 * var(--u));
+}
+
+/* the game's code, as a chip: the thing a friend types in */
+.stn-ui .pause .pm-code {
+  padding: 0.35em 0.6em 0.3em;
+  border: 1px solid rgba(230, 223, 207, 0.6);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.45);
+  font: 400 max(14px, calc(18 * var(--u))) / 1 var(--f-mono);
+  letter-spacing: 0.2em;
+  color: var(--bone);
+  user-select: text;
+  cursor: text;
+}
+
+.stn-ui .pause .pm-code[hidden] {
+  display: none;
+}
+
+.stn-ui .pause .pm-sub {
+  font: var(--pm-mono) / 1.3 var(--f-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+/* ---------- rows */
+.stn-ui .pause .pm-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  width: 100%;
+  height: clamp(32px, calc(42 * var(--u)), 50px);
+  padding: 0 calc(16 * var(--u)) 0 calc(20 * var(--u));
+  box-sizing: border-box;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-left: max(3px, calc(4 * var(--u))) solid transparent;
+  font: 400 clamp(17px, calc(27 * var(--u)), 32px) / 1 var(--f-head);
+  letter-spacing: 0.1em;
+  text-align: left;
+  color: var(--bone);
+  cursor: pointer;
+  pointer-events: auto;
+  outline: none;
+}
+
+.stn-ui .pause .pm-row[hidden],
+.stn-ui .pause .pm-wrap[hidden] {
+  display: none;
+}
+
+.stn-ui .pause .pm-row.on {
+  background: linear-gradient(90deg, rgba(230, 223, 207, 0.13), rgba(230, 223, 207, 0.04) 75%, transparent);
+  border-left-color: var(--bone-2);
+  color: #fff;
+}
+
+.stn-ui .pause .pm-ico {
+  width: max(14px, calc(18 * var(--u)));
+  height: max(14px, calc(18 * var(--u)));
+  flex: none;
+  opacity: 0.85;
+}
+
+.stn-ui .pause .pm-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .pause .pm-label {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stn-ui .pause .pm-hint {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  flex: none;
+  font: var(--pm-mono) / 1 var(--f-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  white-space: nowrap;
+}
+
+.stn-ui .pause .pm-row.on .pm-hint {
+  color: var(--bone-2);
+}
+
+/* the key that opens the row, on the row it would open */
+.stn-ui .pause .pm-key {
+  visibility: hidden;
+}
+
+.stn-ui .pause .on > .pm-hint .pm-key,
+.stn-ui .pause .on > .pm-key {
+  visibility: visible;
+}
+
+.stn-ui .pause .pm-n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  padding: 0 0.35em;
+  box-sizing: border-box;
+  border-radius: 0.85em;
+  background: var(--blood-hi);
+  font: 700 max(12px, calc(12 * var(--u))) / 1 var(--f-num);
+  letter-spacing: 0;
+  color: #fff;
+}
+
+/* perks to spend: amber, as the mockup and the HUD's level badge have them */
+.stn-ui .pause .pm-perks:has(.pm-n) .pm-hint {
+  color: var(--amber);
+}
+
+/* ---------- Back to the game: the one big row */
+.stn-ui .pause .pm-back {
+  grid-area: back;
+  height: clamp(42px, calc(64 * var(--u)), 76px);
+  margin: calc(18 * var(--u)) 0 calc(8 * var(--u));
+  border-left-width: max(4px, calc(6 * var(--u)));
+  border-left-color: var(--blood);
+  background: linear-gradient(90deg, rgba(120, 12, 17, 0.55), rgba(74, 5, 8, 0.25) 80%, transparent);
+  font-size: clamp(22px, calc(38 * var(--u)), 46px);
+}
+
+.stn-ui .pause .pm-back.on {
+  border-left-color: var(--blood-lite);
+  background: linear-gradient(90deg, rgba(160, 18, 24, 0.92), rgba(110, 10, 14, 0.7) 70%, rgba(74, 5, 8, 0.35));
+}
+
+/* ---------- groups */
+.stn-ui .pause .pm-groups {
+  grid-area: groups;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.stn-ui .pause .pm-group + .pm-group {
+  margin-top: calc(6 * var(--u));
+}
+
+.stn-ui .pause .pm-gh {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: calc(6 * var(--u)) 0 calc(3 * var(--u));
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .pause .pm-gh::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(230, 223, 207, 0.14);
+}
+
+/* Invite friends, with Copy link at its right end */
+.stn-ui .pause .pm-wrap {
+  position: relative;
+}
+
+.stn-ui .pause .pm-wrap .pm-row {
+  padding-right: calc(170 * var(--u) + 24px);
+}
+
+.stn-ui .pause .pm-row.side {
+  background: linear-gradient(90deg, rgba(230, 223, 207, 0.06), transparent);
+  border-left-color: rgba(230, 223, 207, 0.35);
+}
+
+.stn-ui .pause .pm-copy {
+  position: absolute;
+  top: 50%;
+  right: calc(12 * var(--u));
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0.9em;
+  border: 1px solid rgba(230, 223, 207, 0.45);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  font: var(--pm-mono) / 1 var(--f-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+  cursor: pointer;
+  outline: none;
+}
+
+.stn-ui .pause .pm-copy.on {
+  border-color: var(--bone);
+  background: rgba(230, 223, 207, 0.12);
+  color: #fff;
+}
+
+.stn-ui .pause .pm-copy.done {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.stn-ui .pause .pm-copy-ico {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.stn-ui .pause .pm-copy-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- Leave, apart */
+.stn-ui .pause .pm-leavebox {
+  grid-area: leave;
+  margin-top: calc(12 * var(--u));
+  padding-top: calc(14 * var(--u));
+  border-top: 1px solid rgba(230, 223, 207, 0.14);
+}
+
+.stn-ui .pause .pm-leave {
+  border: 1px solid rgba(255, 84, 70, 0.45);
+  border-left-width: max(3px, calc(4 * var(--u)));
+  border-left-color: rgba(255, 84, 70, 0.45);
+  color: var(--blood-lite);
+}
+
+.stn-ui .pause .pm-leave.on {
+  border-color: var(--blood-lite);
+  background: linear-gradient(90deg, rgba(74, 5, 8, 0.75), rgba(74, 5, 8, 0.25));
+  color: #ff7a66;
+}
+
+.stn-ui .pause .pm-ask[hidden],
+.stn-ui .pause .pm-warn[hidden] {
+  display: none;
+}
+
+.stn-ui .pause .pm-ask-q {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  font: 400 clamp(17px, calc(28 * var(--u)), 34px) / 1.1 var(--f-head);
+  letter-spacing: 0.08em;
+  color: var(--blood-lite);
+  overflow-wrap: anywhere;
+}
+
+.stn-ui .pause .pm-ask-btns {
+  display: flex;
+  gap: calc(12 * var(--u));
+  margin-top: calc(12 * var(--u));
+}
+
+/* Stay is wide and first, under the pointer that pressed Leave; Leave sits at the far end */
+.stn-ui .pause .pm-stay,
+.stn-ui .pause .pm-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(12 * var(--u));
+  height: clamp(32px, calc(44 * var(--u)), 52px);
+  padding: 0 calc(20 * var(--u));
+  border-radius: 2px;
+  font: 400 clamp(16px, calc(26 * var(--u)), 32px) / 1 var(--f-head);
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  outline: none;
+}
+
+.stn-ui .pause .pm-stay {
+  flex: 1;
+  border: 1px solid rgba(230, 223, 207, 0.4);
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--bone);
+}
+
+.stn-ui .pause .pm-stay.on {
+  border: 2px solid var(--bone);
+  background: rgba(230, 223, 207, 0.1);
+  color: #fff;
+}
+
+.stn-ui .pause .pm-go {
+  flex: none;
+  border: 1px solid rgba(255, 84, 70, 0.5);
+  background: rgba(120, 12, 17, 0.55);
+  color: #ffb3a8;
+}
+
+.stn-ui .pause .pm-go.on {
+  border: 2px solid var(--blood-lite);
+  background: rgba(170, 20, 26, 0.9);
+  color: #fff;
+}
+
+.stn-ui .pause .pm-go .pm-ico {
+  opacity: 1;
+}
+
+.stn-ui .pause .pm-cost,
+.stn-ui .pause .pm-warn {
+  margin: calc(10 * var(--u)) 0 0;
+  font: max(13px, calc(15 * var(--u))) / 1.4 var(--f-type);
+  color: var(--bone-2);
+}
+
+/* a teammate is down: Leave says so */
+.stn-ui .pause .pm-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(10 * var(--u));
+  color: var(--amber);
+}
+
+.stn-ui .pause .pm-warn .pm-ico {
+  margin-top: 0.15em;
+  opacity: 1;
+}
+
+.stn-ui .pause.pm-someone-down .pm-leave:not(.on) {
+  border-color: rgba(232, 163, 61, 0.55);
+}
+
+/* ---------- the keys */
+.stn-ui .pause .pm-keys {
+  grid-area: keys;
+  margin-top: calc(16 * var(--u));
+  font: var(--pm-mono) / 1 var(--f-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .pause .pm-keyset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(10 * var(--u)) calc(22 * var(--u));
+}
+
+.stn-ui .pause .pm-keys-ask,
+.stn-ui .pause.asking .pm-keys-menu {
+  display: none;
+}
+
+.stn-ui .pause.asking .pm-keys-ask {
+  display: flex;
+}
+
+.stn-ui .pause .pm-k {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+}
+
+.stn-ui .pause .pm-k-t {
+  margin-left: calc(4 * var(--u));
+}
+
+.stn-ui .pause .kbd.sm {
+  font-size: max(12px, calc(12 * var(--u)));
+}
+
+/* ---------- the way back: the world. A hint in the clear space beside the rail */
+.stn-ui .pause .pm-play {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + (100vw - 104 * var(--u) - 100%) / 2);
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.9em 1.3em;
+  border: 1px dashed rgba(230, 223, 207, 0.4);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  font: var(--pm-mono) / 1.4 var(--f-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--bone-2);
+  cursor: pointer;
+}
+
+.stn-ui .pause .pm-play-ico {
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.stn-ui .pause .pm-play-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .pause .pm-play-esc {
+  display: none;
+}
+
+/* ---------- hit behind the menu: a red bar across the top */
+.stn-ui .pause .pm-hit {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(100%, max(560px, 64vw));
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  padding: calc(12 * var(--u)) calc(28 * var(--u)) calc(12 * var(--u)) calc(104 * var(--u));
+  box-sizing: border-box;
+  background: repeating-linear-gradient(-45deg, rgba(150, 16, 22, 0.94) 0 16px, rgba(120, 10, 16, 0.94) 16px 32px);
+  border-bottom: 2px solid var(--blood-lite);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  z-index: 2;
+}
+
+.stn-ui .pause .pm-hit[hidden] {
+  display: none;
+}
+
+.stn-ui .pause .pm-hit.flash {
+  animation: pm-hit-flash 0.45s ease-out;
+}
+
+@keyframes pm-hit-flash {
+  0% {
+    filter: brightness(1.8);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+.stn-ui .pause .pm-hit-ico {
+  flex: none;
+  width: max(16px, calc(22 * var(--u)));
+  height: max(16px, calc(22 * var(--u)));
+}
+
+.stn-ui .pause .pm-hit-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .pause .pm-hit-t {
+  font: 400 clamp(18px, calc(28 * var(--u)), 34px) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.stn-ui .pause .pm-hit-hp {
+  font: 600 max(13px, calc(16 * var(--u))) / 1 var(--f-num);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.stn-ui .pause .pm-hit-go {
+  margin-left: auto;
+  font: var(--pm-mono) / 1.2 var(--f-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- a short window (a zoomed-in browser): two columns, the groups on the right */
+@media (max-height: 640px) and (min-width: 700px) {
+  .stn-ui .pause .pm-rail {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas: 'head groups' 'back groups' 'play groups' 'leave groups' 'keys groups';
+    column-gap: max(24px, calc(40 * var(--u)));
+    padding: 16px 0;
+  }
+
+  .stn-ui .pause .pause-shade {
+    background: rgba(4, 3, 3, 0.88);
+  }
+
+  .stn-ui .pause .pm-groups {
+    align-self: center;
+    max-height: calc(100vh - 32px);
+  }
+
+  .stn-ui .pause .pm-keys {
+    align-self: start;
+  }
+
+  .stn-ui .pause .pm-back {
+    margin: 12px 0 10px;
+  }
+}
+
+/* narrow: the rail across the width */
+@media (max-width: 699px) {
+  .stn-ui .pause .pm-rail {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    grid-template-rows: auto auto auto minmax(0, auto) auto auto;
+    grid-template-areas: 'head' 'back' 'play' 'groups' 'leave' 'keys';
+    padding: 16px 0;
+  }
+
+  .stn-ui .pause .pause-shade {
+    background: rgba(4, 3, 3, 0.86);
+  }
+}
+
+/* in the column (short or narrow): the hint is a line under Back, and says why Esc won't do */
+@media (max-height: 640px), (max-width: 699px) {
+  .stn-ui .pause .pm-play {
+    grid-area: play;
+    position: static;
+    transform: none;
+    white-space: normal;
+    justify-content: center;
+    text-align: center;
+    margin: 4px 0 6px;
+  }
+
+  .stn-ui .pause .pm-play-t:not(.pm-play-esc) {
+    display: none;
+  }
+
+  .stn-ui .pause .pm-play-esc {
+    display: inline;
+  }
+
+  .stn-ui .pause .pm-hit {
+    width: 100%;
+    padding-left: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stn-ui .pause .pm-dot,
+  .stn-ui .pause.in .pm-rail,
+  .stn-ui .pause .pm-hit.flash {
+    animation: none;
+  }
+}
+
+/* perks to spend: an amber badge, as in the perks panel */
+.stn-ui .pause .pm-perks .pm-n {
+  background: var(--amber);
+  color: #1a1208;
+}
