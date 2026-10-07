@@ -432,6 +432,15 @@ does (`perkMods(mask)`: one frozen object per mask; no ordinary stat past `PERK_
   game's kills and state, their perks in force (from the player list), an account's lifetime record
   (`GET /api/players/:name`, `DbStats.profile`: what the board shows and the perks, nothing more) and a friend request
   to send, or theirs to accept or turn down (`client/net/friends.js`). `?screen=players&pin=1` / `&profile=<id>` show it.
+- **The social side sheet** (`client/ui/sheet.js`, styles in `client/ui/ux-players.css`, issue #219): the Tab list and,
+  in a game, the leaderboard open down the right-hand side, sized in rem, with the fight still in view. The list is in
+  triage order (`roster.js`): the downed first with how long since we saw them fall (`downAt`, from the player list),
+  the living most hurt first, the dead and turned on a line; each with which way and how far from where you look and
+  the place they are in if you know it (`Game.rosterWhere`, from the entities and `knowsPlace`: nothing new on the
+  wire). Pinned, tabs on its edge go to the leaderboard and back (`Game.sheetGo`) and dock Friends; a profile docks
+  in the same place (`dock`: a class that comes off when the panel hides). The leaderboard leads with your place,
+  the gap to the next one (known for certain while everyone ahead of you is in the rows sent) and your places in the
+  other stats. `?screen=board` (`&me=<place>`, `&lobby=1`, `&list=here`) and `?screen=players&tab=friends` show them.
 
 ## Deploys: handing the games to the next server
 

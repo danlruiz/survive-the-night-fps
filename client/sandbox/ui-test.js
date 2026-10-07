@@ -1,5 +1,5 @@
 // UI sandbox: drives the UI with fake data. ?screen=splash|hud|hud-night|hud-horde|hud-zombie|hud-downed|hud-dawn|
-// hud-finale|hud-live|inventory|players|build|death|gameover|victory|pause|settings|achievements|bestiary|chat|icons
+// hud-finale|hud-live|inventory|players|board|build|death|gameover|victory|pause|settings|achievements|bestiary|chat|icons
 // &bg=night|day|fire
 // &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=
 import { UI } from '../ui/ui.js';
@@ -221,12 +221,42 @@ if (inv.backpack) {
 }
 
 const players = [
-  { id: 1, name: 'Survivor417', account: '', status: 'alive', hp: 1, kills: 23, ping: 42, level: 7, perks: perkMask([0, 3, 4, 11]), talking: false, self: true },
-  { id: 2, name: 'Marlowe', account: 'Marlowe', status: 'alive', hp: 0.45, kills: 31, ping: 67, level: 18, perks: perkMask([5, 6, 15, 26, 29, 0, 3]), talking: true, self: false },
+  { id: 1, name: 'Survivor417', account: '', status: 'alive', hp: 1, kills: 23, ping: 42, level: 7, perks: perkMask([0, 3, 4, 11]), talking: false, self: true, dist: 0, dir: null, place: 'by the car' },
+  { id: 2, name: 'Marlowe', account: 'Marlowe', status: 'alive', hp: 0.45, kills: 31, ping: 67, level: 18, perks: perkMask([5, 6, 15, 26, 29, 0, 3]), talking: true, self: false, dist: 38, dir: -0.8, place: '' },
+  { id: 6, name: 'Wren_77', account: 'Wren_77', status: 'alive', hp: 0.82, kills: 17, ping: 51, level: 11, perks: 0, talking: false, radio: true, self: false, dist: 112, dir: 3.0, place: 'Ranger Lookout' },
   { id: 3, name: 'deadeye_kat', account: 'deadeye_kat', status: 'zombie', kills: 12, ping: 88, level: 24, perks: perkMask([5, 6, 21, 18, 14, 16, 27, 4]), talking: false, self: false },
-  { id: 4, name: 'Old Hank', account: '', status: 'downed', kills: 8, ping: 120, level: 3, perks: perkMask([9]), talking: false, self: false },
+  { id: 4, name: 'Old Hank', account: '', status: 'downed', kills: 8, ping: 120, level: 3, perks: perkMask([9]), talking: false, self: false, dist: 64, dir: 0.7, place: 'Pinewood Motel', downFor: 12 },
   { id: 5, name: 'Ruth', account: 'ruthless', status: 'dead', kills: 3, ping: 55, level: 1, perks: 0, talking: false, self: false },
 ];
+
+// a made-up board as the server would send it (shared/protocol.js readBoard): the best 20 in each stat, this game's
+// players and you, with your place in each stat
+function fakeBoard(myKillsPlace) {
+  const names = ['GrimNorth', 'Bonesaw_Bea', 'LanternLu', 'deadeye_kat', 'Mudlark', 'Thornback', 'Kettle', 'pine.box', 'Hollow_Jo', 'ashfall', 'Gravedigger', 'Wickerman', 'SaltLick', 'Ironside', 'Dusty', 'Mags', 'Crowbar', 'Vesper', 'Rook', 'Nettle', 'Tallow', 'Brine'];
+  const rows = names.map((name, i) => ({ name, me: false, here: name === 'deadeye_kat', level: 40 - i, kills: Math.round(18402 * Math.pow(0.86, i)), nights: Math.round(300 * Math.pow(0.9, (i * 7) % 22)), wins: Math.max(0, 30 - ((i * 5) % 31)), revives: Math.round(140 * Math.pow(0.88, (i * 3) % 22)), ranks: null }));
+  rows.push({ name: 'Marlowe', me: false, here: true, level: 18, kills: 4210, nights: 61, wins: 3, revives: 88, ranks: null });
+  const sorted = rows.slice().sort((a, b) => b.kills - a.kills);
+  const kills = myKillsPlace <= 1 ? sorted[0].kills + 500 : myKillsPlace <= 21 ? sorted[myKillsPlace - 2].kills - 7 : 380;
+  rows.push({ name: 'Survivor417', me: true, here: true, level: 7, kills, nights: 7, wins: 0, revives: 12, ranks: [myKillsPlace, 112, 0, 61] });
+  return { total: 1284, rows };
+}
+
+// the side sheet's tabs between the list and the board, as the game does it (Game.sheetGo), without the pointer
+function sandboxSheet() {
+  ui.board.onClose = () => ui.setBoardOpen(false);
+  ui.roster.onClose = () => ui.setRosterOpen(false);
+  ui.sheetGo = (where) => {
+    if (where === 'board') {
+      ui.setRosterOpen(false);
+      ui.setBoardOpen(true);
+      ui.setBoard(fakeBoard(+(q.get('me') || 37)));
+    } else {
+      ui.setBoardOpen(false);
+      ui.setRosterOpen(true);
+      ui.setRosterPinned(true);
+    }
+  };
+}
 
 function feedSome() {
   ui.killfeed({ killer: 'Marlowe', victim: 'Runner', weaponItem: ITEM.SHOTGUN, headshot: false, killerZombie: false, victimPlayer: false });
@@ -514,6 +544,12 @@ switch (screen) {
     ui.hideSplash();
     ui.updateHud({ ...baseHud });
     ui.setRosterOpen(true);
+    sandboxSheet();
+    // &tab=friends: Friends docked in the sheet
+    if (q.get('tab') === 'friends') {
+      ui.setRosterPinned(true);
+      ui.roster.tabs.go('friends');
+    }
     // &pin=1: pinned with the pointer free; &profile=<player id>: that player's profile over it, with a made-up record
     if (q.get('pin') || q.get('profile')) ui.setRosterPinned(true);
     if (q.get('profile')) {
@@ -523,6 +559,22 @@ switch (screen) {
       };
       ui.roster.pick(players.findIndex((p) => p.id === +q.get('profile')));
     }
+    break;
+  }
+  // the leaderboard: in a game, the side sheet (&lobby=1: the splash's card); &me=<place in kills> (default 37: off
+  // the top 20), &list=here for this game's
+  case 'board': {
+    buildScene(bg || 'night');
+    if (q.get('lobby')) {
+      ui.board.setLobbyMode(true);
+    } else {
+      ui.hideSplash();
+      ui.updateHud({ ...baseHud });
+      sandboxSheet();
+    }
+    ui.setBoardOpen(true);
+    ui.setBoard(fakeBoard(+(q.get('me') || 37)));
+    if (q.get('list')) ui.board._choose(q.get('list'), ui.board.sort);
     break;
   }
   // the Perks panel against a made-up record: &level=<n> (default 16), &perks=0,3,20 (default a few); a point spent

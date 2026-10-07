@@ -314,6 +314,7 @@ export class Game {
     ui.spawn.onClose = () => this.toggleSpawn(false);
     ui.spawn.onSpawn = (cmd) => this.conn.chat(cmd);
     ui.roster.onClose = () => this.pinRoster(false);
+    ui.sheetGo = (where) => this.sheetGo(where); // (the side sheet's tabs: ui/sheet.js)
     this.boardT = 0; // when the leaderboard is next asked for, while it is open (performance.now)
     this.discovered = new Set([ZONE.CAMP]);
     this.stripped = new Set(); // the trees and wrecks with nothing left to give today (harvest.js strippedKey)
@@ -1126,7 +1127,9 @@ export class Game {
       }
       seen.add(id);
       const prev = this.players.get(id);
-      this.players.set(id, { name, status, onAir, kills, ping, level, way });
+      // when we saw them go down (the player list [Tab] says for how long; 0: down before we heard of them)
+      const downAt = status !== 3 ? 0 : prev?.status === 3 ? prev.downAt : prev ? performance.now() : 0;
+      this.players.set(id, { name, status, onAir, kills, ping, level, way, downAt });
       // a teammate's new waypoint (not one they already had when we first heard of them, nor one being cleared)
       if (way && prev && id !== this.myId && !(prev.way && prev.way.x === way.x && prev.way.z === way.z)) this.waypointSet(id, way);
     }
@@ -1153,9 +1156,26 @@ export class Game {
       const self = id === this.myId;
       const e = self || turned ? null : this.entities.ents.get(id);
       const hp = self ? (this.self.maxHp ? this.self.hp / this.self.maxHp : 1) : e ? e.q[7] / 255 : -1; // -1: nothing to show
-      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: ST[p.status] || 'alive', hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self });
+      const where = this.rosterWhere(self ? this.renderPos : e && { x: e.rx, z: e.rz }, self);
+      const downFor = p.downAt ? (performance.now() - p.downAt) / 1000 : null;
+      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: ST[p.status] || 'alive', hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self, ...where, downFor });
     }
     this.ui.setPlayers(list);
+  }
+
+  // where someone is, for the player list: how far, which way from where you look (radians, clockwise from straight
+  // ahead) and the place they are in - by the car, or a place you know (discovered or rumoured, as the map names it)
+  rosterWhere(at, self) {
+    if (!at || !this.world) return { dist: null, dir: null, place: '' };
+    const rp = this.renderPos;
+    const dx = at.x - rp.x;
+    const dz = at.z - rp.z;
+    const dist = self ? 0 : Math.hypot(dx, dz);
+    const dir = dist > 2 ? bearing(dx, dz) + this.input.yaw : null;
+    const car = this.world.car;
+    let place = car && Math.hypot(at.x - car.x, at.z - car.z) < 14 ? 'by the car' : '';
+    if (!place) for (const z of this.world.zones) if (this.knowsPlace(z.id) && Math.hypot(at.x - z.x, at.z - z.z) < z.flat + 6) place = ZONE_NAMES[z.id];
+    return { dist, dir, place };
   }
 
   // S2C.PROGRESS: our XP as the server counts it (shared/progress.js), this run's by source. A level gained during
@@ -2041,7 +2061,8 @@ export class Game {
       return;
     }
     if (has('players')) {
-      if (ui.rosterPinned) this.pinRoster(false);
+      if (ui.boardOpen) this.sheetGo('players');
+      else if (ui.rosterPinned) this.pinRoster(false);
       else this.showRoster(true);
       return;
     }
@@ -2254,6 +2275,18 @@ export class Game {
       if (this.input.enabled && relock) this.input.requestLock();
     }
     this.audio.playLocal('ui_click', { volume: 0.4 });
+  }
+
+  // The side sheet's tabs (ui/sheet.js): from the pinned player list to the leaderboard and back, the pointer free all
+  // the while
+  sheetGo(where) {
+    if (where === 'board' && !this.ui.boardOpen) {
+      if (this.ui.rosterPinned) this.pinRoster(false, false);
+      this.toggleBoard(true);
+    } else if (where === 'players' && !this.ui.rosterPinned) {
+      if (this.ui.boardOpen) this.toggleBoard(false, false);
+      this.pinRoster(true);
+    }
   }
 
   // relock: false when something else that needs the cursor is taking over
