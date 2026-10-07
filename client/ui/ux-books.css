@@ -1,0 +1,1461 @@
+/* The two books - the achievements page and the bestiary - and what they put in play (issue #220; client/ui/books.js,
+   achievements.js, bestiary.js). Both books share one frame (.bk-book): it fits the screen at any browser zoom (down
+   to 854 x 480, which is 1280 x 720 at 150%), only the list in it scrolls, and no text in it goes under 12 px. Every
+   rule here is scoped under the books' own classes. */
+
+.stn-ui .bk-book,
+.stn-ui .bkt,
+.stn-ui .bkn,
+.stn-ui .bk-tnext,
+.stn-ui .bk-tkind {
+  --bk-xs: clamp(12px, calc(12 * var(--u)), 13px);
+  --bk-s: clamp(12px, calc(13.5 * var(--u)), 15px);
+  --bk-m: clamp(13px, calc(15.5 * var(--u)), 17px);
+  --bk-l: clamp(15px, calc(19 * var(--u)), 22px);
+  --bk-gap: clamp(6px, calc(10 * var(--u)), 12px);
+  --bk-line: rgba(230, 223, 207, 0.12);
+  --bk-panel: rgba(0, 0, 0, 0.32);
+}
+
+/* ------------------------------------------------------------------ the frame */
+.stn-ui .ach-panel.bk-book {
+  background: rgba(3, 2, 2, 0.84);
+}
+
+.stn-ui .ach-panel.bk-book .set-card,
+.stn-ui .bstscr .bst-frame.bk-book {
+  width: min(96vw, max(640px, calc(1140 * var(--u))));
+  min-width: 0;
+  height: min(94vh, max(440px, calc(880 * var(--u))));
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.stn-ui .bstscr .bst-frame.bk-book {
+  padding: 0;
+}
+
+/* the head: title and where it is kept, the count and its bar, the tiers (or the bestiary's groups), the cross */
+.stn-ui .ach-panel.bk-book .set-head,
+.stn-ui .bk-book .bk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bk-gap) calc(var(--bk-gap) * 2);
+  padding: clamp(8px, calc(16 * var(--u)), 18px) clamp(12px, calc(22 * var(--u)), 24px) clamp(6px, calc(10 * var(--u)), 12px);
+  border-bottom: 1px solid var(--bk-line);
+}
+
+.stn-ui .ach-panel.bk-book .set-title,
+.stn-ui .bk-book .bk-title {
+  margin: 0;
+  font: 400 clamp(24px, calc(40 * var(--u)), 44px) / 1 var(--f-head);
+  letter-spacing: 0.22em;
+}
+
+.stn-ui .bk-book .bk-head-t {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.stn-ui .ach-panel.bk-book .set-sub,
+.stn-ui .bk-book .bk-sub {
+  flex: 1;
+  min-width: 10em;
+  font: var(--bk-xs) / 1.3 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-head .set-close {
+  align-self: center;
+  margin-left: 0;
+}
+
+.stn-ui .bk-book .bk-count {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: clamp(110px, calc(150 * var(--u)), 170px);
+}
+
+.stn-ui .bk-book .bk-count-n {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font: var(--bk-s) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-count-n b {
+  font: 400 clamp(22px, calc(32 * var(--u)), 36px) / 1 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-count-bar,
+.stn-ui .bk-book .bk-bar,
+.stn-ui .bkt .bkt-bar,
+.stn-ui .bkn .bkn-a-bar,
+.stn-ui .bk-tnext .bk-tnext-bar {
+  position: relative;
+  height: 5px;
+  background: rgba(230, 223, 207, 0.12);
+  overflow: hidden;
+}
+
+.stn-ui .bk-book .bk-count-bar i,
+.stn-ui .bk-book .bk-bar i,
+.stn-ui .bkt .bkt-bar i,
+.stn-ui .bkn .bkn-a-bar i,
+.stn-ui .bk-tnext .bk-tnext-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--tc, var(--bone-2));
+}
+
+.stn-ui .bk-book .bk-count-bar i {
+  background: linear-gradient(90deg, var(--blood-hi), var(--amber));
+}
+
+.stn-ui .bk-book .bk-tiers {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px clamp(8px, calc(14 * var(--u)), 16px);
+}
+
+.stn-ui .bstscr .bk-book .bk-tiers {
+  grid-template-columns: auto;
+}
+
+.stn-ui .bk-book .bk-tier {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-tier b {
+  font: 500 var(--bk-s) / 1 var(--f-num);
+  letter-spacing: 0.02em;
+  color: var(--tc, var(--bone));
+}
+
+.stn-ui .bk-book .bk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tc, var(--bone-2));
+}
+
+.stn-ui .bk-book .grp-horde,
+.stn-ui .bk-tkind.grp-horde,
+.stn-ui .bkn .grp-horde {
+  --tc: var(--bone-2);
+}
+
+.stn-ui .bk-book .grp-special,
+.stn-ui .bk-tkind.grp-special {
+  --tc: var(--amber);
+}
+
+.stn-ui .bk-book .grp-boss,
+.stn-ui .bk-tkind.grp-boss {
+  --tc: var(--blood-lite);
+}
+
+/* the bar under the head: filters, jumps, the sort */
+.stn-ui .bk-book .bk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--bk-gap);
+  padding: clamp(6px, calc(10 * var(--u)), 12px) clamp(12px, calc(22 * var(--u)), 24px);
+  border-bottom: 1px solid var(--bk-line);
+}
+
+.stn-ui .bk-book .bk-toolbar[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stn-ui .bk-book .bk-seg-b,
+.stn-ui .bk-book .bk-jump {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid rgba(230, 223, 207, 0.2);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--bone-2);
+  font: var(--bk-s) / 1.2 var(--f-num);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.stn-ui .bk-book .bk-seg-b b,
+.stn-ui .bk-book .bk-jump b {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-seg-b:hover,
+.stn-ui .bk-book .bk-jump:hover:not(:disabled) {
+  border-color: rgba(230, 223, 207, 0.5);
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-seg-b.on {
+  background: var(--bone);
+  border-color: var(--bone);
+  color: var(--ink);
+}
+
+.stn-ui .bk-book .bk-seg-b.on b {
+  color: rgba(11, 9, 8, 0.65);
+}
+
+.stn-ui .bk-book .bk-jumps {
+  order: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  flex: 1 0 100%;
+  margin-left: -6px;
+}
+
+.stn-ui .bk-book .bk-jumps[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-jump {
+  border-color: transparent;
+  background: none;
+  padding: 4px 6px;
+}
+
+.stn-ui .bk-book .bk-jump:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stn-ui .bk-book .bk-rule {
+  flex: 1;
+  min-width: 14em;
+  margin: 0;
+  font: italic var(--bk-xs) / 1.35 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-select {
+  min-height: 28px;
+  padding: 3px 6px;
+  border: 1px solid rgba(230, 223, 207, 0.25);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--bone);
+  font: var(--bk-s) / 1.2 var(--f-num);
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+/* the list: the only thing that scrolls */
+.stn-ui .ach-panel.bk-book .set-body,
+.stn-ui .bk-book .bk-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 clamp(12px, calc(22 * var(--u)), 24px) var(--bk-gap);
+  scrollbar-width: thin;
+}
+
+.stn-ui .ach-panel.bk-book .set-foot:empty {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-note {
+  margin-top: var(--bk-gap);
+  font-size: var(--bk-s);
+}
+
+.stn-ui .bk-book .ach-wait {
+  margin-top: calc(var(--bk-gap) * 2);
+  font-size: var(--bk-m);
+}
+
+.stn-ui .bk-book .bk-sec {
+  margin-top: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-sec[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-sec-h {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px var(--bk-gap);
+  margin: var(--bk-gap) 0 calc(var(--bk-gap) * 0.7);
+  font: var(--bk-xs) / 1.2 var(--f-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-sec-note {
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--bone-dim);
+}
+
+/* ------------------------------------------------------------------ achievements */
+.stn-ui .bk-book .bk-tierlabel {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tc);
+}
+
+/* the pin: track it on the HUD */
+.stn-ui .bk-book .bk-pin {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid rgba(230, 223, 207, 0.28);
+  background: none;
+  color: var(--bone-2);
+  font: var(--bk-xs) / 1.2 var(--f-mono);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.stn-ui .bk-book .bk-pin::before {
+  content: '+ ';
+}
+
+.stn-ui .bk-book .bk-pin.on {
+  border-color: var(--amber);
+  background: rgba(232, 163, 61, 0.16);
+  color: var(--amber);
+}
+
+.stn-ui .bk-book .bk-pin.on::before {
+  content: '\2713  ';
+}
+
+.stn-ui .bk-book .bk-pin:hover {
+  border-color: var(--bone);
+  color: var(--bone);
+}
+
+/* almost there: three big cards */
+.stn-ui .bk-book .bk-near {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-near-c {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: clamp(8px, calc(12 * var(--u)), 14px);
+  background: var(--bk-panel);
+  border: 1px solid color-mix(in srgb, var(--tc) 40%, transparent);
+  border-left: 4px solid var(--tc);
+}
+
+.stn-ui .bk-book .bk-near-top {
+  display: flex;
+  gap: var(--bk-gap);
+  align-items: flex-start;
+}
+
+.stn-ui .bk-book .bk-near-ico,
+.stn-ui .bk-book .bk-card-ico {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(34px, calc(46 * var(--u)), 50px);
+  height: clamp(34px, calc(46 * var(--u)), 50px);
+  border: 1.5px solid var(--tc);
+  color: var(--tc);
+}
+
+.stn-ui .bk-book .bk-near-ico svg,
+.stn-ui .bk-book .bk-card-ico > i:first-child svg {
+  display: block;
+  width: 64%;
+  height: 64%;
+  margin: auto;
+}
+
+.stn-ui .bk-book .bk-near-ico {
+  padding: 6px;
+}
+
+.stn-ui .bk-book .bk-near-ico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .bk-book .bk-near-t {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-near-name {
+  font: 400 var(--bk-l) / 1 var(--f-head);
+  letter-spacing: 0.1em;
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-near-desc {
+  font: var(--bk-s) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-near-prog {
+  display: flex;
+  align-items: center;
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-near-prog .bk-bar {
+  flex: 1;
+  height: 7px;
+}
+
+.stn-ui .bk-book .bk-near-v {
+  font: 500 var(--bk-m) / 1 var(--f-num);
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.stn-ui .bk-book .bk-near-foot,
+.stn-ui .bk-book .bk-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-near-go {
+  flex: 1;
+  font: var(--bk-s) / 1.2 var(--f-mono);
+  color: var(--tc);
+}
+
+/* lifetime tracks: one line a count */
+.stn-ui .bk-book .bk-tracks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 0 calc(var(--bk-gap) * 2.5);
+}
+
+.stn-ui .bk-book .bk-track {
+  display: grid;
+  grid-template-columns: minmax(9.5em, 34%) 1fr auto;
+  align-items: center;
+  gap: var(--bk-gap);
+  min-height: 46px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(230, 223, 207, 0.07);
+}
+
+.stn-ui .bk-book .bk-track-l {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-track-ico svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-track-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-track-t b {
+  font: 400 var(--bk-m) / 1.1 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-track-t span {
+  font: var(--bk-xs) / 1.2 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-track-line {
+  position: relative;
+  height: 3px;
+  margin: 0 10px 16px 4px;
+  background: rgba(230, 223, 207, 0.14);
+}
+
+.stn-ui .bk-book .bk-track-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #c98a52, var(--amber));
+}
+
+.stn-ui .bk-book .bk-step {
+  position: absolute;
+  top: 50%;
+  translate: -50% -6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stn-ui .bk-book .bk-step-d {
+  width: 11px;
+  height: 11px;
+  rotate: 45deg;
+  border: 2px solid color-mix(in srgb, var(--tc) 45%, transparent);
+  background: #14100c;
+}
+
+.stn-ui .bk-book .bk-step.next .bk-step-d {
+  border-color: var(--tc);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--tc) 60%, transparent);
+}
+
+.stn-ui .bk-book .bk-step.got .bk-step-d {
+  border-color: var(--tc);
+  background: var(--tc);
+}
+
+.stn-ui .bk-book .bk-step-n {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--bone-dim);
+  white-space: nowrap;
+}
+
+.stn-ui .bk-book .bk-step.got .bk-step-n,
+.stn-ui .bk-book .bk-step.next .bk-step-n {
+  color: var(--tc);
+}
+
+.stn-ui .bk-book .bk-pin-sm::before {
+  content: '';
+}
+
+.stn-ui .bk-book .bk-pin-sm.on::before {
+  content: '\2713  ';
+}
+
+/* the cards of each group */
+.stn-ui .bk-book .bk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-card {
+  display: flex;
+  gap: var(--bk-gap);
+  padding: clamp(8px, calc(11 * var(--u)), 12px);
+  background: var(--bk-panel);
+  border-left: 4px solid var(--tc);
+}
+
+.stn-ui .bk-book .bk-card.locked {
+  border-left-color: color-mix(in srgb, var(--tc) 35%, transparent);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.stn-ui .bk-book .bk-card.got {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 12%, rgba(0, 0, 0, 0.3)), rgba(0, 0, 0, 0.3) 60%);
+}
+
+.stn-ui .bk-book .bk-card.locked .bk-card-ico {
+  border-style: dashed;
+  border-color: rgba(230, 223, 207, 0.3);
+  color: rgba(230, 223, 207, 0.45);
+}
+
+.stn-ui .bk-book .bk-lock {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  background: #1a1511;
+  border: 1px solid rgba(230, 223, 207, 0.35);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-lock svg {
+  width: 10px;
+  height: 10px;
+}
+
+.stn-ui .bk-book .bk-card-b {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-card-name {
+  font: 400 var(--bk-m) / 1.15 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-card.locked .bk-card-name {
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-card.secret .bk-card-name {
+  letter-spacing: 0.2em;
+}
+
+.stn-ui .bk-book .bk-card-desc {
+  margin: 0;
+  font: var(--bk-s) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-card-prog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--bone-2);
+  white-space: nowrap;
+}
+
+.stn-ui .bk-book .bk-card-prog .bk-bar {
+  flex: 1;
+}
+
+.stn-ui .bk-book .bk-when {
+  margin-left: auto;
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--good);
+}
+
+.stn-ui .bk-book .bk-card-foot .bk-pin {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------------ the bestiary */
+.stn-ui .bstscr .bk-book .bk-head .set-close {
+  margin-left: 0;
+}
+
+.stn-ui .bk-book .bk-bodywrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stn-ui .bk-book .bk-body {
+  padding-top: 0;
+}
+
+.stn-ui .bk-book .bk-coming {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-come {
+  display: flex;
+  gap: var(--bk-gap);
+  padding: 8px;
+  border: 1px dashed rgba(230, 223, 207, 0.22);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.stn-ui .bk-book .bk-come-pic {
+  position: relative;
+  flex: none;
+  width: clamp(54px, calc(76 * var(--u)), 84px);
+  aspect-ratio: 6 / 5;
+}
+
+.stn-ui .bk-book .bk-come-pic img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.stn-ui .bk-book .bk-come-q {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(230, 223, 207, 0.35);
+}
+
+.stn-ui .bk-book .bk-come-q svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stn-ui .bk-book .bk-come-t {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-come-t b {
+  font: 400 var(--bk-m) / 1 var(--f-num);
+  letter-spacing: 0.2em;
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-come-t p {
+  margin: 0;
+  font: italic var(--bk-s) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-come-when,
+.stn-ui .bk-book .bk-kind-when {
+  font: var(--bk-xs) / 1.25 var(--f-mono);
+  letter-spacing: 0.06em;
+  color: var(--tc, var(--amber));
+}
+
+.stn-ui .bk-book .bk-come-when {
+  color: var(--amber);
+}
+
+/* every kind */
+.stn-ui .bk-book .bk-kinds {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(150px, calc(190 * var(--u)))), 1fr));
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bst-card.bk-kind {
+  padding: 0;
+  border: 0;
+  border-top: 2px solid var(--bc);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  --bc: var(--tc);
+}
+
+.stn-ui .bk-book .bst-card.bk-kind[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bst-card.bk-kind.locked {
+  --bc: rgba(230, 223, 207, 0.12);
+  cursor: default;
+}
+
+.stn-ui .bk-book .bst-card.bk-kind.seen:hover,
+.stn-ui .bk-book .bst-card.bk-kind.seen:focus-visible {
+  outline: 1px solid var(--tc);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.stn-ui .bk-book .bk-kind .bst-pic {
+  aspect-ratio: 3 / 2;
+}
+
+.stn-ui .bk-book .bk-new {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 6px;
+  background: var(--amber);
+  color: var(--ink);
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stn-ui .bk-book .bk-new[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-kind .bst-card-b {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+
+.stn-ui .bk-book .bk-kind .bst-name {
+  font: 400 var(--bk-m) / 1.1 var(--f-num);
+}
+
+.stn-ui .bk-book .bk-kind .bst-tag,
+.stn-ui .bk-book .bk-page .bst-tag {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--tc);
+}
+
+.stn-ui .bk-book .bk-kind.locked .bst-tag {
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-kind .bst-text {
+  margin: 0;
+  font: italic var(--bk-s) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-book .bk-kind .bst-text[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-kind-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* danger pips and the chips */
+.stn-ui .bk-danger {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.stn-ui .bk-danger i {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(230, 223, 207, 0.4);
+}
+
+.stn-ui .bk-danger i.on {
+  border-color: var(--blood-lite);
+  background: var(--blood-lite);
+}
+
+.stn-ui .bk-danger.lg i {
+  width: 14px;
+  height: 14px;
+}
+
+.stn-ui .bk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stn-ui .bk-chip {
+  padding: 3px 7px;
+  border: 1px solid rgba(182, 208, 138, 0.55);
+  background: rgba(182, 208, 138, 0.1);
+  color: var(--good);
+  font: var(--bk-xs, 12px) / 1.15 var(--f-mono);
+  letter-spacing: 0.02em;
+}
+
+.stn-ui .bk-chip.watch {
+  border-color: rgba(255, 84, 70, 0.5);
+  background: rgba(255, 84, 70, 0.1);
+  color: #ff8a7e;
+}
+
+/* a kind's page, over the cards */
+.stn-ui .bk-book .bk-page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: var(--bk-gap) clamp(12px, calc(22 * var(--u)), 24px);
+  background: #120e0b;
+  animation: stn-fadeIn 0.15s ease-out;
+}
+
+.stn-ui .bk-book .bk-page[hidden] {
+  display: none;
+}
+
+.stn-ui .bk-book .bk-page-back {
+  font-size: var(--bk-s);
+}
+
+.stn-ui .bk-book .bk-page-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 34%) 1fr;
+  gap: calc(var(--bk-gap) * 2);
+  margin-top: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-page-pic {
+  aspect-ratio: 6 / 5;
+  align-self: start;
+  border-top: 3px solid var(--tc);
+  background: radial-gradient(ellipse at 50% 60%, rgba(120, 128, 120, 0.2), rgba(0, 0, 0, 0.2) 70%);
+}
+
+.stn-ui .bk-book .bk-page-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.stn-ui .bk-book .bk-page-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stn-ui .bk-book .bk-page-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-page-name {
+  margin: 0;
+  font: 400 clamp(24px, calc(36 * var(--u)), 40px) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+}
+
+.stn-ui .bk-book .bk-page-danger {
+  display: flex;
+  align-items: center;
+  gap: var(--bk-gap);
+}
+
+.stn-ui .bk-book .bk-k {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-page .bk-chip {
+  font-size: var(--bk-s);
+}
+
+.stn-ui .bk-book .bk-page-tip {
+  margin: 4px 0 0;
+  font: var(--bk-m) / 1.45 var(--f-type);
+  color: var(--bone);
+}
+
+.stn-ui .bk-book .bk-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 6px var(--bk-gap);
+  margin: 4px 0 0;
+}
+
+.stn-ui .bk-book .bk-facts div {
+  padding: 6px 8px;
+  background: var(--bk-panel);
+  border-left: 2px solid rgba(230, 223, 207, 0.25);
+}
+
+.stn-ui .bk-book .bk-facts dt {
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-book .bk-facts dd {
+  margin: 3px 0 0;
+  font: var(--bk-s) / 1.3 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bstscr .bk-book .bst-keys {
+  margin: 0;
+  padding: 8px clamp(12px, calc(22 * var(--u)), 24px);
+  border-top: 1px solid var(--bk-line);
+  font-size: var(--bk-xs);
+}
+
+.stn-ui .bstscr .bk-book .bst-keys .kbd.sm {
+  font-size: var(--bk-xs);
+}
+
+@media (max-width: 700px) {
+  .stn-ui .bk-book .bk-page-grid {
+    grid-template-columns: 1fr;
+  }
+  .stn-ui .bk-book .bk-page-pic {
+    max-width: 260px;
+  }
+  .stn-ui .bk-book .bk-track {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------ in play: the banner's next step, the bestiary card */
+.stn-ui .bk-tnext {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(230, 223, 207, 0.14);
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bk-tnext-k {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.stn-ui .bk-tnext-n {
+  font: 400 var(--bk-s) / 1 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bk-tnext-bar {
+  min-width: 40px;
+}
+
+.stn-ui .ach-toast.bk-tkind {
+  align-items: flex-start;
+  width: calc(460 * var(--u));
+  min-width: 340px;
+  --tc: var(--amber);
+}
+
+.stn-ui .bk-tkind-pic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(72px, calc(100 * var(--u)), 110px);
+  aspect-ratio: 5 / 6;
+  border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent);
+  background: radial-gradient(ellipse at 50% 60%, rgba(120, 128, 120, 0.2), rgba(0, 0, 0, 0.4) 70%);
+  color: var(--tc);
+  overflow: hidden;
+}
+
+.stn-ui .bk-tkind-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stn-ui .bk-tkind-pic svg {
+  width: 34px;
+  height: 34px;
+}
+
+.stn-ui .bk-tkind-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stn-ui .bk-tkind .ach-t-kick,
+.stn-ui .bk-tkind .ach-t-desc {
+  font-size: var(--bk-xs);
+}
+
+.stn-ui .bk-tkind .ach-t-desc {
+  font-size: var(--bk-s);
+  color: var(--bone-2);
+}
+
+.stn-ui .bk-tkind .bk-chips {
+  margin-top: 6px;
+}
+
+/* the banner's small print, at 12 px at the least (the books' rule) */
+.stn-ui .ach-toast .ach-t-kick {
+  font-size: max(12px, calc(10.5 * var(--u)));
+  letter-spacing: 0.16em;
+}
+
+.stn-ui .ach-toast .ach-t-desc {
+  font-size: max(12px, calc(12.5 * var(--u)));
+}
+
+.stn-ui .bk-tkind-key .kbd.sm {
+  font-size: var(--bk-xs);
+}
+
+.stn-ui .bk-tkind-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  font: var(--bk-xs) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+/* ------------------------------------------------------------------ the HUD tracker */
+/* under the objective (and the tracked recipe), its top set from there */
+.stn-ui .bkt {
+  position: absolute;
+  left: calc(24 * var(--u));
+  width: max(var(--mm, 0px), calc(250 * var(--u)));
+  min-width: 210px;
+  padding: calc(8 * var(--u)) calc(11 * var(--u)) calc(9 * var(--u) + 6px);
+  border-left: 2px solid var(--amber);
+  color: var(--bone);
+}
+
+.stn-ui .bkt[hidden],
+.stn-ui.inv-open .bkt,
+.stn-ui.map-open .bkt,
+.stn-ui.bestiary-open .bkt {
+  display: none;
+}
+
+.stn-ui .bkt-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stn-ui .bkt-flag svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  color: var(--amber);
+}
+
+.stn-ui .bkt-title {
+  flex: 1;
+  font: 400 max(13px, calc(17 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.16em;
+}
+
+.stn-ui .bkt-tag {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.stn-ui .bkt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.stn-ui .bkt-top,
+.stn-ui .bkn-a-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stn-ui .bkt-ico svg,
+.stn-ui .bkn-a-ico svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: var(--tc);
+}
+
+.stn-ui .bkt-name,
+.stn-ui .bkn-a-name {
+  flex: 1;
+  min-width: 0;
+  font: 400 var(--bk-s) / 1.1 var(--f-num);
+}
+
+.stn-ui .bkt-v,
+.stn-ui .bkn-a-v {
+  font: var(--bk-xs) / 1 var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--tc);
+}
+
+.stn-ui .bkt-bar,
+.stn-ui .bkn .bkn-a-bar {
+  margin-top: 4px;
+  height: 3px;
+}
+
+/* (a count's "to go" stays off the HUD to keep it short: the numbers say it; a feat keeps what it asks) */
+.stn-ui .bkt-row:not(.feat) .bkt-sub {
+  display: none;
+}
+
+.stn-ui .bkt-sub {
+  margin-top: 3px;
+  font: var(--bk-xs) / 1.25 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bkn-a-sub {
+  margin-top: 3px;
+  font: var(--bk-xs) / 1.25 var(--f-type);
+  color: var(--bone-2);
+}
+
+/* ------------------------------------------------------------------ the pause menu's field notes */
+.stn-ui .bkn {
+  position: absolute;
+  left: calc(104 * var(--u) + max(460 * var(--u), 340px) + clamp(16px, calc(40 * var(--u)), 48px)); /* (past the rail: ui.css .pause-rail) */
+  right: clamp(12px, calc(40 * var(--u)), 48px);
+  top: 50%;
+  translate: 0 -50%;
+  max-width: 460px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(8px, calc(12 * var(--u)), 14px) clamp(10px, calc(14 * var(--u)), 16px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+}
+
+.stn-ui .bkn[hidden] {
+  display: none;
+}
+
+.stn-ui .bkn-h {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-bottom: 6px;
+}
+
+.stn-ui .bkn-h2 {
+  margin-top: 10px;
+}
+
+.stn-ui .bkn-title {
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.stn-ui .bkn-night {
+  font: var(--bk-xs) / 1.1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bkn-theme {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--amber);
+  background: rgba(232, 163, 61, 0.08);
+  font: var(--bk-s) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bkn-theme[hidden] {
+  display: none;
+}
+
+.stn-ui .bkn-theme b {
+  font: 400 var(--bk-s) / 1.3 var(--f-num);
+  color: var(--amber);
+}
+
+/* the kinds: the only list in here that scrolls */
+.stn-ui .bkn-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.stn-ui .bkn-kind {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  border: 0;
+  border-left: 2px solid rgba(230, 223, 207, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.stn-ui button.bkn-kind {
+  cursor: pointer;
+}
+
+.stn-ui button.bkn-kind:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-left-color: var(--bone);
+}
+
+.stn-ui .bkn-kind.bkn-boss {
+  border-left-color: var(--blood-lite);
+}
+
+.stn-ui .bkn-pic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--bone-dim);
+  overflow: hidden;
+}
+
+.stn-ui .bkn-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stn-ui .bkn-pic svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stn-ui .bkn-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stn-ui .bkn-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stn-ui .bkn-name {
+  font: 400 var(--bk-s) / 1.1 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .bkn-tag {
+  flex: none;
+  white-space: nowrap;
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  text-align: right;
+}
+
+.stn-ui .bkn-tag.bkn-boss {
+  color: var(--blood-lite);
+}
+
+.stn-ui .bkn-tag.beat {
+  color: var(--good);
+  text-transform: none;
+}
+
+.stn-ui .bkn-line {
+  font: var(--bk-xs) / 1.3 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .bkn-kind:not(.seen) .bkn-line {
+  font-style: italic;
+}
+
+.stn-ui .bkn-tracked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stn-ui .bkn-a-row {
+  padding: 2px 0;
+}
+
+.stn-ui .bkn .bkn-a-sub {
+  display: none;
+}
+
+.stn-ui .bkn-empty {
+  margin: 0;
+  font: var(--bk-xs) / 1.35 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .bkn-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.stn-ui .bkn-link {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--amber);
+  font: var(--bk-xs) / 1 var(--f-mono);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.stn-ui .bkn-link:hover {
+  color: var(--bone);
+}
+
+/* the field notes leave the room to the panels opened from the menu, and to a narrow window */
+.stn-ui:has(.layer-modal > :not([hidden])) .bkn {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .stn-ui .bkn {
+    display: none;
+  }
+}

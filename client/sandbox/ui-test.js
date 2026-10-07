@@ -7,6 +7,7 @@ import { ITEM, ITEM_DEFS, RECIPES, STRUCT, STRUCT_ORDER, ZTYPE, ZOMBIE_DEFS } fr
 import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
 import { itemIcon, structIcon, glyph, GLYPH_NAMES } from '../ui/icons.js';
 import { ACH_BY_ID } from '../../shared/achievements.js';
+import { BESTIARY } from '../../shared/bestiary.js';
 import { perkMask, progressView, perkLock, perkDependents, levelOf, xpForLevel } from '../../shared/progress.js';
 
 const q = new URLSearchParams(location.search);
@@ -322,6 +323,19 @@ if (q.get('minimap')) {
   };
 }
 
+// a guest's achievements, made up: some unlocked, some on their way (the panel reads this browser's record), and
+// &tracked=nights_10,distance_10k the ones tracked on the HUD (default: those two and Regular)
+function fakeAchievements() {
+  const day = 86400_000;
+  const now = Date.now();
+  const unlocked = {};
+  ['kills_10', 'kills_100', 'nights_1', 'escapes_1', 'headshots_25', 'revives_1', 'crafted_10', 'salvaged_10', 'trees_1', 'distance_1k', 'kill_pistol', 'kill_shotgun', 'kill_knife', 'kill_boss', 'mine_enter', 'radio_call', 'flare', 'leaper_off', 'invited', 'walkie', 'cat_lift', 'fall_death'].forEach((id, i) => (unlocked[id] = now - i * day * 0.7 - 3600_000));
+  localStorage.setItem('stn.achievements', JSON.stringify({ v: 1, stats: { kills: 340, nights: 7, escapes: 1, headshots: 61, revives: 3, crafted: 41, salvaged: 12, trees: 4, distance: 6300, days: 2 }, unlocked }));
+  localStorage.setItem('stn.achTracked', JSON.stringify({ v: 1, ids: (q.get('tracked') ?? 'nights_10,distance_10k,days_3').split(',').filter(Boolean) }));
+}
+// the pause menu's field notes: night &night= (default 3) of seed 1 on the island, by day (&phase=night for the night)
+ui.fieldNotes.ctx = () => ({ seed: 1, act: 1, day: +(q.get('night') || 3), phase: q.get('phase') === 'night' ? PHASE.NIGHT : PHASE.DAY });
+
 // ---------------------------------------------------------------- screens
 let bg = q.get('bg');
 if (q.get('conn')) setTimeout(() => ui.setConnectionStatus('Reconnecting'), 300);
@@ -345,6 +359,8 @@ switch (screen) {
       h.tracked = { r, counts: { [ITEM.CLOTH]: 7, [ITEM.LEATHER]: 2 }, near: { fire: false, bench: false }, unlocked: 0 };
       h.prompt = '[E] Pick up Leather ×2 · needed for Backpack (tracked)';
     }
+    // &achtrack=1: three achievements tracked under the objective (&tracked= to choose them)
+    if (q.get('achtrack')) fakeAchievements();
     // &weapon=<item id>&mag=<n>&reserve=<n>&reload=<0..1>: try the ammo block with any primary
     if (q.get('weapon')) Object.assign(h, { weapons: [+q.get('weapon'), ...baseHud.weapons.slice(1)], mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: q.get('reload') == null ? -1 : +q.get('reload') });
     ui.hideSplash();
@@ -635,12 +651,7 @@ switch (screen) {
     break;
   }
   case 'achievements': {
-    // a guest's record, made up: some unlocked, some on their way (the panel reads this browser's record)
-    const day = 86400_000;
-    const now = Date.now();
-    const unlocked = {};
-    ['kills_10', 'kills_100', 'nights_1', 'escapes_1', 'headshots_25', 'revives_1', 'crafted_10', 'salvaged_10', 'trees_1', 'distance_1k', 'kill_pistol', 'kill_shotgun', 'kill_knife', 'kill_boss', 'mine_enter', 'radio_call', 'flare', 'leaper_off', 'invited', 'walkie', 'cat_lift', 'fall_death'].forEach((id, i) => (unlocked[id] = now - i * day * 0.7 - 3600_000));
-    localStorage.setItem('stn.achievements', JSON.stringify({ v: 1, stats: { kills: 340, nights: 7, escapes: 1, headshots: 61, revives: 3, crafted: 41, salvaged: 12, trees: 4, distance: 6300, days: 2 }, unlocked }));
+    fakeAchievements();
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud(baseHud);
@@ -659,15 +670,22 @@ switch (screen) {
     ui.updateHud(baseHud);
     ui.setBestiaryOpen(true);
     if (q.get('scroll')) setTimeout(() => (ui.bestiary.body.scrollTop = +q.get('scroll')), 100);
+    if (q.get('page')) setTimeout(() => ui.bestiary.openPage(+q.get('page')), 100);
+    if (q.get('sort')) {
+      ui.bestiary.sort = q.get('sort');
+      ui.bestiary.render();
+    }
     if (q.get('toast')) {
       ui.setBestiaryOpen(false);
-      setTimeout(() => ui.notify(`New in the bestiary: ${ZOMBIE_DEFS[ZTYPE.SPITTER].name}. Press J to read up on it.`, 'good', 30), 300);
+      setTimeout(() => ui.achToasts.showKinds([BESTIARY.find((e) => e.t === ZTYPE.SPITTER)]), 300);
     }
     break;
   }
   case 'pause':
   case 'invite':
   case 'settings': {
+    if (q.get('ach') !== null || screen === 'pause') fakeAchievements();
+    if (screen === 'pause') localStorage.setItem('stn.bestiary', JSON.stringify({ v: 1, seen: [ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.DOG, ZTYPE.SPITTER].reduce((m, t) => m | (1 << t), 0) }));
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud({ ...baseHud, phase: PHASE.NIGHT, night: 1, hordeLeft: 30 });
