@@ -663,10 +663,6 @@
     display: none;
   }
 
-  .stn-ui .layer-menu .splash > .stn-settings.gc-panel .set-foot .btn.btn-blood {
-    font-size: 1.25em;
-  }
-
   /* (the sheet: the hints that only restate the question go) */
   .stn-ui .layer-menu .splash > .gc-panel .set-row:nth-child(1) .set-hint,
   .stn-ui .layer-menu .splash > .gc-panel .set-row:nth-child(3) .set-hint {
@@ -882,4 +878,11 @@
 
 .stn-ui .layer-menu .splash > .gb-panel .gb-empty .gb-empty-sub {
   font-size: 0.85em;
+}
+
+/* (a short screen: a smaller Create & join, so the sheet's questions keep more of its height) */
+@media (max-height: 620px) {
+  .stn-ui .layer-menu .splash > .stn-settings.gc-panel .set-foot .btn.btn-blood {
+    font-size: 1.2em;
+  }
 }
