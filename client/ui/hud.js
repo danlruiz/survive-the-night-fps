@@ -5,7 +5,8 @@ import { PHASE, dayLength, NIGHT_LENGTH, DUSK_WARNING } from '../../shared/const
 import { GUN, MOUNTED_GUN } from '../../shared/mountedgun.js';
 import { el, svgEl, fmtTime, parsePrompt, clamp, replay } from './dom.js';
 import { itemIcon, glyph, splatSvg } from './icons.js';
-import { Compass, Objective, Tracked, Markers, Downed, DamageDir, Tonight } from './hud2.js';
+import { Compass, Objective, Tracked, Markers, DamageDir, Tonight } from './hud2.js';
+import { Downed } from './endscreens.js';
 import { Minimap } from './minimap.js';
 import { W, ACT_NOW } from '../game/act.js'; // (this act, and the words for what its parts go into)
 import { WORLD } from '../../shared/acts.js';

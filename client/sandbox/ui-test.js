@@ -426,7 +426,9 @@ switch (screen) {
     const h = { ...baseHud, hp: 30, phase: PHASE.NIGHT, timeLeft: 88, night: 1, hordeLeft: 21, prompt: null, context: null, crosshair: { spread: 7, visible: false } };
     ui.hideSplash();
     feedSome();
-    loop((t) => ({ ...h, downed: { bleed: Math.max(0, 22 - t), reviving } }));
+    // &alone=1: no teammate in sight
+    const mate = q.get('alone') ? null : { name: 'Marlowe', d: reviving ? 1.2 : 14 };
+    loop((t) => ({ ...h, downed: { bleed: Math.max(0, 22 - t), reviving, mate } }));
     break;
   }
   case 'hud-dawn': {
@@ -436,7 +438,11 @@ switch (screen) {
     ui.updateHud(h);
     ui.notify('Dawn', 'big', 60);
     ui.notify('You made it through the night', 'sub', 60);
-    ui.showSummary({ night: 3, kills: 64, structLost: 5, downs: 2, revives: 1, deaths: 0 }, 'Horde 4: bigger and hungrier. Boomers join the horde: they burst against your walls. Shoot them far off.', null, { name: 'The Bloater', tip: ZOMBIE_DEFS[ZTYPE.BOSS_BLOATER].tip });
+    // (the rows as hud2.js tonightBrief makes them: theme, new kinds, boss)
+    ui.showSummary({ night: 3, kills: 64, structLost: 5, downs: 2, revives: 1, deaths: 0 }, [
+      { kind: 'new', name: ZOMBIE_DEFS[ZTYPE.BOOMER].name + 's' },
+      { kind: 'boss', name: ZOMBIE_DEFS[ZTYPE.BOSS_BLOATER].name },
+    ]);
     break;
   }
   case 'hud-finale': {
@@ -602,7 +608,7 @@ switch (screen) {
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud({ ...baseHud, hp: 0, phase: PHASE.NIGHT, timeLeft: 88, night: 1, hordeLeft: 21 });
-    ui.showDeath({ killer: 'The Abomination', day: 3 });
+    ui.showDeath({ killer: 'The Abomination', ztype: ZTYPE.BOSS_ABOMINATION, day: 3, night: true, dawn: true, dawnIn: 88 });
     break;
   }
   case 'gameover':
@@ -612,12 +618,14 @@ switch (screen) {
     ui.updateHud(baseHud);
     const stats = {
       days: 6,
-      kills: players.map((p) => ({ name: p.name, kills: p.kills })),
+      kills: players.map((p) => ({ name: p.name, kills: p.kills, me: p.self })),
       restartIn: 12,
       reason: screen === 'gameover' ? 'The last survivor fell on night 6.' : '',
       // &record=1: the personal record panel too, as after a run that counted
       record: q.get('record')
-        ? { run: { secs: 2710, nights: 5, kills: 31 }, news: [{ k: 'kills', label: 'New best', text: '31 kills', was: '24' }], record: { best: { secs: 0, nights: 5, kills: 31 }, total: { runs: 9, escapes: 0, streak: 0 } } }
+        ? q.get('record') === 'late'
+          ? { late: true }
+          : { run: { secs: 2710, nights: 5, kills: 31 }, news: q.get('record') === 'plain' ? [] : [{ k: 'kills', label: 'New best', text: '31 kills', was: '24' }], record: { best: { secs: 0, nights: 5, kills: q.get('record') === 'plain' ? 40 : 31 }, total: { runs: 9, escapes: 0, streak: 0 }, runs: [2, 1, 3, 2, 4, 3, 5, 4, 5].map((nights) => ({ nights, result: 'wiped' })) } }
         : undefined,
       // &xp=1: the experience panel too, a run that levelled the player up
       progress: q.get('xp') ? { xp: 329, run: [70, 24, 150, 0, 100, 0, 0], loaded: true, kept: true } : null,
@@ -629,9 +637,12 @@ switch (screen) {
           setTimeout(() => done({ mine: rating, counts, total: counts.reduce((a, b) => a + b, 0) }), 300);
         }),
     };
+    ui.setRoom({ code: 'J68QMM', name: "Webdevcody's game", inviteOnly: false }, `${location.origin}/?game=J68QMM`); // (Invite on the end screen)
     if (screen === 'gameover') ui.showGameOver(stats);
     else ui.showVictory(stats);
     if (+q.get('vote')) ui.end._vote(+q.get('vote'));
+    // &perk=N: N perk points not spent yet (the server's count, as net/progress.js would have it)
+    if (+q.get('perk')) setTimeout(() => ui.end.setPending(+q.get('perk')), 400);
     break;
   }
   case 'achievements': {

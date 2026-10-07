@@ -8,7 +8,7 @@ import { Killfeed, Pickups, Notifier } from './feed.js';
 import { Chat } from './chat.js';
 import { Inventory } from './inventory.js';
 import { BuildMenu } from './build.js';
-import { Splash, Pause, Death, EndScreen, Banner, UpdatingModal, VoiceList, ControlsPanel, InvitePanel, DEFAULT_CONTROLS } from './menus.js';
+import { Splash, Pause, Banner, UpdatingModal, VoiceList, ControlsPanel, InvitePanel, DEFAULT_CONTROLS } from './menus.js';
 import { SettingsPanel, loadSettings, saveSettings, sanitizeSettings, DEFAULT_SETTINGS } from './settings.js';
 import { MapScreen } from './mapscreen.js';
 import { Leaderboard } from './leaderboard.js';
@@ -24,7 +24,7 @@ import { isFriendName } from '../net/friends.js';
 import { onUnlock } from '../net/achievements.js';
 import { onSeen } from '../net/bestiary.js';
 import { bindLabel } from '../game/binds.js';
-import { Summary } from './hud2.js';
+import { Death, EndScreen, DawnLine } from './endscreens.js';
 
 const NOOP = () => {};
 const CALLBACKS = [
@@ -102,7 +102,7 @@ export class UI {
     this.banner = new Banner(topL);
     this.notifier = new Notifier(topL);
     this.achToasts = new AchievementToasts(this, topL);
-    this.summary = new Summary(topL);
+    this.summary = new DawnLine(topRight, rootEl); // (the dawn lines, under the clock)
     this.death = new Death(this, ovL);
     this.end = new EndScreen(this, ovL);
     this.pause = new Pause(this, ovL);
@@ -243,8 +243,9 @@ export class UI {
     this.hud.damage(amount, angle);
   }
 
-  showSummary(stats, nextText, theme, boss) {
-    this.summary.show(stats, nextText, theme, boss);
+  // the night's tally at dawn; brief: what tonight brings (hud2.js tonightBrief), named under it
+  showSummary(stats, brief) {
+    this.summary.show(stats, brief);
   }
 
   setMapOpen(open) {
@@ -295,7 +296,7 @@ export class UI {
   // drop the title card (and the ones queued behind it), the toasts and the dawn card: the game they belong to is gone
   clearNotices() {
     this.notifier.clear();
-    this.summary.root.hidden = true;
+    this.summary.hide();
   }
 
   pickup(itemId, count) {
