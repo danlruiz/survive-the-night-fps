@@ -687,7 +687,7 @@ function drawMarks(g, world, S, mapX, mapY) {
       g.lineWidth = 2.4 * u;
       for (let k = 0; k < m.steps; k++) {
         g.beginPath();
-        g.arc(x, y, r * (1 - (k + 0.85) / (m.steps + 0.6)), 0, Math.PI * 2);
+        g.arc(x, y, m.r * S - ((k + 1) * (m.r - m.floor) * S) / m.steps, 0, Math.PI * 2);
         g.stroke();
       }
       continue;
