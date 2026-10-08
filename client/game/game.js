@@ -145,7 +145,7 @@ import { radialIndex } from '../ui/build.js';
 import { MenuTour } from './menutour.js';
 import { KeyGuard } from './keyguard.js';
 import { CardsClient } from './cards.js';
-import { bearing, nextNightText, nightBossText, tonightBrief, PING_LABEL } from '../ui/hud2.js';
+import { bearing, tonightBrief, PING_LABEL } from '../ui/hud2.js';
 
 const WEATHER_TOAST = {
   fog: 'Fog is rolling in',
@@ -1411,8 +1411,9 @@ export class Game {
         g.conn.pong(held);
       },
       summary(s) {
-        // after the "DAY N" title card has faded
-        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, nextNightText(s.night + 1, g.act), nightTheme(g.seed, s.night + 1, g.act), nightBossText(g.seed, s.night + 1, g.act)), 4300);
+        // under the clock once the "DAWN" title card has faded (on a small screen the two would meet): the night's
+        // tally, and the names of what the next one brings
+        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, tonightBrief(g.seed, s.night + 1, g.act)), 4300);
       },
     };
     return this._eh;
@@ -1528,7 +1529,7 @@ export class Game {
         ui.notify(arg === this.myId ? "You're back on your feet." : `${this.name(arg)} is back up.`, 'good', 3);
         break;
       case NOTIFY.YOU_DIED:
-        this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead() };
+        this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', ztype: arg < 254 ? arg : -1, day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead(), dawnIn: this.global.phase === PHASE.NIGHT ? this.global.timeLeft : 0 };
         ui.showDeath(this.deathInfo);
         a.stinger?.('death');
         this.deathShown = true;
@@ -3427,7 +3428,7 @@ export class Game {
       this.ui.setBestiaryOpen(false);
       this.ui.setCardsOpen(false);
       this.ui.setSpawnOpen(false);
-      const kills = [...this.players.values()].map((p) => ({ name: p.name, kills: p.kills }));
+      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
       // (on the mainland a wipe is the end of the whole run: the next one begins on the island)
       const reason = this.world.car.plane ? 'Every survivor has fallen on the mainland. The run starts over on the island.' : 'Every survivor has fallen.';
       this.ui.showGameOver({ days: g.day, kills, reason, restartIn: Math.ceil(g.restartT), record: this.runReport, progress: this.progress });
@@ -3439,7 +3440,7 @@ export class Game {
       this.ui.setBestiaryOpen(false);
       this.ui.setCardsOpen(false);
       this.ui.setSpawnOpen(false);
-      const kills = [...this.players.values()].map((p) => ({ name: p.name, kills: p.kills }));
+      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
       // The run is won for everyone, but the car took whoever was at it: a survivor further off than ESCAPE_RADIUS
       // when it left stayed in the valley, and so did the players who had already turned.
       const car = this.world.car;
@@ -3853,7 +3854,7 @@ export class Game {
     for (const p of this.looseParts()) loose[p.item] = (loose[p.item] || 0) + 1;
     h.objective = { supplies: g.supplies, hints: g.hints, found: g.found, carried, loose, anyCarried, phase: g.phase, timeLeft: Math.ceil(g.timeLeft), finale: g.finale, escapeT: Math.ceil(g.escapeT), escapeReady: g.escapeReady, escapeStalled: g.escapeStalled, escapeLeaving: g.escapeLeaving, standWarm: g.standWarm, runwayBlocked: g.runwayBlocked, suppliesDone: g.suppliesDone, wave: g.wave, waves: g.waves };
     // downed overlay
-    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived } : null;
+    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived, mate: this.closestMate(rp) } : null;
     // compass + world markers
     h.yaw = this.input.yaw;
     this.buildMarkers(h, rp);
@@ -3864,6 +3865,18 @@ export class Game {
     this.pushInventoryToUI(false);
     if (this.ui.inventoryOpen && this.frame % 20 === 0) this.ui.setCraftContext(this.craftContext());
     if (this.ui.rosterOpen && this.frame % 20 === 10) this.pushRoster(); // health moves between player lists
+  }
+
+  // the closest teammate on their feet that we can see (in the entity list): { name, d (m) }, or null. The downed card
+  // names them: only a teammate can get us up
+  closestMate(rp) {
+    let best = null;
+    for (const e of this.entities.ents.values()) {
+      if (e.kind !== ENT.PLAYER || e.id === this.myId || e.downed || e.q[5] & (PFLAG.ZOMBIE | PFLAG.DEAD)) continue;
+      const d = Math.hypot(e.rx - rp.x, e.rz - rp.z);
+      if (!best || d < best.d) best = { name: this.name(e.id), d };
+    }
+    return best;
   }
 
   buildMarkers(h, rp) {
