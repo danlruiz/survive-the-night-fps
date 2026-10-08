@@ -142,6 +142,21 @@ export function flood(world, cl, x0, z0, r, kind = 0) {
   cost[s] = 0;
   push(s, 0);
   const rk = new Uint8Array(n * n); // the road factor of a cell, x 20 (0: not asked yet)
+  // (too steep a bank, or the river's bed: asked of in 2 m squares, the heightfield's own)
+  const BN = Math.ceil((half * 2) / 2);
+  const bk = new Uint8Array(BN * BN); // 0 not asked, 1 fine, 2 bad
+  const badGround = (x, z) => {
+    const i = Math.min(BN - 1, Math.max(0, Math.floor((x + half) / 2)));
+    const j = Math.min(BN - 1, Math.max(0, Math.floor((z + half) / 2)));
+    const q = j * BN + i;
+    if (!bk[q]) {
+      const cx = -half + (i + 0.5) * 2, cz = -half + (j + 0.5) * 2;
+      const h = (a, b) => world.heightAt(a, b);
+      const gs = Math.max(Math.abs(h(cx + 1.5, cz) - h(cx - 1.5, cz)), Math.abs(h(cx, cz + 1.5) - h(cx, cz - 1.5))) / 3;
+      bk[q] = world.roadDistAt(cx, cz) > 4 && (gs > 0.55 || h(cx, cz) < WATER_LEVEL - 0.45) ? 2 : 1; // (a road's own way - over a bridge, up a ramp - is what it is)
+    }
+    return bk[q] === 2;
+  };
   const road = (k) => {
     if (rk[k]) return rk[k] / 20;
     const x = ((k % n) + 0.5) * CELL - half, z = (((k / n) | 0) + 0.5) * CELL - half;
@@ -153,6 +168,10 @@ export function flood(world, cl, x0, z0, r, kind = 0) {
       const room = d[k] * CELL * 0.5 - (P.halfW + 0.2);
       const v = room < 0.15 ? 5 : room < 0.5 ? 10 : room < 1.0 ? 16 : room < 1.8 ? 21 : 99;
       f = Math.max(f, P.top / v);
+      // (no driver takes a vehicle up a bank it cannot climb, nor along the bed of the river, which takes vehicles: a
+      // way found up a slope of one in one out of a stretch of the river's shallows wedged the moped on a roll of the
+      // woods)
+      if (badGround(x, z)) f = 12;
     }
     f = Math.min(12, f);
     rk[k] = Math.max(1, Math.round(f * 20));
@@ -290,6 +309,10 @@ export function makePilot(world, kind, raw, cl = null, bold = 1) {
       const ahead = (roomAt(v.x, v.z) - need < 0.7 ? 0.8 : 1.8) + sp * 0.32;
       if (k < at) k = at;
       while (k < N - 1 && Math.hypot(path[k][0] - v.x, path[k][1] - v.z) < ahead) k++;
+      // (where it is on the way can lag no further behind where it looks than the look itself: on a way that comes back
+      // close past itself the nearest point stopped moving on, and the speed it allowed - that of a tight spot a
+      // kilometre behind - was kept to the end of the trip)
+      at = Math.max(at, k - Math.ceil((ahead + 2) / CELL));
       const dx = path[k][0] - v.x, dz = path[k][1] - v.z;
       if (k === N - 1 && Math.hypot(dx, dz) < 3) return { thr: -1, turn: 0, done: true, err: 0, want: 0 };
       let err = Math.atan2(-dx, -dz) - v.yaw;
