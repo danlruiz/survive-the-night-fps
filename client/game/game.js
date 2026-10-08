@@ -2932,7 +2932,10 @@ export class Game {
     // a heavy footfall drops the view and rattles it, then dies away in ~0.4 s however faint it was: far off it is a
     // tremor that lasts as long as the jolt of one landing beside you
     this.quake *= Math.exp(-dt * 6);
-    const bobY = Math.sin(this.camBob * 2) * (s.downed ? 0.06 : 0.035) * Math.min(1, hspeed / 5) - this.landDip - stepLag - this.quake * 0.03 + this.swimK * (Math.sin(time * 1.7) * 0.035 + Math.sin(time * 0.63) * 0.02);
+    // Settings > Accessibility: camera shake (x the shake and the quake's drop, 0 holds the view still) and view bob
+    const shakeK = this.settings.cameraShake ?? 1;
+    const bobK = this.settings.viewBob === false ? 0 : 1;
+    const bobY = (Math.sin(this.camBob * 2) * (s.downed ? 0.06 : 0.035) * Math.min(1, hspeed / 5) + this.swimK * (Math.sin(time * 1.7) * 0.035 + Math.sin(time * 0.63) * 0.02)) * bobK - this.landDip - stepLag - this.quake * 0.03 * shakeK;
     // the gun's climb and the last round's punch (aimview.js): the view is lifted by both, so the sights or the
     // crosshair are where the next round goes
     const gdef = self.alive && !s.zombie && !this.gun.manning ? WEAPONS[currentWeapon(s)] : null;
@@ -2940,7 +2943,7 @@ export class Game {
     this.punchT += dt;
     const viewKick = this.viewClimb + this.punch * punchAt(this.punchT / this.punchLen);
     this.camShake = Math.max(0, (this.camShake || 0) - dt * 2.5);
-    const shake = this.camShake * 0.02 + this.effects.shake * 0.03 + this.quake * 0.02;
+    const shake = (this.camShake * 0.02 + this.effects.shake * 0.03 + this.quake * 0.02) * shakeK;
     const cam = this.camera;
     if (cine) {
       cine.update(dt, cam); // (a cutscene: the shot's camera, and its own field of view)
@@ -2950,9 +2953,9 @@ export class Game {
       cam.position.set(d.x, d.y, d.z);
       cam.rotation.set(d.pitch, d.yaw, 0);
     } else if (self.alive) {
-      if (inVeh) cam.position.set(this.vehicles.eye.x, this.vehicles.eye.y - this.quake * 0.03, this.vehicles.eye.z); // (carried: the seat's eye)
+      if (inVeh) cam.position.set(this.vehicles.eye.x, this.vehicles.eye.y - this.quake * 0.03 * shakeK, this.vehicles.eye.z); // (carried: the seat's eye)
       else cam.position.set(rp.x, rp.y + this.eyeH + bobY, rp.z);
-      const roll = (inVeh ? this.vehicles.eye.roll : 0) + (s.downed ? 0.18 + Math.sin(time * 1.3) * 0.03 : 0) + this.swimK * Math.sin(time * 1.1) * 0.025;
+      const roll = (inVeh ? this.vehicles.eye.roll : 0) + (s.downed ? 0.18 + Math.sin(time * 1.3) * 0.03 : 0) + this.swimK * Math.sin(time * 1.1) * 0.025 * bobK;
       cam.rotation.set(inp.pitch + viewKick + (Math.random() - 0.5) * shake, inp.yaw + (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake * 0.5 + roll);
       // nunchucks: the view goes with the strikes - a sprung nod, turn and roll from the moves and from what they hit
       // (ViewModel's rig, as of last frame). "Weapon look sway" off leaves the view still
@@ -2996,6 +2999,7 @@ export class Game {
     const weaponNow = s.zombie ? -2 : self.alive ? currentWeapon(s) : 0;
     if (weaponNow !== this.vmItem) {
       this.vmItem = weaponNow;
+      this.input.clearToggle('aim'); // (an aim on toggle is let go with the weapon it was on)
       if (weaponNow === -2) this.vm.setItem(0, { claws: true });
       else this.vm.setItem(s.slot === SLOT_BUILD && !weaponNow ? 0 : weaponNow, { tuck: self.alive }); // (tuck: nunchucks are folded away first)
     }

@@ -2,7 +2,6 @@
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
 import { el, svgEl, lsGet, lsSet, fmtTime } from './dom.js';
 import { glyph } from './icons.js';
-import { bindsOf, keyName } from '../game/binds.js';
 import { loadRecord } from './records.js';
 import { GameBrowser, GameCreator, phaseText, seatsText, difficultyText } from './games.js';
 import { linkedCode, gameInfo, listGames, getLeaderboard } from '../net/lobby.js';
@@ -22,55 +21,6 @@ import './ux-pause.css'; // the Esc menu (Pause)
 function setBadge(b, n) {
   b.hidden = !n;
   b.textContent = n > 99 ? '99+' : n ? String(n) : '';
-}
-
-// The keys of the controls lists, from the player's keybinds (game/binds.js): an action's key caps, each of its binds
-export const keysOf = (action) => bindsOf(action).filter(Boolean).map(keyName);
-// the four movement keys on one cap, 'W A S D' (each one's primary)
-export const moveKeys = () => ['forward', 'left', 'back', 'right'].map((a) => keysOf(a)[0] || '–').join(' ');
-// the weapon slots: '1 – 6' while they are the digits in a row, else each one's key
-export function slotKeys() {
-  const ks = [1, 2, 3, 4, 5, 6].map((i) => keysOf('slot' + i)[0] || '–');
-  return ks.join('') === '123456' ? '1 – 6' : ks.join(' ');
-}
-
-// the short list, behind the Controls button unless main.js gives a fuller one (ui.setControls). A function: the list
-// is drawn afresh each time it is shown, with the keys as they are bound then
-export const DEFAULT_CONTROLS = () => [
-  [moveKeys(), 'Move'],
-  [keysOf('sprint'), 'Sprint'],
-  [keysOf('jump'), 'Jump'],
-  [keysOf('crouch'), 'Crouch'],
-  [keysOf('fire'), 'Attack · place'],
-  [keysOf('aim'), 'Aim · heavy swing'],
-  [keysOf('reload'), 'Reload · nunchucks flourish'],
-  [keysOf('interact'), 'Interact · pick up'],
-  [keysOf('flashlight'), 'Flashlight'],
-  [slotKeys(), 'Weapon slots'],
-  [keysOf('inventory'), 'Inventory & crafting'],
-  [keysOf('players'), 'Player list (hold)'],
-  [keysOf('chat'), 'Chat'],
-  [keysOf('talk'), 'Push to talk'],
-  [keysOf('slot6'), 'Walkie-talkie: hold fire to talk to everyone'],
-  ['Esc', 'Menu'],
-];
-
-// list: [[keys, action], ...], or a function that makes one. keys: a string ('Shift+LMB': a cap each side of the +),
-// or an array of caps, one per bind ([] for an action left without a key)
-export function renderControls(parent, list) {
-  parent.textContent = '';
-  for (const [k, a] of typeof list === 'function' ? list() : list) {
-    const r = el('div', 'ctl-row', parent);
-    const keys = el('span', 'ctl-keys', r);
-    if (Array.isArray(k)) {
-      k.forEach((cap, i) => {
-        if (i) el('span', 'ctl-or', keys, '/');
-        el('span', 'kbd sm', keys, cap);
-      });
-      if (!k.length) el('span', 'kbd sm ctl-none', keys, 'unbound');
-    } else for (const part of String(k).split(/\s*\+\s*/)) el('span', 'kbd sm', keys, part);
-    el('span', 'ctl-act', r, a);
-  }
 }
 
 // what the game asks of the player: on every splash, whichever tagline is drawn under it
@@ -233,7 +183,7 @@ export class Splash {
     cb.type = 'button';
     svgEl('i', 'btn-ico', cb, glyph('keyboard'));
     el('span', '', cb, 'Controls');
-    cb.addEventListener('click', () => this.ui.controlsPanel.show());
+    cb.addEventListener('click', () => this.ui.settingsPanel.show('keys'));
     const sb = el('button', 'btn btn-ghost sp-settings', btns);
     sb.type = 'button';
     svgEl('i', 'btn-ico', sb, glyph('gear'));
@@ -652,7 +602,7 @@ export class Pause {
     row(g, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
     g = group('Options');
     row(g, 'gear', 'Settings', () => this.ui.settingsPanel.show()).hint.textContent = 'Mouse · sound · video';
-    row(g, 'keyboard', 'Key list', () => this.ui.controlsPanel.show()).hint.textContent = 'Every control';
+    row(g, 'keyboard', 'Keys & controls', () => this.ui.settingsPanel.show('keys')).hint.textContent = 'Every control';
 
     // Leave, apart: asks once, Stay first
     const box = el('div', 'pm-leavebox', rail);
@@ -951,7 +901,6 @@ export class Pause {
       this._side(false, false);
       if (this.ui.splash.root.hidden) {
         if (this.ui.settingsPanel.visible) this.ui.settingsPanel.hide();
-        if (this.ui.controlsPanel.visible) this.ui.controlsPanel.hide();
         if (this.ui.invitePanel.visible) this.ui.invitePanel.hide();
         if (this.ui.friends.visible) this.ui.friends.hide();
         if (this.ui.accountPanel.visible) this.ui.accountPanel.hide();
@@ -1041,59 +990,6 @@ export class InvitePanel {
 
   show() {
     this.copyTxt.textContent = 'Copy invite link';
-    this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
-  }
-
-  hide() {
-    this.root.hidden = true;
-  }
-
-  get visible() {
-    return !this.root.hidden;
-  }
-}
-
-// ---------------------------------------------------------------- controls reference
-// The key list, opened from the Controls button on the splash and the pause menu. It borrows the settings
-// panel's card (settings.js) and closes the same ways: the cross, Done, Esc, or a click outside the card.
-export class ControlsPanel {
-  constructor(ui, parent) {
-    this.ui = ui;
-    this.root = el('div', 'stn-settings stn-controls', parent);
-    this.root.setAttribute('role', 'dialog');
-    this.root.hidden = true;
-    const card = el('div', 'set-card paper', this.root);
-    const head = el('div', 'set-head', card);
-    el('h2', 'set-title', head, 'Controls');
-    el('span', 'set-sub', head, 'field notes · rebind in Settings');
-    const close = svgEl('button', 'set-close btn-icon', head, glyph('xmark'));
-    close.title = 'Close';
-    close.addEventListener('click', () => this.hide());
-    this.list = el('div', 'ctl-grid', el('div', 'set-body', card));
-    this.source = DEFAULT_CONTROLS; // (ui.setControls) drawn as it is shown, with the keys bound then
-    const done = el('button', 'btn btn-blood', el('div', 'set-foot', card), 'Done');
-    done.addEventListener('click', () => this.hide());
-
-    this.root.addEventListener('pointerdown', (e) => {
-      if (e.target === this.root) this.hide();
-    });
-    document.addEventListener(
-      'keydown',
-      (e) => {
-        if (this.root.hidden || e.key !== 'Escape') return;
-        e.preventDefault();
-        e.stopPropagation();
-        this.hide();
-      },
-      true
-    );
-  }
-
-  show() {
-    renderControls(this.list, this.source);
     this.root.hidden = false;
     this.root.classList.remove('in');
     void this.root.offsetWidth;

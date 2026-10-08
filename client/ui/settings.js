@@ -4,6 +4,9 @@ import { glyph } from './icons.js';
 import { loadRecord, clearRecord } from './records.js';
 import { QUALITY, grassRadius } from '../render/renderer.js';
 import { KeybindsSection } from './keybinds.js';
+import { ACTIONS } from '../../shared/binds.js';
+import { isDefault, onBindsChange } from '../game/binds.js';
+import './ux-settings.css';
 
 const KEY = 'stn.settings';
 
@@ -32,6 +35,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
   showFps: true,
   achBanners: true, // a banner when an achievement unlocks (ui/achievements.js)...
   achSound: true, // ...and its chime
+  // Accessibility
+  cameraShake: 1, // x the view's shake (game.js: explosions, a tank's footfalls, hits, crashes); 0 holds it still
+  viewBob: true, // the view rising and falling with each stride (and riding the water, afloat)
+  reduceFlashes: false, // muzzle flashes, blasts and lightning drawn far dimmer (render/comfort.js)
+  aimMode: 'hold', // 'toggle': a press of the key latches the button on, the next lets go (game/input.js)
+  sprintMode: 'hold',
+  crouchMode: 'hold',
 });
 
 const NUM_RANGES = {
@@ -45,6 +55,14 @@ const NUM_RANGES = {
   renderScale: [0.5, 1],
   grassDistance: [0.5, 3],
   ps1Strength: [0.1, 1],
+  cameraShake: [0, 1],
+};
+const ENUMS = {
+  quality: ['low', 'medium', 'high', 'ultra'],
+  highlight: ['off', 'subtle', 'strong'],
+  aimMode: ['hold', 'toggle'],
+  sprintMode: ['hold', 'toggle'],
+  crouchMode: ['hold', 'toggle'],
 };
 
 export function sanitizeSettings(s) {
@@ -54,9 +72,8 @@ export function sanitizeSettings(s) {
       const v = Number(s[k]);
       if (Number.isFinite(v)) out[k] = clamp(v, NUM_RANGES[k][0], NUM_RANGES[k][1]);
     }
-    if (['low', 'medium', 'high', 'ultra'].includes(s.quality)) out.quality = s.quality;
-    if (['off', 'subtle', 'strong'].includes(s.highlight)) out.highlight = s.highlight;
-    for (const k of ['pushToTalk', 'voiceDuck', 'invertY', 'rawMouse', 'fullscreen', 'weaponSway', 'keyHints', 'holdToDrop', 'showFps', 'ps1', 'achBanners', 'achSound']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    for (const k in ENUMS) if (ENUMS[k].includes(s[k])) out[k] = s[k];
+    for (const k of ['pushToTalk', 'voiceDuck', 'invertY', 'rawMouse', 'fullscreen', 'weaponSway', 'keyHints', 'holdToDrop', 'showFps', 'ps1', 'achBanners', 'achSound', 'viewBob', 'reduceFlashes']) if (typeof s[k] === 'boolean') out[k] = s[k];
   }
   return out;
 }
@@ -73,48 +90,22 @@ export function saveSettings(s) {
   lsSet(KEY, JSON.stringify(s));
 }
 
+// is a setting off its default? (a slider's value is a float: near enough is the same)
+const changed = (s, k) => (typeof DEFAULT_SETTINGS[k] === 'number' ? Math.abs(s[k] - DEFAULT_SETTINGS[k]) > 1e-6 : s[k] !== DEFAULT_SETTINGS[k]);
+
 // ---------------------------------------------------------------- panel
 const pct = (v) => Math.round(v * 100) + '%';
 
-// The panel's tabs, down its left side. A { head } entry in rows starts a sub-group within the tab. Keybinds and Record
-// draw their own tabs (keybinds.js, _recordTab).
+// The panel's tabs, down its left side, named for what a player looks for: each with a line of what is in it (sum) and
+// a line at the top of its page (desc). A { head } entry in rows starts a sub-group within the tab. Keys & controls and
+// Your record draw their own pages (keybinds.js, _recordTab).
 const TABS = [
   {
-    id: 'controls',
-    label: 'Controls',
-    icon: 'headshot',
-    rows: [
-      { head: 'Mouse' },
-      { k: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.1, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×' },
-      { k: 'aimSensitivity', label: 'Aim sensitivity', type: 'range', min: 0.25, max: 2, step: 0.05, fmt: (v) => v.toFixed(2) + '×', hint: 'While aiming, on top of the zoom' },
-      { k: 'invertY', label: 'Invert mouse Y', type: 'toggle' },
-      { k: 'rawMouse', label: 'Raw mouse input', type: 'toggle', hint: 'Off = OS mouse acceleration applies' },
-      { head: 'Gameplay' },
-      { k: 'holdToDrop', label: 'Hold to drop weapon', type: 'toggle', hint: 'The drop key has to be held a moment, so a stray press in a fight keeps your gun. Off = a press drops it' },
-      { k: 'weaponSway', label: 'Weapon look sway', type: 'toggle', hint: 'Gun trails behind fast turns' },
-      { k: 'fullscreen', label: 'Fullscreen while playing', type: 'toggle', hint: 'Keeps Ctrl+W (crouch + forward) from closing the tab. Off = the tab asks before it closes' },
-    ],
-  },
-  { id: 'keybinds', label: 'Keybinds', icon: 'keyboard' },
-  {
-    id: 'audio',
-    label: 'Audio',
-    icon: 'speaker',
-    rows: [
-      { head: 'Volume' },
-      { k: 'masterVolume', label: 'Master', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
-      { k: 'musicVolume', label: 'Music & ambience', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
-      { k: 'sfxVolume', label: 'Effects', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
-      { k: 'voiceVolume', label: 'Voice chat', type: 'range', min: 0, max: 2, step: 0.01, fmt: pct },
-      { head: 'Voice chat' },
-      { k: 'pushToTalk', label: 'Push to talk', type: 'toggle', hint: 'Off = open mic' },
-      { k: 'voiceDuck', label: 'Lower game for voices', type: 'toggle', hint: 'Music and effects step back while someone you can hear is talking' },
-    ],
-  },
-  {
-    id: 'graphics',
-    label: 'Graphics',
+    id: 'display',
+    label: 'Display',
     icon: 'eye',
+    sum: 'Quality, FOV, PS1',
+    desc: 'How the world is drawn. The game stays in view behind this page, so you can see a change as you make it.',
     rows: [
       { head: 'Performance' },
       { k: 'quality', label: 'Quality', type: 'seg', options: ['low', 'medium', 'high', 'ultra'], hint: 'Shadows, sun rays, ambient occlusion, grass density, view distance' },
@@ -128,17 +119,53 @@ const TABS = [
         fmt: (v, s) => Math.round(grassRadius(QUALITY[s.quality] || QUALITY.medium, v)) + ' m',
         hint: 'How far out grass is drawn. Further costs frame rate',
       },
-      { k: 'renderScale', label: 'Render scale', type: 'range', min: 0.5, max: 1, step: 0.05, fmt: pct },
+      { k: 'renderScale', label: 'Render scale', type: 'range', min: 0.5, max: 1, step: 0.05, fmt: pct, hint: 'Lower draws fewer pixels: faster, softer' },
       { head: 'View' },
-      { k: 'fov', label: 'Field of view', type: 'range', min: 60, max: 100, step: 1, fmt: (v) => Math.round(v) + '°' },
+      { k: 'fov', label: 'Field of view', type: 'range', min: 60, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', hint: 'Wider sees more at the edges' },
       { k: 'ps1', label: 'PS1 shader', type: 'toggle', hint: 'Low resolution, wobbling polygons, dithered colour, thicker fog' },
       { k: 'ps1Strength', label: 'PS1 intensity', type: 'range', min: 0.1, max: 1, step: 0.05, fmt: pct, needs: 'ps1', hint: 'Pixel size, wobble, colour banding and fog' },
+      { head: 'Window' },
+      { k: 'fullscreen', label: 'Fullscreen while playing', type: 'toggle', hint: 'Keeps Ctrl+W (crouch + forward) from closing the tab. Off = the tab asks before it closes' },
     ],
   },
+  {
+    id: 'audio',
+    label: 'Audio & voice',
+    icon: 'speaker',
+    sum: 'Volumes, push to talk',
+    desc: 'How loud each part of the mix is, and how your voice goes out.',
+    rows: [
+      { head: 'Volume' },
+      { k: 'masterVolume', label: 'Master', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
+      { k: 'musicVolume', label: 'Music & ambience', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
+      { k: 'sfxVolume', label: 'Effects', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
+      { k: 'voiceVolume', label: 'Voice chat', type: 'range', min: 0, max: 2, step: 0.01, fmt: pct },
+      { head: 'Voice chat' },
+      { k: 'pushToTalk', label: 'Push to talk', type: 'toggle', hint: 'Off = open mic' },
+      { k: 'voiceDuck', label: 'Lower game for voices', type: 'toggle', hint: 'Music and effects step back while someone you can hear is talking' },
+    ],
+  },
+  {
+    id: 'mouse',
+    label: 'Mouse & aim',
+    icon: 'headshot',
+    sum: 'Sensitivity, invert',
+    desc: 'How the view turns with the mouse.',
+    rows: [
+      { head: 'Mouse' },
+      { k: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.1, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×' },
+      { k: 'aimSensitivity', label: 'Aim sensitivity', type: 'range', min: 0.25, max: 2, step: 0.05, fmt: (v) => v.toFixed(2) + '×', hint: 'While aiming, on top of the zoom' },
+      { k: 'invertY', label: 'Invert mouse Y', type: 'toggle' },
+      { k: 'rawMouse', label: 'Raw mouse input', type: 'toggle', hint: 'Off = OS mouse acceleration applies' },
+    ],
+  },
+  { id: 'keys', label: 'Keys & controls', icon: 'keyboard', sum: `${ACTIONS.length} actions, 2 keys each` },
   {
     id: 'interface',
     label: 'Interface',
     icon: 'grid',
+    sum: 'Highlight, hints, FPS',
+    desc: 'What the screen tells you while you play.',
     rows: [
       { head: 'On screen' },
       { k: 'highlight', label: 'Interaction highlight', type: 'seg', options: ['off', 'subtle', 'strong'], hint: 'A faint outline on what you can use, while you look at it up close' },
@@ -149,25 +176,67 @@ const TABS = [
       { k: 'achSound', label: 'Unlock sound', type: 'toggle', hint: 'A chime when you unlock one' },
     ],
   },
-  { id: 'record', label: 'Record', icon: 'trophy' },
+  {
+    id: 'access',
+    label: 'Accessibility',
+    icon: 'person',
+    sum: 'Motion, hold or toggle',
+    desc: 'Comfort and reach. A preset sets several rows at once; change any row after.',
+    presets: [
+      {
+        label: 'Motion comfort',
+        what: 'Shake and bob off, sway off, flashes dimmed, field of view 90°',
+        set: { cameraShake: 0, viewBob: false, weaponSway: false, reduceFlashes: true, fov: 90 },
+      },
+      {
+        label: 'Trackpad / one hand',
+        what: 'Aim, sprint and crouch on toggle, drop needs a hold',
+        set: { aimMode: 'toggle', sprintMode: 'toggle', crouchMode: 'toggle', holdToDrop: true },
+      },
+    ],
+    rows: [
+      { head: 'Motion & camera', note: 'for motion sickness' },
+      { k: 'cameraShake', label: 'Camera shake', type: 'range', min: 0, max: 1, step: 0.05, fmt: pct, hint: "Explosions, a Tank's footfalls, hits and crashes. 0% holds the view still" },
+      { k: 'viewBob', label: 'View bob', type: 'toggle', hint: 'The view rises and falls with each stride, and rides the water when you swim' },
+      { k: 'weaponSway', label: 'Weapon look sway', type: 'toggle', hint: 'The gun trails behind fast turns; off also keeps small landings from dipping the view' },
+      { k: 'reduceFlashes', label: 'Reduce flashes', type: 'toggle', hint: 'Muzzle flashes, blasts and lightning drawn far dimmer' },
+      { head: 'Hold or toggle', note: 'for trackpads and tired hands' },
+      { k: 'aimMode', label: 'Aim', type: 'seg', options: ['hold', 'toggle'], hint: 'Toggle: one press aims, the next lets go (so does a weapon switch)' },
+      { k: 'sprintMode', label: 'Sprint', type: 'seg', options: ['hold', 'toggle'], hint: 'Toggle: one press runs until you stop moving or press it again' },
+      { k: 'crouchMode', label: 'Crouch', type: 'seg', options: ['hold', 'toggle'], hint: 'Toggle: one press crouches, the next stands you up' },
+      { k: 'holdToDrop', label: 'Hold to drop weapon', type: 'toggle', hint: 'The drop key has to be held a moment, so a stray press in a fight keeps your gun. Off = a press drops it' },
+    ],
+  },
+  { id: 'record', label: 'Your record', icon: 'trophy', sum: '', apart: true },
 ];
 const TAB_KEY = 'stn.settingsTab';
+// the tabs as they were named before they were regrouped (a page remembered from then still opens)
+const OLD_TABS = { controls: 'mouse', keybinds: 'keys', graphics: 'display' };
+const TAB_IDS = TABS.map((t) => t.id);
+const settingKeys = (tab) => (tab.rows || []).filter((r) => r.k).map((r) => r.k);
+
+// a circling arrow: put this one back
+const RESET_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 12a7.4 7.4 0 1 0 2.2-5.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M4 3.4v5.2h5.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 export class SettingsPanel {
   constructor(ui, parent) {
     this.ui = ui;
-    this.root = el('div', 'stn-settings', parent);
+    this.root = el('div', 'stn-settings ux-set', parent);
     this.root.setAttribute('role', 'dialog');
+    this.root.setAttribute('aria-label', 'Settings');
     this.root.hidden = true;
     const card = el('div', 'set-card paper', this.root);
     const head = el('div', 'set-head', card);
     el('h2', 'set-title', head, 'Settings');
-    el('span', 'set-sub', head, 'changes apply immediately');
+    const sub = el('span', 'set-sub', head, 'Changes apply at once. A ');
+    el('i', 'ux-bar-key', sub);
+    sub.append(' bar marks anything you changed from its default.');
     const close = svgEl('button', 'set-close btn-icon', head, glyph('xmark'));
     close.title = 'Close';
     close.addEventListener('click', () => this.hide());
 
     this.inputs = {};
+    this.rowEls = {};
     this.tabs = {};
     const body = el('div', 'set-body set-split', card);
     const nav = el('nav', 'set-nav', body);
@@ -176,34 +245,63 @@ export class SettingsPanel {
     nav.addEventListener('keydown', (e) => this._navKey(e));
     this.main = el('div', 'set-main', body);
     for (const tab of TABS) {
+      if (tab.apart) el('div', 'ux-nav-sep', nav);
       const btn = svgEl('button', 'set-tab', nav, glyph(tab.icon, 'set-tab-ico'));
-      el('span', 'set-tab-txt', btn, tab.label);
+      const txt = el('span', 'set-tab-txt', btn);
+      el('span', 'ux-tab-name', txt, tab.label);
+      const sum = el('span', 'ux-tab-sum', txt, tab.sum);
+      const count = el('span', 'ux-tab-count', btn, '');
       btn.type = 'button';
+      btn.title = tab.label;
       btn.setAttribute('role', 'tab');
       btn.addEventListener('click', () => this.select(tab.id));
       let pane;
-      if (tab.id === 'keybinds') pane = (this.keybinds = new KeybindsSection(this, this.main)).root;
+      if (tab.id === 'keys') pane = (this.keybinds = new KeybindsSection(this, this.main)).root;
       else {
         pane = el('section', 'set-sec', this.main);
-        el('h3', 'set-sec-title', pane, tab.label);
+        this._paneHead(pane, tab.label, tab.desc);
         if (tab.id === 'record') this._recordTab(pane);
-        else for (const row of tab.rows) row.head ? el('h4', 'set-group', pane, row.head) : this._row(pane, row);
+        else {
+          if (tab.presets) this._presets(pane, tab.presets);
+          for (const row of tab.rows) row.head ? this._group(pane, row) : this._row(pane, row, tab.id);
+        }
       }
       pane.classList.add('set-pane');
       pane.setAttribute('role', 'tabpanel');
-      this.tabs[tab.id] = { btn, pane };
+      this.tabs[tab.id] = { btn, pane, count, sum, tab };
     }
-    this.select(TABS.some((t) => t.id === lsGet(TAB_KEY, '')) ? lsGet(TAB_KEY, '') : TABS[0].id);
+    this.recSum = this.tabs.record.sum;
+    const remembered = lsGet(TAB_KEY, '');
+    this.select(OLD_TABS[remembered] || (TAB_IDS.includes(remembered) ? remembered : TABS[0].id));
 
-    const foot = el('div', 'set-foot', card);
-    const reset = el('button', 'btn btn-ghost', foot, 'Reset defaults');
-    reset.title = 'Every setting back to its default (keybinds have their own reset)';
-    reset.addEventListener('click', () => {
+    // the foot: this tab's reset (with how many it would put back), every tab's behind a second click, and Done
+    const foot = el('div', 'set-foot ux-foot', card);
+    this.resetTab = el('button', 'btn btn-ghost ux-reset-tab', foot, '');
+    this.resetTab.type = 'button';
+    this.resetTab.addEventListener('click', () => this._resetTab(this.tab));
+    const all = (this.allBox = el('div', 'ux-all', foot));
+    this.changedHere = el('span', 'ux-changed', all, '');
+    this.allBtn = el('button', 'ux-link', all, 'Reset all tabs…');
+    this.allBtn.type = 'button';
+    this.allBtn.title = 'Every setting and every key back to its default';
+    this.allBtn.addEventListener('click', () => this._armAll(true));
+    this.allAsk = el('span', 'ux-all-ask', all);
+    el('span', '', this.allAsk, 'Every tab and every key back to its default?');
+    const yes = el('button', 'btn btn-ghost btn-danger ux-mini', this.allAsk, 'Yes, reset');
+    const no = el('button', 'btn btn-ghost ux-mini', this.allAsk, 'Keep');
+    yes.type = no.type = 'button';
+    yes.addEventListener('click', () => {
+      this.keybinds.resetAll();
       this.ui._applySettings({ ...DEFAULT_SETTINGS });
+      this._armAll(false);
       this.sync();
     });
+    no.addEventListener('click', () => this._armAll(false));
+    this._armAll(false);
     const done = el('button', 'btn btn-blood', foot, 'Done');
     done.addEventListener('click', () => this.hide());
+
+    onBindsChange(() => this._syncCounts());
 
     this.root.addEventListener('pointerdown', (e) => {
       if (e.target === this.root) this.hide();
@@ -219,8 +317,12 @@ export class SettingsPanel {
   }
 
   select(id) {
+    id = OLD_TABS[id] || id;
     if (!this.tabs[id]) return;
-    if (this.tab !== id) this.keybinds?.cancel(); // (a key being listened for is not left waiting on a tab out of sight)
+    if (this.tab !== id) {
+      this.keybinds?.cancel(); // (a key being listened for is not left waiting on a tab out of sight)
+      this._armAll?.(false);
+    }
     this.tab = id;
     lsSet(TAB_KEY, id);
     for (const k in this.tabs) {
@@ -231,7 +333,11 @@ export class SettingsPanel {
       btn.tabIndex = on ? 0 : -1;
       pane.hidden = !on;
     }
+    // Display: the game is not dimmed behind the card, so a change to the view can be seen as it is made
+    this.root.classList.toggle('ux-live', id === 'display');
+    this.root.classList.toggle('ux-keys', id === 'keys');
     this.main.scrollTop = 0;
+    this._syncCounts();
   }
 
   // up / down (or left / right, when the narrow layout lays the tabs out in a row) walk the tabs
@@ -239,10 +345,40 @@ export class SettingsPanel {
     const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
     if (!step) return;
     e.preventDefault();
-    const i = TABS.findIndex((t) => t.id === this.tab);
-    const next = TABS[(i + step + TABS.length) % TABS.length].id;
+    const i = TAB_IDS.indexOf(this.tab);
+    const next = TAB_IDS[(i + step + TAB_IDS.length) % TAB_IDS.length];
     this.select(next);
     this.tabs[next].btn.focus();
+  }
+
+  _paneHead(pane, title, desc) {
+    const h = el('div', 'ux-pane-head', pane);
+    el('h3', 'set-sec-title', h, title);
+    if (desc) el('p', 'ux-pane-desc', h, desc);
+    return h;
+  }
+
+  _group(pane, row) {
+    const g = el('h4', 'set-group', pane, row.head);
+    if (row.note) el('span', 'ux-group-note', g, row.note);
+  }
+
+  // presets: a card each, naming what it sets; Apply sets those rows (and says Applied while they all still match)
+  _presets(pane, presets) {
+    const box = el('div', 'ux-presets', pane);
+    this.presetEls = presets.map((p) => {
+      const c = el('div', 'ux-preset', box);
+      const t = el('div', 'ux-preset-t', c);
+      el('b', '', t, p.label);
+      el('small', '', t, p.what);
+      const b = el('button', 'btn btn-ghost ux-mini', c, 'Apply');
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        this.ui._applySettings({ ...this.ui.settings, ...p.set });
+        this.sync();
+      });
+      return { p, b };
+    });
   }
 
   // not a setting, but this is where a player looks for it: wiping the personal record (records.js).
@@ -268,18 +404,30 @@ export class SettingsPanel {
     const lab = el('label', 'set-label', r, row.label);
     if (row.hint) el('small', 'set-hint', lab, row.hint);
     const ctl = el('div', 'set-ctl', r);
+    // this row back to its default: there only while it is off it (the others keep its room, so the controls line up)
+    const back = svgEl('button', 'ux-row-reset', null, RESET_SVG);
+    back.type = 'button';
+    back.title = 'Back to the default';
+    back.setAttribute('aria-label', `${row.label}: back to the default`);
+    back.addEventListener('click', () => {
+      this.ui._applySettings({ ...this.ui.settings, [row.k]: DEFAULT_SETTINGS[row.k] });
+      this.sync();
+    });
+    this.rowEls[row.k] = { r, back };
     if (row.type === 'range') {
       const inp = el('input', 'set-range', ctl);
       inp.type = 'range';
       inp.min = row.min;
       inp.max = row.max;
       inp.step = row.step;
+      inp.setAttribute('aria-label', row.label);
       const val = el('output', 'set-val', ctl);
       inp.addEventListener('input', () => {
         const v = parseFloat(inp.value);
         val.textContent = row.fmt(v, this.ui.settings);
         this._paintRange(inp);
         this.ui._applySettings({ ...this.ui.settings, [row.k]: v });
+        this._syncChanged();
       });
       this.inputs[row.k] = {
         sync: (s) => {
@@ -293,6 +441,7 @@ export class SettingsPanel {
     } else if (row.type === 'toggle') {
       const b = el('button', 'set-toggle', ctl);
       b.type = 'button';
+      b.setAttribute('aria-label', row.label);
       el('i', 'knob', b);
       const txt = el('span', 'set-toggle-txt', ctl);
       b.addEventListener('click', () => {
@@ -308,6 +457,8 @@ export class SettingsPanel {
       };
     } else if (row.type === 'seg') {
       const seg = el('div', 'set-seg', ctl);
+      seg.setAttribute('role', 'group');
+      seg.setAttribute('aria-label', row.label);
       const btns = row.options.map((o) => {
         const b = el('button', 'seg-btn', seg, o);
         b.type = 'button';
@@ -317,8 +468,15 @@ export class SettingsPanel {
         });
         return b;
       });
-      this.inputs[row.k] = { sync: (s) => btns.forEach((b, i) => b.classList.toggle('on', row.options[i] === s[row.k])) };
+      this.inputs[row.k] = {
+        sync: (s) =>
+          btns.forEach((b, i) => {
+            b.classList.toggle('on', row.options[i] === s[row.k]);
+            b.setAttribute('aria-pressed', row.options[i] === s[row.k] ? 'true' : 'false');
+          }),
+      };
     }
+    ctl.append(back);
   }
 
   _paintRange(inp) {
@@ -326,9 +484,67 @@ export class SettingsPanel {
     inp.style.setProperty('--p', p.toFixed(1) + '%');
   }
 
+  // ---------------------------------------------------------------- what is off its default
+  _changedIn(id) {
+    if (id === 'keys') return ACTIONS.filter((a) => !isDefault(a.id)).length;
+    const tab = this.tabs[id]?.tab;
+    return tab ? settingKeys(tab).filter((k) => changed(this.ui.settings, k)).length : 0;
+  }
+
+  _resetTab(id) {
+    if (id === 'keys') return this.keybinds.resetAll();
+    const keys = settingKeys(this.tabs[id].tab);
+    if (!keys.length) return;
+    this.ui._applySettings({ ...this.ui.settings, ...Object.fromEntries(keys.map((k) => [k, DEFAULT_SETTINGS[k]])) });
+    this.sync();
+  }
+
+  _armAll(on) {
+    if (!this.allAsk) return;
+    this.allArmed = on;
+    this.allAsk.hidden = !on;
+    this.allBtn.hidden = this.changedHere.hidden = on;
+    this.resetTab.hidden = on || this.tab === 'record';
+  }
+
+  // the amber bar and the row's own reset on each changed row, the counts on the tabs, and the foot's reset
+  _syncChanged() {
+    const s = this.ui.settings;
+    for (const k in this.rowEls) {
+      const on = changed(s, k);
+      this.rowEls[k].r.classList.toggle('ux-changed-row', on);
+      this.rowEls[k].back.classList.toggle('off', !on);
+      this.rowEls[k].back.disabled = !on;
+    }
+    for (const { p, b } of this.presetEls || []) {
+      const applied = Object.entries(p.set).every(([k, v]) => s[k] === v);
+      b.textContent = applied ? 'Applied' : 'Apply';
+      b.disabled = applied;
+    }
+    this._syncCounts();
+  }
+
+  _syncCounts() {
+    if (!this.resetTab) return;
+    for (const id in this.tabs) {
+      const n = this._changedIn(id);
+      this.tabs[id].count.textContent = n ? String(n) : '';
+      this.tabs[id].btn.title = this.tabs[id].tab.label + (n ? ` · ${n} changed` : '');
+    }
+    const id = this.tab;
+    const n = this._changedIn(id);
+    const name = id === 'keys' ? 'keys' : this.tabs[id].tab.label;
+    this.resetTab.textContent = `Reset ${name}` + (n ? ` (${n})` : '');
+    this.resetTab.disabled = !n;
+    this.resetTab.hidden = this.allArmed || id === 'record';
+    this.changedHere.textContent = id === 'record' ? '' : n ? `${n} changed here ·` : 'All defaults here ·';
+    this.changedHere.classList.toggle('some', !!n);
+  }
+
   sync() {
     const s = this.ui.settings;
     for (const k in this.inputs) this.inputs[k].sync(s);
+    this._syncChanged();
     this._syncRecord();
   }
 
@@ -340,6 +556,7 @@ export class SettingsPanel {
     this.recKeep.hidden = !armed;
     this.recClear.textContent = armed ? 'Yes, clear it' : 'Clear record';
     this.recClear.disabled = !runs;
+    this.recSum.textContent = runs ? `${n} · clear it here` : 'No runs yet';
     this.recHint.textContent = armed
       ? `Erase ${n} and your bests for good?`
       : runs
@@ -349,6 +566,7 @@ export class SettingsPanel {
 
   show(tab) {
     if (tab) this.select(tab);
+    this._armAll(false);
     this.sync();
     this.root.hidden = false;
     this.root.classList.remove('in');
