@@ -935,6 +935,7 @@ export class Deer {
     this.integrate(m, dt, dx * speed, dz * speed, humans);
 
     // held up by something (a fence, a wall somebody built, a rock): never push at it
+    const big = this.g.world.size > 1000;
     const sp = Math.hypot(m.vx, m.vz);
     if (speed > 0) {
       if (sp < speed * 0.25) m.stuckT += dt;
@@ -956,11 +957,12 @@ export class Deer {
           // (grazing) that tuft is not worth it
           m.moving = false;
           m.pause = 1 + rng() * 3;
-        } else if (++m.stucks > 3) m.arrived = true; // no way on: it stops where it is
+        } else if (++m.stucks > (big ? 8 : 3)) m.arrived = true; // no way on: it stops where it is
         else {
-          // a few strides to one side, then the flow field again
+          // a few strides to one side, then the flow field again (in the mainland's thick woods more tries and longer
+          // strides round the trunks: a pack left one of its own stopped among them)
           const side = rng() < 0.5 ? 1 : -1;
-          m.detourT = 0.5 + rng() * 0.5;
+          m.detourT = big ? 0.8 + rng() * 0.8 : 0.5 + rng() * 0.5;
           m.detourX = -dz * side + dx * 0.2;
           m.detourZ = dx * side + dz * 0.2;
           m.direct = false;
