@@ -34,7 +34,7 @@
 import { GRID_STEP, WATER_LEVEL } from './constants.js';
 import { ZONE, CONT } from './defs.js';
 import { PROPS, collidersOf } from './props.js';
-import { mulberry32, createNoise2D, fbm, smoothstep, lerp, clamp } from './rng.js';
+import { mulberry32, createNoise2D, fbm, smoothstep, lerp, clamp, hash2 } from './rng.js';
 import { makeCyl, makeBox, makeTree, COL } from './collision.js';
 import { ROAD } from './layout.js';
 import { createKit } from './worldkit.js';
@@ -4176,11 +4176,17 @@ export function createMainland(seed) {
     return false;
   };
   let trees = [];
+  // (the woods, the boulders and the bushes are dealt from dice of their own, one set to every cell of the forest's
+  // grid and to every boulder or bush tried - a hash of the seed, the cell or the try and the draw - and not from the
+  // world's stream: a mountain or a clearing changed in one place changes the trees there and nowhere else, where
+  // with the stream every tree dealt after it was dealt anew)
+  const VSEED = (seed ^ 0x6a09e6) | 0;
+  const die = (i, j, k) => hash2(i, j, (VSEED + Math.imul(k, 0x9e3779b1)) | 0);
   // (solid: in the collider grid, as on the island. A tree up a mountain, past its wall, is out of everybody's reach and
   // is drawn and nothing else: no collider)
   const pushTree = (x, z, v, scale, solid = true) => {
     const y = heightAt(x, z);
-    const rot = rng.range(0, PI * 2);
+    const rot = die(Math.round(x * 16), Math.round(z * 16), 77) * PI * 2;
     occupy(x, z, 1.0 * scale);
     if (!solid) {
       trees.push(x, y, z, scale, rot, v);
@@ -4201,15 +4207,15 @@ export function createMainland(seed) {
   const TREES_N = Math.floor((LIM * 2) / TREE_CELL);
   for (let tj = 0; tj < TREES_N; tj++) {
     for (let ti = 0; ti < TREES_N; ti++) {
-      const x = -LIM + (ti + rng()) * TREE_CELL;
-      const z = -LIM + (tj + rng()) * TREE_CELL;
-      const r0 = rng();
+      const x = -LIM + (ti + die(ti, tj, 1)) * TREE_CELL;
+      const z = -LIM + (tj + die(ti, tj, 2)) * TREE_CELL;
+      const r0 = die(ti, tj, 3);
       const f = forestAt(x, z);
       const up = cliffAt(x, z);
       const dens = up > 0 ? Math.max(f, 0.4) * 0.7 * (1 - smoothstep(8, 70, up)) : Math.max(0.02, f ** 1.15 * 0.8);
       if (r0 > dens) continue;
-      const scale = rng.range(0.75, 1.3);
-      const r = rng();
+      const scale = 0.75 + die(ti, tj, 4) * 0.55;
+      const r = die(ti, tj, 5);
       if (seaAt(x, z) > -4 || inWater(x, z) || (up > -1.5 && up < CLIFF_IN + 1)) continue;
       if (up > 0) {
         const y = heightAt(x, z);
@@ -4223,41 +4229,63 @@ export function createMainland(seed) {
   }
   let rocks = [];
   for (let a = 0; a < 5200 && rocks.length < 1300 * 6; a++) {
-    const x = rng.range(-LIM, LIM);
-    const z = rng.range(-LIM, LIM);
+    const x = -LIM + die(a, 0, 11) * LIM * 2;
+    const z = -LIM + die(a, 0, 12) * LIM * 2;
     const up = cliffAt(x, z);
     // (most at the feet of the cliffs, where they came down)
-    if (up < -30 && rng() < 0.7) continue;
+    if (up < -30 && die(a, 0, 13) < 0.7) continue;
     if (zoneClear(x, z) || onRoad(x, z, 1.2) || inWater(x, z) || clearHit(x, z, 1) || tunnelOf(x, z, 4) || (up > -2 && up < CLIFF_IN + 1)) continue;
-    const v = rng.int(0, ROCK_R.length - 1);
-    const scale = rng.range(0.6, 1.8);
+    const v = Math.min(ROCK_R.length - 1, Math.floor(die(a, 0, 14) * ROCK_R.length));
+    const scale = 0.6 + die(a, 0, 15) * 1.2;
     const r = ROCK_R[v] * scale;
     if (occupied(x, z, r + 0.5) || partBlocked(x, z, r + 0.3)) continue;
     const y = heightAt(x, z) - 0.25 * scale;
     occupy(x, z, r);
-    rocks.push(x, y, z, scale, rng.range(0, PI * 2), v);
+    rocks.push(x, y, z, scale, die(a, 0, 16) * PI * 2, v);
     staticGrid.add(makeCyl(x, z, y - 1, y + r * 0.9, r * 0.85, COL.STATIC));
   }
   let bushes = [];
   for (let a = 0; a < 70000; a++) {
-    const x = rng.range(-LIM, LIM);
-    const z = rng.range(-LIM, LIM);
+    const x = -LIM + die(a, 1, 21) * LIM * 2;
+    const z = -LIM + die(a, 1, 22) * LIM * 2;
     if (roadDistAt(x, z) < 4 || inWater(x, z) || onField(x, z, 0) || cliffAt(x, z) > 40) continue;
     const zn = nearZone(x, z, -8);
-    if (zn && rng() < (zn.id === ZONE.CITY ? 0.93 : 0.85)) continue; // (the city is overgrown, but it is still paving)
+    if (zn && die(a, 1, 23) < (zn.id === ZONE.CITY ? 0.93 : 0.85)) continue; // (the city is overgrown, but it is still paving)
     if (clearHit(x, z, 0) || occupied(x, z, 0.4)) continue;
-    bushes.push(x, heightAt(x, z), z, rng.range(0.7, 1.5), rng.range(0, PI * 2), rng.int(0, 2));
+    bushes.push(x, heightAt(x, z), z, 0.7 + die(a, 1, 24) * 0.8, die(a, 1, 25) * PI * 2, Math.min(2, Math.floor(die(a, 1, 26) * 3)));
   }
 
   // what came up through the city's paving, down its kerbs and in its yards
   for (const [x, z, scale] of weeds) if (!partBlocked(x, z, 0.3)) bushes.push(x, heightAt(x, z), z, scale, rng.range(0, PI * 2), rng.int(0, 2));
 
   // ---------------------------------------------------------------- spawns
+  // (a spot in the woods is only kept if a body can walk out of it: of eight ways out, at least two run 8 m clear of
+  // every trunk, boulder and wall. In the thick woods a ring of trunks can close round a spot)
+  const solidNear = (x, z, r) => {
+    const y = heightAt(x, z);
+    for (const c of staticGrid.cellAt(x, z) || []) {
+      if (c.y1 < y + 0.3 || c.y0 > y + 1.8) continue;
+      const lx = c.c * (x - c.x) - c.s * (z - c.z);
+      const lz = c.s * (x - c.x) + c.c * (z - c.z);
+      if (c.type === 0 ? Math.abs(lx) < c.hx + r && Math.abs(lz) < c.hz + r : lx * lx + lz * lz < (c.r + r) ** 2) return true;
+    }
+    return false;
+  };
+  const walkOut = (x, z) => {
+    let ways = 0;
+    for (let q = 0; q < 8 && ways < 2; q++) {
+      const [dx, dz] = [Math.cos((q * PI) / 4), Math.sin((q * PI) / 4)];
+      let clear = true;
+      for (let s = 0.6; s <= 8 && clear; s += 0.5) if (solidNear(x + dx * s, z + dz * s, 0.45)) clear = false;
+      if (clear) ways++;
+    }
+    return ways >= 2;
+  };
   const resourceSpawns = [];
   for (let a = 0; a < 16000 && resourceSpawns.length < 560; a++) {
     const x = rng.range(-LIM + 20, LIM - 20);
     const z = rng.range(-LIM + 20, LIM - 20);
-    if (zoneClear(x, z) || inCity(x, z, 12) || inWater(x, z) || occupied(x, z, 0.8) || cliffAt(x, z) > -3 || !reachAt(x, z)) continue;
+    if (zoneClear(x, z) || inCity(x, z, 12) || inWater(x, z) || occupied(x, z, 0.8) || cliffAt(x, z) > -3 || !reachAt(x, z) || !walkOut(x, z)) continue;
     resourceSpawns.push({ x, y: heightAt(x, z) + 0.02, z, zone: ZONE.FOREST });
   }
   // fallback horde spawns (the horde normally appears round wherever the survivors are): rings round the city and

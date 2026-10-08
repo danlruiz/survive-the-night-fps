@@ -388,22 +388,50 @@ for (const seed of SEEDS) {
 
   // ...and a car driven into it is lost
   const cv = { id: 1, vk: VEH.CAR, x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, vf: 0, steer: 0, fuel: 10, hp: VEHICLES[VEH.CAR].hp, state: 1, run: true };
-  // (on the bank with no cliff over it, facing the water)
-  const side = w.cliffAt(f.cx - f.dz * (w.river.hw + 12), f.cz + f.dx * (w.river.hw + 12)) < -6 ? 1 : -1;
-  for (let d = w.river.hw + 14; d > w.river.hw; d -= 0.5) {
-    cv.x = f.cx - f.dz * d * side;
-    cv.z = f.cz + f.dx * d * side;
-    if (!w.isDeepWater(cv.x, cv.z)) break;
+  // (on the bank with no cliff over it, facing the water, with a clear lane down to it: from a third of the way down the
+  // river on, the first place where nothing solid - a tree, a boulder, a wall - stands in a car's width between its
+  // start, 14 m out, and the water. The banks are wooded: where the car starts is not left to the dice of the woods)
+  const solidAt = (x, z) => {
+    const y = w.heightAt(x, z);
+    for (const c of w.staticGrid.cellAt(x, z) || []) {
+      if (c.y1 < y + 0.3) continue;
+      const lx = c.c * (x - c.x) - c.s * (z - c.z);
+      const lz = c.s * (x - c.x) + c.c * (z - c.z);
+      if (c.type === 0 ? Math.abs(lx) < c.hx + 0.2 && Math.abs(lz) < c.hz + 0.2 : lx * lx + lz * lz < (c.r + 0.2) ** 2) return true;
+    }
+    return false;
+  };
+  let lane = null;
+  for (let kk = k; kk < w.river.pts.length - 2 && !lane; kk += 2) {
+    const fl = w.river.flow(w.river.pts[kk], w.river.pts[kk + 1]);
+    for (const side of [1, -1]) {
+      if (w.cliffAt(fl.cx - fl.dz * (w.river.hw + 12) * side, fl.cz + fl.dx * (w.river.hw + 12) * side) > -6) continue;
+      const d0 = w.river.hw + 14;
+      if (w.isDeepWater(fl.cx - fl.dz * d0 * side, fl.cz + fl.dx * d0 * side)) continue;
+      let clear = true;
+      for (let d = d0; d > w.river.hw && clear; d -= 0.5) {
+        const [x, z] = [fl.cx - fl.dz * d * side, fl.cz + fl.dx * d * side];
+        if (w.isDeepWater(x, z)) break;
+        for (const o of [-1.2, 0, 1.2]) if (solidAt(x + fl.dx * o, z + fl.dz * o)) clear = false;
+      }
+      if (clear) {
+        lane = { fl, side, d0 };
+        break;
+      }
+    }
   }
+  const { fl: lf, side } = lane || { fl: f, side: 1 };
+  cv.x = lf.cx - lf.dz * (w.river.hw + 14) * side;
+  cv.z = lf.cz + lf.dx * (w.river.hw + 14) * side;
   cv.y = w.heightAt(cv.x, cv.z);
-  cv.yaw = Math.atan2(-f.dz * side, f.dx * side); // (its nose, -Z, to the river: forward (-sin, -cos) is (dz, -dx) * side)
+  cv.yaw = Math.atan2(-lf.dz * side, lf.dx * side); // (its nose, -Z, to the river: forward (-sin, -cos) is (dz, -dx) * side)
   const ev = [];
   let lost = false;
   for (let i = 0; i < 6 * 60 && !lost; i++) {
     stepVehicle(cv, 1, 0, false, false, w, 1 / 60, ev);
     lost = ev.some((e) => e.type === 'veh_river');
   }
-  check('...and a car driven into it is lost (the server takes it out of the world)', lost);
+  check('...and a car driven into it is lost (the server takes it out of the world)', !!lane && lost, lane ? `from a clear lane ${lane.d0.toFixed(0)} m out on the bank` : 'no clear lane to the water anywhere down the river');
 }
 
 console.log(failed ? `layout 12 FAILED (${failed})` : 'layout 12 OK');
