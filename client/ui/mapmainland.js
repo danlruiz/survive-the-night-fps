@@ -369,7 +369,7 @@ export function drawMainland(g, world, S, mapX, mapY) {
     if (p.shape !== 'box' && p.shape !== 'cyl') continue;
     if (p.sy < 0.9 && p.sx * p.sz < 30) continue;
     if (world.mine && p.y + p.sy / 2 < world.heightAt(p.x, p.z)) continue; // (the timbering of the mine)
-    if (p.tag === 'cliff' || inTunnel(p.x, p.z) || p.mat === 'dockwood' || ((p.mat === 'rust' || p.mat === 'tin_rust') && p.y > 8)) continue;
+    if (p.tag === 'cliff' || inTunnel(p.x, p.z) || p.mat === 'dockwood' || (p.mat === 'rust' && p.sx >= 12 && p.sz >= 50) || ((p.mat === 'rust' || p.mat === 'tin_rust') && p.y > 8)) continue;
     const w = p.sx * S;
     const h = p.sz * S;
     if (w * h < 1.2) continue;
@@ -409,33 +409,71 @@ export function drawMainland(g, world, S, mapX, mapY) {
     g.restore();
   }
 
+  // ---- a ship moored at the quay: its hull, pointed at the bow, the deck lighter; and every container as a small
+  // coloured block, on the apron, the ship and the wagons, as the picture draws the stacks
+  for (const p of parts) {
+    if (p.mat !== 'rust' || p.sx < 12 || p.sz < 50 || p.sy < 6) continue;
+    g.save();
+    g.translate(mapX(p.x), mapY(p.z));
+    g.rotate(-p.ry);
+    const hw = (p.sx / 2) * S, hl = (p.sz / 2) * S;
+    g.beginPath();
+    g.moveTo(-hw, hl);
+    g.lineTo(hw, hl);
+    g.lineTo(hw, -hl);
+    g.lineTo(0, -hl - 9 * S);
+    g.lineTo(-hw, -hl);
+    g.closePath();
+    g.fillStyle = '#4a3f38';
+    g.fill();
+    g.strokeStyle = '#1c1612';
+    g.lineWidth = 1.4;
+    g.stroke();
+    g.fillStyle = '#d8d0c0';
+    g.fillRect(-hw * 0.8, hl - 13 * S, hw * 1.6, 8 * S); // (its house at the stern)
+    g.restore();
+  }
+  const CONTAINER = ['#a5462a', '#24548a', '#3f6e3a', '#b08a2e'];
+  for (const pr of world.props) {
+    if (pr.type !== 'shipping_container') continue;
+    g.save();
+    g.translate(mapX(pr.x), mapY(pr.z));
+    g.rotate(-pr.ry);
+    g.fillStyle = CONTAINER[(pr.seed ?? 0) & 3];
+    g.fillRect(-1.25 * S, -3.05 * S, 2.5 * S, 6.1 * S);
+    g.strokeStyle = 'rgba(20, 16, 12, 0.7)';
+    g.lineWidth = 0.6;
+    g.strokeRect(-1.25 * S, -3.05 * S, 2.5 * S, 6.1 * S);
+    g.restore();
+  }
+
   // ---- the docks' cranes: the gantry on its four legs (a rust square, crossed) and its jib out over the water
   for (const p of parts) {
     if (p.mat !== 'rust' || p.sx < 28 || p.sx > 32 || p.sy < 0.8 || p.sy > 1 || p.y < 12) continue;
     const c = Math.cos(p.ry), sn = Math.sin(p.ry);
     // (the jib's quay end, where the gantry stands: its centre is 14 m on from there, toward the land)
-    const qx = p.x + c * 14, qz = p.z - sn * 14;
+    const qx = p.x + c * 19, qz = p.z - sn * 19;
     g.save();
     g.translate(mapX(qx), mapY(qz));
     g.rotate(-p.ry);
     g.strokeStyle = '#2a1a12';
     g.lineWidth = 2.6;
-    g.strokeRect(-4.3 * S, -4.7 * S, 8.6 * S, 9.4 * S);
+    g.strokeRect(-5.2 * S, -4.9 * S, 10.4 * S, 9.8 * S);
     g.strokeStyle = RUST;
     g.lineWidth = 1.6;
-    g.strokeRect(-4.3 * S, -4.7 * S, 8.6 * S, 9.4 * S);
+    g.strokeRect(-5.2 * S, -4.9 * S, 10.4 * S, 9.8 * S);
     g.beginPath();
-    g.moveTo(-4.3 * S, -4.7 * S);
-    g.lineTo(4.3 * S, 4.7 * S);
-    g.moveTo(4.3 * S, -4.7 * S);
-    g.lineTo(-4.3 * S, 4.7 * S);
+    g.moveTo(-5.2 * S, -4.9 * S);
+    g.lineTo(5.2 * S, 4.9 * S);
+    g.moveTo(5.2 * S, -4.9 * S);
+    g.lineTo(-5.2 * S, 4.9 * S);
     g.stroke();
     // the jib: out from the gantry over the water
     g.strokeStyle = '#2a1a12';
     g.lineWidth = 3.6;
     g.beginPath();
-    g.moveTo(2 * S, 0);
-    g.lineTo(-28 * S, 0);
+    g.moveTo(-4 * S, 0);
+    g.lineTo(-34 * S, 0);
     g.stroke();
     g.strokeStyle = RUST;
     g.lineWidth = 2;
