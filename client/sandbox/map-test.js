@@ -79,7 +79,7 @@ if (q.get('export')) {
     if (m.city) continue;
     const [x, z] = m.label || [m.x, m.z];
     if (m.big || m.pass) name(m.name.toUpperCase(), x, z, m.big ? 34 : 28);
-    else name(m.name.toUpperCase(), x, z, 30);
+    else name(m.name, x, z, 22, true);
   }
   window.__mapPNG = out.toDataURL('image/png');
 }
