@@ -581,8 +581,13 @@ const DEFS = {
   chrome: () => surface('chrome'),
   bone: () => lambert({ map: tileTex('bone'), color: 0xa8a090 }),
   blood: () => lambert({ color: 0x3c0605 }),
-  blood_decal: () =>
-    lambert({ map: getTexture('decal_blood'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  // (unsorted, as a vehicle's glass: a stain lies flat on what is under it and two of them come out the same whichever
+  // is drawn first - so all of them are one mesh in the static world, not a draw of their own in every piece of it)
+  blood_decal: () => {
+    const m = lambert({ map: getTexture('decal_blood'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    m.userData.unsorted = true;
+    return m;
+  },
   flesh: () => lambert({ map: tileTex('skin') }),
   charred: () => surface('charred'),
   ash: () => lambert({ map: tileTex('ash') }),
