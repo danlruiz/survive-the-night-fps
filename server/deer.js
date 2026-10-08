@@ -108,6 +108,9 @@ export class Deer {
     if (!this.open(x, z) || w.zoneAt(x, z) !== ZONE.FOREST || w.roadDistAt(x, z) < ROAD_CLEAR) return false;
     if (w.heightAt(x, z) < WATER_LEVEL + 0.5) return false;
     for (let k = 0; k < 4; k++) if (!this.open(x + (k & 1 ? 2.5 : -2.5), z + (k & 2 ? 2.5 : -2.5))) return false;
+    // (the mainland's woods stand a trunk every few metres where they are thick: a group grazes only where there is
+    // room round it - a clearing, the edge of the woods, open woods - or it is strung out among the trunks)
+    if (w.size > 1000) for (let k = 0; k < 8; k++) if (!this.open(x + Math.sin((k * Math.PI) / 4) * 5.5, z + Math.cos((k * Math.PI) / 4) * 5.5)) return false;
     for (const s of w.sites) if (Math.hypot(s.x - x, s.z - z) < SITE_CLEAR) return false;
     for (const p of w.mine?.portals || []) if (Math.hypot(p.x - x, p.z - z) < PORTAL_CLEAR) return false;
     return true;
@@ -994,6 +997,22 @@ export class Deer {
       const k = Math.min(1, 10 / d);
       const x = m.x + (gr.x - m.x) * k;
       const z = m.z + (gr.z - m.z) * k;
+      // (in the mainland's thick woods the straight way back is trunk after trunk: when it is not clear, round what
+      // stands in it - a few headings either side of the straight one, the first with a clear walk 5 m, then 3 m, out)
+      if (this.g.world.size > 1000 && (!this.open(x, z) || !this.clearWay(m.x, m.z, x, z, d * k))) {
+        const a0 = Math.atan2(gr.x - m.x, gr.z - m.z);
+        for (const r of [5, 3]) {
+          for (const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5]) {
+            const x2 = m.x + Math.sin(a0 + da) * r;
+            const z2 = m.z + Math.cos(a0 + da) * r;
+            if (!this.open(x2, z2) || !this.clearWay(m.x, m.z, x2, z2, r)) continue;
+            m.tx = x2;
+            m.tz = z2;
+            m.moving = true;
+            return;
+          }
+        }
+      }
       if (this.open(x, z)) {
         m.tx = x;
         m.tz = z;
