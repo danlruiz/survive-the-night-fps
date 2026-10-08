@@ -23,6 +23,8 @@ import { resolveBody, groundAt, deepWaterAt } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
 import { DEER, DANIM, DEER_LOOT, DEER_UNDEAD, UNDEAD, UNDEAD_LOOT } from '../shared/deer.js';
 
+const _body = { x: 0, y: 0, z: 0 };
+
 const GRAV = 16;
 const TAU = Math.PI * 2;
 const EDGE = 10; // as near the edge of the map as a deer goes (m): this.lim
@@ -191,12 +193,19 @@ export class Deer {
       const sx = gr.cx + (from ? ox * 0.6 : ox);
       const sz = gr.cz + (from ? oz * 0.6 : oz);
       if (!this.open(sx, sz)) continue;
+      // (nor on a trunk or a post the nav grid is too coarse to see: a body put down there would stand in it)
+      const sy = groundAt(g.world, sx, sz, g.world.heightAt(sx, sz) + 0.5, 0.2, false);
+      _body.x = sx;
+      _body.y = sy;
+      _body.z = sz;
+      resolveBody(g.world, _body, N.radius * 0.75, 0.9, false);
+      if (Math.hypot(_body.x - sx, _body.z - sz) > 0.05) continue;
       const e = {
         kind: ENT.DEER,
         // bit 0: a buck (antlers); bit 7 (DEER_UNDEAD): undead; the rest: its coat and build
         variant: ((Math.floor(rng() * 128) << 1) & 0x7f) | ((gr.members.length ? buck2 && gr.members.length === 1 : buck) ? 1 : 0) | (undead ? DEER_UNDEAD : 0),
         x: sx,
-        y: groundAt(g.world, sx, sz, g.world.heightAt(sx, sz) + 0.5, 0.2, false), // (the ground, not a roof over it)
+        y: sy, // (the ground, not a roof over it)
         z: sz,
         yaw: rng() * TAU,
         vx: 0,
