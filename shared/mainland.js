@@ -559,7 +559,7 @@ export function createMainland(seed) {
   // outside one, near its foot: the foothills, rising toward the cliff (none of it on the water)
   const foothill = (x, z, d) => (d > -FOOTHILL_IN ? FOOTHILL * (1 - smoothstep(0, FOOTHILL_IN, -d)) ** 1.6 * (0.55 + 0.45 * (0.5 + 0.5 * nB(x * 0.008 - 2.2, z * 0.008 + 6.4))) : 0);
   // the quarry's pit: terraces down into the ground, a ramp round them
-  const PIT = { x: FX(PLACES.quarry[0]), z: FX(PLACES.quarry[1]), r: 58, steps: 6, drop: 4.4 };
+  const PIT = { x: FX(PLACES.quarry[0]), z: FX(PLACES.quarry[1]), r: 58, steps: 6, drop: 4.4, floor: 17 };
   // (it is cut into a rise of its own, high enough that its floor stays over the water: the ground round it comes up to
   // its rim over 60 m)
   PIT.top = Math.max(H0(PIT.x, PIT.z), WATER_LEVEL + 2 + PIT.steps * PIT.drop);
@@ -620,7 +620,7 @@ export function createMainland(seed) {
       const d = (x - PIT.x) ** 2 + (z - PIT.z) ** 2 < (PIT.r + 64) ** 2 ? Math.hypot(x - PIT.x, z - PIT.z) + nE(x * 0.05, z * 0.05) * 3 : 1e4;
       if (d < PIT.r + 60) h = Math.max(h, lerp(h, PIT.top, 1 - smoothstep(PIT.r, PIT.r + 60, d)));
       if (d < PIT.r + 4) {
-        const ring = clamp((PIT.r - d) / (PIT.r / (PIT.steps + 0.6)), 0, PIT.steps);
+        const ring = clamp((PIT.r - d) / ((PIT.r - PIT.floor) / PIT.steps), 0, PIT.steps);
         const k = Math.floor(ring);
         const f = ring - k;
         h -= (k + smoothstep(0.42, 1, f)) * PIT.drop * smoothstep(-4, 2, PIT.r - d);
@@ -3680,6 +3680,20 @@ export function createMainland(seed) {
     }
     return true;
   };
+  // (is the ground under a prop's footprint level enough to set it down on: within 0.8 m corner to corner?)
+  const levelUnder = (type, x, z, ry) => {
+    const [sx, , sz] = PROPS[type]?.size || [2, 1, 4];
+    const c = Math.cos(ry);
+    const sn = Math.sin(ry);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const [lx, lz] of [[-sx / 2, -sz / 2], [sx / 2, -sz / 2], [sx / 2, sz / 2], [-sx / 2, sz / 2]]) {
+      const h = heightAt(x + c * lx + sn * lz, z - sn * lx + c * lz);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    return hi - lo < 0.8;
+  };
   // The main roads first: every so often the traffic out of the city stopped for good - a dozen wrecks across both
   // lanes, a truck jack-knifed among them, what their people dropped as they ran
   for (const main of roads.filter((r) => r.kind === ROAD.ASPHALT && r.width === 3.6)) {
@@ -3710,7 +3724,7 @@ export function createMainland(seed) {
         const ry = (k % 2 ? PI : 0) + rng.range(-0.35, 0.35);
         const trunk = rng.chance(0.5);
         const type = t < 0.4 ? 'car_wreck' : t < 0.68 ? 'car_burnt' : t < 0.86 ? 'pickup_truck' : t < 0.95 ? 'ambulance' : 'school_bus';
-        if (propBlocked(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !wreckClear(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !longClear(type, b.wx(lane, along), b.wz(lane, along)) || otherRoad(main, b.wx(lane, along), b.wz(lane, along), 13)) continue;
+        if (!levelUnder(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || propBlocked(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !wreckClear(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !longClear(type, b.wx(lane, along), b.wz(lane, along)) || otherRoad(main, b.wx(lane, along), b.wz(lane, along), 13)) continue;
         b.wreck(type, lane, along, ry, { trunk: trunk && type !== 'car_burnt' && type !== 'ambulance' && type !== 'school_bus', zone: ZONE.ROADSIDE });
       }
       b.prop('suitcases', rng.range(-5, 5), rng.range(-12, 12), rng.range(0, 6), { nocollide: true });
@@ -3771,7 +3785,9 @@ export function createMainland(seed) {
     b.ground = true;
     if (st.type === 'wreck') {
       const t = rng();
-      b.wreck(t < 0.45 ? 'car_wreck' : t < 0.75 ? 'car_burnt' : 'pickup_truck', 0, 0, PI / 2 + rng.range(-0.5, 0.5), { zone: ZONE.ROADSIDE, trunk: t < 0.45 || t >= 0.75 });
+      const wt = t < 0.45 ? 'car_wreck' : t < 0.75 ? 'car_burnt' : 'pickup_truck';
+      const wry = PI / 2 + rng.range(-0.5, 0.5);
+      if (levelUnder(wt, st.x, st.z, st.ry + wry)) b.wreck(wt, 0, 0, wry, { zone: ZONE.ROADSIDE, trunk: t < 0.45 || t >= 0.75 });
       if (rng.chance(0.4)) b.prop('corpse', rng.range(-2.5, 2.5), -2.4, rng.range(0, 6), { nocollide: true });
       if (rng.chance(0.3)) b.loot(rng.range(-2, 2), 2.6);
     } else if (st.type === 'camp') {
@@ -3861,7 +3877,7 @@ export function createMainland(seed) {
     const m = mine.main;
     const inRoom = (x, z, pad) => mine.rooms.some((r) => Math.hypot(x - r.x, z - r.z) < r.r + pad);
     let side = 1;
-    for (let i = 10; i < m.n - 6; i += 18) {
+    for (let i = 8; i < m.n - 6; i += 9) {
       if (inRoom(m.x[i], m.z[i], 2)) continue;
       const c = Math.min(m.n - 1, i + 1);
       const tl = Math.hypot(m.x[c] - m.x[i - 1], m.z[c] - m.z[i - 1]) || 1;
@@ -3954,7 +3970,7 @@ export function createMainland(seed) {
       if (ly + 1 - g > 0.6) b.box(0, g, lz, 0.3, ly + 1 - g, 0.3, 'rust', { collide: false });
     }
     // heaps of stone on the floor and the benches
-    const bench = (k) => PIT.r * (1 - (k + 0.4) / (PIT.steps + 0.6));
+    const bench = (k) => PIT.r - ((k - 0.55) * (PIT.r - PIT.floor)) / PIT.steps; // (the middle of bench k: 1 the top one)
     for (const [k, a, t] of [[0, 2.2, 'gravel_pile'], [0, 3.6, 'rubble_pile'], [1, 1.2, 'gravel_pile'], [2, 4.4, 'gravel_pile'], [3, 0.4, 'rubble_pile'], [4, 5.4, 'gravel_pile'], [2, 2.6, 'rubble_pile']]) {
       const r = k ? bench(k) : 8;
       const x = b.wx(Math.sin(a) * r, Math.cos(a) * r);
@@ -3971,7 +3987,7 @@ export function createMainland(seed) {
       const t2 = new Builder(x, z, toYard + 3.4 + PI / 2, heightAt(x, z));
       t2.zone = ZONE.AGGREGATES;
       t2.ground = true;
-      t2.wreck('dump_truck', 0, 0, 0, { trunk: false, seed: 1 });
+      if (levelUnder('dump_truck', x, z, t2.ry)) t2.wreck('dump_truck', 0, 0, 0, { trunk: false, seed: 1 });
     }
     b.loot(-2, -12);
     b.clear(0, 0, PIT.r);
@@ -4304,7 +4320,7 @@ export function createMainland(seed) {
     }
     if (mine) for (const p of mine.portals) marks.push({ kind: 'mine', x: p.x, z: p.z });
     for (const [x, z] of [P(PLACES.mineA), [zp(ZONE.PASSAGE).x + 6, zp(ZONE.PASSAGE).z - 22]]) marks.push({ kind: 'mine', x, z });
-    marks.push({ kind: 'pit', x: PIT.x, z: PIT.z, r: PIT.r, steps: PIT.steps });
+    marks.push({ kind: 'pit', x: PIT.x, z: PIT.z, r: PIT.r, floor: PIT.floor, steps: PIT.steps });
     marks.push({ kind: 'quarry', x: zp(ZONE.AGGREGATES).x + 30, z: zp(ZONE.AGGREGATES).z + 30 });
     marks.push({ kind: 'lighthouse', x: zp(ZONE.LIGHTHOUSE).x, z: zp(ZONE.LIGHTHOUSE).z });
     marks.push({ kind: 'tower', x: zp(ZONE.OUTPOST).x - 6, z: zp(ZONE.OUTPOST).z - 18 });
