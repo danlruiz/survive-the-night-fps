@@ -447,33 +447,37 @@ export function drawMainland(g, world, S, mapX, mapY) {
     g.restore();
   }
 
+  const seenCrane = new Set();
   // ---- the docks' cranes: the gantry on its four legs (a rust square, crossed) and its jib out over the water
   for (const p of parts) {
-    if (p.mat !== 'rust' || p.sx < 28 || p.sx > 32 || p.sy < 0.8 || p.sy > 1 || p.y < 12) continue;
+    if (p.mat !== 'rust' || p.sx < 55 || p.sx > 70 || p.sy < 2 || p.sy > 2.5 || p.y < 25) continue;
+    const ck = Math.round(p.x) + ',' + Math.round(p.z / 8);
+    if (seenCrane.has(ck)) continue;
+    seenCrane.add(ck);
     const c = Math.cos(p.ry), sn = Math.sin(p.ry);
     // (the jib's quay end, where the gantry stands: its centre is 14 m on from there, toward the land)
-    const qx = p.x + c * 19, qz = p.z - sn * 19;
+    const qx = p.x + c * 23.9, qz = p.z - sn * 23.9;
     g.save();
     g.translate(mapX(qx), mapY(qz));
     g.rotate(-p.ry);
     g.strokeStyle = '#2a1a12';
     g.lineWidth = 2.6;
-    g.strokeRect(-5.2 * S, -4.9 * S, 10.4 * S, 9.8 * S);
+    g.strokeRect(-8 * S, -8 * S, 16 * S, 16 * S);
     g.strokeStyle = RUST;
     g.lineWidth = 1.6;
-    g.strokeRect(-5.2 * S, -4.9 * S, 10.4 * S, 9.8 * S);
+    g.strokeRect(-8 * S, -8 * S, 16 * S, 16 * S);
     g.beginPath();
-    g.moveTo(-5.2 * S, -4.9 * S);
-    g.lineTo(5.2 * S, 4.9 * S);
-    g.moveTo(5.2 * S, -4.9 * S);
-    g.lineTo(-5.2 * S, 4.9 * S);
+    g.moveTo(-8 * S, -8 * S);
+    g.lineTo(8 * S, 8 * S);
+    g.moveTo(8 * S, -8 * S);
+    g.lineTo(-8 * S, 8 * S);
     g.stroke();
     // the jib: out from the gantry over the water
     g.strokeStyle = '#2a1a12';
     g.lineWidth = 3.6;
     g.beginPath();
-    g.moveTo(-4 * S, 0);
-    g.lineTo(-34 * S, 0);
+    g.moveTo(7.6 * S, 0);
+    g.lineTo(-55.4 * S, 0);
     g.stroke();
     g.strokeStyle = RUST;
     g.lineWidth = 2;
