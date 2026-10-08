@@ -24,7 +24,7 @@ const HOLD_BTN = {
 // a code that is still answered with the controls off (the inventory, the map, the pause menu): the key that opened
 // something shuts it, Esc backs out, and Enter opens the chat from the inventory (Y does not: as in Half-Life, it is a
 // key of play). The pause menu keeps Enter for its own rows (menus.js Pause).
-const MENU_ACTIONS = new Set(['inventory', 'map', 'board', 'bestiary', 'players']);
+const MENU_ACTIONS = new Set(['inventory', 'map', 'board', 'bestiary', 'cards', 'players']);
 function passesMenus(code) {
   if (code === 'Escape') return true;
   for (const a of actionsOf(code)) if (MENU_ACTIONS.has(a) || (a === 'chat' && code === 'Enter')) return true;
@@ -197,8 +197,14 @@ export class Input {
 
   requestLock() {
     if (this.locked) return;
-    this.onRequestLock?.(); // (game.js: the same click takes fullscreen + keyboard lock - keyguard.js)
     this.rawActive = false;
+    this.lockPointer();
+    // (game.js: the same click takes fullscreen + keyboard lock - keyguard.js). After the pointer, not before: Chrome
+    // only gives the pointer to a request made while the click still counts as the user's, and a fullscreen request
+    // that is granted uses that up - asked the other way round, the click took the screen and a second one the mouse.
+    this.onRequestLock?.();
+  }
+  lockPointer() {
     if (!this.rawInput) {
       this.canvas.requestPointerLock?.();
       return;

@@ -506,6 +506,7 @@ export class Splash {
     this.browser.hide();
     this.creator.hide();
     this.character.panel.hide();
+    this.character.panel.creator.close(); // (an edit not saved is kept for the next time it opens)
     releaseStage(); // (the picker's renderer: not needed in play)
   }
 }
@@ -560,6 +561,7 @@ export class Pause {
     this.perks = row(list, 'arrowUp', 'Perks', () => this.ui.progress.show());
     this.ach = row(list, 'trophy', 'Achievements', () => this.ui.achPanel.show());
     row(list, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
+    row(list, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
     this.fr = row(list, 'star', 'Friends', () => this.ui.friends.show());
     row(list, 'gear', 'Settings', () => this.ui.settingsPanel.show());
     row(list, 'keyboard', 'Controls', () => this.ui.controlsPanel.show());

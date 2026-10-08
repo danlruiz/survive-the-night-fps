@@ -382,6 +382,53 @@ has never seen is a blurred smudge, "???" and a vague line; once seen, its portr
   made-up record. `scripts/test-bestiary.js` holds the book, the tracker in a running game, the browser's record, the
   store on PGlite, and an account's record surviving a restart of a real server.
 
+## Dead Hand: the card game
+
+A Gwent-like card game survivors play against each other in the middle of a run, with a collection they keep from run to
+run, decks they build, trades and bets. K opens it (`cards` in shared/binds.js, a menu action), or the pause menu; [E]
+on a teammate standing in reach offers a match or a trade. The world does not stop: the screen frees the mouse like the
+map does, and can be shut to fight and opened again.
+
+- **The cards** are `shared/cards.js`: 76 of them, ids for good (they are in the database; append only). Survivors,
+  the Dead and neutral cards; the leaders are the ten survivors (`shared/characters.js`) and the five bosses. Everyone
+  owns `STARTER` from the first game (never stored, never traded or bet); what a player finds is on top of it
+  (`owned`). A deck is a leader (it says the faction) and 22+ units, at most 10 specials and 40 cards, copies capped
+  by rarity and by what is owned (`validateDeck`). Packs: `rollPack`, three cards, the third rare or better.
+- **The rules** are `shared/cardgame.js`, pure and deterministic: the state is plain JSON with its random stream in it,
+  so a match is saved with the game and played the same in the client's practice match. Best of three rounds, two
+  lives, rows Close / Ranged / Heavy, weather, horns, horde, Bitten (a spy), medics, scorch; the Dead keep a unit after
+  each round, Survivors who take one draw a card. `viewFor(state, side)` is all a player is sent: never the random
+  stream, the deck's order or the other hand (beyond cards made known). The top of the file has the state, view, move
+  and event shapes. `shared/cardai.js` plays a view (practice, the tests, the e2e bot).
+- **In a game** (`server/cards.js`, `Game.cards`): asks, matches, trades and bets; its header has the whole flow. Every
+  message is `C2S.CARDS` / `S2C.CARDS` (a u8 op and a JSON string: `writeCards`/`readCards` in shared/protocol.js,
+  every field checked on the way in), private, sent with the tick's snapshot and only when it changed. A side's turn
+  clock stops while that player is away or down; the run ending voids a match and gives the bets back. Packs
+  (`ITEM.CARD_PACK`, `SEALED_PACK`, category `card`) are opened as they are picked up and take no room in the
+  backpack. Its random stream is the OS's, never the map's seed or the tick (every client is told those, and a stream
+  seeded by them would give away the other hand), and never `game.rng`. Saved with the game on a deploy
+  (`save`/`load`): asks, matches, trades being committed and transfers under way; once saved (`freeze`) nothing more
+  is acted on in the old game.
+- **Collections** are kept on the network thread (`server/usercards.js`, `CardService`) under the player's `rejoinKey`
+  (`a:<account>` or `g:<sha-256 of the browser id>`), in Postgres (015: `user_cards`, `user_decks`, `card_ledger`) or,
+  with no database, in memory for the life of the process. Games post finds, decks and transfers and hear back what
+  an owner has (`coll`). A transfer (a trade, a bet put up into its escrow `m:<match>`, paid or given back) is one
+  transaction, all or nothing, applied once by its ledger id, so a game carried to the next server can send it again;
+  the worker hands items over only once the cards have moved. Signing in brings a guest's cards onto the account
+  (`Auth.claimGuest` -> `mergeGuest`). Escrows a game never settled go back to their owners (`roomGone`, and a sweep
+  after a day).
+- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `carddeck.js`,
+  `cardtrade.js`, `cardreveal.js`, `cardface.js`; `cards.css`): the table, the deck builder, trades, challenges,
+  practice against the computer (`client/game/cardlocal.js`, no rewards) and a pack's reveal. Card art is the game's
+  own models drawn once by a short-lived WebGL renderer and kept as images (`cardart.js`, sharing the bestiary's
+  portraits through `portrait.js`). A HUD line says when it is your turn or someone wants to play while the screen is
+  shut. `/sandbox/ui-test.html?screen=cards` (`&seed&moves=N&still=1&tab=deck|trade|reveal|chooser|asks|practice|end`)
+  and `?screen=hud-cards` show it without a server.
+- **Tests**: `scripts/test-cardgame.js` (the set, every rule, hidden information, replays, AI-vs-AI fuzz and the
+  starter decks' balance; `--long` for 2000 matches), `scripts/test-cards.js` (a game: asks, matches, trades, bets,
+  packs, the clocks, a deploy), `scripts/test-usercards.js` (the stores on PGlite and in memory), and
+  `npm run test:e2e:cards` (the screens in a browser, then a match against `scripts/lib/cardbot.js` on a real server).
+
 ## Experience, levels and perks
 
 A player earns XP over every game they play, and perk points with it to spend on a perk tree. The rules are
@@ -1722,6 +1769,59 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   `/sandbox/models-test.html?turn=s:3,z:0:1,zv:0:5` draws turnaround sheets (front, side, back, the face) of
   survivors, the turned and zombie variants, and `scripts/test-characters.js` holds the wire rule and the models'
   budgets.
+- **Custom survivors: the character creator.** Besides the ten and Random, a player can be a "Random stranger" (made
+  up: another at every click of its dice in the picker, and after every join; the one on the turntable, kept in
+  `localStorage['stn.stranger']`, is the one the next join is) or one of up to four survivors of their own, made in
+  the creator (`client/ui/creator.js`, opened from the picker).
+  - *The wardrobe* (`shared/wardrobe.js`) is the one list of every part and colour: fields by section (body and face
+    sliders inside the roster's range, since the hitbox is one shape for everyone; hair, beard, hat, top and its
+    sleeves, collar, front and hem, what is worn over it, trousers, shoes, kit), each option with a wire id (append,
+    never reuse: a removed one goes on its field's `retired` list), a storage name, and the rules it declares
+    (`allow`, `excludes`, `defaults`, the look fragment it adds, dice weights). The creator's controls, both dice,
+    the server's check and the tests' sweeps all come from it, so a part added there (and built in `people.js`) is
+    offered with no other change; `scripts/test-characters.js` fails when the two disagree, either way.
+  - *A look* (`shared/appearance.js`) is held by names (`{ hair: 'bun', height: 0.99, ... }`) and sent by ids:
+    `u8 format, u8 n, n x varu`, about 66 bytes, growth-safe (an unknown or retired id, or a field missing at the
+    end, is the field's default). `normalize` applies the rules until nothing moves (the field just set wins);
+    `canonical` also puts back what does not matter (a hat colour without a hat), so that one look has one code
+    (`lookCode`) and one model key (`lookKey`: `'a:<code>'`). `fromNames` reads a kept look against today's
+    wardrobe: a part or field since removed falls back to the default (else the first option), and the rules run
+    again.
+  - *Kept in the browser, and on the account* (`client/ui/customs.js`, `shared/customs.js`):
+    `localStorage['stn.customs']`, `{ v: 2, list: [{ id, name, fields, made, updatedAt }], gone: [{ id, at }] }`, the
+    look by name; a look repaired on reading is saved at once and the card says so once. The browser is asked to keep
+    its storage (`navigator.storage.persist`) the first time one is saved. A signed-in player's are also kept on their
+    account (`user_settings` kind `customs`, `/api/me/customs`, `client/net/accountcustoms.js`), so they follow them to
+    any browser and outlive one clearing its storage (Safari does after 7 days without a visit). The copies are merged
+    survivor by survivor (`mergeCustoms`: of each the copy changed last; a deletion stays unless changed after), not
+    "the newer whole copy wins" as the keybinds are, so survivors made in two browsers both live on: up to 4 are made
+    in one browser, up to 8 kept. The server merges a save into what it keeps in one transaction and answers with the
+    merged copy. `stn.character` is then also `stranger` or `c:<id>`. The name a player gives one goes no further than
+    their own account.
+  - *On the wire.* `C2S.JOIN` carries the look after the character byte (u8 length, then its bytes), with the
+    character byte set to the roster survivor most like it (`looks.js nearestRoster`: what an older server makes
+    them, what an older client draws). `Game.handleJoin` keeps the canonical bytes as `p.look`, a plain array (it
+    goes into a deploy's saved game). The looks go out in their own message, `S2C.LOOKS`, as `S2C.FRIENDS` does:
+    everyone's to a player who joins or comes back, a newcomer's to the rest (and an empty one for an id that had a
+    look earlier in the game). Not in `S2C.PLAYERS`, which goes out again whenever a rounded ping changes; a game of
+    roster survivors sends no `S2C.LOOKS` at all. No protocol bump: it is all trailing bytes and a message an
+    older client ignores.
+  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters.js getSurvivorRig`, cached as
+    `${ref}|h` / `${ref}|z`; a custom one about 1.5 MB with both, counted by the instances holding it and let go
+    past the eight last used: `evictLooks`). Your own is built at join, under the load. Another player's is built by
+    `client/game/lookwarm.js` one model at a time between frames (6-20 ms each), and until both are built they are
+    drawn as the roster survivor most like them (`Game.lookOf`); `Entities.survivorView`, the cutscene and
+    `selfBody` make the body again when that changes. The creator's turntable is a model of its own, made again at
+    every change (`createSurvivor(seed, ref, { transient: true })`, `client/ui/stage.js`).
+  - *Clipping.* The rules keep combinations that poke through apart (a bun and a hat, a hood and a ponytail or
+    braid, a jacket's turned-out collar and a braid, chest pockets and a bib). Kit hangs on what is outermost where
+    it is worn (`people.js` `pHip`, `pChest`: the belt's holster, knife and pouches on a top or vest over it, a
+    radio on a vest), as a bandana stands over the hair it is tied on. (The worn pack is still fitted to the top,
+    not a vest over it: moved onto the vest, its straps went further into the body.) `npm run clip:outfits` measures clothes against clothes on every covering look
+    (`coveringLooks`: each offered part on the smallest and biggest of both bodies), and
+    `npm run clip:survey -- --sections tp --looks cover` held items and the pack on them. `&look=<code>`
+    (`?hold=`) and `l:<code>` / `lr:<seed>` (`?turn=`) show one in the sandboxes; `?screen=creator` and
+    `?screen=picker&customs=3` in the UI sandbox.
 - **Talking.** Text chat reaches everyone in the game: `handleChat` broadcasts one `S2C.CHAT` to every player.
   The voice reaches `TALK_RANGE` (clear to `TALK_CLEAR`); beyond it the walkie-talkie carries it. Every survivor
   has one in weapon slot 6 (`SLOT_RADIO`), which holds no item of its own: `state.weapons` stays five long,

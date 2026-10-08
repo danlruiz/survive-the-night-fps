@@ -1,7 +1,8 @@
 // WebSocket connection + binary message framing.
-import { C2S, S2C, ACT, ROOMF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, writeInput, readBoard, qpos } from '../../shared/protocol.js';
+import { C2S, S2C, ACT, ROOMF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, writeInput, readBoard, writeCards, readCards, qpos } from '../../shared/protocol.js';
 import { NIGHTFALL } from '../../shared/difficulty.js';
 import { CHARACTER_NONE } from '../../shared/characters.js';
+import { writeLook, readLook } from '../../shared/appearance.js';
 import { rejectText } from './comeback.js';
 
 // A join whose socket closes before the server has answered it (no WELCOME, no REJECT) is tried again after these
@@ -23,6 +24,7 @@ export class Connection {
     this.pingNext = 0; // when the next one is due
     this.room = null; // the game we are in: { code, name, inviteOnly, difficulty } (S2C.ROOM)
     this.accounts = new Map(); // player id -> the account they are signed in to, for friend requests and the friend star (S2C.FRIENDS; '' = a guest)
+    this.looks = new Map(); // player id -> a custom survivor's look, its bytes (S2C.LOOKS; null: none, the player list's character)
     this.held = null; // messages waiting for release() (hold)
   }
 
@@ -33,12 +35,13 @@ export class Connection {
   }
 
   // pid: who this browser is to the leaderboard (identity.js). code: as for url. character: the survivor chosen (shared/
-  // characters.js; CHARACTER_NONE: the server picks). -> the WELCOME's info; throws the
+  // characters.js; CHARACTER_NONE: the server picks). look: a custom survivor's (shared/appearance.js values; null:
+  // none), with character the roster survivor most like it. -> the WELCOME's info; throws the
   // REJECT's reason, or 'Could not connect to server' once the retries (RETRY_MS) are spent
-  async connect(name, pid = '', code = '', character = CHARACTER_NONE) {
+  async connect(name, pid = '', code = '', character = CHARACTER_NONE, look = null) {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.attempt(name, pid, code, character);
+        return await this.attempt(name, pid, code, character, look);
       } catch (err) {
         if (!err.unanswered || attempt >= RETRY_MS.length) throw err;
         await new Promise((done) => setTimeout(done, RETRY_MS[attempt]));
@@ -47,12 +50,13 @@ export class Connection {
   }
 
   // one socket's try at it
-  attempt(name, pid, code, character = CHARACTER_NONE) {
+  attempt(name, pid, code, character = CHARACTER_NONE, look = null) {
     return new Promise((resolve, reject) => {
       let settled = false;
       let joined = false; // (WELCOME: this socket is the game's; one that was turned away goes without a word)
       this.room = null;
       this.accounts = new Map();
+      this.looks = new Map();
       const t0 = performance.now();
       const ws = new WebSocket(this.url(code));
       ws.binaryType = 'arraybuffer';
@@ -65,6 +69,7 @@ export class Connection {
         w.str(name);
         w.str(pid);
         w.u8(character); // (the survivor chosen on the splash: shared/characters.js)
+        if (look) writeLook(w, look); // (a custom one: the character creator)
         ws.send(w.copy());
       };
       ws.onmessage = (m) => {
@@ -120,9 +125,30 @@ export class Connection {
           case S2C.BOARD:
             this.h.board?.(readBoard(r));
             break;
+          case S2C.CARDS: {
+            // (Dead Hand: one broken message is dropped, not the socket - the card game is never the game's to lose)
+            let m = null;
+            try {
+              m = readCards(r);
+            } catch (err) {
+              console.warn('[net] a card game message could not be read', err);
+            }
+            if (m) this.h.cards?.(m);
+            break;
+          }
           case S2C.FRIENDS:
             for (let n = r.u8(); n > 0; n--) this.accounts.set(r.u16(), r.str());
             break;
+          case S2C.LOOKS: {
+            const ids = [];
+            for (let n = r.u8(); n > 0; n--) {
+              const id = r.u16();
+              this.looks.set(id, readLook(r));
+              ids.push(id);
+            }
+            this.h.looks?.(ids);
+            break;
+          }
           case S2C.PROGRESS:
             this.h.progress?.(r);
             break;
@@ -261,6 +287,15 @@ export class Connection {
   board() {
     const w = this.w.reset();
     w.u8(C2S.BOARD);
+    this.sendRaw(w);
+  }
+
+  // Dead Hand (the card game): op is a CARDOP, data its JSON (shared/protocol.js writeCards documents each). The answer,
+  // if any, comes back as S2C.CARDS (Game -> CardsClient.onMessage)
+  cards(op, data = {}) {
+    const w = this.w.reset();
+    w.u8(C2S.CARDS);
+    writeCards(w, op, data);
     this.sendRaw(w);
   }
 
