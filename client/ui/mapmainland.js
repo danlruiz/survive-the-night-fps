@@ -15,8 +15,8 @@ import { GRID_STEP, WATER_LEVEL } from '../../shared/constants.js';
 const PAPER = [226, 208, 166];
 const SEA = [58, 104, 142];
 const SHALLOW = [104, 150, 172];
-const ROCK_LIT = [206, 199, 186];
-const ROCK_DARK = [116, 108, 98];
+const ROCK_LIT = [188, 180, 166];
+const ROCK_DARK = [92, 84, 76];
 const INK = '#2a2018';
 
 export function drawMainland(g, world, S, mapX, mapY) {
@@ -141,8 +141,8 @@ export function drawMainland(g, world, S, mapX, mapY) {
         // a crest: the ground falls away both sides (the four neighbours two pixels off all lower)
         if (px > 2 && py > 2 && px < R - 3 && py < R - 3) {
           const c = hs[py * R + px - 2] + hs[py * R + px + 2] + hs[(py - 2) * R + px] + hs[(py + 2) * R + px] - 4 * h;
-          if (c < -2.6) {
-            const a = Math.min(1, (-c - 2.6) / 3) * 0.75;
+          if (c < -1.7) {
+            const a = Math.min(1, (-c - 1.7) / 2.4) * 0.85;
             r = r * (1 - a) + 52 * a;
             gg = gg * (1 - a) + 46 * a;
             b = b * (1 - a) + 40 * a;
@@ -213,6 +213,36 @@ export function drawMainland(g, world, S, mapX, mapY) {
     const set = SPR[kind];
     const sp = set[Math.max(0, Math.min(set.length - 1, Math.floor(((T[i + 3] - 0.75) * set.length) / 0.56)))];
     g.drawImage(sp, Math.round(x - sp.ox), Math.round(y - sp.oy));
+  }
+
+  // ---- the picture's woods where the world has fewer trees than it draws: round Town Center and between the suburbs'
+  // streets the places keep their yards and lots clear, and the sheet drew them bare. The picture's density (forestAt)
+  // is stamped there, off the roads, the water, the rock and what is built
+  if (world.forestAt) {
+    const STEP = 4;
+    let fseed = 99991;
+    const frnd = () => (fseed = (fseed * 16807) % 2147483647) / 2147483647;
+    const built = (x, z) => {
+      const cell = world.staticGrid.cellAt(x, z);
+      if (!cell) return false;
+      for (const c of cell) if (!(c.flags & 16) && c.y1 > world.heightAt(x, z) + 0.5) return true;
+      return false;
+    };
+    for (let z = -HALF + 6; z < HALF - 6; z += STEP) {
+      for (let x = -HALF + 6; x < HALF - 6; x += STEP) {
+        const jx = x + (frnd() - 0.5) * STEP, jz = z + (frnd() - 0.5) * STEP;
+        const fa = world.forestAt(jx, jz);
+        if (fa < 0.12 || frnd() > Math.min(1, fa * 1.3)) continue;
+        const px = mapX(jx), py = mapY(jz);
+        const cell = Math.floor(py / 3) * TW + Math.floor(px / 3);
+        if (taken[cell]) continue;
+        if (world.roadDistAt(jx, jz) < 7 || world.heightAt(jx, jz) < WATER_LEVEL + 0.4 || (world.cliffAt && world.cliffAt(jx, jz) > -2) || built(jx, jz)) continue;
+        taken[cell] = 1;
+        const set = SPR[frnd() < 0.8 ? 0 : 1];
+        const sp = set[Math.min(set.length - 1, Math.floor(frnd() * set.length))];
+        g.drawImage(sp, Math.round(px - sp.ox), Math.round(py - sp.oy));
+      }
+    }
   }
 
   // ---- roads, by the picture's legend: main roads a grey band in a dark casing with a light line down it; secondary
@@ -319,6 +349,19 @@ export function drawMainland(g, world, S, mapX, mapY) {
     return s > t.s0 - 4 && s < t.s1 + 4 && Math.abs(-(x - t.a[0]) * dz + (z - t.a[1]) * dx) < 11;
   });
   const parts = world.parts;
+  // the piers: their decks as planking, a dark edge round the lot (drawn under, a little wider) and the boards over it
+  const decks = parts.filter((p) => p.mat === 'dockwood' && p.sy < 0.5);
+  for (const pass of [0, 1]) {
+    g.fillStyle = pass ? '#a77d4e' : '#3a2a1a';
+    for (const p of decks) {
+      const e = pass ? 0.15 : 0.9;
+      g.save();
+      g.translate(mapX(p.x), mapY(p.z));
+      g.rotate(-p.ry);
+      g.fillRect(((-p.sx / 2 - e) * S), ((-p.sz / 2 - e) * S), (p.sx + 2 * e) * S, (p.sz + 2 * e) * S);
+      g.restore();
+    }
+  }
   g.fillStyle = 'rgba(58, 56, 54, 0.92)';
   g.strokeStyle = 'rgba(150, 144, 132, 0.55)';
   g.lineWidth = 0.8;
@@ -326,7 +369,7 @@ export function drawMainland(g, world, S, mapX, mapY) {
     if (p.shape !== 'box' && p.shape !== 'cyl') continue;
     if (p.sy < 0.9 && p.sx * p.sz < 30) continue;
     if (world.mine && p.y + p.sy / 2 < world.heightAt(p.x, p.z)) continue; // (the timbering of the mine)
-    if (p.tag === 'cliff' || inTunnel(p.x, p.z)) continue;
+    if (p.tag === 'cliff' || inTunnel(p.x, p.z) || p.mat === 'dockwood' || ((p.mat === 'rust' || p.mat === 'tin_rust') && p.y > 8)) continue;
     const w = p.sx * S;
     const h = p.sz * S;
     if (w * h < 1.2) continue;
@@ -363,6 +406,42 @@ export function drawMainland(g, world, S, mapX, mapY) {
     g.quadraticCurveTo(-1.6 * S, -1 * S, 0, -4.6 * S);
     g.fill();
     g.stroke();
+    g.restore();
+  }
+
+  // ---- the docks' cranes: the gantry on its four legs (a rust square, crossed) and its jib out over the water
+  for (const p of parts) {
+    if (p.mat !== 'rust' || p.sx < 28 || p.sx > 32 || p.sy < 0.8 || p.sy > 1 || p.y < 12) continue;
+    const c = Math.cos(p.ry), sn = Math.sin(p.ry);
+    // (the jib's quay end, where the gantry stands: its centre is 14 m on from there, toward the land)
+    const qx = p.x + c * 14, qz = p.z - sn * 14;
+    g.save();
+    g.translate(mapX(qx), mapY(qz));
+    g.rotate(-p.ry);
+    g.strokeStyle = '#2a1a12';
+    g.lineWidth = 2.6;
+    g.strokeRect(-4.3 * S, -4.7 * S, 8.6 * S, 9.4 * S);
+    g.strokeStyle = RUST;
+    g.lineWidth = 1.6;
+    g.strokeRect(-4.3 * S, -4.7 * S, 8.6 * S, 9.4 * S);
+    g.beginPath();
+    g.moveTo(-4.3 * S, -4.7 * S);
+    g.lineTo(4.3 * S, 4.7 * S);
+    g.moveTo(4.3 * S, -4.7 * S);
+    g.lineTo(-4.3 * S, 4.7 * S);
+    g.stroke();
+    // the jib: out from the gantry over the water
+    g.strokeStyle = '#2a1a12';
+    g.lineWidth = 3.6;
+    g.beginPath();
+    g.moveTo(2 * S, 0);
+    g.lineTo(-28 * S, 0);
+    g.stroke();
+    g.strokeStyle = RUST;
+    g.lineWidth = 2;
+    g.stroke();
+    g.fillStyle = '#e0d6c0';
+    g.fillRect(-3 * S, -1.6 * S, 3.2 * S, 3.2 * S);
     g.restore();
   }
 
