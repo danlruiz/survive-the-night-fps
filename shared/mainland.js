@@ -598,6 +598,7 @@ export function createMainland(seed) {
   };
   for (const zn of zones) cellsOf(zn.x, zn.z, zn.flat + zn.blend, zoneCells, zn);
   for (const f of flats) cellsOf(f[0], f[1], Math.hypot(f[2] + Math.abs(f[7]), f[3] + Math.abs(f[8])) + f[5], flatCells, f);
+  const VILLAGE = [FX(AREAS.village[0]), FX(AREAS.village[1]), FX(AREAS.village[2]), FX(AREAS.village[3])];
   const H1 = (x, z) => {
     const dM = mtnAt(x, z);
     let h = H0(x, z);
@@ -669,7 +670,9 @@ export function createMainland(seed) {
     // (the coast is rock for long stretches, as the picture draws it - a low cliff into deep water - and coves and
     // beaches between; an islet is rock all round, a mound of it)
     const isl = isletAt(x, z) === 1;
-    const rocky = isl ? 1 : (1 - near) * smoothstep(-0.12, 0.22, nP(x * 0.0055 + 7.7, z * 0.0055 - 1.3)) * smoothstep(0, 60, Math.hypot(x - zoneById[ZONE.NORTH_COAST].x, z - zoneById[ZONE.NORTH_COAST].z) - zoneById[ZONE.NORTH_COAST].flat);
+    // (not along the village: its houses come down to its shore)
+    const villageD = Math.hypot(Math.max(0, VILLAGE[0] - x, x - VILLAGE[2]), Math.max(0, VILLAGE[1] - z, z - VILLAGE[3]));
+    const rocky = isl ? 1 : (1 - near) * smoothstep(-0.12, 0.22, nP(x * 0.0055 + 7.7, z * 0.0055 - 1.3)) * smoothstep(15, 60, villageD);
     if (rocky > 0.001 && s > -40 && s < 60) {
       const top = 2.5 + 6.5 * (0.5 + 0.5 * nP(x * 0.031 - 3.1, z * 0.031 + 2.2));
       const rough = (1 - Math.abs(nE(x * 0.11 + 1.3, z * 0.11 - 0.7))) * 1.6;
