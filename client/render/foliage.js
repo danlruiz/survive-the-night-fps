@@ -359,6 +359,7 @@ class GrassField {
     const rd = w.roadDistAt(x, z);
     if (rd < 2.5) return 0;
     const f = this.fields.sample(x, z, this._f);
+    if (f.road > 0.7) return 0; // (a paved yard)
     let d = f.grass * 0.95 + f.forest * 0.1 + f.mud * 0.25;
     // road verges: a band of rank grass along every road
     d = Math.max(d, 0.9 * (1 - Math.abs(rd - 4) / 2.2));

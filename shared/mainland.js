@@ -3433,13 +3433,13 @@ export function createMainland(seed) {
     for (const [s, sd] of [[s0, -1], [s1, 1]]) {
       const y = levelAt(s) - 0.1;
       const zf = s + sd * 0.6; // (the face's middle, its thickness standing out of the mountain)
-      for (const lat of [-1, 1]) b.box(lat * (TUNNEL_HW + 1.9), y, zf, 3.4, TUNNEL_H + 8.5, 2.2, 'stone');
-      b.box(0, y + TUNNEL_H, zf, TUNNEL_HW * 2 + 0.8, 8.5, 2.2, 'stone');
+      for (const lat of [-1, 1]) b.box(lat * (TUNNEL_HW + 1.9), y, zf, 3.4, TUNNEL_H + 8.5, 2.2, 'concrete');
+      b.box(0, y + TUNNEL_H, zf, TUNNEL_HW * 2 + 0.8, 8.5, 2.2, 'concrete');
       // the arch: the corners of the opening filled up to its curve, a strip at a time
       const RISE = 2.6, R = (TUNNEL_HW ** 2 + RISE ** 2) / (2 * RISE), CY = TUNNEL_H - R;
       for (let x = -TUNNEL_HW + 0.4; x < TUNNEL_HW; x += 0.8) {
         const ya = CY + Math.sqrt(Math.max(0, R * R - x * x));
-        if (TUNNEL_H - ya > 0.05) b.box(x, y + ya, zf, 0.82, TUNNEL_H - ya, 2.2, 'stone');
+        if (TUNNEL_H - ya > 0.05) b.box(x, y + ya, zf, 0.82, TUNNEL_H - ya, 2.2, 'concrete');
       }
       // the voussoirs: a band round the arch, standing proud of the face
       for (let k = 0; k <= 10; k++) {
@@ -4753,6 +4753,7 @@ export function createMainland(seed) {
     cliffAt, // how far inside a mountain (m; negative outside)
     forestAt, // how thick the forest is, 0 .. 1
     walls, // the lines the mountains' walls stand along
+    paved: [{ x: docks.x + QUAY_LX + 44, z: docks.z, hx: 44, hz: QUAY_HZ, ry: 0 }], // the docks' apron, from the quay's edge to the warehouses: asphalt (client/render/terrain.js)
     tunnels: tunnels.map((t) => ({ name: t.name, a: t.a, b: t.b, y0: t.y0, y1: t.y1, len: t.len, s0: t.s0, s1: t.s1, cap: t.cap })), // cap: the mountain over the gallery, for the client to draw (s0, step, lat, n, m, h)
     trees: treesOut,
     rocks: rocksOut,

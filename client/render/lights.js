@@ -136,7 +136,7 @@ export class Lights {
       const L = this.fires[i];
       const s = tmp[i];
       if (s && s.d < 100 * 100) {
-        const f = 0.82 + Math.sin(time * 11 + i * 3) * 0.07 + Math.sin(time * 23.7 + i) * 0.06 + Math.sin(time * 5.3 + i * 2) * 0.06;
+        const f = s.steady ? 0.95 : 0.82 + Math.sin(time * 11 + i * 3) * 0.07 + Math.sin(time * 23.7 + i) * 0.06 + Math.sin(time * 5.3 + i * 2) * 0.06;
         L.position.set(s.x, s.y + (s.big ? 0.9 : 1.2), s.z);
         L.intensity = (s.big ? 42 : 18) * s.intensity * f;
         L.distance = s.big ? 14 + 14 * s.intensity : 10 + 8 * s.intensity;

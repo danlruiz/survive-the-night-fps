@@ -209,6 +209,18 @@ export function groundFields(world) {
   }
   const zones = world.zones;
   const pit = (world.marks || []).find((m) => m.kind === 'pit') || null;
+  // (the paved yards a world says it has - the docks' apron: asphalt to their edges, no grass on them)
+  const paved = new Uint8Array(N * N);
+  for (const p of world.paved || []) {
+    const c = Math.cos(p.ry || 0), sn = Math.sin(p.ry || 0);
+    const R = Math.hypot(p.hx, p.hz);
+    for (let j = Math.max(0, Math.floor((p.z - R + MAP_HALF) / GRID_STEP)); j <= Math.min(N - 1, Math.ceil((p.z + R + MAP_HALF) / GRID_STEP)); j++) {
+      for (let i = Math.max(0, Math.floor((p.x - R + MAP_HALF) / GRID_STEP)); i <= Math.min(N - 1, Math.ceil((p.x + R + MAP_HALF) / GRID_STEP)); i++) {
+        const dx = -MAP_HALF + i * GRID_STEP - p.x, dz = -MAP_HALF + j * GRID_STEP - p.z;
+        if (Math.abs(c * dx - sn * dz) <= p.hx && Math.abs(sn * dx + c * dz) <= p.hz) paved[j * N + i] = 1;
+      }
+    }
+  }
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -226,7 +238,7 @@ export function groundFields(world) {
       // forest floor under the canopy, meadow grass in the gaps (and in the open around the sites)
       const forest = smoothstep(0.2, 0.75, canopy[k] + n * 0.18) * (1 - 0.8 * open);
       const rd = world.roadDist[k];
-      const road = 1 - smoothstep(1.9, 3.3, rd);
+      const road = paved[k] ? 1 : 1 - smoothstep(1.9, 3.3, rd);
       const slope = 1 - nrm[k * 3 + 1];
       // concavity at two scales: drainage lines and hollows collect water
       let lap = 0;
@@ -254,6 +266,7 @@ export function groundFields(world) {
       base[k * 4 + 3] = road;
     }
   }
+  const pavedAt = paved;
   const sample = (x, z, out = {}) => {
     const fx = Math.max(0, Math.min(N - 1.001, (x + MAP_HALF) / GRID_STEP));
     const fz = Math.max(0, Math.min(N - 1.001, (z + MAP_HALF) / GRID_STEP));
@@ -269,7 +282,7 @@ export function groundFields(world) {
     out.canopy = bl(canopy);
     return out;
   };
-  f = { nrm, splat, base, rock, wet, ao, canopy, sample };
+  f = { nrm, splat, base, rock, wet, ao, canopy, sample, paved: pavedAt };
   FIELDS.set(world, f);
   return f;
 }
@@ -292,14 +305,14 @@ export function buildTerrain(world) {
       pos[k * 3 + 2] = -MAP_HALF + j * GRID_STEP;
       // road kind: +1 asphalt, -1 trail, 0 dirt road
       const kd = frame.kind(k);
-      extra[k * 4] = kd === ROAD.ASPHALT ? 1 : kd === ROAD.TRAIL ? -1 : 0;
+      extra[k * 4] = F.paved[k] ? 1 : kd === ROAD.ASPHALT ? 1 : kd === ROAD.TRAIL ? -1 : 0;
       extra[k * 4 + 1] = F.ao[k];
       extra[k * 4 + 2] = F.wet[k];
       extra[k * 4 + 3] = F.rock[k];
       roadAttr[k * 4] = frame.lat[k];
       roadAttr[k * 4 + 1] = frame.along[k];
       roadAttr[k * 4 + 2] = frame.hw[k];
-      roadAttr[k * 4 + 3] = frame.conf[k];
+      roadAttr[k * 4 + 3] = F.paved[k] ? 0 : frame.conf[k]; // (a paved yard: its layer as it is, no road's edges or lines)
     }
   }
   // One vertex buffer for the whole heightfield, drawn as TERRAIN_CHUNK x TERRAIN_CHUNK-cell pieces with an index
@@ -828,7 +841,10 @@ export function buildWater(world) {
         // Past the map the sheet runs on for kilometres, and from high up (the wide views, the crossing's camera) its far
         // edge showed as a dark wedge over the horizon, the haze thin up there. So it fades out into the sky behind it
         // from SEA_FADE m out: the sea meets the sky in the haze wherever the eye is.
-        if (uEdge > 0.0) alpha = mix(1.0, 0.9, smoothstep(0.0, 70.0, uEdge - max(abs(vW.x), abs(vW.z)))) * (1.0 - smoothstep(${SEA_FADE[0].toFixed(1)}, ${SEA_FADE[1].toFixed(1)}, distance(vW.xz, uCam.xz)));
+        if (uEdge > 0.0) alpha = mix(1.0, 0.9, smoothstep(0.0, 70.0, uEdge - max(abs(vW.x), abs(vW.z)))) * (1.0 - smoothstep(${SEA_FADE[0].toFixed(1)}, ${SEA_FADE[1].toFixed(1)}, distance(vW.xz, uCam.xz)))
+          // (and past the map's north and south edges, where the land stops short at the edge, the strips of sea at the
+          // corners end close by too: out there they stood up over the land's own horizon as a grey wedge, seen from high)
+          * (1.0 - smoothstep(60.0, 220.0, abs(vW.z) - uEdge)) * (1.0 - smoothstep(700.0, 1100.0, -vW.x - uEdge));
         gl_FragColor = vec4(col, alpha);
         #include <fog_fragment>
       }`,
