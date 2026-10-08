@@ -3232,7 +3232,11 @@ export function createMainland(seed) {
       const cx = (ax + bx) / 2 - uz * (WALL_T / 2 - 0.25);
       const cz = (az + bz) / 2 + ux * (WALL_T / 2 - 0.25);
       const foot = Math.min(heightAt(ax, az), heightAt(bx, bz), heightAt(cx, cz)) - 3;
-      const col = makeBox(cx, cz, foot, foot + CLIFF * 1.25 + 14, len + WALL_T * 0.6, WALL_T, Math.atan2(-uz, ux), COL.STATIC);
+      // (as high as a cliff, and at the least as high as the ground just in from its line stands: the cuttings in front
+      // of a tunnel's mouths rise from the road to the whole mountain within a few metres)
+      let rise = 0;
+      for (const k of [1, 2.5, 4]) for (const t of [0, 0.5, 1]) rise = Math.max(rise, heightAt(ax + (bx - ax) * t - uz * k, az + (bz - az) * t + ux * k));
+      const col = makeBox(cx, cz, foot, Math.max(foot + CLIFF * 1.25 + 14, rise + 6), len + WALL_T * 0.6, WALL_T, Math.atan2(-uz, ux), COL.STATIC);
       col.tag = 'cliff'; // (a bullet strikes stone: shared/surfaces.js)
       staticGrid.add(col);
     }
