@@ -579,11 +579,12 @@ export function buildTerrain(world) {
   mesh.viewOnlyDistance = true;
   // THE FAR MOUNTAINS. A world with mountains in it is seen past the drawing distance where it stands high (the haze
   // thins with height: globals.js uHaze), and the terrain's pieces are not drawn there. Its mountains (and their
-  // foothills) are one more mesh, a vertex every 8 m, coloured by the height and the slope as the terrain's shader colours
-  // them - rock, the snow on the tops, the woods low down - and drawn only past the drawing distance.
+  // foothills) are one more mesh, a vertex every 16 m (it is never nearer than the drawing distance), coloured by the
+  // height and the slope as the terrain's shader colours them - rock, the snow on the tops, the woods low down - and
+  // drawn only past the drawing distance.
   let farMtn = null;
   if (far) {
-    const FS = 4;
+    const FS = 8;
     const FN = Math.floor((N - 1) / FS) + 1;
     const fp = new Float32Array(FN * FN * 3);
     const fc = new Float32Array(FN * FN * 3);

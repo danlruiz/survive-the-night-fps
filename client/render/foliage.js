@@ -16,6 +16,7 @@ import { isShadowFrustum } from './multimesh.js';
 import { FarForest } from './farforest.js';
 
 const CELL = 32;
+const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
 // The view the instance buffers were last filled for, padded: what is outside it is not drawn at all (two thirds of
@@ -516,9 +517,13 @@ export class Foliage {
 
   setQuality(q, grassMul = 1) {
     this.quality = q;
+    // (on a world with the far forest the trees hand over to its cards at FAR_TREES at the most: past that a tree's far
+    // copy and its card look the same from the eye, and in the mainland's woods that ring held thousands of them)
+    this.treeDist = this.far ? Math.min(q.treeDist, FAR_TREES) : q.treeDist;
     const sd = q.shadows ? q.shadowDist : 0;
-    // tall trees just outside the shadow range still throw shadows into it
-    this.trees.castDist = sd ? sd + 25 : 0;
+    // tall trees just outside the shadow range still throw shadows into it (in thick woods what shades the ground there
+    // is the trees' own shadow anyway: a few metres past it are enough)
+    this.trees.castDist = sd ? sd + (this.far ? 8 : 25) : 0;
     this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, 40) : 0;
     this.rocks.castDist = sd && q.foliageShadows ? Math.min(sd, 90) : 0;
     const mid = Math.max(35, q.treeDist * 0.25);
@@ -545,9 +550,9 @@ export class Foliage {
       W.z = weather.windX;
       W.w = weather.windZ;
     }
-    const treeR = Math.min(this.quality.treeDist, fogVisibility + 30);
+    const treeR = Math.min(this.treeDist, fogVisibility + 30);
     this.trees.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
-    this.far?.update(Math.round(treeR / 10) * 10);
+    this.far?.update(Math.round(treeR / 10) * 10, camPos.x, camPos.z);
     this.bushes.update(camPos.x, camPos.z, Math.min(85, fogVisibility + 10), view);
     this.rocks.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
     this.grass.update(camPos.x, camPos.z, view);
