@@ -19,14 +19,15 @@ const ahead = (at, yaw, d, side = 0) => [at[0] + fwd(yaw, d)[0] + Math.cos(yaw) 
 export const SPOT = {
   // the island: on Route 9 by the car the run starts at, looking up the road
   island: { at: [24.2, 23.6], yaw: 0.59, pitch: -0.04 },
-  // the mainland: Main Street (Route 9 through Port Calder) a block in from its west end, looking east down it
-  street: { at: [-311, 13], yaw: -Math.PI / 2, pitch: 0.02 },
-  // the roof of the Calder Trust Tower (ten storeys), looking across the middle of the city
-  roof: { at: [-271.4, 38], yaw: -1.206, pitch: -0.3 },
-  // a grocer's on the west side: from the back of the shop floor, looking at its street door
-  shop: { at: [-354.2, -83.6], y: 2.2, yaw: 0, pitch: 0 },
-  // Calder Field: beside the plane, looking down the runway the dead come up
-  airfield: { at: [500, 84], yaw: 0.12, pitch: -0.02 },
+  // the mainland (Layout 12: the same for every seed): Main Street through Town Center a block in from its west end,
+  // looking east down it
+  street: { at: [-487.2, -92.2], yaw: -Math.PI / 2, pitch: 0.02 },
+  // the roof of the city's tallest block (nine storeys of glass, on its west side), looking across the middle of it
+  roof: { at: [-494, -120.2], yaw: -1.762, pitch: -0.3 },
+  // a diner off Main Street: from the back of the shop floor, looking at its street door
+  shop: { at: [-365.9, -72.5], y: 4, yaw: 0, pitch: 0 },
+  // the airport: beside the plane, looking up the runway the dead come down
+  airfield: { at: [741.7, 183.7], yaw: -0.12, pitch: -0.02 },
 };
 export const baitOf = (spot, d = 14) => ahead(spot.at, spot.yaw, d);
 

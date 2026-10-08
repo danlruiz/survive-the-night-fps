@@ -389,7 +389,7 @@ if (process.argv[1] && process.argv[1].endsWith('vehicle-routes.js')) {
   const all = process.argv.includes('--all');
   const t0 = Date.now();
   const world = worldFor(seed, 2);
-  const MAIN = ['Port Calder', 'Mile 9 Truck Stop', 'Calder Field Hangars', 'Kessler Ironworks', 'Eastgate', 'Calder Fuel Depot', 'Lake Morrow Marina', "Benny's Auto Salvage"];
+  const MAIN = ['Town Center', 'Gas Station', 'Industrial Docks', 'North Suburbs', 'East Suburbs', 'Pine Lake Marina', 'Quarry', 'South Passage Mines'];
   const rows = routesFor(world).filter((r) => all || MAIN.includes(r.name));
   if (process.argv.includes('--json')) console.log(JSON.stringify(rows));
   else {

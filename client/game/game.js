@@ -3271,7 +3271,7 @@ export class Game {
       let title = 'You escaped';
       let reason = 'The engine roars. You tear down Route 9 and leave the valley behind.';
       const plane = !!car.plane; // (the mainland: the run ends in the air)
-      if (plane) reason = 'The wheels leave the runway. Port Calder, the bridge and the island fall away behind you.';
+      if (plane) reason = 'The wheels leave the runway. The town, the bridge and the island fall away behind you.';
       if (!this.self.alive || this.prediction.state.zombie) {
         title = 'They escaped';
         reason = plane ? 'The plane is a speck over the hills. You stay on the mainland with the rest of the dead.' : 'The engine roars and the car is gone down Route 9. You stay in the valley with the rest of the dead.';

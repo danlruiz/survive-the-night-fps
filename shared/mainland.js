@@ -82,6 +82,7 @@ const BIG_LOTS = [['collapse', 1.4], ['tower', 1], ['depot', 0.5], ['parking', 0
 // The river: fast water in a ravine. RIVER_HW is the half width it is measured against (riverAt below: the picture's
 // own width is in the layout, and riverAt is shifted by it so that RIVER_HW is the bank everywhere).
 const RIVER_HW = 9;
+const RIVER_REACH = 48; // how far from its banks the river's distance is kept (m)
 const RIVER_BANK = 14; // its ravine: the ground comes down to the water over this much
 const RIVER_DEPTH = 3.6; // deep enough to be swept off your feet anywhere in it
 const RIVER_FLOW = 3.4; // m/s: the current (a survivor swims 2.4, 3.6 flat out)
@@ -225,21 +226,28 @@ export function createMainland(seed) {
     riverPts.push(ctrl[ctrl.length - 1][0], ctrl[ctrl.length - 1][1]);
     riverW.push(ctrl[ctrl.length - 1][2]);
   }
+  // (out to RIVER_REACH from its banks - nothing asks further than 30 m - and 1e4 past that)
   const riverD = new Float32Array(N * N).fill(1e4);
+  const reach = RIVER_REACH + Math.max(0, Math.max(...riverW) - RIVER_HW);
   for (let s = 0; s < riverPts.length / 2 - 1; s++) {
     const [ax, az, bx, bz] = [riverPts[s * 2], riverPts[s * 2 + 1], riverPts[s * 2 + 2], riverPts[s * 2 + 3]];
     const el2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1;
-    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - 110 + HALF) / GRID_STEP));
-    const i1 = Math.min(N - 1, Math.ceil((Math.max(ax, bx) + 110 + HALF) / GRID_STEP));
-    const j0 = Math.max(0, Math.floor((Math.min(az, bz) - 110 + HALF) / GRID_STEP));
-    const j1 = Math.min(N - 1, Math.ceil((Math.max(az, bz) + 110 + HALF) / GRID_STEP));
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - reach + HALF) / GRID_STEP));
+    const i1 = Math.min(N - 1, Math.ceil((Math.max(ax, bx) + reach + HALF) / GRID_STEP));
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz) - reach + HALF) / GRID_STEP));
+    const j1 = Math.min(N - 1, Math.ceil((Math.max(az, bz) + reach + HALF) / GRID_STEP));
     for (let j = j0; j <= j1; j++) {
       const z = -HALF + j * GRID_STEP;
       for (let i = i0; i <= i1; i++) {
         const x = -HALF + i * GRID_STEP;
         const t = clamp(((x - ax) * (bx - ax) + (z - az) * (bz - az)) / el2, 0, 1);
-        const d = Math.hypot(x - ax - (bx - ax) * t, z - az - (bz - az) * t) - lerp(riverW[s], riverW[s + 1], t) + RIVER_HW;
-        if (d < 110 && d < riverD[j * N + i]) riverD[j * N + i] = d;
+        const ex = x - ax - (bx - ax) * t;
+        const ez = z - az - (bz - az) * t;
+        const w = lerp(riverW[s], riverW[s + 1], t) - RIVER_HW;
+        const lim = Math.min(RIVER_REACH, riverD[j * N + i]) + w; // (no nearer than what is there already: no root taken)
+        if (lim <= 0 || ex * ex + ez * ez >= lim * lim) continue;
+        const d = Math.hypot(ex, ez) - w;
+        if (d < RIVER_REACH && d < riverD[j * N + i]) riverD[j * N + i] = d;
       }
     }
   }
@@ -431,17 +439,22 @@ export function createMainland(seed) {
     [docks.x - 22, docks.z, 70, 128, cityH, 16], // the docks, out to their quays
     [city.x, city.z, G2 + 16, G2 + 16, cityH, 30], // the city, to its corners (they lie outside the circle of its zone)
   ];
+  // (H1 is asked of every vertex of the heightfield, a million of them: what only depends on a flat or a zone is worked
+  // out once, and the distance to a zone only taken where it can matter)
+  for (const f of flats) {
+    while (f.length < 9) f.push(0); // (not turned, no offset)
+    f.push(Math.cos(f[6]), Math.sin(f[6]));
+  }
   const H1 = (x, z) => {
     const dM = cliffAt(x, z);
     let h = H0(x, z);
     for (const zn of zones) {
-      const d = Math.hypot(x - zn.x, z - zn.z);
       const lim = zn.flat + zn.blend;
+      if ((x - zn.x) ** 2 + (z - zn.z) ** 2 >= lim * lim) continue;
+      const d = Math.hypot(x - zn.x, z - zn.z);
       if (d < lim) h = lerp(h, zn.h, 1 - smoothstep(zn.flat, lim, d));
     }
-    for (const [fx, fz, hx, hz, fh, blend, ry = 0, ox = 0, oz = 0] of flats) {
-      const c = Math.cos(ry);
-      const s = Math.sin(ry);
+    for (const [fx, fz, hx, hz, fh, blend, , ox, oz, c, s] of flats) {
       const lx = c * (x - fx) - s * (z - fz) - ox;
       const lz = s * (x - fx) + c * (z - fz) - oz;
       const d = Math.hypot(Math.max(0, Math.abs(lx) - hx), Math.max(0, Math.abs(lz) - hz));
@@ -486,7 +499,7 @@ export function createMainland(seed) {
     if (keepYard > 0) h = lerp(h, mz.h, keepYard);
     // (a place's yard keeps its level, whatever the shore of the lake or the creek does round it)
     for (const zn of zones) {
-      if (zn.id === ZONE.CITY || zn.id === ZONE.MARINA || zn.id === ZONE.LIGHTHOUSE) continue;
+      if (zn.id === ZONE.CITY || zn.id === ZONE.MARINA || zn.id === ZONE.LIGHTHOUSE || (x - zn.x) ** 2 + (z - zn.z) ** 2 >= zn.flat * zn.flat) continue;
       const d = Math.hypot(x - zn.x, z - zn.z);
       if (d < zn.flat) h = lerp(h, zn.h, 1 - smoothstep(zn.flat - 4, zn.flat, d));
     }
@@ -3716,7 +3729,25 @@ export function createMainland(seed) {
   };
   for (const p of props) occupy(p.x, p.z, Math.max(2.5, Math.hypot(...(PROPS[p.type]?.size || [2, 0, 2]).filter((_, i) => i !== 1)) / 2 + 0.6));
   for (const [x, z, r] of clears) occupy(x, z, Math.min(r, 6));
-  const clearHit = (x, z, pad) => clears.some(([cx, cz, r]) => (x - cx) ** 2 + (z - cz) ** 2 < (r + pad) ** 2);
+  // (what is to be kept clear, in 16 m cells: thousands of them, asked of by every tree and rock tried)
+  let clearCells = null;
+  const clearHit = (x, z, pad) => {
+    if (!clearCells) {
+      clearCells = new Map();
+      for (const c of clears) {
+        const e = c[2] + 1; // (pads are up to 1 m)
+        for (let i = Math.floor((c[0] - e) / 16); i <= Math.floor((c[0] + e) / 16); i++) {
+          for (let j = Math.floor((c[1] - e) / 16); j <= Math.floor((c[1] + e) / 16); j++) {
+            const k = i * 65536 + j;
+            if (!clearCells.has(k)) clearCells.set(k, []);
+            clearCells.get(k).push(c);
+          }
+        }
+      }
+    }
+    const arr = clearCells.get(Math.floor(x / 16) * 65536 + Math.floor(z / 16));
+    return !!arr && arr.some(([cx, cz, r]) => (x - cx) ** 2 + (z - cz) ** 2 < (r + pad) ** 2);
+  };
   const zoneClear = (x, z) => zones.some((zn) => (x - zn.x) ** 2 + (z - zn.z) ** 2 < zn.clear * zn.clear) || onField(x, z, 6);
   const onRoad = (x, z, r) => roadDistAt(x, z) < (roadKindAt(x, z) === ROAD.TRAIL ? 2.2 : 5.5) + r;
   // does a trunk or a boulder of radius r at (x, z) stand in an upright piece somebody built (a wall, a post)?

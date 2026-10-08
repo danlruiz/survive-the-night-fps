@@ -173,7 +173,7 @@ class LoadingCard {
     const mid = el('div', 'cine-load-mid', this.root);
     el('div', 'cine-load-spin', mid);
     el('div', 'cine-load-title', mid, 'Loading map 2');
-    el('div', 'cine-load-sub', mid, 'The mainland · Port Calder');
+    el('div', 'cine-load-sub', mid, 'The mainland · Town Center');
     this.on = false;
     this.painted = false; // it has been on screen for a frame (what the world swap waits for)
     this.turn = 0;

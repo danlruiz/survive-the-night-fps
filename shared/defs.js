@@ -185,10 +185,10 @@ export const ITEM_DEFS = {
   [ITEM.FUEL_CAN]: { name: 'Jerry Can', cat: 'part', stack: 3, color: 0xb71c1c, desc: 'Fuel for the car. The tank needs three cans.' },
   [ITEM.FAN_BELT]: { name: 'Fan Belt', cat: 'part', stack: 1, color: 0x212121, desc: 'Car supply. Bring it to your broken-down car on Route 9.' },
 
-  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at Calder Field.' },
-  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at Calder Field.' },
-  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at Calder Field.' },
-  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at Calder Field.' },
+  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at the airport.' },
+  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at the airport.' },
+  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at the airport.' },
+  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at the airport.' },
   [ITEM.AVGAS]: { name: 'Avgas Drum', cat: 'part', stack: 3, color: 0x2f6fb0, desc: 'Aviation fuel for the plane. The tanks need three drums.' },
 
   [ITEM.SCHEM_SHOTGUN]: { name: 'Shotgun Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Shotgun and the Double-Barrel at the workbench for the whole team.' },
