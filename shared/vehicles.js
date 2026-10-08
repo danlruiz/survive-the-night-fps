@@ -43,7 +43,8 @@ const G = 9.8;
 // under). wade: the water that stops it (m). circles: its body against the world, [z along it (- is ahead), radius]
 // (they overlap: nothing thin gets in between two of them).
 // half / halfW / tall: its box (the collider it is while it stands empty, and what the dead and survivors are kept
-// out of). tank: Fuel units; burn: per second with the throttle open (idle: a twentieth of it). hp. seats: where
+// out of). tank: Fuel units - a full one takes a car or a moped from the bridgehead to the airport of Layout 12's
+// mainland (issue #232), with some to spare; burn: per second with the throttle open (idle: a twentieth of it). hp. seats: where
 // each sits [x (+ right), y (the hips over the ground), z (- ahead)], the driver first; eye: the eyes over the hips
 // (eyeZ: and behind them, leant back in a seat).
 // noise: how far the engine carries to the dead at full revs / ticking over (constants.js NOISE). throwAt: a crash
@@ -52,12 +53,12 @@ export const VEHICLES = {
   [VEH.MOPED]: {
     name: 'Moped', top: 16.5, accel: 5.4, brake: 9.5, rev: 1.6, wb: 1.2, lock: 0.62, lockTop: 0.085, steerRate: 2.6, grip: 9, hb: 0.42, roll: 0.35, coast: 1.2, drag: 0.004, off: 1, offTop: 0.75,
     step: 0.3, h: 1.5, wade: 0.4, circles: [[-0.5, 0.33], [-0.03, 0.31], [0.44, 0.33]], half: 0.9, halfW: 0.3, tall: 1.05,
-    tank: 60, burn: 0.5, hp: 300, seats: [[0, 0.86, 0.3], [0, 0.885, 0.62]], eye: 0.62, noise: 55, idle: 28, throwAt: 6.5, shell: false, two: true,
+    tank: 90, burn: 0.5, hp: 300, seats: [[0, 0.86, 0.3], [0, 0.885, 0.62]], eye: 0.62, noise: 55, idle: 28, throwAt: 6.5, shell: false, two: true,
   },
   [VEH.CAR]: {
     name: 'Car', top: 25, accel: 4.4, brake: 10.5, rev: 6, wb: 2.62, lock: 0.6, lockTop: 0.06, steerRate: 2.1, grip: 9.5, hb: 0.32, hbSpin: 2.6, roll: 0.3, coast: 1.1, drag: 0.0028, off: 2.6, offTop: 1,
     step: 0.26, h: 1.45, wade: 0.55, circles: [[-1.32, 0.88], [0, 0.9], [1.32, 0.88]], half: 2.2, halfW: 0.9, tall: 1.4,
-    tank: 150, burn: 1.6, hp: 900, seats: [[-0.38, 0.42, -0.15], [0.38, 0.42, -0.15], [-0.38, 0.415, 0.66], [0.38, 0.415, 0.66]], eye: 0.78, eyeZ: 0.1, noise: 85, idle: 42, throwAt: 0, shell: true, two: false,
+    tank: 225, burn: 1.6, hp: 900, seats: [[-0.38, 0.42, -0.15], [0.38, 0.42, -0.15], [-0.38, 0.415, 0.66], [0.38, 0.415, 0.66]], eye: 0.78, eyeZ: 0.1, noise: 85, idle: 42, throwAt: 0, shell: true, two: false,
   },
   [VEH.BIKE]: {
     name: 'Bicycle', top: 10.5, hardTop: 13.5, accel: 3.8, hardAccel: 4.6, brake: 7, rev: 1.2, wb: 1.05, lock: 0.7, lockTop: 0.12, steerRate: 3, grip: 7.5, hb: 0.5, roll: 0.22, coast: 0, drag: 0.005, off: 1.2, offTop: 0.45,
@@ -121,8 +122,14 @@ const SURFS = [SURF_ROAD, SURF_DIRT, SURF_TRAIL, SURF_GRASS, SURF_MUD];
 // what kind of ground (x, z) is at height y: asphalt, a dirt road or a yard, a trail, grass, the mud by the water
 export function surfaceKind(world, x, z, y) {
   if (y < WATER_LEVEL + 0.3 && world.heightAt(x, z) < WATER_LEVEL + 0.3) return SURF_KIND.MUD;
-  const rw = world.runway; // (the airfield's strip is as good as any road)
-  if (rw && Math.abs(x - rw.x) < rw.half && z > rw.z0 && z < rw.z1) return SURF_KIND.ROAD;
+  const rw = world.runway; // (the airfield's strip is as good as any road: z0..z1 along it, in its own turned frame)
+  if (rw) {
+    const c = Math.cos(rw.ry || 0);
+    const s = Math.sin(rw.ry || 0);
+    const lx = c * (x - rw.x) - s * (z - rw.z);
+    const lz = s * (x - rw.x) + c * (z - rw.z);
+    if (Math.abs(lx) < rw.half && lz > rw.z0 && lz < rw.z1) return SURF_KIND.ROAD;
+  }
   const k = world.roadKindAt(x, z);
   if (k === ROAD.ASPHALT) return world.roadDistAt(x, z) < 6.5 ? SURF_KIND.ROAD : SURF_KIND.GRASS;
   if (k === ROAD.DIRT || k === ROAD.RAIL) return SURF_KIND.DIRT;
@@ -650,7 +657,7 @@ function plan(world) {
       const gx = world.roadDistAt(x + e, z) - world.roadDistAt(x - e, z);
       const gz = world.roadDistAt(x, z + e) - world.roadDistAt(x, z - e);
       const yaw = Math.hypot(gx, gz) > 0.2 ? Math.atan2(gz, -gx) + (rng() < 0.5 ? Math.PI : 0) : rng() * Math.PI * 2;
-      if (free(kind, x, z, yaw, 0.5)) at = { x, z, yaw };
+      if (free(kind, x, z, yaw, 1)) at = { x, z, yaw }; // (room all round it to walk up to it from any side)
     }
     if (!at) continue;
     const s = { kind, x: at.x, y: world.heightAt(at.x, at.z), z: at.z, yaw: wrap(at.yaw), tint: n % 6, zone: 0, starter: n + 1 };

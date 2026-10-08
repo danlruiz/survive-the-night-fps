@@ -185,7 +185,7 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   });
   check(`the mainland is built ${CROSSING.SWAP} s into it, behind the cut to black, and the clients are told first`, built !== null && Math.abs(built - CROSSING.SWAP) < 0.3 && ann.resets.length === 1 && ann.resets[0].act === WORLD.MAINLAND && ann.resets[0].seed === SEED >>> 0, `built at ${built}, resets ${JSON.stringify(ann.resets)}`);
   const w = game.world;
-  check('...twice the island across, positions at 1/32 m', game.act === WORLD.MAINLAND && w.size === MAINLAND_SIZE && w.size === 2 * MAP_SIZE && w.half === MAINLAND_SIZE / 2 && w.posScale === POS_SCALE_WIDE && ann.global.act === WORLD.MAINLAND, `size ${w.size} scale ${w.posScale}`);
+  check('...bigger than the island, positions at 1/32 m', game.act === WORLD.MAINLAND && w.size === MAINLAND_SIZE && w.size > MAP_SIZE && w.half === MAINLAND_SIZE / 2 && w.posScale === POS_SCALE_WIDE && ann.global.act === WORLD.MAINLAND, `size ${w.size} scale ${w.posScale}`);
   {
     usePos(w);
     const far = [w.half - 3, -(w.half - 3), 0.33, -317.77];
@@ -220,9 +220,10 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   check('the mainland is stocked: loot, containers, the dead by day', game.items.length > 200 && game.caches.length > 200 && game.zombies.length > 40, `${game.items.length} items, ${game.caches.length} containers, ${game.zombies.length} zombies`);
 
   // ---- the plane's parts: at set places
-  const where = { [ITEM.PROPELLER]: [ZONE.HANGARS], [ITEM.MAGNETO]: [ZONE.CITY], [ITEM.HYDRAULIC_PUMP]: [ZONE.INDUSTRIAL], [ITEM.FLIGHT_RADIO]: [ZONE.TERMINAL], [ITEM.AVGAS]: [ZONE.FUEL_DEPOT, ZONE.HANGARS, ZONE.INDUSTRIAL] };
+  // (Layout 12's deal, issue #232: the pump is down in the South Passage Mines, the radio at North Ridge Outpost)
+  const where = { [ITEM.PROPELLER]: [ZONE.HANGARS], [ITEM.MAGNETO]: [ZONE.CITY], [ITEM.HYDRAULIC_PUMP]: [ZONE.PASSAGE], [ITEM.FLIGHT_RADIO]: [ZONE.OUTPOST], [ITEM.AVGAS]: [ZONE.FUEL_DEPOT, ZONE.HANGARS] };
   const parts = game.items.filter((e) => PLANE_PARTS.includes(e.item));
-  const zoneOf = (e) => w.zoneAt(e.x, e.z);
+  const zoneOf = (e) => (w.mine && w.mine.under(e.x, e.y + 0.5, e.z) ? w.mine.portals[0].zone : w.zoneAt(e.x, e.z)); // (down in the workings: the passage's)
   check("the plane's seven parts lie at their set places, and the team is told which", parts.length === 7 && parts.every((e) => where[e.item].includes(zoneOf(e))) && ann.global.hints.every((z, k) => where[PLANE_PARTS[Math.min(k, 4)]].includes(z)) && !game.items.some((e) => SUPPLIES.includes(e.item) && e.item !== 0), parts.map((e) => `${e.item}@${zoneOf(e)}`).join(' ') + ' hints ' + ann.global.hints);
   // found and fitted
   for (const e of parts) {
@@ -271,7 +272,10 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   const bosses = spawned.filter((s) => s.boss).map((s) => s.boss);
   check('each of the two stages brings one of the late bosses', bosses.length === 2 && bosses.includes(ZTYPE.BOSS_ABOMINATION) && bosses.includes(ZTYPE.BOSS_HIVEQUEEN), bosses.join());
   const groups = spawned.filter((s) => !s.boss);
-  const ahead = groups.filter((s) => plane.z - s.z > RUNWAY.AHEAD - 95 && Math.abs(s.x - plane.x) < 95).length;
+  // (down the runway: along the plane's heading, -Z turned by it)
+  const fx = -Math.sin(w.car.ry);
+  const fz = -Math.cos(w.car.ry);
+  const ahead = groups.filter((s) => (s.x - plane.x) * fx + (s.z - plane.z) * fz > RUNWAY.AHEAD - 95 && Math.abs((s.x - plane.x) * -fz + (s.z - plane.z) * fx) < 95).length;
   check('the horde comes down the runway: its groups appear well along it from the plane', groups.length >= 3 && ahead === groups.length, `${ahead} of ${groups.length} spawned along the runway`);
   // warm: a runway to keep clear
   for (const z of [...game.zombies]) {

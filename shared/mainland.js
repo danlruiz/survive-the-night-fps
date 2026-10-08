@@ -52,7 +52,7 @@ const SIZE = MAINLAND_SIZE;
 const HALF = SIZE / 2;
 const N = SIZE / GRID_STEP + 1;
 const FLOOR = WATER_LEVEL + 1.2; // soft floor of the land (only the sea, the lake and the river hold water)
-const BLUFF = 9; // the bridge comes ashore on a bluff this high (m over the water line it is BLUFF - WATER_LEVEL)
+const BLUFF = 4.5; // the bridge comes ashore on a bluff this high (m over the water line it is BLUFF - WATER_LEVEL): the docks' quays are a little lower
 
 // The city's grid: streets PITCH apart, each STREET wide between the kerbs, GRID blocks each way.
 const PITCH = 56;
@@ -399,7 +399,14 @@ export function createMainland(seed) {
     return FLOOR + 0.5 * (a + Math.sqrt(a * a + 4)) + micro;
   };
   // inside a mountain: the cliff at its foot, then the peaks over it
-  const mountainUp = (x, z, d) => (d <= 0 ? 0 : CLIFF * smoothstep(0, CLIFF_IN, d) + PEAK * ridged(x, z) * smoothstep(CLIFF_IN, 150, d) + d * 0.12);
+  // (the cliff is no even band: its height and how far in it climbs come and go along the foot, and over it the
+  // mountain goes on up at once)
+  const mountainUp = (x, z, d) => {
+    if (d <= 0) return 0;
+    const v = 0.5 + 0.5 * nB(x * 0.011 + 9.3, z * 0.011 - 4.1);
+    const inTo = CLIFF_IN * (0.7 + 0.8 * v);
+    return CLIFF * (0.55 + 0.7 * v) * smoothstep(0, inTo, d) + PEAK * ridged(x, z) * smoothstep(inTo * 0.6, 120, d) + d * 0.3;
+  };
   // the quarry's pit: terraces down into the ground, a ramp round them
   const PIT = { x: FX(PLACES.quarry[0]), z: FX(PLACES.quarry[1]), r: 54, steps: 4, drop: 3.6 };
   // (it is cut into a rise of its own, high enough that its floor stays over the water: the ground round it comes up to
@@ -496,7 +503,7 @@ export function createMainland(seed) {
     if (db < 9) h = lerp(h, BLUFF, 1 - smoothstep(0, 9, db));
     // (...and the yard of the bridgehead on it, whatever the city's ground does beyond)
     const dh = Math.hypot(x - head.x, z - head.z);
-    if (dh < 44) h = lerp(h, BLUFF, 1 - smoothstep(26, 44, dh));
+    if (dh < 70) h = lerp(h, BLUFF, 1 - smoothstep(26, 70, dh));
     return h;
   };
 
@@ -2967,7 +2974,7 @@ export function createMainland(seed) {
       const cx = (ax + bx) / 2 - uz * (WALL_T / 2 - 0.25);
       const cz = (az + bz) / 2 + ux * (WALL_T / 2 - 0.25);
       const foot = Math.min(heightAt(ax, az), heightAt(bx, bz), heightAt(cx, cz)) - 3;
-      const col = makeBox(cx, cz, foot, foot + CLIFF + 14, len + WALL_T * 0.6, WALL_T, Math.atan2(-uz, ux), COL.STATIC);
+      const col = makeBox(cx, cz, foot, foot + CLIFF * 1.25 + 14, len + WALL_T * 0.6, WALL_T, Math.atan2(-uz, ux), COL.STATIC);
       col.tag = 'cliff'; // (a bullet strikes stone: shared/surfaces.js)
       staticGrid.add(col);
     }

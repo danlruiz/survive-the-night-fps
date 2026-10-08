@@ -46,18 +46,11 @@ function world() {
   questCar(_world);
   return _world;
 }
+// (mid-runway, facing its plane: the turns go right, out west of it, where the airfield is open - the apron's side is
+// cluttered; test-vehicles.js does its figure from here too)
 function runway(w) {
   const r = w.runway;
-  let best = null, run = 0, from = 0;
-  for (let z = r.z1 - 8; z >= r.z0 + 8; z -= 4) {
-    const clear = !w.staticGrid.query(r.x, z, 8, []).some((q) => !(q.flags & COL.NOBLOCK) && q.y1 > w.heightAt(q.x, q.z) + 0.3);
-    if (clear) {
-      if (!run) from = z;
-      run += 4;
-      if (!best || run > best[1]) best = [from, run];
-    } else run = 0;
-  }
-  return [r.x, best[0] - 6];
+  return [r.x - Math.sin(r.ry) * 4, r.z - Math.cos(r.ry) * 4, r.ry + Math.PI];
 }
 
 // frame lengths (s): steady, or uneven - a frame of 16 +- 4 ms, and every half a second one of 45 ms
@@ -111,12 +104,12 @@ export function runOne(name, vkName, fps) {
   let x0, z0, yaw0 = 0, pilot = null;
   if (sc.pilot) {
     const cl = (world._cl ||= clearance(w));
-    const zn = w.zones.find((q) => ZONE_NAMES[q.id] === 'Port Calder');
+    const zn = w.zones.find((q) => ZONE_NAMES[q.id] === 'Town Center');
     const raw = flood(w, cl, w.start.x, w.start.z, vk === VEH.CAR ? 1.1 : 0.75, vk).path(zn.x, zn.z);
     pilot = makePilot(w, vk, raw.slice(40), cl, 1);
     [x0, z0] = pilot.path[0];
     yaw0 = pilot.yaw0;
-  } else [x0, z0] = runway(w);
+  } else [x0, z0, yaw0] = runway(w);
   const mk = () => {
     const s = createPlayerState();
     s.drive = 1;

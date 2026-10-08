@@ -38,7 +38,8 @@ const view = (name, at, look, o = {}) => views.push([name, at, look, o]);
   const m = zp(ZONE.MARINA);
   const px = m.x + Math.sin(m.ry) * 40;
   const pz = m.z + Math.cos(m.ry) * 40;
-  view('04-pine-lake', [px, -0.2, pz], [px + Math.sin(m.ry) * 100, -1, pz + Math.cos(m.ry) * 100], { fog: 0.4 });
+  const [bx, bz] = [m.x + Math.sin(m.ry) * 6, m.z + Math.cos(m.ry) * 6];
+  view('04-pine-lake', [bx, m.h + 6, bz], [m.x + Math.sin(m.ry) * 160, -2, m.z + Math.cos(m.ry) * 160], { fog: 0.35, far: 800 });
   // North Pass: the road up to its west mouth
   for (const [name, t] of [['05-north-pass', w.tunnels.find((q) => q.name === 'North Pass')], ['07-east-pass', w.tunnels.find((q) => q.name === 'East Pass')]]) {
     const dx = (t.b[0] - t.a[0]) / t.len;
@@ -65,7 +66,8 @@ const view = (name, at, look, o = {}) => views.push([name, at, look, o]);
   // the quarry: from its yard over the pit
   const q = zp(ZONE.AGGREGATES);
   const pit = [F(0.545), F(0.865)];
-  view('10-quarry', [q.x, q.h + 6, q.z], [pit[0], q.h - 8, pit[1]], { fog: 0.5 });
+  const [ux, uz] = [(q.x - pit[0]) / Math.hypot(q.x - pit[0], q.z - pit[1]), (q.z - pit[1]) / Math.hypot(q.x - pit[0], q.z - pit[1])];
+  view('10-quarry', [pit[0] + ux * 62, q.h + 4, pit[1] + uz * 62], [pit[0] - ux * 10, q.h - 14, pit[1] - uz * 10], { fog: 0.5 });
   // inside the mines: in the drift by the junction, along it
   const M = w.mine;
   const j = M.jx;
@@ -105,8 +107,19 @@ try {
     g.input.handlers.onLockChange = () => {};
     g.ui.showPause(false);
   });
+  // the crossing: the cutscene from the island, over the bridge, onto the bluff (the HUD is the cutscene's own)
+  if (!only || only.includes('crossing')) {
+    await p.evaluate(() => window.__game.conn.chat('/cross'));
+    const c0 = Date.now();
+    for (const at of [5, 16, 26, 34]) {
+      while (Date.now() - c0 < at * 1000) await sleep(200);
+      await p.screenshot({ path: join(out, `00-crossing-${String(at).padStart(2, '0')}s.png`) });
+    }
+    for (let i = 0; i < 240 && (await p.evaluate(() => window.__game.act)) !== 2; i++) await sleep(250);
+    await sleep(8000);
+  }
   const t0 = Date.now();
-  await p.evaluate(() => window.__game.conn.chat('/map2'));
+  await p.evaluate(() => window.__game.act !== 2 && window.__game.conn.chat('/map2'));
   for (let i = 0; i < 240 && (await p.evaluate(() => window.__game.act)) !== 2; i++) await sleep(250);
   await sleep(6000);
   console.log(`on the mainland after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
