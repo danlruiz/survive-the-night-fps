@@ -734,6 +734,9 @@ function dropArray() {
 // Water surface (lake + ponds): dark murky water with animated ripples, fresnel sky reflection and
 // moon/sun glints. A sheet at the water line over every cell of the heightfield that dips below it, and nowhere
 // else: under dry ground it would show in the drifts of the mine, which run down through that level.
+// (m from the eye: the sea past the map fades into the sky between these - buildWater)
+const SEA_FADE = [1100, 1650];
+
 export function buildWater(world) {
   const N = world.gridN;
   const MAP_HALF = world.half;
@@ -812,7 +815,10 @@ export function buildWater(world) {
         // map's edge there is none, only the haze behind the horizon, pale - which drew the edge of the map on the
         // sea as a straight line. So the sheet thickens to opaque over the last metres before the edge.
         float alpha = 0.9;
-        if (uEdge > 0.0) alpha = mix(1.0, 0.9, smoothstep(0.0, 70.0, uEdge - max(abs(vW.x), abs(vW.z))));
+        // Past the map the sheet runs on for kilometres, and from high up (the wide views, the crossing's camera) its far
+        // edge showed as a dark wedge over the horizon, the haze thin up there. So it fades out into the sky behind it
+        // from SEA_FADE m out: the sea meets the sky in the haze wherever the eye is.
+        if (uEdge > 0.0) alpha = mix(1.0, 0.9, smoothstep(0.0, 70.0, uEdge - max(abs(vW.x), abs(vW.z)))) * (1.0 - smoothstep(${SEA_FADE[0].toFixed(1)}, ${SEA_FADE[1].toFixed(1)}, distance(vW.xz, uCam.xz)));
         gl_FragColor = vec4(col, alpha);
         #include <fog_fragment>
       }`,
