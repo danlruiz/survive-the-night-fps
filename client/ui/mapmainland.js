@@ -26,7 +26,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
   const N = world.gridN;
   const H = world.heights;
 
-  const _t = [performance.now()];
   // ---- the raster, a pixel a metre
   const R = SIZE;
   const raster = document.createElement('canvas');
@@ -188,7 +187,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
   rg.putImageData(img, 0, 0);
   g.imageSmoothingEnabled = true;
   g.drawImage(raster, 0, 0, PX, PX);
-  _t.push(performance.now());
 
   // ---- the woods: a crown for every tree, the northern first so the southern stand in front of them (the picture
   // draws its trees from a little south of overhead). Conifers are a dark pointed crown, lit on its west side; birch a
@@ -216,7 +214,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
     const sp = set[Math.max(0, Math.min(set.length - 1, Math.floor(((T[i + 3] - 0.75) * set.length) / 0.56)))];
     g.drawImage(sp, Math.round(x - sp.ox), Math.round(y - sp.oy));
   }
-  _t.push(performance.now());
 
   // ---- roads, by the picture's legend: main roads a grey band in a dark casing with a light line down it; secondary
   // roads orange-brown; dirt roads a red-brown dash; trails a black dash; the streets of the places as the main roads,
@@ -276,7 +273,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
     }
   }
 
-  _t.push(performance.now());
   if (world.city) {
     const c = world.city;
     const h = (c.grid * c.pitch) / 2;
@@ -370,7 +366,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
     g.restore();
   }
 
-  _t.push(performance.now());
   // ---- the picture's marks
   drawMarks(g, world, S, mapX, mapY);
 
@@ -426,8 +421,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
   grad.addColorStop(1, 'rgba(60,40,20,0.3)');
   g.fillStyle = grad;
   g.fillRect(0, 0, PX, PX);
-  _t.push(performance.now());
-  console.log('[map] mainland bake', _t.slice(1).map((t, i) => (t - _t[i]).toFixed(0)).join(' '));
 }
 
 // The trees' stamps, as the picture draws a tree: [conifers, broadleaves, the dead], each a few sizes (smallest first);
