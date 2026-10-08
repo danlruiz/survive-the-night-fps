@@ -5,16 +5,26 @@ import { PHASE, dayLength, NIGHT_LENGTH, DUSK_WARNING } from '../../shared/const
 import { GUN, MOUNTED_GUN } from '../../shared/mountedgun.js';
 import { el, svgEl, fmtTime, parsePrompt, clamp, replay } from './dom.js';
 import { itemIcon, glyph, splatSvg } from './icons.js';
-import { Compass, Objective, Tracked, CardsLine, Markers, Downed, DamageDir, Tonight } from './hud2.js';
+import { Compass, Objective, Tracked, CardsLine, Markers, Downed, DamageDir, Tonight, healthTier } from './hud2.js';
 import { Minimap } from './minimap.js';
 import { W, ACT_NOW } from '../game/act.js'; // (this act, and the words for what its parts go into)
 import { WORLD } from '../../shared/acts.js';
 import { bindLabel, bindTag, onBindsChange } from '../game/binds.js';
+import './ux-hud.css'; // (the corners, the one feed, the HUD size and the compact layout: issue #221)
 
 const SLOT_LABELS = ['Primary', 'Pistol', 'Melee', 'Throw', 'Build', 'Radio'];
 const RADIO = 5; // the walkie-talkie's slot (SLOT_RADIO)
 const HUD_CAT = -1; // (the weapon block's id while the stray cat is in their arms: no item has it)
 const ARC = { cx: 120, cy: 70, rx: 100, ry: 56 };
+// The layout (ux-hud.css): four corners - where (map, objective), when (clock), me and my team (vitals), hands
+// (weapons) - and one feed down the right edge between the clock and the weapons. Each side's middle block (the
+// feed, the chat) is held between what is measured above and below it, so it shrinks instead of overlapping.
+// Compact: a short window, at the HUD size set, folds the lesser blocks (clock to a line, map smaller, feed to 3 rows)
+const COMPACT_H = 600; // px tall (at HUD size 100%) under which the HUD goes compact
+const COMPACT_W = 960; // ...or wide
+const STEADY_MS = 4000; // health, armour and stamina unchanged this long by day, full stamina: the vitals fade back
+const TEAM_ROWS = 4; // teammates listed over the vitals (compact: 3), the downed first; the rest as "+N more"
+const TEAM_ORDER = { downed: 0, alive: 1, zombie: 2, dead: 3 };
 
 // deterministic treeline for the clock horizon
 function treeline() {
@@ -54,6 +64,7 @@ export class Hud {
     this.ui = ui;
     this.c = Object.create(null); // diff cache
     this.root = layer;
+    ui.root.classList.add('hud-b');
 
     // ---- world markers (nameplates, pings) sit under everything else
     this.markers = new Markers(layer);
@@ -168,12 +179,15 @@ export class Hud {
     this.shoveFill = el('i', '', el('div', 'shove-bar', this.shove));
     this.shove.hidden = true;
 
-    this.prompt = el('div', 'prompt', center);
+    // the prompt and what you look at (a wall's health) share one line under the aim point, off it
+    const line = el('div', 'hud-line', center);
+    this.prompt = el('div', 'prompt', line);
     this.promptKey = el('span', 'kbd', this.prompt, 'E');
     this.promptText = el('span', 'prompt-t', this.prompt, '');
     this.prompt.hidden = true;
 
-    this.ctx = el('div', 'ctx scrap', center);
+    this.ctx = el('div', 'ctx scrap', line);
+    line.prepend(this.ctx);
     this.ctx.hidden = true;
     const ch = el('div', 'ctx-head', this.ctx);
     this.ctxIco = el('i', 'ctx-ico', ch);
@@ -184,6 +198,9 @@ export class Hud {
 
     // ---- bottom-left vitals
     const vit = (this.vitals = el('div', 'vitals', layer));
+    // the team: everyone else in the game, how they are and how far off (Game.hudTeam), over your own vitals
+    this.team = el('div', 'hud-team', vit);
+    this.team.hidden = true;
     const comms = (this.comms = el('div', 'v-comms', vit)); // the voice speaker list is parked in here too (ui.js)
     this.mic = svgEl('div', 'v-mic', comms, glyph('mic'));
     this.mic.hidden = true;
@@ -291,6 +308,46 @@ export class Hud {
 
     this._keys();
     onBindsChange(() => this._keys());
+
+    // what the side columns' middle blocks are held between (_layout): measured when one of these changes size
+    this._lay = 0;
+    const relayout = () => this._relayout();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = (this._ro = new ResizeObserver(relayout));
+      for (const e of [this.clock, this.tonight.root, this.weap, this.zpanel, this.vitals, this.minimap.root, this.objective.root, this.tracked.root]) if (e) ro.observe(e);
+    }
+    window.addEventListener('resize', relayout);
+  }
+
+  _relayout() {
+    if (this._lay) return;
+    this._lay = requestAnimationFrame(() => {
+      this._lay = 0;
+      this._layout();
+    });
+  }
+
+  // the bottom of what is over each side's middle block and the top of what is under it, as CSS variables on the root
+  // (px from the top / from the bottom of the window)
+  _layout() {
+    const vh = window.innerHeight;
+    const r = (e) => (e && !e.hidden && e.offsetParent !== null ? e.getBoundingClientRect() : null);
+    const below = (...els) => els.reduce((m, e) => Math.max(m, r(e)?.bottom || 0), 0);
+    const above = (...els) => els.reduce((m, e) => Math.min(m, r(e)?.top ?? vh), vh);
+    const ach = this.ui.root.querySelector('.ach-toasts'); // (an achievement's banner under the clock: made after the HUD)
+    if (ach && !this._achRO) {
+      this._achRO = true;
+      this._ro?.observe(ach);
+    }
+    const rt = below(this.clock, this.tonight.root, ach && ach.childElementCount ? ach : null);
+    const rb = vh - above(this.weap, this.zpanel);
+    const lt = below(this.minimap.root, this.objective.root, this.tracked.root);
+    const lb = vh - above(this.vitals);
+    const st = this.ui.root.style;
+    st.setProperty('--hud-rt', Math.round(rt) + 'px');
+    st.setProperty('--hud-rb', Math.round(rb) + 'px');
+    st.setProperty('--hud-lt', Math.round(lt) + 'px');
+    st.setProperty('--hud-lb', Math.round(lb) + 'px');
   }
 
   // what names a key here: the weapon slots' key caps, what the heal key would use
@@ -319,6 +376,7 @@ export class Hud {
       c.night = nq;
       this.root.style.setProperty('--night', nq);
     }
+    this._mode(h);
 
     this._clock(h);
     this.tonight.update(zombie || h.finale ? null : h.tonight || null);
@@ -342,6 +400,66 @@ export class Hud {
     this.cardsLine.update(h.cards || null);
     this.markers.update(h.worldMarks || []);
     this.downed.update(h.downed || null);
+    this._team(zombie ? null : h.team || null);
+  }
+
+  // The HUD's modes, as classes on the root (ux-hud.css): its size (the HUD size setting), compact (a short window at
+  // that size), and the night (the objective and the tracked recipe fold to a line, the feed keeps the team's deaths)
+  _mode(h) {
+    const c = this.c;
+    const k = clamp(+this.ui.settings.hudScale || 1, 0.5, 2);
+    if (c.hudK !== k) {
+      c.hudK = k;
+      this.ui.root.style.setProperty('--hud-k', k);
+      c.compact = undefined;
+    }
+    const compact = window.innerHeight / k < COMPACT_H || window.innerWidth / k < COMPACT_W;
+    if (c.compact !== compact) {
+      c.compact = compact;
+      this.ui.root.classList.toggle('hud-compact', compact);
+      c.teamKey = c.teamRef = undefined;
+      this._feedMode();
+      this._relayout();
+    }
+    const night = h.phase === PHASE.NIGHT || !!h.finale;
+    if (c.atNight !== night) {
+      c.atNight = night;
+      this.ui.root.classList.toggle('hud-night', night);
+      this._feedMode();
+      this._relayout();
+    }
+  }
+
+  _feedMode() {
+    this.ui.kf?.setMode?.({ rows: this.c.compact ? 3 : 8, teamOnly: !!this.c.atNight });
+  }
+
+  // the team over the vitals: t = [{ id, name, status, hp (0..1, -1: not known), d (m, -1: not known), talking }]
+  _team(t) {
+    const c = this.c;
+    if (t === c.teamRef) return; // (the game makes a new list a few times a second, and none in between)
+    c.teamRef = t;
+    const max = c.compact ? TEAM_ROWS - 1 : TEAM_ROWS;
+    const list = t && t.length ? [...t].sort((a, b) => (TEAM_ORDER[a.status] ?? 1) - (TEAM_ORDER[b.status] ?? 1)) : null;
+    const key = list ? list.slice(0, max).map((p) => [p.id, p.name, p.status, p.hp < 0 ? -1 : Math.round(p.hp * 20), p.d < 0 ? -1 : Math.round(p.d / 5), p.talking ? 1 : 0].join('|')).join(';') + '#' + list.length : '';
+    if (c.teamKey === key) return;
+    c.teamKey = key;
+    this.team.hidden = !list;
+    this.team.textContent = '';
+    if (!list) return;
+    for (const p of list.slice(0, max)) {
+      const row = el('div', 'tm-row st-' + p.status + (p.status === 'alive' ? healthTier(p.hp) : '') + (p.talking ? ' talking' : ''), this.team);
+      svgEl('i', 'tm-ico', row, glyph(p.talking ? 'mic' : p.status === 'zombie' ? 'claw' : p.status === 'dead' ? 'skull' : p.status === 'downed' ? 'downed' : 'person'));
+      el('span', 'tm-name', row, p.name || '???');
+      if (p.status === 'alive') {
+        const bar = el('span', 'tm-bar', row);
+        const f = el('i', '', bar);
+        f.style.transform = `scaleX(${p.hp < 0 ? 1 : clamp(p.hp, 0, 1)})`;
+        bar.classList.toggle('unknown', p.hp < 0);
+      }
+      el('span', 'tm-st', row, p.status === 'downed' ? 'Down' : p.status === 'zombie' ? 'Infected' : p.status === 'dead' ? 'Dead' : p.d >= 0 ? p.d + 'm' : '');
+    }
+    if (list.length > max) el('div', 'tm-more', this.team, `+${list.length - max} more [${bindLabel('players')}]`);
   }
 
   _clock(h) {
@@ -532,6 +650,19 @@ export class Hud {
     if (c.ex !== ex) {
       c.ex = ex;
       this.stRow.classList.toggle('exhausted', ex);
+    }
+
+    // steady (by day, nothing moving, stamina full): the vitals fade back, never out; any change brings them up at once
+    const now = performance.now();
+    const vk = hp + '|' + armor + '|' + sr + '|' + ex;
+    if (c.vKey !== vk) {
+      c.vKey = vk;
+      c.vT = now;
+    }
+    const steady = !zombie && !c.atNight && !low && !veh && sr >= 1 && h.phase === PHASE.DAY && now - c.vT > STEADY_MS;
+    if (c.steady !== steady) {
+      c.steady = steady;
+      this.vitals.classList.toggle('steady', steady);
     }
 
     const fl = Math.round(clamp(h.flashlight || 0, 0, 100));

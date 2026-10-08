@@ -1260,6 +1260,23 @@ export class Game {
     this.ui.setProgress(p);
   }
 
+  // The team over the HUD's vitals (ui/hud.js): everyone else in the game, how they are and how far off. Health as the
+  // player list has it (pushRoster): it rides in a teammate's entity record, and the dead get no report on the living
+  hudTeam(rp) {
+    const ST = ['alive', 'zombie', 'dead', 'downed'];
+    const turned = !this.self.alive || !!this.prediction.state.zombie;
+    const out = [];
+    for (const [id, p] of this.players) {
+      if (id === this.myId) continue;
+      const status = ST[p.status] || 'alive';
+      const e = turned ? null : this.entities.ents.get(id);
+      const hp = e && status === 'alive' ? e.q[7] / 255 : -1;
+      const d = e && status !== 'dead' ? Math.hypot(e.rx - rp.x, e.rz - rp.z) : -1;
+      out.push({ id, name: p.name, status, hp, d: d < 0 ? -1 : Math.round(d), talking: this.talkPeers.includes(id) });
+    }
+    return out;
+  }
+
   // the peers you can hear talking right now (for the HUD)
   speakers() {
     return this.talkPeers.map((id) => ({ name: this.players.get(id)?.name || '?', radio: this.voice.overRadio(id) }));
@@ -3821,6 +3838,7 @@ export class Game {
     h.stalled = performance.now() - (this.snapAt || 0) > 1000; // nothing from the server for a second
     h.fps = this.fps || 0;
     h.players = { alive: g.humansAlive, total: g.playersTotal };
+    if (!h.team || this.frame % 10 === 3) h.team = this.hudTeam(rp); // (the team over the vitals, a few times a second)
     // objective tracker
     const carried = {};
     let anyCarried = false;
