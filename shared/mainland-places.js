@@ -56,7 +56,7 @@ export function house(b, hx, hz, front, k, K, car = true) {
   yard('mailbox', -2.2, -10.4, 0, {}, 2.4);
 
   if (k % 3 === 2) yard('trash_bin', -7.6, -5.6, 0.2); // (clear of the window a barricade may go across)
-  if (k % 2 === 0) s.cont(CONT.DUMPSTER, -9.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k }); // (out from the wall: from on top of it the eaves were in reach)
+  if (k % 2 === 0) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k });
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)
   return s;

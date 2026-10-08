@@ -2539,7 +2539,9 @@ export function createMainland(seed) {
     const left = order.filter((i) => !plan.has(i));
     const big = left.filter((i) => lots[i].w > 40 && lots[i].d > 40);
     const long = left.filter((i) => lots[i].w > 40 && lots[i].d < 40);
-    const small = left.filter((i) => lots[i].w < 40);
+    // (the places the run needs only on lots inside the city's circle - its zone: an avenue's corner lots stand out
+    // past it, where a part would be said to lie in the woods)
+    const small = left.filter((i) => lots[i].w < 40 && Math.hypot(lots[i].x - city.x, lots[i].z - city.z) < CITY_R - 14);
     const deal = (from, list) => list.forEach((what) => from.length && plan.set(from.shift(), what));
     // (two of each: the towers, and the parts shops the plane's magneto may be in)
     deal(big, ['hospital', 'collapse', 'depot', 'tower', 'tower']);
@@ -2579,7 +2581,7 @@ export function createMainland(seed) {
     // the middle; a ring of trees round it in their kerbed beds, benches between them facing it, lamps on the ring
     const FZ = 32;
     b.cyl(0, PAVE, FZ, 5, 0.7, 'stone', { sides: 20 });
-    b.cyl(0, PAVE + 0.7, FZ, 4.5, 0.02, 'dark', { sides: 20, collide: false });
+    b.cyl(0, PAVE + 0.7, FZ, 4.5, 0.02, 'charred', { sides: 20, collide: false }); // (the water, black and still)
     b.cyl(0, PAVE, FZ, 0.7, 2.6, 'stone', { sides: 10 });
     b.cyl(0, PAVE + 2.6, FZ, 1.4, 0.3, 'stone', { sides: 12, collide: false });
     for (let k = 0; k < 8; k++) {
@@ -3174,7 +3176,7 @@ export function createMainland(seed) {
     // the harbour master's office at the root of the north pier
     {
       const o = q.sub(QX + 16, PIERS[0].z + 12, 0);
-      o.room(0, 0, 8, 6, 3.2, 'brick', { s: [door(4, 1.2)], e: [win(3, 1.4)], w: [win(3, 1.4)] }, { roof: 'flat', roofMat: 'concrete', floorMat: 'concrete' });
+      o.room(0, 0, 8, 6, 3.2, 'brick', { s: [door(4, 1.2)], e: [hole(3, 1.4)], w: [hole(3, 1.4)] }, { roof: 'flat', roofMat: 'concrete', floorMat: 'concrete' }); // (its windows long since broken out)
       o.cont(CONT.CABINET, 2.6, -1.8, { prop: 'cabinet', ry: 0, ly: FLOOR_Y });
       o.loot(-2, 0, FLOOR_Y + 0.02);
     }
@@ -3194,12 +3196,10 @@ export function createMainland(seed) {
     // the warehouses along the back of the apron (two more, the length of the quay), their doors on it
     for (const [lz, k] of [[82, 3]]) {
       const w = q.sub(-58, lz, PI / 2);
-      w.room(0, 0, 34, 16, 7, k === 2 ? 'tin' : 'tin_rust', { n: [gap(17, 8, 5.5)], s: [door(8, 1.4), door(26, 1.4)], e: [win(8, 2)], w: [win(8, 2)] }, { roof: 'gable', roofH: 3, roofMat: 'tin', floorMat: 'concrete' });
+      w.room(0, 0, 34, 16, 7, k === 2 ? 'tin' : 'tin_rust', { n: [gap(17, 8, 5.5)], s: [door(8, 1.4), door(26, 1.4)] }, { roof: 'gable', roofH: 3, roofMat: 'tin', floorMat: 'concrete' }); // (no glass: a shed's)
       w.cont(CONT.FREIGHT, -12, 5, { prop: 'crate', ry: 0.2, ly: FLOOR_Y, seed: k });
       w.loot(4, -3, FLOOR_Y + 0.02);
     }
-    // the apron's markings: the lanes between the blocks and along the cranes' rails, faded yellow
-    for (const lx of [QX + 26, QX + 42, QX + 58, QX + 74]) q.box(lx, 0.01, 0, 0.2, 0.02, QZ1 - QZ0 - 8, 'paint', { collide: false });
     // what was left on it: pallets and their loads, drums, tyres, the trucks that stopped where they were, a burnt-out
     // one, the light masts
     const clutter = (type, lx, lz, ry, o = {}) => fits(q, type, lx, lz, ry) && q.prop(type, lx, lz, ry, { seed: 0, ...o });
@@ -3213,9 +3213,8 @@ export function createMainland(seed) {
       else if (t < 0.75) clutter('tire_pile', lx, lz, dd(n, 4) * PI, { seed: 0 });
       else clutter('crate_small', lx, lz, dd(n, 4) * PI, { seed: 0 });
     }
-    for (const [type, lx, lz, ry] of [['box_truck', QX + 52, -24, PI + 0.1], ['dump_truck', QX + 22, 66, 1.4], ['fuel_truck', QX + 70, 102, -0.2]]) if (fits(q, type, lx, lz, ry)) q.wreck(type, lx, lz, ry, { trunk: false, seed: 1 });
-    if (fits(q, 'box_truck', QX + 24, -60, 1.5)) { q.prop('box_truck', QX + 24, -60, 1.5, { seed: 2 }); q.light(QX + 24, 1.0, -60, 'embers'); }
-    for (const lz of [-120, -60, 0, 60, 120]) clutter('floodlight_tower', QX + 24, lz + 6, PI / 2);
+    for (const [type, lx, lz, ry] of [['box_truck', QX + 52, -24, PI + 0.1], ['dump_truck', QX + 52, 66, 1.4]]) if (fits(q, type, lx, lz, ry)) q.wreck(type, lx, lz, ry, { trunk: false, seed: 1 });
+    for (const lz of [-120, -60, 0, 60, 120]) q.box(QX + 24, 0, lz + 6, 0.5, 16, 0.5, 'rust'), q.box(QX + 24, 16, lz + 6, 1.6, 0.8, 3.2, 'metal', { collide: false }); // (the light masts)
     // the rail spur at the back of the yard: its rails and the flat wagons on it, loaded
     for (const rx of [QX + 76.6, QX + 78.0]) q.box(rx, 0, 0, 0.12, 0.14, 220, 'metal', { collide: false });
     for (const wz of [-60, -44, -28, 40, 56]) {
