@@ -35,7 +35,7 @@ import { GRID_STEP, WATER_LEVEL } from './constants.js';
 import { ZONE, CONT } from './defs.js';
 import { PROPS, collidersOf } from './props.js';
 import { mulberry32, createNoise2D, fbm, smoothstep, lerp, clamp } from './rng.js';
-import { makeCyl, makeBox, COL } from './collision.js';
+import { makeCyl, makeBox, makeTree, COL } from './collision.js';
 import { ROAD } from './layout.js';
 import { createKit } from './worldkit.js';
 import { WORLD, MAINLAND_SIZE } from './acts.js';
@@ -43,8 +43,8 @@ import { POS_SCALE_WIDE } from './protocol.js';
 import { planBridge } from './bridge.js';
 import { OUTLYING, house } from './mainland-places.js';
 import { SEA, LAKE, RIVER, CREEK, MOUNTAINS, TUNNELS, ROADS, PLACES, AREAS, FOREST } from './mainland-layout.js';
-import { fillPolys, signedDistance, decodeForest, maskEdges, lineDist } from './mainland-ground.js';
-import { planPassage } from './mine.js';
+import { fillPolys, signedDistance, signedDistanceNear, decodeForest, maskEdges, lineDist } from './mainland-ground.js';
+import { planPassage, MINE_R } from './mine.js';
 import { dressMine } from './minedress.js';
 
 const PI = Math.PI;
@@ -93,7 +93,15 @@ const CREEK_HW = 2.2; // the creek north of the airport: shallow, walked through
 // speed moves 1.25 m in a tick: a thin wall would let it through.)
 const CLIFF = 18;
 const CLIFF_IN = 7;
-const PEAK = 95; // ...and how high they go over that, at the most
+// Over the cliff a mountain goes on up as a range: its mass rises with the distance in from the foot (MASS at the most,
+// most of it within MASS_IN: the line furthest from every foot is the range's crest), and the peaks stand on that
+// (PEAK at the most: ridged noise, sharp along its crests, with gullies down the faces). A range is 150-250 m high,
+// its highest peaks near 300 m.
+const MASS = 150;
+const MASS_IN = 65;
+const PEAK = 110;
+const FOOTHILL = 18; // the ground outside a mountain rises toward its foot by up to this...
+const FOOTHILL_IN = 110; // ...over this far (the forested foothills under the cliffs)
 const WALL_T = 4;
 const WALL_H = 60;
 // The road tunnels: a corridor cut through the mountain, CUT_HW either side of the road, a gallery in it TUNNEL_HW
@@ -122,6 +130,7 @@ export function createMainland(seed) {
   const nB = createNoise2D(seed + 12);
   const nD = createNoise2D(seed + 14);
   const nE = createNoise2D(seed + 15);
+  const nP = createNoise2D(seed + 16);
   const prng = mulberry32((seed ^ 0x9e1b3) >>> 0);
 
   // ---------------------------------------------------------------- the plan
@@ -193,13 +202,36 @@ export function createMainland(seed) {
   // ---- the water. The sea and the lake are the picture's outlines filled onto the heightfield; sd: signed distance
   // from their shore in metres (positive out on the water)
   const toW = (polys) => polys.map((poly) => poly.map(P));
-  const seaMask = fillPolys(toW(SEA), N, GRID_STEP, HALF);
-  const lakeMask = fillPolys(toW(LAKE), N, GRID_STEP, HALF);
+  let seaMask = fillPolys(toW(SEA), N, GRID_STEP, HALF);
+  let lakeMask = fillPolys(toW(LAKE), N, GRID_STEP, HALF);
   const seaD = signedDistance(seaMask, N, GRID_STEP, 160);
-  const lakeD = signedDistance(lakeMask, N, GRID_STEP, 80);
+  const lakeD = signedDistanceNear(lakeMask, N, GRID_STEP, 80);
   const vi = (x) => clamp(Math.round((x + HALF) / GRID_STEP), 0, N - 1);
   const seaAt = (x, z) => seaD[vi(z) * N + vi(x)];
   const lakeAt = (x, z) => lakeD[vi(z) * N + vi(x)];
+  // the islets: land the mainland's own does not join (a flood fill of the land from the middle of the city), 1 in the
+  // sea, 2 in Pine Lake
+  let islets = new Uint8Array(N * N);
+  {
+    const q = new Int32Array(N * N);
+    const seen = new Uint8Array(N * N);
+    let tail = 0;
+    const k0 = vi(city.z) * N + vi(city.x);
+    seen[k0] = 1;
+    q[tail++] = k0;
+    for (let h = 0; h < tail; h++) {
+      const k = q[h];
+      const i = k % N;
+      for (let m = 0; m < 4; m++) {
+        const nk = m === 0 ? (i > 0 ? k - 1 : -1) : m === 1 ? (i < N - 1 ? k + 1 : -1) : m === 2 ? k - N : k + N;
+        if (nk < 0 || nk >= N * N || seen[nk] || seaMask[nk] || lakeMask[nk]) continue;
+        seen[nk] = 1;
+        q[tail++] = nk;
+      }
+    }
+    for (let k = 0; k < N * N; k++) if (!seen[k] && !seaMask[k] && !lakeMask[k]) islets[k] = lakeD[k] > seaD[k] ? 2 : 1;
+  }
+  const isletAt = (x, z) => islets[vi(z) * N + vi(x)];
   // The river: a line through the picture's points (a point every few metres), run on past the south edge. riverD:
   // how far every vertex of the heightfield is from its bank, as if it were RIVER_HW wide everywhere (its width
   // changes as the picture's does; out to 110 m, further is 1e4).
@@ -263,14 +295,34 @@ export function createMainland(seed) {
     return { d: riverAt(x, z), dx: ex / el, dz: ez / el, cx: riverP[leg * 2] + ex * t, cz: riverP[leg * 2 + 1] + ez * t };
   };
   const creekP = new Float32Array(CREEK.flatMap(P));
-  const creekAt = (x, z) => lineDist(creekP, x, z).d;
+  const creekBox = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < creekP.length; k += 2) creekBox.splice(0, 4, Math.min(creekBox[0], creekP[k] - 16), Math.min(creekBox[1], creekP[k + 1] - 16), Math.max(creekBox[2], creekP[k] + 16), Math.max(creekBox[3], creekP[k + 1] + 16));
+  const creekAt = (x, z) => (x < creekBox[0] || z < creekBox[1] || x > creekBox[2] || z > creekBox[3] ? 1e4 : lineDist(creekP, x, z).d);
 
   // ---- the mountains: every outline filled (one over another is still mountain), less the river's deep water where it
   // runs at their foot. tunnels: where a road goes through one, the corridor it is cut along.
-  const mtnMask = new Uint8Array(N * N);
+  // (a foot is no straight line between the points it was traced by: every outline is cut into lengths of WOB_LEN and
+  // each point moved in or out along the outline's normal by up to WOB metres, by a noise of the ground there)
+  let mtnMask = new Uint8Array(N * N);
+  const WOB = 9;
+  const WOB_LEN = 6;
   for (const m of MOUNTAINS) {
-    const one = fillPolys([m.pts.map(P)], N, GRID_STEP, HALF);
-    for (let k = 0; k < N * N; k++) mtnMask[k] |= one[k];
+    const pts = m.pts.map(P);
+    const out = [];
+    for (let a = 0; a < pts.length; a++) {
+      const [ax, az] = pts[a];
+      const [bx, bz] = pts[(a + 1) % pts.length];
+      const len = Math.hypot(bx - ax, bz - az);
+      const steps = Math.max(1, Math.ceil(len / WOB_LEN));
+      for (let k = 0; k < steps; k++) {
+        const x = ax + ((bx - ax) * k) / steps;
+        const z = az + ((bz - az) * k) / steps;
+        // (out along the edge's normal; on the map's edge the outline stays where it is)
+        const w = Math.abs(x) > HALF - 1 || Math.abs(z) > HALF - 1 ? 0 : WOB * fbm(nP, x * 0.016 + 11.1, z * 0.016 - 5.5, 2);
+        out.push([x - ((bz - az) / (len || 1)) * w, z + ((bx - ax) / (len || 1)) * w]);
+      }
+    }
+    fillPolys([out], N, GRID_STEP, HALF, mtnMask, true);
   }
   // (the river's deep water is no mountain; its banks under a cliff are, so the wall at a cliff's foot stands in the
   // water and no strip of bank runs along under it)
@@ -291,17 +343,37 @@ export function createMainland(seed) {
     }
     return null;
   };
-  const cut = new Uint8Array(N * N); // the corridors, where they are in a mountain
+  let cut = new Uint8Array(N * N); // the corridors, where they are in a mountain
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
       if (mtnMask[k] && tunnelOf(-HALF + i * GRID_STEP, -HALF + j * GRID_STEP)) cut[k] = 1;
     }
   }
-  const wallMask = new Uint8Array(N * N);
+  let wallMask = new Uint8Array(N * N);
   for (let k = 0; k < N * N; k++) wallMask[k] = mtnMask[k] && !cut[k] ? 1 : 0;
   const mtnD = signedDistance(wallMask, N, GRID_STEP, 260);
+  // The heights go by the mountains as they are drawn, the tunnels' corridors and all (mtnH): the mountain is whole
+  // up to the edge of a corridor, which is cut down into it afterwards, and the cap over the gallery is that whole
+  // mountain (below). The walls, and everything that asks how far it is inside a mountain (cliffAt), go by the
+  // mountains less the corridors (mtnD).
+  // (near a foot the distance is smoothed - a 5 x 5 box, twice - so that the cliff over it does not rise in 2 m steps
+  // where the foot runs aslant of the grid)
+  const mtnH = signedDistance(mtnMask, N, GRID_STEP, 260);
+  for (let pass = 0; pass < 2; pass++) {
+    const src = mtnH.slice();
+    for (let j = 2; j < N - 2; j++) {
+      for (let i = 2; i < N - 2; i++) {
+        const k = j * N + i;
+        if (src[k] > 24 || src[k] < -24) continue;
+        let s = 0;
+        for (let dj = -2 * N; dj <= 2 * N; dj += N) s += src[k + dj - 2] + src[k + dj - 1] + src[k + dj] + src[k + dj + 1] + src[k + dj + 2];
+        mtnH[k] = s / 25;
+      }
+    }
+  }
   const cliffAt = (x, z) => mtnD[vi(z) * N + vi(x)];
+  const mtnAt = (x, z) => mtnH[vi(z) * N + vi(x)];
 
   // ---- the forest of the picture, as a field over the map (0 none .. 1 dense)
   const FOR = decodeForest(FOREST);
@@ -372,7 +444,7 @@ export function createMainland(seed) {
     [ZONE.WESTGATE]: { clear: 0, dirt: 0.15, blend: 40 },
     [ZONE.NORTH_COAST]: { clear: 0, dirt: 0.2, blend: 30 },
     [ZONE.TRUCKSTOP]: { clear: 34, dirt: 0.3 },
-    [ZONE.OUTPOST]: { clear: 52, dirt: 0.5 },
+    [ZONE.OUTPOST]: { clear: 16, dirt: 0.5 }, // (the woods come up to its wire: inside it is cleared, below)
     [ZONE.TERMINAL]: { clear: 36 }, // (its front faces west: the road in)
     [ZONE.HANGARS]: { clear: 54 },
     [ZONE.FUEL_DEPOT]: { clear: 32, dirt: 0.5 },
@@ -393,30 +465,101 @@ export function createMainland(seed) {
   // ---------------------------------------------------------------- terrain
   // Lowland along the coast that rises into wooded hills inland; the mountains stand out of it on cliffs.
   const relief = (x, z) => fbm(nA, x * 0.0028, z * 0.0028, 4) * 9 + fbm(nB, x * 0.013, z * 0.013, 3) * 2.4 + (1 - Math.abs(nE(x * 0.006 + 5.1, z * 0.006 - 2.3))) ** 2 * 3;
-  // the peaks: ridged noise, sharper the further into the mountain
+  // the peaks: ridged noise (1 - |n| is sharp along the noise's zero lines: crests), a broad octave for the peaks, a
+  // finer one for the spurs off them and a third for the gullies down their faces
   const ridged = (x, z) => {
-    const a = 1 - Math.abs(nD(x * 0.0065, z * 0.0065));
-    const b = 1 - Math.abs(nE(x * 0.017 + 3.3, z * 0.017 - 7.1));
-    return a * a * 0.75 + b * b * 0.25;
+    const a = 1 - Math.abs(nD(x * 0.0072, z * 0.0072));
+    const b = 1 - Math.abs(nE(x * 0.019 + 3.3, z * 0.019 - 7.1));
+    const c = 1 - Math.abs(nP(x * 0.047 - 1.9, z * 0.047 + 4.4));
+    return a * a * a * 0.62 + b * b * (0.12 + 0.18 * a) + c * c * 0.08;
+  };
+  const RL = 4;
+  const RLN = SIZE / RL + 2;
+  let reliefGrid = new Float32Array(RLN * RLN);
+  for (let j = 0; j < RLN; j++) for (let i = 0; i < RLN; i++) reliefGrid[j * RLN + i] = relief(-HALF + i * RL, -HALF + j * RL);
+  const reliefAt = (x, z) => {
+    const fx = clamp((x + HALF) / RL, 0, RLN - 1.001);
+    const fz = clamp((z + HALF) / RL, 0, RLN - 1.001);
+    const i = fx | 0;
+    const j = fz | 0;
+    const k = j * RLN + i;
+    const a = reliefGrid[k] + (reliefGrid[k + 1] - reliefGrid[k]) * (fx - i);
+    const b = reliefGrid[k + RLN] + (reliefGrid[k + RLN + 1] - reliefGrid[k + RLN]) * (fx - i);
+    return a + (b - a) * (fz - j);
   };
   const H0 = (x, z) => {
     const micro = fbm(nD, x * 0.09, z * 0.09, 2) * 0.22;
     const inland = smoothstep(-10, 260, -seaAt(x, z)); // (how far it is from the sea)
     const hills = 0.35 + forestAt(x, z) * 0.75;
-    const a = (FLOOR + 1 + inland * (3 + Math.max(0, relief(x, z)) * hills) - FLOOR) * 0.9;
-    return FLOOR + 0.5 * (a + Math.sqrt(a * a + 4)) + micro;
+    const a = (FLOOR + 1 + inland * (3 + Math.max(0, reliefAt(x, z)) * hills) - FLOOR) * 0.9;
+    return FLOOR + 0.5 * (a + Math.sqrt(a * a + 4)) + micro + foothill(x, z, mtnAt(x, z)) * smoothstep(-10, 80, -seaAt(x, z));
   };
-  // inside a mountain: the cliff at its foot, then the peaks over it
+  // inside a mountain: the cliff at its foot, then the range over it - its mass up to the crest, the peaks on that
   // (the cliff is no even band: its height and how far in it climbs come and go along the foot, and over it the
-  // mountain goes on up at once)
+  // mountain goes on up at once; a range rises and falls along its length)
+  // A range is a row of peaks, as the picture draws it: pyramids, each of four faces turned its own way (a face is a
+  // plane falling away from the summit at PEAK_SLOPE; where two meet is an arete, between two peaks a saddle), put down a
+  // PEAK_GAP apart over every mountain where it is wide enough, the higher the further in. The pyramids are held under
+  // the range's envelope - the cliff at the foot, then the mass up to the crest - so the foot follows the outline.
+  const PEAK_GAP = 64;
+  const PEAK_SLOPE = 1.25;
+  const peaks = []; // [x, z, height, c0, s0, c1, s1] (the faces' directions: (c0, s0), (c1, s1) and their opposites)
+  const peakCells = new Map(); // 128 m cells -> the peaks whose pyramid reaches into them
+  {
+    const pr = mulberry32((seed ^ 0x51ee7) >>> 0);
+    for (let gz = -HALF; gz < HALF; gz += PEAK_GAP) {
+      for (let gx = -HALF; gx < HALF; gx += PEAK_GAP) {
+        const x = gx + pr() * PEAK_GAP;
+        const z = gz + pr() * PEAK_GAP;
+        const r0 = pr();
+        const a = pr() * PI;
+        const t = (pr() - 0.5) * 0.7;
+        const d = mtnH[vi(z) * N + vi(x)];
+        if (d < 22) continue;
+        const h = (Math.min(d, 150) * 1.15 + 70) * (0.72 + 0.56 * r0);
+        peaks.push([x, z, h, Math.cos(a), Math.sin(a), Math.cos(a + PI / 2 + t), Math.sin(a + PI / 2 + t)]);
+      }
+    }
+    for (const pk of peaks) {
+      const reach = pk[2] / PEAK_SLOPE;
+      for (let ci = Math.floor((pk[0] - reach) / 128); ci <= Math.floor((pk[0] + reach) / 128); ci++) {
+        for (let cj = Math.floor((pk[1] - reach) / 128); cj <= Math.floor((pk[1] + reach) / 128); cj++) {
+          const key = ci * 1024 + cj;
+          if (!peakCells.has(key)) peakCells.set(key, []);
+          peakCells.get(key).push(pk);
+        }
+      }
+    }
+  }
+  const pyramids = (x, z) => {
+    let best = 0;
+    for (const pk of peakCells.get(Math.floor(x / 128) * 1024 + Math.floor(z / 128)) || []) {
+      const dx = x - pk[0];
+      const dz = z - pk[1];
+      const e = Math.hypot(dx, dz);
+      if (pk[2] - PEAK_SLOPE * e * 0.75 <= best) continue;
+      const f = Math.max(Math.abs(dx * pk[3] + dz * pk[4]), Math.abs(dx * pk[5] + dz * pk[6]));
+      const h = pk[2] - PEAK_SLOPE * (f * 0.7 + e * 0.3);
+      if (h > best) best = h;
+    }
+    return best;
+  };
   const mountainUp = (x, z, d) => {
     if (d <= 0) return 0;
     const v = 0.5 + 0.5 * nB(x * 0.011 + 9.3, z * 0.011 - 4.1);
     const inTo = CLIFF_IN * (0.7 + 0.8 * v);
-    return CLIFF * (0.55 + 0.7 * v) * smoothstep(0, inTo, d) + PEAK * ridged(x, z) * smoothstep(inTo * 0.6, 120, d) + d * 0.3;
+    const cliff = CLIFF * (0.6 + 0.8 * v) * smoothstep(0, inTo, d);
+    const env = cliff + MASS * 1.9 * (1 - Math.exp(-d / (MASS_IN * 1.5)));
+    // (gullies down the faces, spurs between them: ridged noise, more of it the higher up)
+    const g = (ridged(x, z) - 0.35) * PEAK * 0.22 * smoothstep(inTo, 50, d);
+    // (and crags: the faces broken up into buttresses and ledges a few metres deep)
+    const crag = (Math.abs(nP(x * 0.031 + 4.2, z * 0.031 - 8.8)) * 2 - 0.6) * 6 + nB(x * 0.083, z * 0.083) * 2.2;
+    return Math.max(cliff + d * 0.9, Math.min(env, pyramids(x, z) + g)) + crag * smoothstep(inTo, 36, d);
   };
+  // outside one, near its foot: the foothills, rising toward the cliff (none of it on the water)
+  const foothill = (x, z, d) => (d > -FOOTHILL_IN ? FOOTHILL * (1 - smoothstep(0, FOOTHILL_IN, -d)) ** 1.6 * (0.55 + 0.45 * (0.5 + 0.5 * nB(x * 0.008 - 2.2, z * 0.008 + 6.4))) : 0);
   // the quarry's pit: terraces down into the ground, a ramp round them
-  const PIT = { x: FX(PLACES.quarry[0]), z: FX(PLACES.quarry[1]), r: 54, steps: 4, drop: 3.6 };
+  const PIT = { x: FX(PLACES.quarry[0]), z: FX(PLACES.quarry[1]), r: 58, steps: 6, drop: 4.4 };
   // (it is cut into a rise of its own, high enough that its floor stays over the water: the ground round it comes up to
   // its rim over 60 m)
   PIT.top = Math.max(H0(PIT.x, PIT.z), WATER_LEVEL + 2 + PIT.steps * PIT.drop);
@@ -445,16 +588,28 @@ export function createMainland(seed) {
     while (f.length < 9) f.push(0); // (not turned, no offset)
     f.push(Math.cos(f[6]), Math.sin(f[6]));
   }
+  // (which zones and flats can reach into each 64 m cell, in their own order: a vertex asks only those)
+  const ZC = 64;
+  const ZCN = Math.ceil(SIZE / ZC);
+  const zoneCells = Array.from({ length: ZCN * ZCN }, () => []);
+  const flatCells = Array.from({ length: ZCN * ZCN }, () => []);
+  const cellsOf = (x, z, r, into, item) => {
+    for (let j = Math.max(0, Math.floor((z - r + HALF) / ZC)); j <= Math.min(ZCN - 1, Math.floor((z + r + HALF) / ZC)); j++) for (let i = Math.max(0, Math.floor((x - r + HALF) / ZC)); i <= Math.min(ZCN - 1, Math.floor((x + r + HALF) / ZC)); i++) into[j * ZCN + i].push(item);
+  };
+  for (const zn of zones) cellsOf(zn.x, zn.z, zn.flat + zn.blend, zoneCells, zn);
+  for (const f of flats) cellsOf(f[0], f[1], Math.hypot(f[2] + Math.abs(f[7]), f[3] + Math.abs(f[8])) + f[5], flatCells, f);
   const H1 = (x, z) => {
-    const dM = cliffAt(x, z);
+    const dM = mtnAt(x, z);
     let h = H0(x, z);
-    for (const zn of zones) {
+    const zc = Math.min(ZCN - 1, Math.max(0, Math.floor((z + HALF) / ZC))) * ZCN + Math.min(ZCN - 1, Math.max(0, Math.floor((x + HALF) / ZC)));
+    const zoneHere = zoneCells[zc];
+    for (const zn of zoneHere) {
       const lim = zn.flat + zn.blend;
       if ((x - zn.x) ** 2 + (z - zn.z) ** 2 >= lim * lim) continue;
       const d = Math.hypot(x - zn.x, z - zn.z);
       if (d < lim) h = lerp(h, zn.h, 1 - smoothstep(zn.flat, lim, d));
     }
-    for (const [fx, fz, hx, hz, fh, blend, , ox, oz, c, s] of flats) {
+    for (const [fx, fz, hx, hz, fh, blend, , ox, oz, c, s] of flatCells[zc]) {
       const lx = c * (x - fx) - s * (z - fz) - ox;
       const lz = s * (x - fx) + c * (z - fz) - oz;
       const d = Math.hypot(Math.max(0, Math.abs(lx) - hx), Math.max(0, Math.abs(lz) - hz));
@@ -462,13 +617,13 @@ export function createMainland(seed) {
     }
     // the quarry's pit, in steps (each a little steeper than a stair, walked down)
     {
-      const d = Math.hypot(x - PIT.x, z - PIT.z) + nE(x * 0.05, z * 0.05) * 3;
+      const d = (x - PIT.x) ** 2 + (z - PIT.z) ** 2 < (PIT.r + 64) ** 2 ? Math.hypot(x - PIT.x, z - PIT.z) + nE(x * 0.05, z * 0.05) * 3 : 1e4;
       if (d < PIT.r + 60) h = Math.max(h, lerp(h, PIT.top, 1 - smoothstep(PIT.r, PIT.r + 60, d)));
       if (d < PIT.r + 4) {
         const ring = clamp((PIT.r - d) / (PIT.r / (PIT.steps + 0.6)), 0, PIT.steps);
         const k = Math.floor(ring);
         const f = ring - k;
-        h -= (k + smoothstep(0.7, 1, f)) * PIT.drop * smoothstep(-4, 2, PIT.r - d);
+        h -= (k + smoothstep(0.42, 1, f)) * PIT.drop * smoothstep(-4, 2, PIT.r - d);
       }
     }
     // the mountains
@@ -482,6 +637,8 @@ export function createMainland(seed) {
     if (dl > -50) {
       h = lerp(h, Math.min(h, WATER_LEVEL + 1.0), 1 - smoothstep(-2, 40, -dl) * 1);
       if (dl > -6) h = Math.min(h, lerp(WATER_LEVEL + 1.0, WATER_LEVEL - 5.5, smoothstep(-2, 26, dl)));
+      // (an islet of the lake: a wooded mound)
+      if (isletAt(x, z) === 2) h = Math.max(h, WATER_LEVEL + 0.9 + Math.min(-dl, 26) * 0.34 * smoothstep(0, 4, -dl) + (0.5 + 0.5 * nB(x * 0.07, z * 0.07)) * smoothstep(0, 5, -dl));
     }
     // the river: a ravine down to the water, the bed well under it, steep at its banks
     const dR = riverAt(x, z);
@@ -498,7 +655,7 @@ export function createMainland(seed) {
     }
     if (keepYard > 0) h = lerp(h, mz.h, keepYard);
     // (a place's yard keeps its level, whatever the shore of the lake or the creek does round it)
-    for (const zn of zones) {
+    for (const zn of zoneHere) {
       if (zn.id === ZONE.CITY || zn.id === ZONE.MARINA || zn.id === ZONE.LIGHTHOUSE || (x - zn.x) ** 2 + (z - zn.z) ** 2 >= zn.flat * zn.flat) continue;
       const d = Math.hypot(x - zn.x, z - zn.z);
       if (d < zn.flat) h = lerp(h, zn.h, 1 - smoothstep(zn.flat - 4, zn.flat, d));
@@ -509,8 +666,27 @@ export function createMainland(seed) {
     const bluff = x < SHORE + 120 ? 1 - smoothstep(34, 70, Math.abs(z - zb)) : 0;
     const near = Math.max(bluff, 1 - smoothstep(docks.flat + 8, docks.flat + 30, Math.hypot(x - docks.x, z - docks.z)));
     const beach = 1 - smoothstep(-2, lerp(40, 10, near), s);
-    h = lerp(h, WATER_LEVEL + 0.6, beach * (1 - near * smoothstep(-2, 10, s)));
-    h = lerp(h, WATER_LEVEL - 7, 1 - smoothstep(-34, lerp(-1, 4, near), s));
+    // (the coast is rock for long stretches, as the picture draws it - a low cliff into deep water - and coves and
+    // beaches between; an islet is rock all round, a mound of it)
+    const isl = isletAt(x, z) === 1;
+    const rocky = isl ? 1 : (1 - near) * smoothstep(-0.12, 0.22, nP(x * 0.0055 + 7.7, z * 0.0055 - 1.3)) * smoothstep(0, 60, Math.hypot(x - zoneById[ZONE.NORTH_COAST].x, z - zoneById[ZONE.NORTH_COAST].z) - zoneById[ZONE.NORTH_COAST].flat);
+    if (rocky > 0.001 && s > -40 && s < 60) {
+      const top = 2.5 + 6.5 * (0.5 + 0.5 * nP(x * 0.031 - 3.1, z * 0.031 + 2.2));
+      const rough = (1 - Math.abs(nE(x * 0.11 + 1.3, z * 0.11 - 0.7))) * 1.6;
+      const rise = isl ? (top + Math.min(s, 34) * 0.5) * smoothstep(-0.5, 3, s) + rough * smoothstep(0, 4, s) : top * smoothstep(-0.5, 3.5, s) * (1 - 0.55 * smoothstep(8, 40, s)) + rough * smoothstep(0, 4, s) * (1 - smoothstep(10, 30, s));
+      let hr = s <= 0 ? lerp(WATER_LEVEL - 9, WATER_LEVEL - 1.2, smoothstep(-16, 0, s)) : Math.max(isl ? WATER_LEVEL : h, WATER_LEVEL + rise);
+      // (the lighthouse's islet has a level top round the tower)
+      if (isl) {
+        const lh = zoneById[ZONE.LIGHTHOUSE];
+        const dl = Math.hypot(x - lh.x, z - lh.z);
+        if (dl < 18 && s > 0) hr = lerp(Math.min(hr, WATER_LEVEL + 4.2), hr, smoothstep(9, 18, dl));
+      }
+      const hb = lerp(lerp(h, WATER_LEVEL + 0.6, beach * (1 - near * smoothstep(-2, 10, s))), WATER_LEVEL - 7, 1 - smoothstep(-34, lerp(-1, 4, near), s));
+      h = lerp(hb, hr, rocky);
+    } else {
+      h = lerp(h, WATER_LEVEL + 0.6, beach * (1 - near * smoothstep(-2, 10, s)));
+      h = lerp(h, WATER_LEVEL - 7, 1 - smoothstep(-34, lerp(-1, 4, near), s));
+    }
     // (the bluff the bridge lands on, out to the abutment: whatever the shore does)
     const db = Math.hypot(Math.max(0, Math.abs(x - SHORE - 26) - 26), Math.max(0, Math.abs(z - zb) - 10));
     if (db < 9) h = lerp(h, BLUFF, 1 - smoothstep(0, 9, db));
@@ -523,15 +699,49 @@ export function createMainland(seed) {
   const heights = new Float32Array(N * N);
   const roadDist = new Float32Array(N * N).fill(1e4);
   const roadKind = new Uint8Array(N * N);
-  const roadH = new Float32Array(N * N);
-  const roadDir = new Float32Array(N * N * 2);
+  let roadH = new Float32Array(N * N);
+  let roadDir = new Float32Array(N * N * 2);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) heights[j * N + i] = H1(-HALF + i * GRID_STEP, -HALF + j * GRID_STEP);
   // the tunnels' corridors: the road's own level from mouth to mouth (the ground in front of either mouth), cut down
   // into the mountain with a cutting either side
   for (const t of tunnels) {
-    const ground = (x, z) => H1(x, z) - mountainUp(x, z, cliffAt(x, z));
+    const ground = (x, z) => H1(x, z) - mountainUp(x, z, mtnAt(x, z));
     t.y0 = ground(t.a[0] - t.dx * (CUT_LEN + 10), t.a[1] - t.dz * (CUT_LEN + 10));
     t.y1 = ground(t.b[0] + t.dx * (CUT_LEN + 10), t.b[1] + t.dz * (CUT_LEN + 10));
+    // where the gallery is: the stretch of the road's line that is in the mountain
+    let s0 = Infinity;
+    let s1 = -Infinity;
+    for (let s = -CUT_LEN; s <= t.len + CUT_LEN; s += 1) {
+      if (mtnMask[vi(t.a[1] + t.dz * s) * N + vi(t.a[0] + t.dx * s)]) {
+        s0 = Math.min(s0, s);
+        s1 = Math.max(s1, s);
+      }
+    }
+    if (s0 > s1) continue;
+    t.s0 = Math.max(-CUT_LEN + 4, s0 - 3);
+    t.s1 = Math.min(t.len + CUT_LEN - 4, s1 + 3);
+    // The cap: the mountain as it stood over the gallery, before its corridor was cut (the heightfield is one level:
+    // the road's, inside), drawn by the client over the gallery's roof so the mountain is whole over the tunnel and its
+    // mouths are holes in a rock face, not the ends of a slot. Over the first metres in from either mouth it comes down
+    // to the top of the face over the mouth. A grid CAP_STEP apart, along the road (s) and across it (lat).
+    const level = (s) => lerp(t.y0, t.y1, clamp((s + CUT_LEN) / (t.len + CUT_LEN * 2), 0, 1));
+    const CAP_STEP = 2;
+    const CAP_LAT = CUT_HW + 5;
+    const n = Math.ceil((t.s1 - t.s0) / CAP_STEP) + 1;
+    const m = Math.round((CAP_LAT * 2) / CAP_STEP) + 1;
+    const h = new Float32Array(n * m);
+    for (let a = 0; a < n; a++) {
+      const s = Math.min(t.s1, t.s0 + a * CAP_STEP);
+      const top = level(s) + TUNNEL_H + 6.9;
+      const inMouth = Math.min(s - t.s0, t.s1 - s);
+      for (let b = 0; b < m; b++) {
+        const lat = -CAP_LAT + b * CAP_STEP;
+        const x = t.a[0] + t.dx * s - t.dz * lat;
+        const z = t.a[1] + t.dz * s + t.dx * lat;
+        h[a * m + b] = Math.max(top, Math.min(heights[vi(z) * N + vi(x)], top + Math.max(0, inMouth - 1.4) * 1.3));
+      }
+    }
+    t.cap = { s0: t.s0, step: CAP_STEP, lat: CAP_LAT, n, m, h };
   }
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
@@ -680,7 +890,15 @@ export function createMainland(seed) {
   // the airfield: the runway, the taxiway down the apron, the perimeter road, the road in through the gate
   const runwayRoad = buildRoad([aw(0, -RUNWAY_LEN / 2), aw(0, RUNWAY_LEN / 2)], ROAD.ASPHALT, RUNWAY_HALF, 'Runway 36', fieldH);
   buildRoad([aw(RUNWAY_HALF + 8, -RUNWAY_LEN / 2 + 20), aw(RUNWAY_HALF + 8, APRON.lz - APRON.hz), aw(APRON.lx, APRON.lz - APRON.hz - 6)], ROAD.ASPHALT, 2.8, '', fieldH);
-  buildRoad([[FENCE.x0 + 6, FENCE.z0 + 6], [FENCE.x1 - 6, FENCE.z0 + 6], [FENCE.x1 - 6, FENCE.z1 - 6], [FENCE.x0 + 6, FENCE.z1 - 6], [FENCE.x0 + 6, FENCE.z0 + 6]].map(([lx, lz]) => aw(lx, lz)), ROAD.ASPHALT, 2.4, '', fieldH);
+  {
+    // (the perimeter road keeps to the fence: a rectangle with its corners rounded, not the oval a curve through its four
+    // corners would be)
+    const [x0, z0, x1, z1, rc] = [FENCE.x0 + 6, FENCE.z0 + 6, FENCE.x1 - 6, FENCE.z1 - 6, 16];
+    const ring = [];
+    for (const [cx, cz, a0] of [[x1 - rc, z0 + rc, -PI / 2], [x1 - rc, z1 - rc, 0], [x0 + rc, z1 - rc, PI / 2], [x0 + rc, z0 + rc, PI]]) for (let k = 0; k <= 3; k++) ring.push([cx + Math.cos(a0 + (k / 3) * (PI / 2)) * rc, cz + Math.sin(a0 + (k / 3) * (PI / 2)) * rc]);
+    ring.push(ring[0]);
+    buildRoad(ring.map(([lx, lz]) => aw(lx, lz)), ROAD.ASPHALT, 2.4, '', fieldH);
+  }
   buildRoad([aw(GATE_AT.lx - 30, GATE_AT.lz - 14), aw(GATE_AT.lx, GATE_AT.lz), aw(TERMINAL_AT.lx - 26, TERMINAL_AT.lz)], ROAD.ASPHALT, 2.8, '', fieldH);
   // ...and every road of the picture
   const KIND = { main: [ROAD.ASPHALT, 3.6], secondary: [ROAD.ASPHALT, 2.8], dirt: [ROAD.DIRT, 2.4], trail: [ROAD.TRAIL, 1.3], lane: [ROAD.ASPHALT, 2.3] };
@@ -690,6 +908,9 @@ export function createMainland(seed) {
     // (a road the picture runs down to the river ends on its bank: nothing but the bridge's road goes over it)
     while (ctrl.length > 2 && riverAt(...ctrl[ctrl.length - 1]) < RIVER_HW + 5) ctrl.pop();
     while (ctrl.length > 2 && riverAt(...ctrl[0]) < RIVER_HW + 5) ctrl.shift();
+    // (...and one it runs up into a mountain ends at its foot, unless it goes through it by a tunnel)
+    while (ctrl.length > 2 && cliffAt(...ctrl[ctrl.length - 1]) > -6 && !tunnelOf(...ctrl[ctrl.length - 1], 4)) ctrl.pop();
+    while (ctrl.length > 2 && cliffAt(...ctrl[0]) > -6 && !tunnelOf(...ctrl[0], 4)) ctrl.shift();
     // (two points of the picture's ring the city's grid puts on one crossing: once)
     for (let i = ctrl.length - 1; i > 0; i--) if (Math.hypot(ctrl[i][0] - ctrl[i - 1][0], ctrl[i][1] - ctrl[i - 1][1]) < 1) ctrl.splice(i, 1);
     if (ctrl.length < 2) continue;
@@ -1061,6 +1282,22 @@ export function createMainland(seed) {
   // none is put down in that band of another)
   const LONG = { semi_truck: 1, school_bus: 1, city_bus: 1 };
   const longClear = (type, x, z) => !LONG[type] || props.every((p) => !LONG[p.type] || Math.max(Math.abs(p.x - x), Math.abs(p.z - z)) <= 12 || Math.hypot(p.x - x, p.z - z) > 13.8);
+  // (the parts by 32 m cells, indexed as they are asked for: parts is only pushed to while the world is built)
+  const partIndex = new Map();
+  let partsIndexed = 0;
+  const _pn = [];
+  const partsNear = (x, z) => {
+    for (; partsIndexed < parts.length; partsIndexed++) {
+      const p = parts[partsIndexed];
+      const key = Math.floor(p.x / 32) * 4096 + Math.floor(p.z / 32);
+      let arr = partIndex.get(key);
+      if (!arr) partIndex.set(key, (arr = []));
+      arr.push(partsIndexed);
+    }
+    _pn.length = 0;
+    for (let i = Math.floor((x - 30) / 32); i <= Math.floor((x + 30) / 32); i++) for (let j = Math.floor((z - 30) / 32); j <= Math.floor((z + 30) / 32); j++) for (const k of partIndex.get(i * 4096 + j) || []) _pn.push(k);
+    return _pn;
+  };
   const fits = (b, type, lx, lz, ry = 0, ly = 0) => {
     if (!PROPS[type]) return false;
     const x = b.wx(lx, lz);
@@ -1076,7 +1313,7 @@ export function createMainland(seed) {
     for (const o of containers) if (Math.hypot(o.x - x, o.z - z) < reach + 0.85) return false;
     for (const o of lootSpawns) if (Math.hypot(o.x - x, o.z - z) < reach + 0.75) return false;
     for (const o of partSpots) if (Math.hypot(o.x - x, o.z - z) < reach + 0.9) return false;
-    for (let i = parts.length - 1; i >= 0; i--) {
+    for (const i of partsNear(x, z)) {
       const p = parts[i];
       if (Math.abs(p.x - x) > 30 || Math.abs(p.z - z) > 30 || p.rx || p.rz || (p.shape !== 'box' && p.shape !== 'cyl')) continue;
       if (p.y + p.sy / 2 < y0 + 0.2 || p.y - p.sy / 2 > y1 - 0.05) continue;
@@ -2885,7 +3122,11 @@ export function createMainland(seed) {
     b.loot(2, 10);
     b.loot(26, 18);
     b.loot(-26, -22);
-    b.clear(0, 0, 40);
+    // (cleared inside the wire, and a few metres out from it: the woods stand round it)
+    for (let lx = -HX + 6; lx <= HX - 6; lx += 12) for (let lz = -HZ + 6; lz <= HZ - 6; lz += 12) b.clear(lx, lz, 10);
+    for (let lx = -HX; lx <= HX; lx += 8) for (const lz of [-HZ, HZ]) b.clear(lx, lz, 5);
+    for (let lz = -HZ; lz <= HZ; lz += 8) for (const lx of [-HX, HX]) b.clear(lx, lz, 5);
+    b.clear(0, HZ + 10, 9);
   });
 
   // THE LIGHTHOUSE, on its islet off the south-west coast: the tower, the lamp room's glass on top, a keeper's store
@@ -2925,26 +3166,27 @@ export function createMainland(seed) {
     b.clear(0, 0, 8);
   };
   place(ZONE.SOUTH_FOREST, (b) => camp(b, 0));
+  // ...and its other two, where the picture marks them (on the ground as it is: they are a clearing each, no more)
+  camps.forEach(([x0, z0], k) => {
+    // (beside the track that leads to it, not on it)
+    let [x, z] = [x0, z0];
+    for (let a = 0, best = roadDistAt(x0, z0); a < 8 && best < 9; a++) {
+      const tx = x0 + Math.sin((a * PI) / 4) * 11;
+      const tz = z0 + Math.cos((a * PI) / 4) * 11;
+      if (roadDistAt(tx, tz) > best && cliffAt(tx, tz) < -10) [x, z, best] = [tx, tz, roadDistAt(tx, tz)];
+    }
+    const b = new Builder(x, z, rng.range(0, PI * 2), heightAt(x, z));
+    b.zone = ZONE.SOUTH_FOREST;
+    b.ground = true;
+    camp(b, k + 1);
+  });
 
   // THE ROAD TUNNELS: a concrete gallery through the mountain from mouth to mouth - walls, a roof, a face over either
   // mouth with its name - and the cuttings in front of them (their walls are the mountain's: below)
   for (const t of tunnels) {
-    // where the gallery is: the stretch of the road's line that is in the mountain
-    let s0 = Infinity;
-    let s1 = -Infinity;
-    for (let s = -CUT_LEN; s <= t.len + CUT_LEN; s += 1) {
-      const x = t.a[0] + t.dx * s;
-      const z = t.a[1] + t.dz * s;
-      if (mtnMask[vi(z) * N + vi(x)]) {
-        s0 = Math.min(s0, s);
-        s1 = Math.max(s1, s);
-      }
-    }
-    if (s0 > s1) continue;
-    s0 = Math.max(-CUT_LEN + 4, s0 - 3);
-    s1 = Math.min(t.len + CUT_LEN - 4, s1 + 3);
-    t.s0 = s0;
-    t.s1 = s1;
+    // (where the gallery is: worked out with its cap, above)
+    if (t.s0 === undefined) continue;
+    const { s0, s1 } = t;
     const ry = Math.atan2(t.dx, t.dz); // (a Builder turned by this has the road along its +Z)
     const levelAt = (s) => lerp(t.y0, t.y1, clamp((s + CUT_LEN) / (t.len + CUT_LEN * 2), 0, 1));
     const b = new Builder(t.a[0], t.a[1], ry, 0);
@@ -2968,7 +3210,7 @@ export function createMainland(seed) {
   }
 
   // what the field map names that is no place: the range, the lake
-  landmarks.push({ x: FX(0.668), z: FX(0.395), name: 'The Ridge' }, { x: lake.x, z: lake.z + 30, name: 'Pine Lake' });
+  landmarks.push({ x: FX(0.668), z: FX(0.395), name: 'The Ridge', big: true }, { x: lake.x, z: lake.z + 30, name: 'Pine Lake', big: true });
 
   // THE MOUNTAINS' WALLS: along the foot of every cliff a wall nobody sees, WALL_T thick on the mountain's side of the
   // line, from under the ground to well over the cliff's lip. Nothing walks, drives, climbs or is shot through it, and
@@ -3374,9 +3616,9 @@ export function createMainland(seed) {
       const k = q[h];
       const i = k % RN;
       const j = (k - i) / RN;
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const ni = i + di;
-        const nj = j + dj;
+      for (let m = 0; m < 4; m++) {
+        const ni = i + (m === 0 ? 1 : m === 1 ? -1 : 0);
+        const nj = j + (m === 2 ? 1 : m === 3 ? -1 : 0);
         if (ni < 0 || nj < 0 || ni >= RN || nj >= RN || landReach[nj * RN + ni] || !ok(ni, nj)) continue;
         landReach[nj * RN + ni] = 1;
         q[tail++] = nj * RN + ni;
@@ -3395,7 +3637,29 @@ export function createMainland(seed) {
   const builtNear = (x, z, r) => staticGrid.query(x, z, r, _sq).some((c) => !(c.flags & COL.TREE));
   const siteOk = (x, z) => reachAt(x, z) && adits.every(([ax, az]) => Math.hypot(x - ax, z - az) > 38) && !builtNear(x, z, 10) && !onField(x, z, 14) && lakeAt(x, z) < -16 && riverAt(x, z) > RIVER_HW + 14 && seaAt(x, z) < -12 && cliffAt(x, z) < -10 && !tunnelOf(x, z, 10) && !inCity(x, z, 26) && Math.abs(x) < HALF - 60 && Math.abs(z) < HALF - 60 && !inWater(x, z) && !nearZone(x, z, 26) && homes.every((o) => Math.hypot(o.x - x, o.z - z) > 18);
   // is a road other than `road` within d of (x, z)? (At a junction the ground is two roads': nothing is seated there.)
-  const otherRoad = (road, x, z, d) => roads.some((r) => r !== road && r.pts.some((v, k) => !(k & 1) && Math.abs(v - x) < d && Math.abs(r.pts[k + 1] - z) < d));
+  // (the roads' points by 16 m cells: which roads have a point in each)
+  const roadCells = new Map();
+  roads.forEach((r, ri) => {
+    for (let k = 0; k < r.pts.length; k += 2) {
+      const key = Math.floor(r.pts[k] / 16) * 4096 + Math.floor(r.pts[k + 1] / 16);
+      let set = roadCells.get(key);
+      if (!set) roadCells.set(key, (set = []));
+      if (set[set.length - 1] !== ri) set.push(ri);
+    }
+  });
+  const otherRoad = (road, x, z, d) => {
+    for (let i = Math.floor((x - d) / 16); i <= Math.floor((x + d) / 16); i++) {
+      for (let j = Math.floor((z - d) / 16); j <= Math.floor((z + d) / 16); j++) {
+        for (const ri of roadCells.get(i * 4096 + j) || []) {
+          const r = roads[ri];
+          if (r === road) continue;
+          const p = r.pts;
+          for (let k = 0; k < p.length; k += 2) if (Math.abs(p[k] - x) < d && Math.abs(p[k + 1] - z) < d) return true;
+        }
+      }
+    }
+    return false;
+  };
   const siteFree = (x, z, gapTo) => sites.every((s) => Math.hypot(s.x - x, s.z - z) >= (s.type === 'jam' ? Math.max(gapTo, 48) : gapTo)); // (a jam is 60 m of road)
   // (a wreck of a pile-up is put down only clear of the colliders of every wreck already there, as they are, by a
   // hand's width: on a bend the cars of one lane come round into each other)
@@ -3592,7 +3856,35 @@ export function createMainland(seed) {
     b.partSpot(-k + 0.4, k - 0.2);
     b.partSpot(k - 0.3, -k + 0.5);
     for (let i = n0; i < partSpots.length; i++) partSpots[i].supply = 2;
-    // where the dead stand about down there (the server's den spawns read mine.dens)
+    // The passage was a way through, kept up till the end: its lamps along the drift (a post at the wall, a lamp that
+    // still burns - world.lights 'lamp': a glow and no flame), and the tubs on its rails where the last shift left them
+    const m = mine.main;
+    const inRoom = (x, z, pad) => mine.rooms.some((r) => Math.hypot(x - r.x, z - r.z) < r.r + pad);
+    let side = 1;
+    for (let i = 10; i < m.n - 6; i += 18) {
+      if (inRoom(m.x[i], m.z[i], 2)) continue;
+      const c = Math.min(m.n - 1, i + 1);
+      const tl = Math.hypot(m.x[c] - m.x[i - 1], m.z[c] - m.z[i - 1]) || 1;
+      const [tx, tz] = [(m.x[c] - m.x[i - 1]) / tl, (m.z[c] - m.z[i - 1]) / tl];
+      const lx = m.x[i] + tz * side * (MINE_R - 0.32);
+      const lz = m.z[i] - tx * side * (MINE_R - 0.32);
+      const lb = new Builder(lx, lz, Math.atan2(tx, tz), m.y[i]);
+      lb.zone = ZONE.PASSAGE;
+      lb.prop('lantern_post', 0, 0, side > 0 ? -PI / 2 : PI / 2, { seed: i });
+      lights.push({ x: lx - tz * side * 0.3, y: m.y[i] + 1.75, z: lz + tx * side * 0.3, kind: 'lamp' });
+      side = -side;
+    }
+    for (const f of [0.22, 0.47, 0.81]) {
+      const i = Math.floor(m.n * f);
+      if (inRoom(m.x[i], m.z[i], 2)) continue;
+      const c = Math.min(m.n - 1, i + 1);
+      const tb = new Builder(m.x[i], m.z[i], Math.atan2(m.x[c] - m.x[i], m.z[c] - m.z[i]), m.y[i]);
+      tb.zone = ZONE.PASSAGE;
+      // a tub: a steel box on its wheels, on the rails (+Z along the drift)
+      tb.box(0, 0.32, 0, 1.0, 0.82, 1.6, 'rust');
+      tb.box(0, 1.12, 0, 1.06, 0.06, 1.66, 'metal', { collide: false });
+      for (const sx of [-0.45, 0.45]) for (const sz of [-0.5, 0.5]) tb.cyl(sx, 0.16, sz, 0.17, 0.08, 'metal', { sides: 10, rz: PI / 2, collide: false });
+    }
   }
   // a sealed adit: a stone face in a mound of rock, boards across its mouth (its +Z into the hill)
   const sealed = (x, z, ry, zone) => {
@@ -3627,6 +3919,62 @@ export function createMainland(seed) {
   {
     const a = P(PLACES.mineA);
     sealed(a[0], a[1], facing(a, P([0.66, 0.818])) + PI, ZONE.AGGREGATES);
+  }
+  // THE QUARRY'S PIT: what was working in it when it stopped - an excavator on the floor at the face it was digging, a
+  // dump truck under it, another on a bench, the belt that carried the stone up to the yard, heaps of it on the benches
+  {
+    const fy = heightAt(PIT.x, PIT.z);
+    const yd = zoneById[ZONE.AGGREGATES];
+    const toYard = Math.atan2(yd.x - PIT.x, yd.z - PIT.z); // (the belt runs up toward the yard: +Z of this frame)
+    const b = new Builder(PIT.x, PIT.z, toYard, fy);
+    b.zone = ZONE.AGGREGATES;
+    b.ground = true;
+    // the excavator: its tracks, the house on them, the boom and the arm down to its bucket
+    {
+      const e = b.sub(-6, -14, 0.5);
+      e.ground = true;
+      for (const sd of [-1, 1]) e.box(sd * 1.5, 0, 0, 0.9, 1.0, 5.2, 'charred');
+      e.box(0, 1.0, 0.2, 3.2, 0.5, 3.4, 'rust');
+      e.box(0, 1.5, 0.6, 3.0, 1.7, 3.0, 'tin_rust');
+      e.box(-0.8, 3.2, -0.6, 1.3, 1.4, 1.4, 'metal', { collide: false });
+      e.box(0.4, 2.6, -2.6, 0.7, 0.7, 4.6, 'rust', { rx: -0.55, collide: false });
+      e.box(0.4, 1.8, -5.6, 0.55, 0.55, 3.4, 'rust', { rx: 0.7, collide: false });
+      e.box(0.4, 0.1, -6.6, 1.5, 1.0, 1.2, 'metal', { collide: false });
+    }
+    b.wreck('dump_truck', 5, -10, 2.4, { trunk: false });
+    // the belt: a long trough up out of the pit to its rim, on legs
+    const top = PIT.top - fy;
+    const run = PIT.r + 6;
+    const tilt = Math.atan2(top, run);
+    b.box(0, top / 2 + 1.2, run / 2, 1.4, 0.5, Math.hypot(run, top), 'rust', { rx: -tilt, collide: false });
+    for (let k = 1; k < 6; k++) {
+      const lz = (run * k) / 6;
+      const ly = (top * k) / 6;
+      const g = heightAt(b.wx(0, lz), b.wz(0, lz)) - fy;
+      if (ly + 1 - g > 0.6) b.box(0, g, lz, 0.3, ly + 1 - g, 0.3, 'rust', { collide: false });
+    }
+    // heaps of stone on the floor and the benches
+    const bench = (k) => PIT.r * (1 - (k + 0.4) / (PIT.steps + 0.6));
+    for (const [k, a, t] of [[0, 2.2, 'gravel_pile'], [0, 3.6, 'rubble_pile'], [1, 1.2, 'gravel_pile'], [2, 4.4, 'gravel_pile'], [3, 0.4, 'rubble_pile'], [4, 5.4, 'gravel_pile'], [2, 2.6, 'rubble_pile']]) {
+      const r = k ? bench(k) : 8;
+      const x = b.wx(Math.sin(a) * r, Math.cos(a) * r);
+      const z = b.wz(Math.sin(a) * r, Math.cos(a) * r);
+      if (propBlocked(t, x, z, a)) continue;
+      const py = heightAt(x, z);
+      props.push({ type: t, x, y: py, z, ry: a, seed: k });
+      addPropColliders(t, x, py, z, a, props[props.length - 1]);
+    }
+    {
+      const r = bench(2);
+      const x = b.wx(Math.sin(3.4) * r, Math.cos(3.4) * r);
+      const z = b.wz(Math.sin(3.4) * r, Math.cos(3.4) * r);
+      const t2 = new Builder(x, z, toYard + 3.4 + PI / 2, heightAt(x, z));
+      t2.zone = ZONE.AGGREGATES;
+      t2.ground = true;
+      t2.wreck('dump_truck', 0, 0, 0, { trunk: false, seed: 1 });
+    }
+    b.loot(-2, -12);
+    b.clear(0, 0, PIT.r);
   }
   // the yard: the headframe over the old shaft, the hoist house, the adit in the hillside behind them (sealed)
   place(ZONE.PASSAGE, (b) => {
@@ -3707,25 +4055,40 @@ export function createMainland(seed) {
   // The forest where the picture has it (forestAt: thick enough to be a wall off the roads where it is dense), thinner
   // up the mountains' flanks and none on their heights; a tree here and there in the open. Nothing grows on the
   // city's paving but what has broken through it (the dead trees the blocks plant with Builder.tree).
-  const occ = new Map();
-  const OCC = 3;
-  const okey = (i, j) => i * 8192 + j;
+  // (what is taken, as a bitmap of 1 m cells: a disc is set into it, and a disc asked about is clear when no cell of it
+  // is set - one lookup per cell, where a list of discs was 25 lists searched for every tree tried)
+  const OS = SIZE;
+  let occ = new Uint8Array(OS * OS);
   const occupied = (x, z, r) => {
-    const ci = Math.floor(x / OCC);
-    const cj = Math.floor(z / OCC);
-    for (let j = cj - 2; j <= cj + 2; j++) {
-      for (let i = ci - 2; i <= ci + 2; i++) {
-        const arr = occ.get(okey(i, j));
-        if (!arr) continue;
-        for (let k = 0; k < arr.length; k += 3) if ((arr[k] - x) ** 2 + (arr[k + 1] - z) ** 2 < (arr[k + 2] + r) ** 2) return true;
+    const i0 = Math.max(0, Math.floor(x - r + HALF));
+    const i1 = Math.min(OS - 1, Math.floor(x + r + HALF));
+    const j0 = Math.max(0, Math.floor(z - r + HALF));
+    const j1 = Math.min(OS - 1, Math.floor(z + r + HALF));
+    const r2 = (r + 0.71) ** 2;
+    for (let j = j0; j <= j1; j++) {
+      const dz = j + 0.5 - HALF - z;
+      for (let i = i0; i <= i1; i++) {
+        const dx = i + 0.5 - HALF - x;
+        if (occ[j * OS + i] && dx * dx + dz * dz < r2) return true;
       }
     }
     return false;
   };
   const occupy = (x, z, r) => {
-    const key = okey(Math.floor(x / OCC), Math.floor(z / OCC));
-    if (!occ.has(key)) occ.set(key, []);
-    occ.get(key).push(x, z, r);
+    const i0 = Math.max(0, Math.floor(x - r + HALF));
+    const i1 = Math.min(OS - 1, Math.floor(x + r + HALF));
+    const j0 = Math.max(0, Math.floor(z - r + HALF));
+    const j1 = Math.min(OS - 1, Math.floor(z + r + HALF));
+    for (let j = j0; j <= j1; j++) {
+      const dz = j + 0.5 - HALF - z;
+      for (let i = i0; i <= i1; i++) {
+        const dx = i + 0.5 - HALF - x;
+        if (dx * dx + dz * dz < r * r) occ[j * OS + i] = 1;
+      }
+    }
+    const ci = Math.floor(x + HALF);
+    const cj = Math.floor(z + HALF);
+    if (ci >= 0 && cj >= 0 && ci < OS && cj < OS) occ[cj * OS + ci] = 1;
   };
   for (const p of props) occupy(p.x, p.z, Math.max(2.5, Math.hypot(...(PROPS[p.type]?.size || [2, 0, 2]).filter((_, i) => i !== 1)) / 2 + 0.6));
   for (const [x, z, r] of clears) occupy(x, z, Math.min(r, 6));
@@ -3784,34 +4147,53 @@ export function createMainland(seed) {
     }
     return false;
   };
-  const trees = [];
-  const pushTree = (x, z, v, scale) => {
+  let trees = [];
+  // (solid: in the collider grid, as on the island. A tree up a mountain, past its wall, is out of everybody's reach and
+  // is drawn and nothing else: no collider)
+  const pushTree = (x, z, v, scale, solid = true) => {
     const y = heightAt(x, z);
     const rot = rng.range(0, PI * 2);
-    occupy(x, z, 1.4 * scale);
+    occupy(x, z, 1.0 * scale);
+    if (!solid) {
+      trees.push(x, y, z, scale, rot, v);
+      return;
+    }
     if (partBlocked(x, z, TREE_R[v] * scale + 0.15)) return; // (left out after its draws, as on the island)
-    const c = makeCyl(x, z, y - 1, y + 14 * scale, TREE_R[v] * scale, COL.STATIC | COL.TREE);
-    c.tv = v;
-    c.ti = trees.length / 6;
+    const c = makeTree(x, z, y - 1, y + 14 * scale, TREE_R[v] * scale, v, trees.length / 6);
     trees.push(x, y, z, scale, rot, v);
     staticGrid.add(c);
   };
   for (const [x, z, v, s] of extraTrees) if (!occupied(x, z, 1.2) && !inWater(x, z)) pushTree(x, z, v, s);
   const LIM = HALF - 4;
-  for (let a = 0; a < 190000; a++) {
-    const x = rng.range(-LIM, LIM);
-    const z = rng.range(-LIM, LIM);
-    const r0 = rng();
-    const up = cliffAt(x, z);
-    const dens = Math.max(0.025, forestAt(x, z) ** 1.25) * (up > 0 ? 0.55 * (1 - smoothstep(25, 70, up)) : 1);
-    if (r0 > dens) continue;
-    if (zoneClear(x, z) || onRoad(x, z, 0.6) || inWater(x, z) || seaAt(x, z) > -6 || clearHit(x, z, 0.8) || tunnelOf(x, z, 4) || (up > -1.5 && up < CLIFF_IN + 1)) continue;
-    const scale = rng.range(0.75, 1.3);
-    if (occupied(x, z, 1.5 * scale)) continue;
-    const r = rng();
-    pushTree(x, z, r < 0.2 ? 0 : r < 0.38 ? 1 : r < 0.52 ? 2 : r < 0.78 ? 5 : r < 0.86 ? 6 : r < 0.94 ? 3 : 4, scale);
+  // The forest: one tree at the most to every TREE_CELL square, jittered in it, with the forest's density for its
+  // chance: where the picture's woods are dense a tree every 3-4 m, a wall off the roads. Up a mountain the woods thin
+  // with the height and stop at the tree line; on a face too steep for them, none.
+  const TREE_CELL = 3.2;
+  const TREE_LINE = 150;
+  const TREES_N = Math.floor((LIM * 2) / TREE_CELL);
+  for (let tj = 0; tj < TREES_N; tj++) {
+    for (let ti = 0; ti < TREES_N; ti++) {
+      const x = -LIM + (ti + rng()) * TREE_CELL;
+      const z = -LIM + (tj + rng()) * TREE_CELL;
+      const r0 = rng();
+      const f = forestAt(x, z);
+      const up = cliffAt(x, z);
+      const dens = up > 0 ? Math.max(f, 0.4) * 0.7 * (1 - smoothstep(8, 70, up)) : Math.max(0.02, f ** 1.15 * 0.8);
+      if (r0 > dens) continue;
+      const scale = rng.range(0.75, 1.3);
+      const r = rng();
+      if (seaAt(x, z) > -4 || inWater(x, z) || (up > -1.5 && up < CLIFF_IN + 1)) continue;
+      if (up > 0) {
+        const y = heightAt(x, z);
+        if (y > TREE_LINE + (r0 - 0.5) * 30 || Math.abs(heightAt(x + 2, z) - heightAt(x - 2, z)) + Math.abs(heightAt(x, z + 2) - heightAt(x, z - 2)) > 7 || tunnelOf(x, z, 6) || occupied(x, z, 0.9 * scale)) continue;
+        pushTree(x, z, r < 0.34 ? 0 : r < 0.62 ? 1 : r < 0.8 ? 2 : r < 0.9 ? 5 : 6, scale, false);
+        continue;
+      }
+      if (zoneClear(x, z) || onRoad(x, z, 0.6) || clearHit(x, z, 0.8) || tunnelOf(x, z, 4) || occupied(x, z, 1.1 * scale)) continue;
+      pushTree(x, z, r < 0.28 ? 0 : r < 0.5 ? 1 : r < 0.66 ? 2 : r < 0.84 ? 5 : r < 0.9 ? 6 : r < 0.96 ? 3 : 4, scale);
+    }
   }
-  const rocks = [];
+  let rocks = [];
   for (let a = 0; a < 5200 && rocks.length < 1300 * 6; a++) {
     const x = rng.range(-LIM, LIM);
     const z = rng.range(-LIM, LIM);
@@ -3828,7 +4210,7 @@ export function createMainland(seed) {
     rocks.push(x, y, z, scale, rng.range(0, PI * 2), v);
     staticGrid.add(makeCyl(x, z, y - 1, y + r * 0.9, r * 0.85, COL.STATIC));
   }
-  const bushes = [];
+  let bushes = [];
   for (let a = 0; a < 70000; a++) {
     const x = rng.range(-LIM, LIM);
     const z = rng.range(-LIM, LIM);
@@ -3867,6 +4249,68 @@ export function createMainland(seed) {
     }
   }
 
+  // ---------------------------------------------------------------- the field map
+  // Where the field map writes each place's name (the picture's own spots for them, clear of the roads and of each
+  // other: label, the middle of the name), which names are of lesser places (minor: smaller letters), which of what is
+  // named inside the city (city: written only when the map is zoomed in), and the picture's marks (marks: the town, the
+  // church, the industry, the gas station, the airport, the camps, the tunnels' and the mines' mouths, the quarry, the
+  // lighthouse, the radio tower and the water tower: client/ui/mapmainland.js).
+  {
+    const LABEL = {
+      [ZONE.BRIDGEHEAD]: [0.178, 0.418],
+      [ZONE.INDUSTRIAL]: [0.232, 0.59],
+      [ZONE.SUBURB]: [0.458, 0.336],
+      [ZONE.WESTGATE]: [0.487, 0.538],
+      [ZONE.NORTH_COAST]: [0.242, 0.15],
+      [ZONE.TRUCKSTOP]: [0.568, 0.6],
+      [ZONE.OUTPOST]: [0.922, 0.188],
+      [ZONE.AGGREGATES]: [0.603, 0.858],
+      [ZONE.PASSAGE]: [0.846, 0.754],
+      [ZONE.SOUTH_FOREST]: [0.54, 0.752],
+      [ZONE.LIGHTHOUSE]: [0.108, 0.702],
+      [ZONE.CITY]: [0.346, 0.43],
+    };
+    const MINOR = [ZONE.BRIDGEHEAD, ZONE.LIGHTHOUSE, ZONE.MARINA, ZONE.LOGGING, ZONE.FIREHOUSE, ZONE.TERMINAL, ZONE.HANGARS, ZONE.FUEL_DEPOT];
+    for (const zn of zones) {
+      if (LABEL[zn.id]) zn.label = P(LABEL[zn.id]);
+      if (MINOR.includes(zn.id)) zn.minor = true;
+    }
+    // (the airport's three: inside its fence, clear of each other and of the map's edge)
+    for (const [id, dx, dz] of [[ZONE.TERMINAL, 0, -16], [ZONE.HANGARS, -30, 26], [ZONE.FUEL_DEPOT, -50, 16]]) {
+      const zn = zoneById[id];
+      zn.label = [Math.min(zn.x + dx, HALF - 110), zn.z + dz];
+    }
+    zoneById[ZONE.FIREHOUSE].label = [zoneById[ZONE.FIREHOUSE].x + 34, zoneById[ZONE.FIREHOUSE].z + 18];
+    for (const m of landmarks) if (inCity(m.x, m.z, 12)) m.city = true;
+    // (what the picture names that is no place: the passes where it writes them, the airport over its field)
+    for (const m of landmarks) {
+      if (m.name === 'North Pass') m.label = P([0.745, 0.136]);
+      if (m.name === 'East Pass') m.label = P([0.808, 0.487]);
+    }
+    landmarks.push({ x: FX(0.94), z: FX(0.535), name: 'Airport', big: true });
+  }
+  const marks = [];
+  {
+    const zp = (id) => zoneById[id];
+    marks.push({ kind: 'town', x: city.x, z: city.z + 10 });
+    marks.push({ kind: 'church', ...(([x, z]) => ({ x, z }))(P([0.183, 0.128])) });
+    marks.push({ kind: 'industrial', x: zp(ZONE.INDUSTRIAL).x + 10, z: zp(ZONE.INDUSTRIAL).z - 6 });
+    marks.push({ kind: 'gas', x: zp(ZONE.TRUCKSTOP).x + 26, z: zp(ZONE.TRUCKSTOP).z - 4 });
+    marks.push({ kind: 'airport', x: FX(0.94), z: FX(0.505) });
+    for (const [x, z] of [[zp(ZONE.SOUTH_FOREST).x, zp(ZONE.SOUTH_FOREST).z], ...camps]) marks.push({ kind: 'tent', x, z });
+    for (const t of tunnels) {
+      if (t.s0 === undefined) continue;
+      for (const s of [t.s0, t.s1]) marks.push({ kind: 'tunnel', x: t.a[0] + t.dx * s, z: t.a[1] + t.dz * s });
+    }
+    if (mine) for (const p of mine.portals) marks.push({ kind: 'mine', x: p.x, z: p.z });
+    for (const [x, z] of [P(PLACES.mineA), [zp(ZONE.PASSAGE).x + 6, zp(ZONE.PASSAGE).z - 22]]) marks.push({ kind: 'mine', x, z });
+    marks.push({ kind: 'pit', x: PIT.x, z: PIT.z, r: PIT.r, steps: PIT.steps });
+    marks.push({ kind: 'quarry', x: zp(ZONE.AGGREGATES).x + 30, z: zp(ZONE.AGGREGATES).z + 30 });
+    marks.push({ kind: 'lighthouse', x: zp(ZONE.LIGHTHOUSE).x, z: zp(ZONE.LIGHTHOUSE).z });
+    marks.push({ kind: 'tower', x: zp(ZONE.OUTPOST).x - 6, z: zp(ZONE.OUTPOST).z - 18 });
+    marks.push({ kind: 'watertower', x: zp(ZONE.OUTPOST).x + 12, z: zp(ZONE.OUTPOST).z - 22 });
+  }
+
   // ---------------------------------------------------------------- queries
   // The ground under feet at height y over (x,z): the terrain, or the floor of the drift they are down in (as on the
   // island: world.js). heightAt is the terrain alone.
@@ -3891,7 +4335,7 @@ export function createMainland(seed) {
     for (let t = step; t <= maxT + step; t += step) {
       const tt = t > maxT ? maxT : t;
       const y = oy + dy * tt;
-      if (y > 200 && dy >= 0) return -1;
+      if (y > 420 && dy >= 0) return -1;
       if (above(ox + dx * tt, y, oz + dz * tt) < 0) {
         let lo = prevT;
         let hi = tt;
@@ -3924,6 +4368,16 @@ export function createMainland(seed) {
     return best;
   };
   const start = { x: head.x, z: head.z };
+  // (what only the building of the world needed goes now: every closure made here keeps all that any of them can see,
+  // so a grid left in reach of one would be held as long as the world is)
+  seaMask = lakeMask = islets = mtnMask = cut = wallMask = reliefGrid = roadH = occ = roadDir = null;
+  const treesOut = new Float32Array(trees);
+  const rocksOut = new Float32Array(rocks);
+  const bushesOut = new Float32Array(bushes);
+  trees = rocks = bushes = null;
+  zoneCells.length = flatCells.length = 0;
+  peakCells.clear();
+  partCells = clearCells = null;
 
   return {
     seed,
@@ -3935,7 +4389,6 @@ export function createMainland(seed) {
     heights,
     roadDist,
     roadKind,
-    roadDir,
     heightAt,
     floorAt,
     mine,
@@ -3957,17 +4410,18 @@ export function createMainland(seed) {
     ponds,
     river: { pts: new Float32Array(riverPts), hw: RIVER_HW, bridges, at: riverAt, flow, speed: RIVER_FLOW, depth: RIVER_DEPTH },
     creek: { pts: creekP, hw: CREEK_HW },
-    landmarks, // what the field map names inside a place: { x, z, name }
+    landmarks, // what the field map names inside a place: { x, z, name, label (where the name is written, if not there), city (inside the city: written zoomed in), big }
+    marks, // the field map's marks: { kind, x, z } (client/ui/mapmainland.js)
     sea: { x: FX(0.03), south: FX(0.46), at: seaAt }, // the sea runs on past the map's west edge, and past its north and south edges west of x / south (the client lays water there); at: how far out on the water (m)
     lakeAt, // how far out on Pine Lake (m; negative on land)
     reachAt, // can (x, z) be walked to from the bridgehead over the ground (tunnels open, no swimming)? 4 m cells
     cliffAt, // how far inside a mountain (m; negative outside)
     forestAt, // how thick the forest is, 0 .. 1
     walls, // the lines the mountains' walls stand along
-    tunnels: tunnels.map((t) => ({ name: t.name, a: t.a, b: t.b, y0: t.y0, y1: t.y1, len: t.len, s0: t.s0, s1: t.s1 })),
-    trees: new Float32Array(trees),
-    rocks: new Float32Array(rocks),
-    bushes: new Float32Array(bushes),
+    tunnels: tunnels.map((t) => ({ name: t.name, a: t.a, b: t.b, y0: t.y0, y1: t.y1, len: t.len, s0: t.s0, s1: t.s1, cap: t.cap })), // cap: the mountain over the gallery, for the client to draw (s0, step, lat, n, m, h)
+    trees: treesOut,
+    rocks: rocksOut,
+    bushes: bushesOut,
     parts,
     props,
     lights,
