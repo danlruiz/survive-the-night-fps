@@ -31,6 +31,11 @@ class SharedVec4 extends THREE.Vector4 {
     return this;
   }
 }
+class SharedVec2 extends THREE.Vector2 {
+  clone() {
+    return this;
+  }
+}
 class SharedColor extends THREE.Color {
   clone() {
     return this;
@@ -53,6 +58,10 @@ export const G = {
   // a sky flare lighting the haze (linear, same units as fogColor; black: none) and the world-space unit vector from
   // the eye towards it. SkyFlares drives both
   uFlareFog: { value: new SharedColor(0, 0, 0) },
+  // the distance haze by height: x the height (m) up to which it is as thick as the fog says, y how fast it thins
+  // above that (1/m). The haze lies in the valleys and a mountain stands up out of it, seen from across the map when
+  // the plain at its foot is lost in it. (0, 0): as thick at every height (the island). Game sets it per world.
+  uHaze: { value: new SharedVec2(0, 0) },
   uFlareDirW: { value: new SharedVec3(0, 1, 0) },
 };
 
@@ -130,6 +139,7 @@ const FOG_PARS_FRAGMENT = /* glsl */ `
 #ifdef USE_FOG
   uniform vec3 fogColor;
   uniform vec4 uPs1;
+  uniform vec2 uHaze;
   varying vec3 vFogViewPos;
   #ifdef FOG_EXP2
     uniform float fogDensity;
@@ -150,6 +160,8 @@ const FOG_FRAGMENT = /* glsl */ `
     vec3 fogDir = fogRay / max(fogL, 1e-4);
     #ifdef FOG_EXP2
       float fogOD = fogDensity * fogDensity * fogL * fogL;
+      // (by the height the ray runs at, on the average: half way along it)
+      if (uHaze.y > 0.0) fogOD *= exp(-max(0.0, cameraPosition.y + 0.5 * fogRay.y - uHaze.x) * uHaze.y);
     #else
       float fogOD = 3.0 * smoothstep(fogNear, fogFar, fogL);
     #endif

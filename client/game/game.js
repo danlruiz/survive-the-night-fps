@@ -141,6 +141,14 @@ import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
 import { MenuTour } from './menutour.js';
 import { KeyGuard } from './keyguard.js';
+import { G } from '../render/globals.js';
+// A world with mountains (the mainland) is seen far: the distance haze is whole up to HAZE_BASE m and thins over that
+// by e every HAZE_THIN m of the height the eye's ray runs at (globals.js uHaze), so a range stands up out of the haze
+// from across the map while the plain at its foot is lost in it; the camera's far plane goes out to FAR_BIG for it.
+const HAZE_BASE = 28;
+const HAZE_THIN = 22;
+const FAR_SMALL = 520;
+const FAR_BIG = 1700;
 import { bearing, nextNightText, nightBossText, tonightBrief, PING_LABEL } from '../ui/hud2.js';
 
 const WEATHER_TOAST = {
@@ -514,6 +522,11 @@ export class Game {
     usePos(this.world); // (what a metre is in a position on the wire: protocol.js)
     this.prediction.setWorld(this.world);
     const t1 = performance.now();
+    // (a world with mountains in it - the mainland - is seen far: the haze thins with height, so the ranges stand up
+    // out of it from across the map, and the camera's far plane is taken out to them)
+    G.uHaze.value.set(this.world.size > 1000 ? HAZE_BASE : 0, this.world.size > 1000 ? 1 / HAZE_THIN : 0);
+    this.renderer.camera.far = this.world.size > 1000 ? FAR_BIG : FAR_SMALL;
+    this.renderer.camera.updateProjectionMatrix();
     this.terrain = buildTerrain(this.world);
     this.terrain.userData.setShadows(!!this.renderer.q.shadows); // hills shade the valleys at low sun
     this.scene.add(this.terrain);
@@ -555,6 +568,9 @@ export class Game {
         // burning barrels / smouldering wrecks
         this.staticEmitters.push(this.effects.createEmitter('barrel', l.x, l.y, l.z));
         this.staticFires.push({ x: l.x, y: l.y - 0.4, z: l.z, intensity: 0.75 });
+      } else if (l.kind === 'lamp') {
+        // a lamp still burning down a mine (the mainland's passage): a steady glow, no flame
+        this.staticFires.push({ x: l.x, y: l.y, z: l.z, intensity: 0.42 });
       } else if (l.kind === 'smoke') {
         // a column of smoke standing over a ruin (the mainland's city: it is what shows where it is from the bridge)
         this.staticEmitters.push(this.effects.createEmitter('column', l.x, l.y, l.z, { radius: l.r || 1 }));
@@ -3038,6 +3054,7 @@ export class Game {
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it
     this.staticWorld.update(cam.position, this.viewDist);
+    this.terrain?.userData.update?.(cam.position, this.viewDist);
     this.foliage.update(cam.position, this.env.fogVisibility, time, weather, cam);
     if (this.water) {
       const u = this.water.material.uniforms;
@@ -3215,6 +3232,7 @@ export class Game {
     const weather = this.weather.update(dt, null, this.time, cam.position);
     this.env.update(dt, 0.49, cam.position, this.time, weather);
     this.staticWorld.update(cam.position, this.env.fogVisibility + 40);
+    this.terrain?.userData.update?.(cam.position, this.env.fogVisibility + 40);
     this.foliage.update(cam.position, this.env.fogVisibility, this.time, weather, cam);
     this.lights.update(dt, this.time, cam.position, false, this.staticFires, [], this.env.night);
     this.power.update(dt, this.time, cam.position, this.env.night); // (no floodlight is left lit from the game before)

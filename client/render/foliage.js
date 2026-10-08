@@ -13,6 +13,7 @@ import { groundFields } from './terrain.js';
 import { grassRadius } from './renderer.js';
 import { FallingTrees } from './fallingtrees.js';
 import { isShadowFrustum } from './multimesh.js';
+import { FarForest } from './farforest.js';
 
 const CELL = 32;
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
@@ -489,11 +490,14 @@ export class Foliage {
     this.rocks = new InstancedSet(scene, world.rocks, getRockVariants(), { radius: quality.treeDist, rebuildDist: 10, receive: true });
     this.grass = new GrassField(scene, world);
     this.falling = new FallingTrees(scene, world, this.trees);
+    // (a world as big as the mainland: its woods past the trees' drawing distance, as cards - farforest.js)
+    this.far = world.size > 1000 ? new FarForest(scene, world.trees) : null;
     this.setQuality(quality, grassMul);
   }
 
   dispose() {
     this.falling.dispose();
+    this.far?.dispose();
     for (const set of [this.trees, this.bushes, this.rocks]) set.dispose();
     this.grass.dispose();
   }
@@ -543,6 +547,7 @@ export class Foliage {
     }
     const treeR = Math.min(this.quality.treeDist, fogVisibility + 30);
     this.trees.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
+    this.far?.update(Math.round(treeR / 10) * 10);
     this.bushes.update(camPos.x, camPos.z, Math.min(85, fogVisibility + 10), view);
     this.rocks.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
     this.grass.update(camPos.x, camPos.z, view);
