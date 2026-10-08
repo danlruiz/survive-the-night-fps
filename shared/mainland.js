@@ -4204,6 +4204,7 @@ export function createMainland(seed) {
   // with the height and stop at the tree line; on a face too steep for them, none.
   const TREE_CELL = 3.2;
   const TREE_LINE = 150;
+  const MOUNTAIN_VERGE = 10;
   const TREES_N = Math.floor((LIM * 2) / TREE_CELL);
   for (let tj = 0; tj < TREES_N; tj++) {
     for (let ti = 0; ti < TREES_N; ti++) {
@@ -4216,7 +4217,10 @@ export function createMainland(seed) {
       if (r0 > dens) continue;
       const scale = 0.75 + die(ti, tj, 4) * 0.55;
       const r = die(ti, tj, 5);
-      if (seaAt(x, z) > -4 || inWater(x, z) || (up > -1.5 && up < CLIFF_IN + 1)) continue;
+      // (and none on the verge along a mountain's foot, MOUNTAIN_VERGE m of scree out from its wall: in the thick woods
+      // a strip a vehicle's width wide was left between the trees and the wall, a trap a car drove into and could not
+      // turn in - west of North Pass it wedged the car on two rolls of the woods in five)
+      if (seaAt(x, z) > -4 || inWater(x, z) || (up > -MOUNTAIN_VERGE && up < CLIFF_IN + 1)) continue;
       if (up > 0) {
         const y = heightAt(x, z);
         if (y > TREE_LINE + (r0 - 0.5) * 30 || Math.abs(heightAt(x + 2, z) - heightAt(x - 2, z)) + Math.abs(heightAt(x, z + 2) - heightAt(x, z - 2)) > 7 || tunnelOf(x, z, 6) || occupied(x, z, 0.9 * scale)) continue;
@@ -4271,21 +4275,36 @@ export function createMainland(seed) {
     }
     return false;
   };
+  const WALK_R = 16;
+  const WN = WALK_R * 2 + 1;
+  const wseen = new Uint8Array(WN * WN);
+  const wq = new Int32Array(WN * WN);
   const walkOut = (x, z) => {
-    let ways = 0;
-    for (let q = 0; q < 8 && ways < 2; q++) {
-      const [dx, dz] = [Math.cos((q * PI) / 4), Math.sin((q * PI) / 4)];
-      let clear = true;
-      for (let s = 0.6; s <= 8 && clear; s += 0.5) if (solidNear(x + dx * s, z + dz * s, 0.45)) clear = false;
-      if (clear) ways++;
+    wseen.fill(0);
+    let h = 0, t = 0;
+    const c = WALK_R * WN + WALK_R;
+    wq[t++] = c;
+    wseen[c] = 1;
+    while (h < t) {
+      const k = wq[h++];
+      const i = k % WN, j = (k / WN) | 0;
+      if ((i - WALK_R) ** 2 + (j - WALK_R) ** 2 >= (WALK_R - 1) ** 2) return true;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const m = (j + dj) * WN + i + di;
+        if (wseen[m]) continue;
+        wseen[m] = 1;
+        const px = x + i + di - WALK_R, pz = z + j + dj - WALK_R;
+        if (solidNear(px, pz, 0.4) || inWater(px, pz) || cliffAt(px, pz) > -1) continue;
+        wq[t++] = m;
+      }
     }
-    return ways >= 2;
+    return false;
   };
   const resourceSpawns = [];
   for (let a = 0; a < 16000 && resourceSpawns.length < 560; a++) {
     const x = rng.range(-LIM + 20, LIM - 20);
     const z = rng.range(-LIM + 20, LIM - 20);
-    if (zoneClear(x, z) || inCity(x, z, 12) || inWater(x, z) || occupied(x, z, 0.8) || cliffAt(x, z) > -3 || !reachAt(x, z) || !walkOut(x, z)) continue;
+    if (zoneClear(x, z) || inCity(x, z, 12) || inWater(x, z) || occupied(x, z, 0.8) || cliffAt(x, z) > -14 || !reachAt(x, z) || !walkOut(x, z)) continue; // (not on the scree and foothills at a mountain's foot: too steep a pocket there for the dead's grid)
     resourceSpawns.push({ x, y: heightAt(x, z) + 0.02, z, zone: ZONE.FOREST });
   }
   // fallback horde spawns (the horde normally appears round wherever the survivors are): rings round the city and
