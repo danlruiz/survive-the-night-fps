@@ -208,6 +208,7 @@ export function groundFields(world) {
     }
   }
   const zones = world.zones;
+  const pit = (world.marks || []).find((m) => m.kind === 'pit') || null;
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -232,6 +233,8 @@ export function groundFields(world) {
       for (const s of [2, 5]) lap += ((at(i - s, j) + at(i + s, j) + at(i, j - s) + at(i, j + s)) * 0.25 - h) / (s * GRID_STEP);
       wet[k] = Math.max(smoothstep(0.02, 0.16, lap), smoothstep(WATER_LEVEL + 2.5, WATER_LEVEL + 0.4, h)) * (1 - road);
       rock[k] = smoothstep(0.16, 0.27, slope + n * 0.03) * (1 - road);
+      // (a quarry's pit is bare stone, its benches and all: no grass in it)
+      if (pit) rock[k] = Math.max(rock[k], (1 - smoothstep(pit.r - 4, pit.r + 3, Math.hypot(x - pit.x, z - pit.z))) * (1 - road));
       let mud = smoothstep(WATER_LEVEL + 1.3, WATER_LEVEL + 0.2, h);
       // trampled dirt yards in the busier places
       const yn = 0.5 + 0.5 * Math.sin(x * 0.21 + Math.cos(z * 0.17) * 2.3);
