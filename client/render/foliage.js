@@ -17,6 +17,8 @@ import { FarForest } from './farforest.js';
 
 const CELL = 32;
 const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
+const FAR_LOD = 30; // m: there, where the trees' near copy gives way to the far one
+const FAR_CAST = 64; // m: there, how far from the eye a tree throws a shadow
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
 // The view the instance buffers were last filled for, padded: what is outside it is not drawn at all (two thirds of
@@ -521,12 +523,15 @@ export class Foliage {
     // copy and its card look the same from the eye, and in the mainland's woods that ring held thousands of them)
     this.treeDist = this.far ? Math.min(q.treeDist, FAR_TREES) : q.treeDist;
     const sd = q.shadows ? q.shadowDist : 0;
-    // tall trees just outside the shadow range still throw shadows into it (in thick woods what shades the ground there
-    // is the trees' own shadow anyway: a few metres past it are enough)
-    this.trees.castDist = sd ? sd + (this.far ? 8 : 25) : 0;
+    // tall trees just outside the shadow range still throw shadows into it. In the mainland's thick woods a tree every
+    // few metres casts: there only those within FAR_CAST do (past that the ground under the woods is in their shade
+    // whichever tree throws it)
+    this.trees.castDist = sd ? (this.far ? Math.min(sd, FAR_CAST) : sd + 25) : 0;
     this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, 40) : 0;
     this.rocks.castDist = sd && q.foliageShadows ? Math.min(sd, 90) : 0;
-    const mid = Math.max(35, q.treeDist * 0.25);
+    // (where the near copy - every bough a card of its own, many deep in a crown - gives way to the far one: on the
+    // mainland, where the woods stand thick round the eye, at FAR_LOD)
+    const mid = this.far ? FAR_LOD : Math.max(35, q.treeDist * 0.25);
     this.trees.lodBand = [mid - 7, mid + 7];
     VEG.uTreeLod.value.set(mid - 7, mid + 7);
     this.grass.setQuality(q, grassMul);

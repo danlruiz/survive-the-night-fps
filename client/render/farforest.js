@@ -178,6 +178,9 @@ export class FarForest {
     mesh.receiveShadow = false;
     mesh.matrixAutoUpdate = false;
     mesh.name = 'farforest';
+    // (after the trees and the rest of what is opaque: in the woods the trees round the eye hide most of the cards,
+    // which the depth then throws away before they are shaded)
+    mesh.renderOrder = 1;
     scene.add(mesh);
     this.mesh = mesh;
   }
