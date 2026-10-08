@@ -21,10 +21,10 @@ import { AccountPanel } from './account.js';
 import { ProgressPanel } from './progress.js';
 import { ProfilePanel } from './profile.js';
 import { AchievementsPanel, AchievementToasts } from './achievements.js';
+import { AchTracker, FieldNotes } from './books.js';
 import { isFriendName } from '../net/friends.js';
 import { onUnlock } from '../net/achievements.js';
 import { onSeen } from '../net/bestiary.js';
-import { bindLabel } from '../game/binds.js';
 import { Summary } from './hud2.js';
 
 const NOOP = () => {};
@@ -124,11 +124,11 @@ export class UI {
     this.achPanel = new AchievementsPanel(this, modalL);
     this.updating = new UpdatingModal(modalL);
     onUnlock((list) => this.achToasts.show(list));
-    onSeen((list) => {
-      const key = bindLabel('bestiary');
-      const how = key === 'unbound' ? 'It is in the menu.' : `Press ${key} to read up on it.`;
-      for (const e of list) this.notify(`New in the bestiary: ${e.name}. ${how}`, 'good', 4.5);
-    });
+    onSeen((list) => this.achToasts.showKinds(list)); // (a card in the achievement banner's corner: issue #220)
+    // the tracked achievements under the objective, and the pause menu's field notes (books.js; the game sets
+    // fieldNotes.ctx)
+    this.achTracker = new AchTracker(this, this.hud.objective.root.parentElement, [this.hud.objective.root, this.hud.tracked.root]);
+    this.fieldNotes = new FieldNotes(this, this.pause.root);
 
     this._bindSounds();
     this._voice = { enabled: false, transmitting: false };

@@ -319,6 +319,7 @@ export class Game {
     ui.board.onClose = () => this.toggleBoard(false);
     ui.bestiary.onClose = () => this.toggleBestiary(false);
     ui.cards.onClose = () => this.toggleCards(false);
+    ui.fieldNotes.ctx = () => (this.state === 'playing' && this.global && !this.global.finale ? { seed: this.seed, act: this.act, day: this.global.day, phase: this.global.phase } : null);
     ui.spawn.onClose = () => this.toggleSpawn(false);
     ui.spawn.onSpawn = (cmd) => this.conn.chat(cmd);
     ui.roster.onClose = () => this.pinRoster(false);
