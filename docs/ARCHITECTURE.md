@@ -619,19 +619,28 @@ act 2, where the same loop is played with a plane and flying out wins.
     outlines (even-odd), the river's middle line with its width, the creek, the mountains' outlines, the tunnels, every
     road with its class (main, secondary, dirt, trail; the suburbs' and the village's lanes), the areas of houses, the
     places' points, and the forest as a coded grid - all as fractions of the map square, so `FX` scales them to any
-    size. Nothing the seed draws moves a place, a road, the coast, the lake, the river or a mountain; it changes what
+    size. The mountains' outlines are the picture's grey (rock) traced by colour and cleaned by hand, the forest's grid
+    the share of its tree symbols in every 16 m cell, the suburbs' streets as drawn (curving, not a grid). Nothing the seed draws moves a place, a road, the coast, the lake, the river or a mountain; it changes what
     stands in a place, on a lot, along a lane, and what is scattered. `scripts/clip/map-layout.js` lays the picture
     over the baked field map; `scripts/test-layout12.js` holds the layout's rules.
   - *The ground* (`shared/mainland-ground.js`): the outlines are filled onto the heightfield's vertices and measured
     (an exact distance transform: how far every vertex is from the shore, from the lake, inside a mountain). Lowland
-    rises inland into hills where the forest is; a mountain is a cliff `CLIFF` high within `CLIFF_IN` of its outline,
-    peaks of ridged noise over that. Along the foot of every cliff stands a wall nobody sees (colliders `WALL_T`
+    rises inland into hills where the forest is, and into foothills toward a mountain's foot (`FOOTHILL`). A mountain is
+    a range as the picture draws one: a cliff `CLIFF` high within `CLIFF_IN` of its outline, then rows of pyramids
+    (`PEAK_GAP` apart, each of four faces turned its own way, aretes and saddles between them, the higher the further in)
+    held under an envelope that rises with the distance from the foot, gullies and crags over them: 150-250 m, the highest
+    near 300. An outline is cut into 6 m lengths and each point moved in or out by up to `WOB` m, so no foot is a straight
+    line. The coast is rock for long stretches (a low cliff into deep water) with coves and beaches between; an islet
+    (land the mainland's own does not join) is a mound of rock, Pine Lake's islets wooded mounds. The quarry's pit is six
+    benches down into a rise of its own. Along the foot of every cliff stands a wall nobody sees (colliders `WALL_T`
     thick, tagged `cliff`, from `maskEdges`): nothing walks, drives, climbs or is shot over a mountain, and the dead's
     nav grid is shut there. `world.cliffAt`, `world.walls`. Where the Ridge meets the river below North Pass its wall
     stands in the water: no strip of bank leads past it.
   - *The tunnels* are corridors cut through a mountain's mask along the road's line (`TUNNELS`): the ground at the
     road's level, the cuttings walled as the cliffs are, and a concrete gallery over the stretch inside the mountain
-    with a face over either mouth (`world.tunnels`).
+    with a face over either mouth (`world.tunnels`). The heightfield is one level - the road's, inside - so the mountain
+    over a gallery is its cap (`world.tunnels[i].cap`: the heights as they were before the cut, coming down to the top
+    of the face at either mouth), which the client draws as more of the terrain: the mountain is whole over the tunnel.
   - *The river* is fast water (`world.river`: `at`, `flow`, `speed`): afloat in it a survivor is carried downstream
     and toward the middle of the channel (`shared/swim.js riverCurrent`, in the player simulation, so the client
     predicts it) and drowns in seconds (`RIVER_DPS`, the server); a vehicle that goes into it is lost
@@ -639,7 +648,8 @@ act 2, where the same loop is played with a plane and flying out wins.
     on the far side. The dead keep out of its deep water as they keep out of the lake.
   - *The South Passage Mines* (`shared/mine.js planPassage`, dressed by `shared/minedress.js` as Blackrock Mine is):
     a drift from the portal on the river's west bank under the river to the one on its east bank, its junction and
-    sump under the water (the hydraulic pump is down there). No vehicle goes into a mine's mouth. The adits by the
+    sump under the water (the hydraulic pump is down there). It was kept up till the end: lamps along the drift that
+    still burn (`world.lights` kind `lamp`: a glow and no flame) and tubs on its rails. No vehicle goes into a mine's mouth. The adits by the
     quarry and in the yard are sealed.
   - *The places*: the docks (the ironworks' yard, warehouses, cranes, piers), Town Center (`GRID` x `GRID` blocks
     where the picture's ring road is: a road of the picture that comes to the ring comes to the city's edge street,
@@ -651,6 +661,28 @@ act 2, where the same loop is played with a plane and flying out wins.
     marina, the logging camp, the firehouse, the gravel works (the quarry's yard).
   - *The parts* (issue #232's deal): the propeller and the fuel at the airport, the magneto in Town Center, the
     hydraulic pump in the passage, the flight radio at North Ridge Outpost: neither way to the airport passes both.
+  - *The woods* are the picture's: a tree at the most to every 3.2 m square of a jittered grid, with the forest's
+    density for its chance (a tree every 3-4 m where the picture's woods are dense: off the roads they are a wall), up
+    a mountain thinning with the height to the tree line (150 m) and none on a face too steep. A tree past a mountain's
+    wall is out of everybody's reach and is drawn only, with no collider (`pushTree(..., solid = false)`). A trunk is
+    `makeTree` (collision.js), which has its variant and its index in it from the start, and a collider in one cell of
+    a grid keeps that cell as a number, not a list: sixty thousand trees.
+  - *What the field map draws* that is no part of the ground: `zone.label` (where a place's name is written, its
+    middle), `zone.minor` (a lesser place: smaller letters), `landmark.city` (named inside the city: written only
+    zoomed in), and `world.marks` (the picture's marks: the town, the church, the industry, the gas station, the
+    airport, the camps, the mouths of the tunnels and the mines, the quarry and its pit, the lighthouse, the radio tower,
+    the water tower). `client/ui/mapmainland.js` draws the mainland's field map from them: paper, the water in blue with
+    its shallows and a light rim round every islet, the mountains in lit and shaded faces with their crests inked and no
+    outline, a stamp for every tree as the picture draws them, the roads by its legend, the city's ring road, its marks
+    and its legend in the corner of the sea.
+  - *Seen from afar.* The haze lies in the valleys: on a world with mountains (`Game`: `HAZE_BASE`, `HAZE_THIN`;
+    `G.uHaze` in globals.js) the distance haze is whole up to 28 m and thins by e every 22 m of the height the eye's ray
+    runs at, so a range stands up out of it from across the map while the plain at its foot is lost in it, and the
+    camera's far plane goes out to 1700 m. What is drawn past the drawing distance: the far mountains (terrain.js: the
+    mountains and their foothills, a vertex every 8 m, coloured by height and slope, drawn only past the line where the
+    terrain's own pieces stop - a circle about the eye at the drawing distance) and the far forest (`render/farforest.js`:
+    every tree past the trees' own distance as a card turned to the eye, one instanced draw, cross-faded by a dither).
+    Nothing of the island changes (its haze is as thick at every height, its far plane 520 m).
   - *The land a body walks to* (`world.reachAt`): every 4 m cell of dry ground outside the mountains reached from the
     bridgehead over the ground; what is scattered goes only there.
   - *The dead* come as they did on the 1280 m mainland it replaced: `ZombieManager.spread` is held at `MAP_SPREAD_MAX`
