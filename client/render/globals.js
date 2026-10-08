@@ -161,7 +161,9 @@ const FOG_FRAGMENT = /* glsl */ `
     #ifdef FOG_EXP2
       float fogOD = fogDensity * fogDensity * fogL * fogL;
       // (by the height the ray runs at, on the average: half way along it)
-      if (uHaze.y > 0.0) fogOD *= exp(-max(0.0, cameraPosition.y + 0.5 * fogRay.y - uHaze.x) * uHaze.y);
+      // (and on a world seen that far, the air itself, whatever the height: a range 1.5 km off is paler than one at
+      // 500 m, as the land under it is - without it the ranges stood sharp over a plain lost in white)
+      if (uHaze.y > 0.0) fogOD = fogOD * exp(-max(0.0, cameraPosition.y + 0.5 * fogRay.y - uHaze.x) * uHaze.y) + fogDensity * fogL * 0.12;
     #else
       float fogOD = 3.0 * smoothstep(fogNear, fogFar, fogL);
     #endif

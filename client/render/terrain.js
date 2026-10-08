@@ -159,6 +159,10 @@ export function groundFields(world) {
   const wet = new Float32Array(count);
   const ao = new Float32Array(count).fill(1);
   const canopy = new Float32Array(count);
+  // (bare ground, 0..1: soil - gravel and trodden dirt along the roads' edges, in the places' yards and in patches in
+  // the open; scree - broken stone along the foot of a mountain's cliffs. Less grass grows on either)
+  const soil = new Float32Array(count);
+  const scree = new Float32Array(count);
   const at = (i, j) => H[Math.max(0, Math.min(N - 1, j)) * N + Math.max(0, Math.min(N - 1, i))];
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
@@ -246,11 +250,32 @@ export function groundFields(world) {
       wet[k] = Math.max(smoothstep(0.02, 0.16, lap), smoothstep(WATER_LEVEL + 2.5, WATER_LEVEL + 0.4, h)) * (1 - road);
       rock[k] = smoothstep(0.16, 0.27, slope + n * 0.03) * (1 - road);
       // (a quarry's pit is bare stone, its benches and all: no grass in it)
-      if (pit) rock[k] = Math.max(rock[k], (1 - smoothstep(pit.r - 4, pit.r + 3, Math.hypot(x - pit.x, z - pit.z))) * (1 - road));
+      // (on the mainland: rock where it stands up, the ledges and the floor broken stone and grit, the floor's low
+      // places wet)
+      let pitIn = 0;
+      if (pit) {
+        pitIn = (1 - smoothstep(pit.r - 4, pit.r + 3, Math.hypot(x - pit.x, z - pit.z))) * (1 - road);
+        rock[k] = Math.max(rock[k], world.cliffAt ? pitIn * smoothstep(0.06, 0.16, slope) : pitIn);
+      }
       let mud = smoothstep(WATER_LEVEL + 1.3, WATER_LEVEL + 0.2, h);
       // trampled dirt yards in the busier places
       const yn = 0.5 + 0.5 * Math.sin(x * 0.21 + Math.cos(z * 0.17) * 2.3);
       mud = Math.max(mud, yard * (0.55 + 0.45 * yn));
+      // bare ground (on a world that asks for it: the mainland's - the island's ground is as it was)
+      if (world.cliffAt) {
+        const n3 = Math.sin(x * 0.071 + Math.cos(z * 0.053) * 1.7) * Math.cos(z * 0.067 - x * 0.021 + Math.sin(x * 0.029) * 1.3);
+        const n4 = Math.sin(x * 0.19 + Math.cos(z * 0.23) * 1.9) * Math.sin(z * 0.17 - x * 0.07);
+        // a ragged strip of gravel and dirt along every road's edge, wider where the edge wanders
+        const verge = paved[k] ? 0 : smoothstep(2.4, 3.4, rd) * (1 - smoothstep(4.2, 7.8, rd + n * 1.6 + n4 * 0.8));
+        // the yards round the places, trodden; and patches where nothing much grows, in the open and in clearings
+        const tread = open * (0.45 + 0.55 * smoothstep(-0.3, 0.4, n3 + n4 * 0.3));
+        const bare = smoothstep(0.42, 0.8, n3 * 0.7 + n4 * 0.35) * (1 - forest * 0.6) * 0.75;
+        soil[k] = Math.min(1, Math.max(verge * 0.85, tread * 0.8, bare, pitIn)) * (1 - road) * (1 - smoothstep(WATER_LEVEL + 1.6, WATER_LEVEL + 0.6, h));
+        if (pit && pitIn > 0) wet[k] = Math.max(wet[k], pitIn * smoothstep(0.2, 0.7, n4) * (1 - smoothstep(pit.floor - 6, pit.floor, Math.hypot(x - pit.x, z - pit.z))));
+        // the scree along a mountain's foot (in from its wall the faces are rock)
+        const dm = world.cliffAt(x, z);
+        scree[k] = dm > -20 ? (1 - smoothstep(2, 16, -dm + n4 * 2.5)) * (1 - road) : 0;
+      }
       const rest = (1 - road) * (1 - mud);
       const wg = (1 - forest) * rest;
       const wf = forest * rest;
@@ -280,9 +305,11 @@ export function groundFields(world) {
     out.rock = bl(rock);
     out.wet = bl(wet);
     out.canopy = bl(canopy);
+    out.soil = bl(soil);
+    out.scree = bl(scree);
     return out;
   };
-  f = { nrm, splat, base, rock, wet, ao, canopy, sample, paved: pavedAt };
+  f = { nrm, splat, base, rock, wet, ao, canopy, soil, scree, sample, paved: pavedAt };
   FIELDS.set(world, f);
   return f;
 }
@@ -297,6 +324,7 @@ export function buildTerrain(world) {
   const pos = new Float32Array(count * 3);
   const extra = new Float32Array(count * 4);
   const roadAttr = new Float32Array(count * 4);
+  const soilAttr = new Float32Array(count * 2);
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -313,6 +341,8 @@ export function buildTerrain(world) {
       roadAttr[k * 4 + 1] = frame.along[k];
       roadAttr[k * 4 + 2] = frame.hw[k];
       roadAttr[k * 4 + 3] = F.paved[k] ? 0 : frame.conf[k]; // (a paved yard: its layer as it is, no road's edges or lines)
+      soilAttr[k * 2] = F.soil[k];
+      soilAttr[k * 2 + 1] = F.scree[k];
     }
   }
   // One vertex buffer for the whole heightfield, drawn as TERRAIN_CHUNK x TERRAIN_CHUNK-cell pieces with an index
@@ -325,6 +355,7 @@ export function buildTerrain(world) {
     aSplat: new THREE.BufferAttribute(F.base, 4),
     aExtra: new THREE.BufferAttribute(extra, 4),
     aRoad: new THREE.BufferAttribute(roadAttr, 4),
+    aSoil: new THREE.BufferAttribute(soilAttr, 2),
   };
   // (the pieces are runs of one index buffer, and the terrain one mesh that draws those in sight in one call: multimesh.js)
   // On a world as big as the mainland a piece wholly past the drawing distance (the haze has everything there) is not
@@ -381,6 +412,9 @@ export function buildTerrain(world) {
     tMud: { value: tex('ground_mud') },
     tRock: { value: tex('rock') },
     tNoise: { value: tex('ground_noise') },
+    tDirt: { value: tex('ground_dirt') },
+    tGravel: { value: tex('gravel') },
+    uMain: { value: world.cliffAt ? 1 : 0 }, // (the mainland's ground: its forest floor broken up too - the island's as it was)
     tGroundNoise: VEG.tGroundNoise,
     // the mouths of the mine (x, z, and the unit vector into the drift): inside a portal the decline runs down
     // through the ground, which is not drawn there (the portal's own stone stands over the gap)
@@ -395,9 +429,9 @@ export function buildTerrain(world) {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nattribute vec4 aSplat;\nattribute vec4 aExtra;\nattribute vec4 aRoad;\nvarying vec4 vSplat;\nvarying vec4 vExtra;\nvarying vec4 vRoad;\nvarying vec3 vWPos;\nvarying vec3 vNw;',
+        '#include <common>\nattribute vec4 aSplat;\nattribute vec4 aExtra;\nattribute vec4 aRoad;\nattribute vec2 aSoil;\nvarying vec2 vSoil;\nvarying vec4 vSplat;\nvarying vec4 vExtra;\nvarying vec4 vRoad;\nvarying vec3 vWPos;\nvarying vec3 vNw;',
       )
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSplat = aSplat;\nvExtra = aExtra;\nvRoad = aRoad;\nvWPos = position;\nvNw = normal;');
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSplat = aSplat;\nvExtra = aExtra;\nvRoad = aRoad;\nvSoil = aSoil;\nvWPos = position;\nvNw = normal;');
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
@@ -409,12 +443,16 @@ export function buildTerrain(world) {
         uniform sampler2D tMud;
         uniform sampler2D tRock;
         uniform sampler2D tNoise;
+        uniform sampler2D tDirt;
+        uniform sampler2D tGravel;
+        uniform float uMain;
         uniform vec4 uHole[2];
         uniform float uCut;
         uniform vec3 uPit;
         varying vec4 vSplat;
         varying vec4 vExtra;
         varying vec4 vRoad;
+        varying vec2 vSoil;
         varying vec3 vWPos;
         varying vec3 vNw;
         ${GROUND_MACRO_GLSL}
@@ -506,6 +544,30 @@ export function buildTerrain(world) {
         w = max(b - ma, 0.0);
         w /= max(w.x + w.y + w.z, 1e-4);
         vec3 ground = cG.rgb * w.x + cF.rgb * w.y + cM.rgb * w.z;
+        // under the trees no one floor: patches of bare dark earth and needles between the moss and the litter
+        if (w.y > 0.05 && uMain > 0.5) {
+          vec3 earth = textureGrad(tDirt, ROT * wp * 0.31 + 0.71, rwx * 0.31, rwy * 0.31).rgb * vec3(0.62, 0.55, 0.47);
+          float ke = smoothstep(0.55, 0.75, nMid.g * 0.75 + nFine.b * 0.3 + (dot(earth, vec3(0.333)) - 0.2)) * w.y * uMain;
+          ground = mix(ground, earth, ke * 0.8);
+        }
+        // bare ground: gravel and trodden dirt (the roads' edges, the yards, patches in the open), and the scree of
+        // broken stone along a mountain's foot - each laid on by the height of its texel, so the edges are ragged
+        if (vSoil.x + vSoil.y > 0.01) {
+          vec3 dirtS = textureGrad(tDirt, ROT * wp * 0.27 + 0.13, rwx * 0.27, rwy * 0.27).rgb * vec3(0.95, 0.9, 0.84);
+          vec3 grav = textureGrad(tGravel, wp * 0.45, wx * 0.45, wy * 0.45).rgb * vec3(0.5, 0.48, 0.44);
+          vec3 bareC = mix(dirtS, grav, smoothstep(0.35, 0.65, nMid.g + (nFine.r - 0.5) * 0.3));
+          // (the quarry's ledges and floor: broken stone and grit, grey and dark in the pit's shade)
+          if (uPit.z > 0.0) bareC = mix(bareC, dot(bareC, vec3(0.333)) * vec3(0.62, 0.62, 0.64), 1.0 - smoothstep(uPit.z - 3.0, uPit.z + 6.0, distance(wp, uPit.xy)));
+          float ks = smoothstep(0.3, 0.7, vSoil.x + (dot(bareC, vec3(0.333)) - 0.32) * 1.2 + (nFine.r - 0.5) * 0.45);
+          ground = mix(ground, bareC, ks);
+          if (vSoil.y > 0.01) {
+            vec4 sc = triRock(tRock, vWPos * 2.1, normalize(vNw), 0.21, dpx * 2.1, dpy * 2.1);
+            vec4 sc2 = triRock(tRock, vWPos * 0.6 + 1.7, normalize(vNw), 0.21, dpx * 0.6, dpy * 0.6);
+            vec3 screeC = sc.rgb * (0.75 + 0.5 * sc2.w) * vec3(0.95, 0.93, 0.9);
+            float kc = smoothstep(0.3, 0.7, vSoil.y + (sc.w - 0.4) * 0.9 + (nMid.b - 0.5) * 0.5);
+            ground = mix(ground, screeC, kc);
+          }
+        }
         // steep slopes: rock breaks through (height-aware too)
         float rk = 0.0;
         if (vExtra.w > 0.01) {
@@ -517,7 +579,7 @@ export function buildTerrain(world) {
           rk = smoothstep(0.3, 0.7, vExtra.w + (cK.w - 0.35) * 0.9);
           // (the faces of the quarry's benches are cut stone in the shade of the pit: darker)
           float inPit = uPit.z > 0.0 ? 1.0 - smoothstep(uPit.z - 3.0, uPit.z + 6.0, distance(wp, uPit.xy)) : 0.0;
-          ground = mix(ground, cK.rgb * vec3(0.95, 0.97, 1.0) * (1.0 - 0.42 * inPit), rk);
+          ground = mix(ground, cK.rgb * vec3(1.08, 1.1, 1.12) * (1.0 - 0.42 * inPit), rk);
         }
         // the mountains (the mainland's: nothing on the island stands this high): bare rock up high whatever its slope,
         // scree - paler, broken stone - where the faces ease off, and snow lying on the flatter ground near the tops
@@ -528,7 +590,7 @@ export function buildTerrain(world) {
           vec4 cR = triRock(tRock, vWPos, normalize(vNw), 0.16, dpx, dpy);
           vec4 cR2 = triRock(tRock, vWPos * 0.29 + vec3(1.3, 0.0, 4.1), normalize(vNw), 0.16, dpx * 0.29, dpy * 0.29);
           cR = vec4(cR.rgb * (0.68 + 0.64 * cR2.w), cR.w * (0.68 + 0.64 * cR2.w));
-          vec3 rockC = cR.rgb * vec3(0.7, 0.69, 0.68);
+          vec3 rockC = cR.rgb * vec3(0.8, 0.79, 0.78);
           float scree = smoothstep(0.62, 0.86, vNw.y) * (1.0 - smoothstep(0.86, 0.97, vNw.y));
           rockC = mix(rockC, cR.w * vec3(1.16, 1.12, 1.06) + 0.05, scree * 0.55);
           ground = mix(ground, rockC, hi * (0.55 + 0.45 * (1.0 - rk)));
@@ -590,7 +652,7 @@ export function buildTerrain(world) {
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'terrain-splat-6';
+  mat.customProgramCacheKey = () => 'terrain-splat-7';
   const group = new THREE.Group();
   group.name = 'terrain';
   const mesh = new MultiMesh(geo, mat, runs);
@@ -625,9 +687,12 @@ export function buildTerrain(world) {
         const woods = world.forestAt ? world.forestAt(x, z) * (1 - smoothstep(110, 150, h)) * smoothstep(0.55, 0.8, ny) : 0;
         const snow = smoothstep(180, 215, h) * smoothstep(0.55, 0.8, ny);
         const n = 0.85 + 0.3 * (((i * 7919 + j * 104729) % 97) / 97);
-        let r = 0.2 * n;
-        let g = 0.195 * n;
-        let b = 0.185 * n;
+        // (rock up high and on the faces; the lowland's meadow under it, olive, and the city's paving grey)
+        const low = (1 - smoothstep(24, 60, h)) * smoothstep(0.75, 0.9, ny);
+        const town = world.city && Math.abs(x - world.city.x) < world.city.grid * world.city.pitch * 0.55 && Math.abs(z - world.city.z) < world.city.grid * world.city.pitch * 0.55 ? 1 : 0;
+        let r = (0.2 + (0.1 - 0.2) * low + (0.17 - 0.1) * low * town) * n;
+        let g = (0.195 + (0.11 - 0.195) * low + (0.165 - 0.11) * low * town) * n;
+        let b = (0.185 + (0.05 - 0.185) * low + (0.15 - 0.05) * low * town) * n;
         r = r + (0.05 - r) * woods;
         g = g + (0.07 - g) * woods;
         b = b + (0.045 - b) * woods;
@@ -640,7 +705,9 @@ export function buildTerrain(world) {
     const fi = [];
     for (let j = 0; j < FN - 1; j++) {
       for (let i = 0; i < FN - 1; i++) {
-        if (Math.max(fh(i, j), fh(i + 1, j), fh(i, j + 1), fh(i + 1, j + 1)) < 24) continue;
+        // (the lowland too, all of it that is dry: from high up the land runs on into the haze under the ranges, where it
+        // was the sky's white with the mountains standing over it)
+        if (Math.max(fh(i, j), fh(i + 1, j), fh(i, j + 1), fh(i + 1, j + 1)) < WATER_LEVEL - 0.5) continue;
         const k = j * FN + i;
         fi.push(k, k + FN, k + 1, k + 1, k + FN, k + FN + 1);
       }

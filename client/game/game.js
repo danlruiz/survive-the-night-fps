@@ -112,6 +112,7 @@ import { Voice } from './voice.js';
 import { Environment } from '../render/environment.js';
 import { buildTerrain, buildWater } from '../render/terrain.js';
 import { buildMine } from '../render/mine.js';
+import { buildShips } from '../render/ships.js';
 import { buildClinic, disposeClinic } from '../render/clinic.js';
 import { Graves } from '../render/cemetery.js';
 import { buildRailway } from '../render/railway.js';
@@ -554,6 +555,7 @@ export class Game {
     if (this.railway) this.scene.add(this.railway);
     this.bridge = this.world.bridge ? new BridgeView(this.scene, this.world) : null; // (the mainland: the bridge the car came over)
     this.live = liveProps(this.scene, this.world); // (...the car they came in and the plane: the props a cutscene moves)
+    this.ships = buildShips(this.scene, this.world); // (the mainland's: the freighter at the docks' quay, drawn only)
     this.under = 0;
     const t2 = performance.now();
     this.staticWorld = new StaticWorld(this.scene, this.world);
@@ -610,6 +612,8 @@ export class Game {
     this.bridge = null;
     this.live?.dispose();
     this.live = null;
+    for (const g of this.ships || []) this.scene.remove(g); // (their models are the props' kit's, cached: nothing to free)
+    this.ships = [];
     if (this.mine) {
       this.scene.remove(this.mine);
       for (const mesh of this.mine.children) {

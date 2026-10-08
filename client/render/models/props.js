@@ -3064,16 +3064,48 @@ BUILD.litter = (b, r, v) => {
 
 // What came off a building, small enough to step over: bricks, lumps of concrete, a bent bar.
 BUILD.debris = (b, r, v) => {
-  // broken concrete: lumps and bits of slab with their broken faces every way up, lying in their own grit
-  for (let k = 0; k < 6 + v * 2; k++) {
-    const sz = rr(r, 0.16, 0.42);
-    b.box(k % 4 === 3 ? 'brick' : 'concrete', sz * rr(r, 0.9, 1.5), sz * rr(r, 0.45, 0.8), sz * rr(r, 0.7, 1.2), { p: [rr(r, -0.95, 0.95), sz * 0.22, rr(r, -0.95, 0.95)], r: [rr(r, -0.7, 0.7), r() * PI, rr(r, -0.7, 0.7)] });
+  // A low drift of grit and broken stuff, highest in the middle and feathered out to nothing at its edge (it lies on
+  // the ground, it is no pad on it), with the lumps sunk in it: broken concrete with its faces every way up, bricks
+  // whole and in halves, a bit of slab half buried, a bent bar.
+  const H = 0.16 + v * 0.05;
+  const prof = [[1.3, -0.03], [1.24, 0.004], [1.0, H * 0.3], [0.7, H * 0.68], [0.36, H * 0.92], [0.001, H]];
+  const g = new THREE.LatheGeometry(prof.map(([x, y]) => new THREE.Vector2(x, y)), 14);
+  const ph = [r() * 6, r() * 6, r() * 6];
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const a = Math.atan2(z, x);
+    // (lumpy, longer one way than the other; the rim stays on the ground)
+    const s = 1 + 0.22 * Math.sin(a * 2 + ph[0]) + 0.1 * Math.sin(a * 5 + ph[1]);
+    const lift = y > 0.01 ? 1 + 0.35 * Math.sin(a * 3 + ph[2]) * (y / H) : 1;
+    pos.setXYZ(i, x * s, y * lift, z * s * 0.85);
   }
-  for (let k = 0; k < 12; k++) b.box('brick', 0.22, 0.07, 0.1, { p: [rr(r, -1.15, 1.15), 0.04 + r() * 0.05, rr(r, -1.15, 1.15)], r: [rr(r, -0.3, 0.3), r() * PI, rr(r, -0.3, 0.3)] });
-  b.box('concrete', rr(r, 0.7, 1.1), 0.13, rr(r, 0.45, 0.7), { p: [rr(r, -0.6, 0.6), 0.11, rr(r, -0.6, 0.6)], r: [0.14, r() * PI, -0.12] });
-  const x = rr(r, -0.6, 0.6), z = rr(r, -0.6, 0.6);
-  b.tube('rust', [[x - 0.6, 0.03, z], [x, 0.06, z + 0.15], [x + 0.4, 0.2, z + 0.1], [x + 0.55, 0.4, z + 0.3]], 0.012, 8, 4);
-  b.cyl('gravel', 1.25, 1.3, 0.02, 9, { p: [0, 0.01, 0], r: [0, r() * PI, 0] }); // the dust and grit it lies in
+  g.computeVertexNormals();
+  const uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) * 0.7, pos.getZ(i) * 0.7);
+  b.add('gravel', g, { raw: true });
+  const top = (x, z) => H * Math.max(0, 1 - Math.hypot(x / 1.1, z / 0.95)) ** 0.8;
+  // lumps of concrete, half in the drift
+  for (let k = 0; k < 5 + v * 2; k++) {
+    const x = rr(r, -0.85, 0.85), z = rr(r, -0.7, 0.7);
+    const sz = rr(r, 0.12, 0.3) * (1.2 - Math.hypot(x, z) * 0.4);
+    b.rock(k % 5 === 4 ? 'brick' : 'concrete', sz, { detail: 0, seed: 70 + k * 7 + v * 31, scale: [rr(r, 1, 1.5), rr(r, 0.55, 0.85), 1], p: [x, top(x, z) + sz * 0.1, z], r: [0, r() * PI, 0] });
+  }
+  // bricks, lying every way on it and round its edge
+  for (let k = 0; k < 10; k++) {
+    const a = r() * PI * 2, d = rr(r, 0.15, 1.25);
+    const x = Math.cos(a) * d, z = Math.sin(a) * d * 0.85;
+    const half = k % 3 === 0;
+    b.box('brick', half ? 0.11 : 0.22, 0.065, 0.1, { p: [x, top(x, z) + 0.02, z], r: [rr(r, -0.35, 0.35), r() * PI, rr(r, -0.35, 0.35)] });
+  }
+  // a piece of slab, its far edge in the drift and the near one on the ground
+  {
+    const x = rr(r, -0.4, 0.4), z = rr(r, -0.35, 0.35);
+    const w = rr(r, 0.55, 0.85);
+    b.box('concrete', w, 0.1, rr(r, 0.4, 0.6), { p: [x, top(x, z) * 0.6 + 0.02, z], r: [Math.atan2(top(x, z), w) * 0.8, r() * PI, rr(r, -0.06, 0.06)] });
+  }
+  const x = rr(r, -0.5, 0.5), z = rr(r, -0.5, 0.5);
+  b.tube('rust', [[x - 0.6, 0.02, z], [x, top(x, z) + 0.03, z + 0.15], [x + 0.4, top(x, z) + 0.18, z + 0.1], [x + 0.55, top(x, z) + 0.38, z + 0.3]], 0.012, 8, 4);
 };
 
 // A slope of rubble that can be walked up: what a storey came down as. Its colliders are six steps (props.js); the
@@ -3392,6 +3424,123 @@ BUILD.shipping_container = (b, r, v) => {
     });
     if (ajar) b.box('dark', 1.1, H - 0.3, 0.02, { p: [sx * 0.57, H / 2, D / 2 - 0.05] });
   }
+};
+
+// A cargo ship 120 m long (the docks' freighter, drawn only: its solids are the docks' own boxes). Its origin is its
+// keel under the middle of the hull, the bow to -Z. The hull is lofted from one section - a flat bottom, the bilge, the
+// side standing straight to the deck - pinched to a raked stem with its flare (each height runs further forward than
+// the one under it), the run of the stern lifted aft of the midbody to a flat transom; painted in bands at their
+// heights (antifouling under the waterline, the boot-top at it, the topsides, the sheer line). On deck: the rails, the
+// house aft with its windows, the bridge and its wings, the funnel, a mast forward, the anchors in their hawses.
+BUILD.freighter_hull = (b) => {
+  const D = 12; // keel to main deck
+  const WL = 4.6; // the waterline
+  // the section, half of it, from the keel out and up: [x, y]
+  const SEC = [[0, 0], [7.4, 0], [8.7, 0.3], [9.5, 1.0], [9.9, 2.0], [10, 3.2], [10, WL - 0.3], [10, WL + 0.4], [10, 8.5], [10, D - 0.6], [10, D]];
+  const BANDS = [[0, 6, [0.33, 0.1, 0.07]], [6, 7, [0.04, 0.04, 0.045]], [7, 9, [0.075, 0.11, 0.165]], [9, 10, [0.62, 0.6, 0.55]]];
+  const zs = [];
+  for (let z = -74; z < -40; z += 1.7) zs.push(z);
+  for (let z = -40; z < 40; z += 10) zs.push(z);
+  for (let z = 40; z <= 60.01; z += 2.5) zs.push(z);
+  // a point of the section at station z
+  const at = (z, x0, y0) => {
+    let x = x0, y = y0;
+    if (z > 40) {
+      const s = Math.min(1, (z - 40) / 20);
+      const keel = 4.4 * s * s;
+      if (y < keel) y = keel + (y - keel) * 0.1;
+      x *= 1 - 0.1 * s * s;
+    }
+    if (z < -40) {
+      const stem = -66 - 8 * (y / D);
+      const f = Math.min(1, (-40 - z) / (-40 - stem));
+      x *= Math.sqrt(Math.max(0, 1 - f ** 2.2));
+    }
+    return [x, y];
+  };
+  for (const [j0, j1, col] of BANDS) {
+    for (const side of [1, -1]) {
+      const pos = [], uv = [], idx = [];
+      const m = j1 - j0 + 1;
+      for (const z of zs) {
+        for (let j = j0; j <= j1; j++) {
+          const [x, y] = at(z, SEC[j][0], SEC[j][1]);
+          pos.push(x * side, y, z);
+          uv.push(z, y);
+        }
+      }
+      for (let i = 0; i + 1 < zs.length; i++) {
+        for (let j = 0; j + 1 < m; j++) {
+          const a = i * m + j, bb = a + 1, c = a + m, d = c + 1;
+          if (side > 0) idx.push(a, bb, c, bb, d, c);
+          else idx.push(a, c, bb, bb, c, d);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      b.add('paint', g, { raw: true, c: col });
+    }
+  }
+  // the transom: the last section, closed (a fan from its middle)
+  {
+    const z = zs[zs.length - 1];
+    const ring = [];
+    for (let j = 0; j < SEC.length; j++) ring.push(at(z, SEC[j][0], SEC[j][1]));
+    const pos = [0, 8, z];
+    for (const [x, y] of ring) pos.push(x, y, z);
+    for (let j = ring.length - 1; j >= 0; j--) pos.push(-ring[j][0], ring[j][1], z);
+    const idx = [];
+    const n = ring.length * 2;
+    for (let k = 1; k < n; k++) idx.push(0, k, k + 1);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(pos.flatMap((v, i) => (i % 3 === 0 ? [v] : i % 3 === 1 ? [v] : [])), 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    b.add('paint', g, { raw: true, c: [0.075, 0.11, 0.165] });
+  }
+  // the rails along the deck's edge: a post every 2.5 m, a top rail and a middle one, following the sheer round the bow
+  const edge = (z) => at(z, 10, D)[0];
+  for (const side of [1, -1]) {
+    for (let z = -71; z < 59; z += 2.5) {
+      const x = edge(z) * side - side * 0.12;
+      b.box('steel', 0.07, 1.1, 0.07, { p: [x, D + 0.55, z] });
+    }
+    for (let i = 0; i + 1 < zs.length; i++) {
+      const [z0, z1] = [zs[i], zs[i + 1]];
+      const [x0, x1] = [edge(z0) * side - side * 0.12, edge(z1) * side - side * 0.12];
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      if (len < 0.05) continue;
+      for (const y of [D + 1.1, D + 0.6]) b.box('steel', 0.05, 0.05, len, { p: [(x0 + x1) / 2, y, (z0 + z1) / 2], r: [0, Math.atan2(x1 - x0, z1 - z0), 0] });
+    }
+  }
+  // the anchors in their hawses, either side of the bow
+  for (const side of [1, -1]) b.cyl('dark', 0.55, 0.55, 0.3, 10, { p: [edge(-64) * side * 0.98, 9.6, -64], r: [0, 0, PI / 2] });
+  // the house aft: four decks of it, windows along its front and portholes down its sides; the bridge over it with
+  // its wings and the band of its windows; the funnel with its band
+  const HZ = 50; // (the middle of the house)
+  const white = [0.74, 0.72, 0.66];
+  b.box('paint', 16, 12, 12, { p: [0, D + 6, HZ], c: white });
+  for (let k = 0; k < 4; k++) {
+    const y = D + 1.6 + k * 2.8;
+    b.box('paint', 16.3, 0.18, 12.3, { p: [0, y + 1.25, HZ], c: [0.6, 0.58, 0.53] }); // (each deck's edge)
+    for (let w = -3; w <= 3; w++) b.box('dark', 1.3, 0.95, 0.06, { p: [w * 2.1, y, HZ - 6.02] });
+    for (const side of [1, -1]) for (let w = -2; w <= 2; w++) b.cyl('dark', 0.24, 0.24, 0.06, 10, { p: [side * 8.02, y, HZ + w * 2.2], r: [0, 0, PI / 2] });
+  }
+  b.box('paint', 20, 3.2, 7, { p: [0, D + 12 + 1.6, HZ - 1], c: white });
+  b.box('dark', 19.2, 1.15, 0.06, { p: [0, D + 12 + 1.9, HZ - 4.52] });
+  for (const side of [1, -1]) b.box('dark', 0.06, 1.15, 5.6, { p: [side * 10.02, D + 12 + 1.9, HZ - 1] });
+  b.box('paint', 20.4, 0.25, 7.4, { p: [0, D + 15.3, HZ - 1], c: [0.55, 0.54, 0.5] });
+  b.cyl('paint', 1.85, 1.85, 7, 14, { p: [0, D + 15.2 + 3.5, HZ + 4], c: [0.08, 0.08, 0.09] });
+  b.cyl('paint', 1.88, 1.88, 1.3, 14, { p: [0, D + 15.2 + 4.6, HZ + 4], c: [0.5, 0.12, 0.08] });
+  b.cyl('dark', 1.95, 1.95, 0.3, 14, { p: [0, D + 15.2 + 7.1, HZ + 4] });
+  // a mast forward with its crosstree, and its lamp
+  b.box('steel', 0.45, 14, 0.45, { p: [0, D + 7, -50] });
+  b.box('steel', 4.4, 0.25, 0.25, { p: [0, D + 11.5, -50] });
+  b.cyl('dark', 0.18, 0.18, 0.4, 8, { p: [0, D + 14.2, -50] });
 };
 
 // A substation transformer: a steel tank with banks of cooling fins down both sides, three bushings on its lid, on

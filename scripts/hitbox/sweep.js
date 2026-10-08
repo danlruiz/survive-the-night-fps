@@ -243,6 +243,8 @@ export async function drawnWorld(world, log = () => {}) {
   };
   if (world.bridge) await tryView('bridge', async () => new (await import('../../client/render/bridge.js')).BridgeView(scene, world));
   await tryView('clinic', async () => (await import('../../client/render/clinic.js')).buildClinic(world));
+  // (a ship at a quay is drawn by a model of its own over the place's hidden boxes)
+  if (world.ships?.length) await tryView('ships', async () => (await import('../../client/render/ships.js')).buildShips(scene, world));
   log(`  + the bridge, the clinic: ${soup.n}`);
   const fixed = soup.finish(2);
   // the props: one set of triangles a model, a place and a turn each
