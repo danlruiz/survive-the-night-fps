@@ -3055,6 +3055,7 @@ export class Game {
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it
     this.staticWorld.update(cam.position, this.viewDist);
     this.terrain?.userData.update?.(cam.position, this.viewDist);
+    this.bridge?.update(cam.position, this.viewDist);
     this.foliage.update(cam.position, this.env.fogVisibility, time, weather, cam);
     if (this.water) {
       const u = this.water.material.uniforms;
@@ -3233,6 +3234,7 @@ export class Game {
     this.env.update(dt, 0.49, cam.position, this.time, weather);
     this.staticWorld.update(cam.position, this.env.fogVisibility + 40);
     this.terrain?.userData.update?.(cam.position, this.env.fogVisibility + 40);
+    this.bridge?.update(cam.position, this.env.fogVisibility + 40);
     this.foliage.update(cam.position, this.env.fogVisibility, this.time, weather, cam);
     this.lights.update(dt, this.time, cam.position, false, this.staticFires, [], this.env.night);
     this.power.update(dt, this.time, cam.position, this.env.night); // (no floodlight is left lit from the game before)
