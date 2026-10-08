@@ -67,6 +67,7 @@ const PAVE = 0.1; // a block's paving stands this far over the city's level (the
 const FLOOR_Y = 0.12; // ...and a room's floor this far (Builder.room's slab)
 const QUAY_LX = -150; // the docks' quay edge, m west of the middle of the place (where the picture's piers start)
 const QUAY_HZ = 128; // ...and how far it runs north and south of it
+const LEDGES = 0; // (the mountains' faces stepped in ledges, 0..1: mountainUp - off: they did not read from the ground, and the dead's grid and the hitbox sweep took the steps for standing room)
 const SETBACK = 1.2; // a building's front wall stands this far in from the edge of its lot
 const CARPARK_DECK = 3.2; // from one deck of the multi-storey car park to the next
 const SITE_FLAT = 5.5; // the ground is levelled this far round a roadside site
@@ -566,7 +567,14 @@ export function createMainland(seed) {
     // (and from its very foot the rock is broken: slabs, ribs and ledges a metre or three proud, every few metres - the
     // face a survivor stands under is no smooth bank)
     const rough = nB(x * 0.21 + 1.7, z * 0.21 - 3.3) * 1.5 + Math.abs(nP(x * 0.11 - 2.4, z * 0.11 + 5.1)) * 3.4 - 1.3;
-    return Math.max(cliff + d * 0.9, Math.min(env, pyramids(x, z) + g)) + crag * smoothstep(inTo, 36, d) + rough * smoothstep(0, 8, d);
+    const hm = Math.max(cliff + d * 0.9, Math.min(env, pyramids(x, z) + g)) + crag * smoothstep(inTo, 36, d) + rough * smoothstep(0, 8, d);
+    // (and the faces stepped in ledges: a band of rock 8-13 m high, its riser near sheer, its ledge nearly flat - where
+    // a few trees take hold - the bands wandering across the face, so it reads as strata and shelves, not one smooth bank)
+    const L = 8 + 5 * (0.5 + 0.5 * nB(x * 0.017 + 3.3, z * 0.017 - 1.1));
+    const off = (0.5 + 0.5 * nB(x * 0.009 - 5.1, z * 0.009 + 2.2)) * L;
+    const t = (hm + off) / L;
+    const stepped = (Math.floor(t) + smoothstep(0.3, 0.95, t - Math.floor(t))) * L - off;
+    return lerp(hm, stepped, 0.8 * smoothstep(2, 14, d) * LEDGES);
   };
   // outside one, near its foot: the foothills, rising toward the cliff (none of it on the water)
   const foothill = (x, z, d) => (d > -FOOTHILL_IN ? FOOTHILL * (1 - smoothstep(0, FOOTHILL_IN, -d)) ** 1.6 * (0.55 + 0.45 * (0.5 + 0.5 * nB(x * 0.008 - 2.2, z * 0.008 + 6.4))) : 0);
@@ -1409,7 +1417,12 @@ export function createMainland(seed) {
   // what fell out of a wall, at its foot: lumps and slabs on the pavement (nothing solid: it is walked over)
   const skirt = (b, x, z, ly = PAVE) => {
     b.prop('debris', x, z, rng.range(0, 6), { nocollide: true, ly, seed: rng.int(0, 2) });
-    for (let k = rng.int(1, 2); k > 0; k--) b.box(x + rng.range(-1.6, 1.6), ly + rng.range(0, 0.25), z + rng.range(-1, 1), rng.range(1.1, 2.4), 0.2, rng.range(0.9, 1.7), 'concrete', { ry: rng.range(0, 3), rz: rng.range(-0.55, 0.55), rx: rng.range(-0.2, 0.2), collide: false });
+    // (slabs of the paving broken up, lying tipped low on the rubble - not standing on edge across the road)
+    for (let k = rng.int(1, 2); k > 0; k--) {
+      const [sx, sy, sz] = [x + rng.range(-1.6, 1.6), ly + rng.range(0, 0.25), z + rng.range(-1, 1)];
+      const [w, d, ry, rz, rx] = [rng.range(1.1, 2.4), rng.range(0.9, 1.7), rng.range(0, 3), rng.range(-0.55, 0.55) * 0.45, rng.range(-0.2, 0.2) * 0.5];
+      b.box(sx, ly - 0.1 + (sy - ly) * 0.2, sz, w, 0.2, d, 'concrete', { ry, rz: rz * 0.5, rx: rx * 0.5, collide: false });
+    }
   };
   // the stairs up, in a corner of a ground floor: gone under what fell down them
   const stairBlock = (b, x, z) => {
@@ -2562,27 +2575,42 @@ export function createMainland(seed) {
     const L = { x: city.x, z: city.z - 28, w: 42, d: 42, ry: Math.atan2(0, -1), bi: SQ0, bj: SQ0, what: 'hall' };
     lots.push(L);
     BUILD.hall(new Builder(L.x, L.z, L.ry, cityH), L);
-    // the memorial: a plinth and its column, the benches round it, the lamps at the corners of the paving
-    b.box(0, PAVE, 30, 3.4, 1.3, 3.4, 'stone');
-    b.cyl(0, PAVE + 1.3, 30, 0.55, 4.2, 'stone', { sides: 10 });
-    b.box(0, PAVE + 5.5, 30, 1.6, 0.5, 1.6, 'stone', { collide: false });
-    for (const [lx, lz, ry] of [[-7, 30, -PI / 2], [7, 30, PI / 2], [0, 37, PI], [0, 23, 0]]) if (fits(b, 'street_bench', lx, lz, ry, PAVE)) b.prop('street_bench', lx, lz, ry, { ly: PAVE });
+    // the fountain in the middle of the south half: its basin of stone, the water standing dark in it, the column in
+    // the middle; a ring of trees round it in their kerbed beds, benches between them facing it, lamps on the ring
+    const FZ = 32;
+    b.cyl(0, PAVE, FZ, 5, 0.7, 'stone', { sides: 20 });
+    b.cyl(0, PAVE + 0.7, FZ, 4.5, 0.02, 'dark', { sides: 20, collide: false });
+    b.cyl(0, PAVE, FZ, 0.7, 2.6, 'stone', { sides: 10 });
+    b.cyl(0, PAVE + 2.6, FZ, 1.4, 0.3, 'stone', { sides: 12, collide: false });
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * PI * 2 + PI / 8;
+      const [tx, tz] = [Math.sin(a) * 11, FZ + Math.cos(a) * 11];
+      if (Math.cos(a) < -0.7) continue; // (open toward the hall)
+      b.box(tx, PAVE, tz, 2.4, 0.3, 2.4, 'concrete');
+      b.tree(tx, tz, k % 3 === 0 ? 5 : 1, 0.75 + (k % 3) * 0.1);
+      const ba = a + PI / 8;
+      const [bx2, bz2] = [Math.sin(ba) * 8.2, FZ + Math.cos(ba) * 8.2];
+      if (fits(b, 'street_bench', bx2, bz2, ba + PI, PAVE)) b.prop('street_bench', bx2, bz2, ba + PI, { ly: PAVE });
+      if (k % 2 === 0 && fits(b, 'streetlight', Math.sin(ba) * 12.5, FZ + Math.cos(ba) * 12.5, 0, PAVE)) b.prop('streetlight', Math.sin(ba) * 12.5, FZ + Math.cos(ba) * 12.5, ba, { ly: PAVE });
+    }
     for (const [lx, lz] of [[-E + 2, 6], [E - 2, 6], [-E + 2, E - 2], [E - 2, E - 2], [-E + 2, -6], [E - 2, -6]]) if (fits(b, 'streetlight', lx, lz, 0, PAVE)) b.prop('streetlight', lx, lz, lx < 0 ? -PI / 2 : PI / 2, { ly: PAVE });
-    for (const [lx, lz] of [[-20, 42], [20, 42], [-34, 18], [34, 18]]) b.tree(lx, lz, rng.int(3, 4), rng.range(0.9, 1.15));
+    // rows of trees down the square's sides, between the paving and the parked cars
+    for (const sx of [-1, 1]) for (let lz = 10; lz <= 48; lz += 9.5) { b.box(sx * 42, PAVE, lz, 2.2, 0.3, 2.2, 'concrete'); b.tree(sx * 42, lz, 1, 0.8); }
     for (let n = 0; n < 14; n++) b.prop(['litter', 'paper_scatter', 'debris', 'glass_shards'][n & 3], rng.range(-40, 40), rng.range(10, 48), rng.range(0, 6), { nocollide: true, ly: PAVE, seed: n & 1 });
     // the market that was set up on it the last week: stalls in two rows either side of the memorial, their awnings,
     // counters and what was left on them
     const put = (type, lx, lz, ry, o = {}) => fits(b, type, lx, lz, ry, PAVE) && b.prop(type, lx, lz, ry, { ly: PAVE, ...o });
     const stall = (lx, lz, k) => {
-      for (const [px, pz] of [[-1.5, -1], [1.5, -1], [-1.5, 1], [1.5, 1]]) b.cyl(lx + px, PAVE, lz + pz, 0.06, 2.5, 'rust', { sides: 6, collide: false });
+      for (const [px, pz] of [[-1.5, -1], [1.5, -1], [-1.5, 1], [1.5, 1]]) b.cyl(lx + px, PAVE, lz + pz, 0.06, 2.5, 'rust', { sides: 6 });
       b.box(lx, PAVE, lz - 0.6, 3, 0.95, 0.9, 'planks');
       b.box(lx, PAVE + 2.45, lz, 3.4, 0.08, 2.6, k % 2 ? 'tin' : 'tin_rust', { rx: 0.16, collide: false });
       put('crate_small', lx - 0.8, lz + 0.5, 0.3, { seed: k & 1 });
       if (k % 3 === 0) put('crate', lx + 0.9, lz + 0.6, -0.2, { seed: 1 });
     };
     let k = 0;
-    for (const lz of [16, 44]) for (const lx of [-38, -28, -18, 18, 28, 38]) stall(lx, lz, k++);
-    for (const [lx, lz] of [[-23, 30], [23, 30]]) put('picnic_table', lx, lz, 0.2);
+    for (const lx of [-31, -22, -13, 13, 22, 31]) stall(lx, 47, k++); // (along the south edge, facing the fountain)
+    for (const lx of [-31, -22, 22, 31]) stall(lx, 17, k++);
+    for (const [lx, lz] of [[-24, 32], [24, 32]]) put('picnic_table', lx, lz, 0.2);
     // the evacuation point the army set up by the town hall: its tents, the triage tent, sandbags, barriers on Main
     // Street's kerb, the board
     put('military_tent', -38, -30, PI / 2);
@@ -3091,38 +3119,57 @@ export function createMainland(seed) {
       afloat(q.prop('boat', QX - pr.len + 6, pr.z - 6.5, PI / 2 + 0.1, { y: WATER_LEVEL - 0.15, nocollide: true, seed: (pr.len & 1) }));
       afloat(q.prop('boat', pr.fingers[0][0] - 4.6, pr.z + 30, 0.05, { y: WATER_LEVEL - 0.15, nocollide: true, seed: 2 }));
     }
-    for (let lz = QZ0 + 6; lz < QZ1; lz += 13) if (PIERS.every((pr) => Math.abs(lz - pr.z) > 7)) q.prop('dock_post', QX + 1.6, lz, 0);
-    // the cranes on their rails at the quay's edge: a gantry on four legs, the machinery house and the cab on it, the
-    // boom out over the water and its hook hanging; the rails under them the length of the quay
-    for (const rx of [QX + 2.2, QX + 11.8]) q.box(rx, 0, 0, 0.16, 0.14, QZ1 - QZ0, 'metal', { collide: false });
-    for (const lz of [-92, -30, 40]) {
-      const cx = QX + 7;
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) q.box(cx + sx * 4.8, 0, lz + sz * 4.5, 0.8, 17, 0.8, 'rust');
-      for (const sz of [-1, 1]) q.box(cx, 6, lz + sz * 4.5, 10.4, 0.5, 0.5, 'rust', { collide: false }); // (the gantry's cross-ties)
-      q.box(cx, 17, lz, 11.2, 1.4, 10.4, 'rust', { collide: false });
-      q.box(cx + 2, 18.4, lz, 6, 3.6, 6, 'tin_rust', { collide: false }); // the machinery house
-      q.box(cx - 5, 15.4, lz + 3.4, 2.6, 2.4, 2.6, 'tin', { collide: false }); // the cab
-      q.box(cx - 19, 18.6, lz, 30, 0.9, 1.4, 'rust', { collide: false }); // the boom
-      q.box(cx + 9, 18.2, lz, 6, 1.8, 3, 'concrete', { collide: false }); // (its counterweight)
-      q.box(cx - 30, 10.6, lz, 0.1, 8, 0.1, 'metal', { collide: false }); // the hook's cable
-      q.box(cx - 30, 10.2, lz, 0.9, 0.5, 0.9, 'rust', { collide: false });
+    for (let lz = QZ0 + 6; lz < QZ1; lz += 13) if (PIERS.every((pr) => Math.abs(lz - pr.z) > 7) && [-98, -40, 22, 84].every((c) => Math.abs(lz - c) > 10)) q.prop('dock_post', QX + 1.6, lz, 0); // (not under a crane's legs)
+    // A 40 ft box: two of the kit's 20 ft containers end to end along z (12.1 m), one colour (a stack of them, n high)
+    const box40 = (b, lx, lz, ly, seed, ry = 0) => {
+      const [dx, dz] = [Math.sin(ry) * 3.04, Math.cos(ry) * 3.04];
+      for (const sd of [-1, 1]) b.prop('shipping_container', lx + dx * sd, lz + dz * sd, ry, { ly, seed: seed & 3 });
+    };
+    // THE SHIP-TO-SHORE CRANES on their rails along the quay's edge: four legs 30 m high astride the rails, the portal
+    // ties, the boom - 45 m out over the water and 18 m back over the apron - its trolley and the cab under it, the
+    // spreader hanging on its cables, the machinery house over the legs, the apex and its stays
+    const RAIL = [QX + 2.4, QX + 18.4];
+    for (const rx of RAIL) q.box(rx, 0, 0, 0.18, 0.16, QZ1 - QZ0, 'metal', { collide: false });
+    const CRANES = [-98, -40, 22, 84];
+    for (const lz of CRANES) {
+      const [x0, x1] = RAIL;
+      for (const lx of [x0, x1]) for (const sz of [-1, 1]) q.box(lx, 0, lz + sz * 7.5, 1.3, 30, 1.3, 'rust');
+      for (const lx of [x0, x1]) q.box(lx, 0, lz, 1.6, 1.4, 16.4, 'rust'); // (the sill beams, the wheels' bogies on the rails)
+      for (const sz of [-1, 1]) for (const y of [12, 29]) q.box((x0 + x1) / 2, y, lz + sz * 7.5, x1 - x0, 1, 1, 'rust', { collide: false });
+      for (const sz of [-1, 1]) q.box(QX - 13.5, 31, lz + sz * 1.9, 63, 2.2, 1.2, 'rust', { collide: false }); // the boom
+      for (const d of [0, 1]) q.box(QX - 13.5, 33.2 + d * 0.1, lz, 63, 0.3, 4.6, 'rust', { collide: false }); // (its walkway)
+      q.box(x0 + 8, 33.4, lz, 8, 9, 3.6, 'rust', { collide: false }); // the apex
+      q.box(x1 + 6, 31, lz, 9, 5, 9, 'tin', { collide: false }); // the machinery house
+      const tx = QX - 14; // (where the trolley stopped: over the ship's hold)
+      q.box(tx, 30, lz, 4, 1.2, 5, 'metal', { collide: false }); // the trolley
+      q.box(tx + 1, 26.6, lz + 2.6, 3.2, 3, 3.2, 'tin', { collide: false }); // the cab
+      for (const sz of [-1, 1]) q.box(tx, 16, lz + sz * 1.6, 0.08, 14, 0.08, 'metal');
+      q.box(tx, 15.4, lz, 2.6, 0.7, 12.2, 'rust'); // the spreader
     }
-    // the freighter moored along the quay under the middle crane: its hull, the deck stacked with containers, the
-    // house and the bridge at its stern, its funnel; ropes to the bollards
+    // THE FREIGHTER, moored tight against the quay under the cranes: a hull 120 m long whose side stands over the quay,
+    // its holds stacked with containers in bays, the house and the bridge at the stern, the funnel, a mast forward,
+    // lines to the bollards
     {
-      const SX = QX - 8.2, SZ = -24, SL = 64, SW = 13;
-      const deckY = WATER_LEVEL + 2.6 - zoneById[ZONE.INDUSTRIAL].h; // (its deck, in the quay's frame)
-      q.box(SX, deckY - 7.5, SZ, SW, 7.5, SL, 'rust'); // the hull, down into the water
-      for (const sd of [-1, 1]) q.box(SX + sd * 3.3, deckY - 7.5, SZ - SL / 2 - 4.2, SW * 0.55, 7.5, 9, 'rust', { ry: sd * 0.42 }); // the bow
-      q.box(SX, deckY, SZ, SW - 0.6, 0.12, SL - 0.6, 'dark', { collide: false });
-      for (const sd of [-1, 1]) q.box(SX + sd * (SW / 2 - 0.1), deckY, SZ, 0.2, 1.1, SL, 'rust'); // (the bulwarks)
-      q.box(SX, deckY, SZ + SL / 2 - 6, 11, 7.2, 9, 'tin', { collide: true }); // the house
-      q.box(SX, deckY + 7.2, SZ + SL / 2 - 7, 12.4, 2.6, 6, 'tin_rust'); // the bridge
-      q.cyl(SX, deckY + 7.2, SZ + SL / 2 - 3, 1.3, 5, 'rust', { sides: 10, collide: false }); // the funnel
-      for (const [cx, cz, two] of [[-3, -20, true], [3, -20, false], [-3, -13, true], [3, -13, true], [-3, -6, false], [3, -6, true], [-3, 1, true], [3, 1, false], [3, 8, true]]) {
-        q.prop('shipping_container', SX + cx, SZ + cz, 0.01, { ly: deckY + 0.12, seed: (cz + cx + 40) & 3 });
-        if (two) q.prop('shipping_container', SX + cx, SZ + cz, -0.01, { ly: deckY + 2.72, seed: (cz + 41) & 3 });
+      const SW = 20, SL = 120, SX = QX - SW / 2 - 0.9, SZ = -26; // (its stern clear of the south pier)
+      const deckY = WATER_LEVEL + 7.4 - zoneById[ZONE.INDUSTRIAL].h; // (its main deck, in the quay's frame)
+      q.box(SX, deckY - 12, SZ, SW, 12, SL, 'rust'); // the hull
+      q.box(SX, deckY - 12, SZ, SW + 0.2, 2.4, SL + 0.2, 'dark'); // (the boot-topping at the waterline)
+      for (const sd of [-1, 1]) q.box(SX + sd * 5, deckY - 12, SZ - SL / 2 - 7, SW * 0.52, 12, 16, 'rust', { ry: sd * 0.5 }); // the bow
+      q.box(SX, deckY, SZ, SW - 0.6, 0.15, SL - 0.6, 'dark', { collide: false });
+      for (const sd of [-1, 1]) q.box(SX + sd * (SW / 2 - 0.15), deckY, SZ, 0.3, 1.2, SL, 'rust'); // (the bulwarks)
+      const st = SZ + SL / 2 - 10; // (the stern's house)
+      q.box(SX, deckY, st, 16, 12, 12, 'tin', { collide: true });
+      q.box(SX, deckY + 12, st - 1, SW, 3.2, 7, 'tin_rust'); // the bridge
+      q.cyl(SX, deckY + 12, st + 4, 1.8, 7, 'rust', { sides: 10, collide: false }); // the funnel
+      q.box(SX, deckY, SZ - SL / 2 + 10, 0.5, 14, 0.5, 'rust'); // the mast
+      for (let bay = 0; bay < 6; bay++) {
+        const bz = SZ - SL / 2 + 22 + bay * 13.2;
+        for (const cx of [-7.5, -5, -2.5, 0, 2.5, 5, 7.5]) {
+          const n = 1 + ((bay * 5 + Math.round(cx) * 3 + 7) % 3);
+          for (let h = 0; h < n; h++) box40(q, SX + cx, bz, deckY + 0.15 + h * 2.6, bay + h + Math.round(cx));
+        }
       }
+      for (const lz of [SZ - SL / 2 + 8, SZ + SL / 2 - 8]) q.box(QX - 0.4, 0.4, lz, 1.4, 0.05, 0.05, 'metal', { collide: false }); // (its lines)
     }
     // the harbour master's office at the root of the north pier
     {
@@ -3131,25 +3178,53 @@ export function createMainland(seed) {
       o.cont(CONT.CABINET, 2.6, -1.8, { prop: 'cabinet', ry: 0, ly: FLOOR_Y });
       o.loot(-2, 0, FLOOR_Y + 0.02);
     }
-    // containers stacked on the apron behind the cranes, three high in rows, a gap for the straddle carriers
-    for (let row = 0; row < 3; row++) {
-      for (let k = 0; k < 7; k++) {
-        const lx = QX + 22 + row * 9, lz = -112 + k * 15 + (k > 3 ? 12 : 0);
-        if (lz > -40 && lz < -10) continue; // (the way through to the ship)
-        const n = 1 + ((row * 7 + k * 3) % 3);
-        if (!fits(q, 'shipping_container', lx, lz, PI / 2)) continue;
-        for (let h = 0; h < n; h++) q.prop('shipping_container', lx, lz, PI / 2 + (h ? 0.02 : 0), { seed: (row + k + h) & 3, ly: h * 2.6 });
+    // THE CONTAINER YARD on the apron behind the cranes: blocks of 40 ft boxes, rows of them three wide, stacked two to
+    // five high, aisles between the blocks for the straddle carriers and a lane through to the ship
+    for (const bx of [QX + 30, QX + 46, QX + 62]) {
+      for (let lz = -116; lz <= 112; lz += 13.2) {
+        if (lz > -34 && lz < -8) continue; // (the lane through to the ship)
+        for (let r = 0; r < 3; r++) {
+          const lx = bx + r * 2.6;
+          if (!fits(q, 'shipping_container', lx, lz - 3.04, 0) || !fits(q, 'shipping_container', lx, lz + 3.04, 0)) continue;
+          const n = 2 + ((Math.round(lz) * 7 + r * 5 + Math.round(bx)) % 4);
+          for (let h = 0; h < n; h++) box40(q, lx, lz, h * 2.6, Math.round(lz) + r + h);
+        }
       }
     }
-    // the rail spur along the apron: its two rails, and the flat wagons standing on it with what they were loaded with
-    for (const rx of [QX + 52.6, QX + 54.0]) q.box(rx, 0, 30, 0.12, 0.14, 180, 'metal', { collide: false });
-    for (const [wz, load] of [[-30, true], [-14, false], [2, true]]) {
-      q.box(QX + 53.3, 0.2, wz, 2.8, 1.0, 13, 'rust');
-      if (load) q.prop('shipping_container', QX + 53.3, wz, PI / 2, { ly: 1.2, seed: (wz + 33) & 3 });
+    // the warehouses along the back of the apron (two more, the length of the quay), their doors on it
+    for (const [lz, k] of [[82, 3]]) {
+      const w = q.sub(-58, lz, PI / 2);
+      w.room(0, 0, 34, 16, 7, k === 2 ? 'tin' : 'tin_rust', { n: [gap(17, 8, 5.5)], s: [door(8, 1.4), door(26, 1.4)], e: [win(8, 2)], w: [win(8, 2)] }, { roof: 'gable', roofH: 3, roofMat: 'tin', floorMat: 'concrete' });
+      w.cont(CONT.FREIGHT, -12, 5, { prop: 'crate', ry: 0.2, ly: FLOOR_Y, seed: k });
+      w.loot(4, -3, FLOOR_Y + 0.02);
+    }
+    // the apron's markings: the lanes between the blocks and along the cranes' rails, faded yellow
+    for (const lx of [QX + 26, QX + 42, QX + 58, QX + 74]) q.box(lx, 0.01, 0, 0.2, 0.02, QZ1 - QZ0 - 8, 'paint', { collide: false });
+    // what was left on it: pallets and their loads, drums, tyres, the trucks that stopped where they were, a burnt-out
+    // one, the light masts
+    const clutter = (type, lx, lz, ry, o = {}) => fits(q, type, lx, lz, ry) && q.prop(type, lx, lz, ry, { seed: 0, ...o });
+    // (from dice of their own, not the world's stream: what the docks leave lying about deals nothing else anew)
+    const dd = (n, k) => hash2(n, k, (seed ^ 0x2d0c5) | 0);
+    for (let n = 0; n < 26; n++) {
+      const lx = QX + 22 + dd(n, 1) * 48, lz = -120 + dd(n, 2) * 240; // (short of the rail spur)
+      const t = dd(n, 3);
+      if (t < 0.35) { if (clutter('pallet', lx, lz, dd(n, 4) * PI, { seed: n & 1 }) && dd(n, 5) < 0.6) q.prop('crate', lx, lz, dd(n, 6) * PI, { ly: 0.12, seed: n & 1 }); }
+      else if (t < 0.6) for (let d = 0; d < 4; d++) clutter('barrel', lx + (d % 2) * 0.8, lz + (d >> 1) * 0.8, dd(n, 7 + d) * 6, { seed: d & 1 });
+      else if (t < 0.75) clutter('tire_pile', lx, lz, dd(n, 4) * PI, { seed: 0 });
+      else clutter('crate_small', lx, lz, dd(n, 4) * PI, { seed: 0 });
+    }
+    for (const [type, lx, lz, ry] of [['box_truck', QX + 52, -24, PI + 0.1], ['dump_truck', QX + 22, 66, 1.4], ['fuel_truck', QX + 70, 102, -0.2]]) if (fits(q, type, lx, lz, ry)) q.wreck(type, lx, lz, ry, { trunk: false, seed: 1 });
+    if (fits(q, 'box_truck', QX + 24, -60, 1.5)) { q.prop('box_truck', QX + 24, -60, 1.5, { seed: 2 }); q.light(QX + 24, 1.0, -60, 'embers'); }
+    for (const lz of [-120, -60, 0, 60, 120]) clutter('floodlight_tower', QX + 24, lz + 6, PI / 2);
+    // the rail spur at the back of the yard: its rails and the flat wagons on it, loaded
+    for (const rx of [QX + 76.6, QX + 78.0]) q.box(rx, 0, 0, 0.12, 0.14, 220, 'metal', { collide: false });
+    for (const wz of [-60, -44, -28, 40, 56]) {
+      q.box(QX + 77.3, 0.2, wz, 2.8, 1.0, 13.4, 'rust');
+      if (wz % 3 !== 0) box40(q, QX + 77.3, wz, 1.2, wz);
     }
   });
 
-  Object.assign(K, { block, groundRoom, partition, signAt, heap, extra, jagged, weed, fits, roadDistAt }); // (what the third pass's places are built with)
+  Object.assign(K, { block, groundRoom, partition, signAt, heap, extra, jagged, weed, fits, roadDistAt, heightAt, solid }); // (what the third pass's places are built with)
 
   // THE SUBURBS, THE STREETS ROUND TOWN CENTER AND NORTH COAST VILLAGE: houses along the lanes of the picture's areas
   // of houses (and the roads through them), each turned to the lane it stands on - a quarter turn at a time, so its
@@ -3465,6 +3540,8 @@ export function createMainland(seed) {
       }
       // a lamp over the mouth, lit
       b.light(0, y + TUNNEL_H + 1.2, zf + sd * 1.6, 'lamp');
+      // (and one just inside, so the arch reads lit from the road even in the cutting's shade)
+      b.light(0, y + TUNNEL_H - 0.6, s - sd * 3, 'lamp');
     }
     if (t.name) landmarks.push({ x: t.a[0] + t.dx * ((s0 + s1) / 2), z: t.a[1] + t.dz * ((s0 + s1) / 2), name: t.name, pass: true });
   }
@@ -4198,34 +4275,44 @@ export function createMainland(seed) {
     const b = new Builder(PIT.x, PIT.z, toYard, fy);
     b.zone = ZONE.AGGREGATES;
     b.ground = true;
-    // the excavator: its tracks, the house on them, the boom and the arm down to its bucket
+    // the excavator, a mining shovel the size of a house: its tracks, the house on them with the cab and the engine,
+    // the boom and the stick down to a bucket bigger than a car, resting on the floor at the face
     {
-      const e = b.sub(-6, -14, 0.5);
+      const e = b.sub(-6, -16, 0.5);
       e.ground = true;
-      for (const sd of [-1, 1]) e.box(sd * 1.5, 0, 0, 0.9, 1.0, 5.2, 'charred');
-      e.box(0, 1.0, 0.2, 3.2, 0.5, 3.4, 'rust');
-      e.box(0, 1.5, 0.6, 3.0, 1.7, 3.0, 'tin_rust');
-      e.box(-0.8, 3.2, -0.6, 1.3, 1.4, 1.4, 'metal', { collide: false });
-      e.box(0.4, 2.6, -2.6, 0.7, 0.7, 4.6, 'rust', { rx: -0.55, collide: false });
-      e.box(0.4, 1.8, -5.6, 0.55, 0.55, 3.4, 'rust', { rx: 0.7, collide: false });
-      e.box(0.4, 0.1, -6.6, 1.5, 1.0, 1.2, 'metal', { collide: false });
+      for (const sd of [-1, 1]) e.box(sd * 3.6, 0, 0, 2.2, 2.4, 12, 'charred');
+      e.box(0, 2.4, 0, 8, 0.9, 8, 'rust');
+      e.box(0, 3.3, 1.2, 7.4, 4.4, 7.6, 'tin_rust'); // the house
+      e.box(-2.4, 7.7, -1.8, 2.4, 2.6, 2.6, 'tin', { collide: false }); // the cab
+      e.box(1.2, 7.7, 3.4, 3, 1.6, 2.6, 'charred', { collide: false }); // (its engine's hood)
+      e.box(1.2, 7.4, -6.2, 1.8, 1.8, 11, 'rust', { rx: -0.62, collide: false }); // the boom
+      e.box(1.2, 4.0, -12.6, 1.4, 1.4, 7.4, 'rust', { rx: 0.5, collide: false }); // the stick
+      e.box(1.2, 0, -14.6, 4.2, 2.8, 3.4, 'metal'); // the bucket
     }
-    b.wreck('dump_truck', 5, -10, 2.4, { trunk: false });
+    // the haul truck that was being loaded: a dump body as long as a bus on six wheels taller than a man
+    {
+      const t = b.sub(9, -12, 2.4);
+      t.ground = true;
+      for (const [wx, wz] of [[-3.2, -4], [3.2, -4], [-3.2, 3], [3.2, 3], [-2.1, 3], [2.1, 3]]) t.cyl(wx, 0, wz, 1.6, 1.4, 'charred', { sides: 10 });
+      t.box(0, 1.2, -0.4, 6, 1.4, 11, 'rust'); // the chassis
+      t.box(0, 2.6, 1.0, 6.4, 3.2, 8.6, 'tin_rust'); // the dump body
+      t.box(-1.6, 2.6, -4.6, 2.6, 2.8, 2.4, 'tin', { collide: false }); // the cab
+    }
     // the belt: a long trough up out of the pit to its rim, on legs
     const top = PIT.top - fy;
     const run = PIT.r + 6;
     const tilt = Math.atan2(top, run);
     b.box(0, top / 2 + 1.2, run / 2, 1.4, 0.5, Math.hypot(run, top), 'rust', { rx: -tilt, collide: false });
-    for (let k = 1; k < 6; k++) {
-      const lz = (run * k) / 6;
-      const ly = (top * k) / 6;
+    for (let k = 0; k <= 14; k++) {
+      const lz = (run * k) / 14;
+      const ly = (top * k) / 14;
       const g = heightAt(b.wx(0, lz), b.wz(0, lz)) - fy;
-      if (ly + 1 - g > 0.6) b.box(0, g, lz, 0.3, ly + 1 - g, 0.3, 'rust', { collide: false });
+      if (ly + 1 - g > 0.3) for (const sd of [-0.6, 0.6]) b.box(sd, g, lz, 0.25, ly + 1 - g, 0.25, 'rust');
     }
     // heaps of stone on the floor and the benches
     const bench = (k) => PIT.r - ((k - 0.55) * (PIT.r - PIT.floor)) / PIT.steps; // (the middle of bench k: 1 the top one)
-    for (const [k, a, t] of [[0, 2.2, 'gravel_pile'], [0, 3.6, 'rubble_pile'], [1, 1.2, 'gravel_pile'], [2, 4.4, 'gravel_pile'], [3, 0.4, 'rubble_pile'], [4, 5.4, 'gravel_pile'], [2, 2.6, 'rubble_pile']]) {
-      const r = k ? bench(k) : 8;
+    for (const [k, a, t] of [[0, 0.9, 'gravel_pile'], [0, 5.0, 'rubble_pile'], [1, 1.2, 'gravel_pile'], [2, 4.4, 'gravel_pile'], [3, 0.4, 'rubble_pile'], [4, 5.4, 'gravel_pile'], [2, 2.6, 'rubble_pile']]) {
+      const r = k ? bench(k) : 17; // (on the floor: clear of the shovel and the truck)
       const x = b.wx(Math.sin(a) * r, Math.cos(a) * r);
       const z = b.wz(Math.sin(a) * r, Math.cos(a) * r);
       if (propBlocked(t, x, z, a)) continue;
