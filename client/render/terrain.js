@@ -370,6 +370,8 @@ export function buildTerrain(world) {
     // through the ground, which is not drawn there (the portal's own stone stands over the gap)
     // (how far from the eye the terrain is drawn: past it, on a world with mountains, the far mountains are - below)
     uCut: { value: 1e9 },
+    // (the quarry's pit, if the world has one: x, z, radius)
+    uPit: { value: new THREE.Vector3(...((world.marks || []).find((m) => m.kind === 'pit') ? ((m) => [m.x, m.z, m.r])(world.marks.find((m) => m.kind === 'pit')) : [0, 0, 0])) },
     uHole: { value: [0, 1].map((k) => (world.mine ? new THREE.Vector4(world.mine.portals[k].x, world.mine.portals[k].z, world.mine.portals[k].dx, world.mine.portals[k].dz) : new THREE.Vector4(1e6, 1e6, 1, 0))) },
   };
   mat.onBeforeCompile = (shader) => {
@@ -393,6 +395,7 @@ export function buildTerrain(world) {
         uniform sampler2D tNoise;
         uniform vec4 uHole[2];
         uniform float uCut;
+        uniform vec3 uPit;
         varying vec4 vSplat;
         varying vec4 vExtra;
         varying vec4 vRoad;
@@ -480,7 +483,9 @@ export function buildTerrain(world) {
         if (vExtra.w > 0.01) {
           vec4 cK = terrLayer(tRock, tuv * (0.21 / 0.22), gx * (0.21 / 0.22), gy * (0.21 / 0.22), n2, 1.7, 0.71, vec2(0.41, 0.05));
           rk = smoothstep(0.3, 0.7, vExtra.w + (cK.w - 0.35) * 0.9);
-          ground = mix(ground, cK.rgb * vec3(0.95, 0.97, 1.0), rk);
+          // (the faces of the quarry's benches are cut stone in the shade of the pit: darker)
+          float inPit = uPit.z > 0.0 ? 1.0 - smoothstep(uPit.z - 3.0, uPit.z + 6.0, distance(wp, uPit.xy)) : 0.0;
+          ground = mix(ground, cK.rgb * vec3(0.95, 0.97, 1.0) * (1.0 - 0.42 * inPit), rk);
         }
         // the mountains (the mainland's: nothing on the island stands this high): bare rock up high whatever its slope,
         // scree - paler, broken stone - where the faces ease off, and snow lying on the flatter ground near the tops
@@ -709,7 +714,17 @@ export function buildTerrain(world) {
     farMtn?.material.dispose();
     mat.dispose();
   };
+  // (once the heightfield is on the graphics card its copy in memory is let go of, as the static world's is: on the
+  // mainland that is a hundred megabytes - positions, normals, the ground layers, the road frame and the indices. The
+  // fields the grass is placed by stay; the normals and the layers drawn from are the terrain's alone)
+  for (const name in attrs) attrs[name].onUpload(dropArray);
+  geo.index.onUpload(dropArray);
+  F.nrm = F.base = null;
   return group;
+}
+
+function dropArray() {
+  this.array = null;
 }
 
 // Water surface (lake + ponds): dark murky water with animated ripples, fresnel sky reflection and

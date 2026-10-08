@@ -570,7 +570,7 @@ export class Game {
         this.staticFires.push({ x: l.x, y: l.y - 0.4, z: l.z, intensity: 0.75 });
       } else if (l.kind === 'lamp') {
         // a lamp still burning down a mine (the mainland's passage): a steady glow, no flame
-        this.staticFires.push({ x: l.x, y: l.y, z: l.z, intensity: 0.42 });
+        this.staticFires.push({ x: l.x, y: l.y, z: l.z, intensity: 0.85 });
       } else if (l.kind === 'smoke') {
         // a column of smoke standing over a ruin (the mainland's city: it is what shows where it is from the bridge)
         this.staticEmitters.push(this.effects.createEmitter('column', l.x, l.y, l.z, { radius: l.r || 1 }));
