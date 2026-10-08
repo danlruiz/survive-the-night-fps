@@ -12,6 +12,7 @@ import { fetchProgress, lastProgress, onProgress } from '../net/progress.js';
 import { CharacterCard, releaseStage, storedChoice, RANDOM } from './picker.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
 import { BESTIARY, seenCount } from '../../shared/bestiary.js';
+import { bindLabel } from '../game/binds.js';
 import './ux-pause.css'; // the Esc menu (Pause)
 
 // the count on a button (unread messages): '' hides it
@@ -455,10 +456,14 @@ export class Splash {
       for (const c of caps) el('span', 'kbd', k, c);
       el('span', 'sp-key-w', k, what);
     };
-    key(['forward', 'left', 'back', 'right'].map((a) => keysOf(a)[0] || '–'), 'move');
-    key([keysOf('interact')[0] || '–'], 'pick up');
-    key([keysOf('flashlight')[0] || '–'], 'flashlight');
-    key([keysOf('inventory')[0] || '–'], 'inventory');
+    const cap = (action) => {
+      const k = bindLabel(action);
+      return k === 'unbound' ? '–' : k;
+    };
+    key(['forward', 'left', 'back', 'right'].map(cap), 'move');
+    key([cap('interact')], 'pick up');
+    key([cap('flashlight')], 'flashlight');
+    key([cap('inventory')], 'inventory');
     key(['Esc'], 'menu');
   }
 
