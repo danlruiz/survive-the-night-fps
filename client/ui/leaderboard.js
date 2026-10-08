@@ -3,10 +3,14 @@
 // revived - with your own row picked out. Two lists: the best of everyone on record, and the players in this
 // game. A click on a column sorts by it. The game asks the server for the board while this is open and hands
 // each answer to set(). On the splash, an HTTP request supplies the all-time list instead.
+// It leads with you (issue #219): your place in the stat picked, how far the next place is, and your places in the
+// others. In a game it is the side sheet (sheet.js): down the right-hand side, a row shows only the stat picked,
+// and tabs on its edge go to the player list and Friends; on the splash it stays the card in the middle.
 import { BOARD_STATS, BOARD_TOP } from '../../shared/protocol.js';
 import { el, svgEl, lsGet, lsSet } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
+import { SheetTabs, undock } from './sheet.js';
 
 const STORE = 'stn.board'; // 'all:kills': the list and the column last looked at
 // per stat: column head, its glyph, what it counts
@@ -35,13 +39,14 @@ export class Leaderboard {
     this.lobbyMode = false;
     this.savedList = this.list;
 
-    this.root = el('div', 'lbscr', parent);
+    this.root = el('div', 'lbscr lb-sheet', parent);
     this.root.hidden = true;
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-modal', 'true');
     this.root.setAttribute('aria-label', 'Leaderboard');
     const bg = el('div', 'map-bg', this.root);
     const frame = el('div', 'lb-frame paper', this.root);
+    this.tabs = new SheetTabs(ui, frame, 'board');
     const head = el('div', 'map-head', frame);
     el('span', 'map-title', head, 'Leaderboard');
     this.count = el('span', 'map-coords', head, '');
@@ -95,6 +100,18 @@ export class Leaderboard {
       b.addEventListener('click', () => this._choose(this.list, k));
       return b;
     });
+    // you: your place, the gap to the next one, your places in the other stats
+    const you = (this.you = el('div', 'lb-you', table));
+    const top = el('div', 'lb-you-top', you);
+    this.youRank = el('b', 'lb-you-rank', top, '');
+    this.youWhat = el('span', 'lb-you-what', top, '');
+    this.youVal = el('b', 'lb-you-val', top, '');
+    this.youGap = el('div', 'lb-you-gap', you);
+    this.youGapText = el('span', '', this.youGap, '');
+    this.youBar = el('i', 'lb-you-bar', this.youGap);
+    this.youFill = el('i', '', this.youBar);
+    this.youNext = el('span', 'lb-you-next', this.youGap, '');
+    this.youOthers = el('div', 'lb-you-others', you);
     this.body = el('div', 'lb-body', table);
     this.note = el('div', 'lb-note', table, '');
     // your own row, under the list, when the list does not reach down to it
@@ -122,7 +139,9 @@ export class Leaderboard {
     if (open === this.open) return;
     this.open = open;
     this.root.hidden = !open;
-    this.ui.root.classList.toggle('board-open', open);
+    // (the card in the middle hides the HUD behind it; the side sheet leaves the fight in view)
+    this.ui.root.classList.toggle('board-open', open && this.lobbyMode);
+    if (!open) undock(this.ui);
     if (open) {
       this.returnFocus = document.activeElement;
       this.close.focus({ preventScroll: true });
@@ -156,6 +175,8 @@ export class Leaderboard {
       this.list = 'all';
     } else this.list = this.savedList;
     this.listBtns[1].hidden = on;
+    this.root.classList.toggle('lb-sheet', !on);
+    this.tabs.root.hidden = on;
     this.gameCloseHint.hidden = on;
     this.lobbyCloseHint.hidden = !on;
     this.close.title = on ? 'Close (Esc)' : `Close (${bindLabel('board')})`;
@@ -181,6 +202,62 @@ export class Leaderboard {
     for (const k of BOARD_STATS) el('span', 'lb-val' + (k === this.sort ? ' on' : ''), r, num(row[k]));
   }
 
+  // The "you" block, from what the server sends: your row with your place in every stat (its ranks: how many are
+  // ahead of you, plus one), and the best BOARD_TOP in every stat. So the next place up is known for certain while
+  // everyone ahead of you is on the list; further down, the gap is to the last place on the board.
+  _you(d) {
+    const me = d?.rows.find((r) => r.me);
+    this.you.hidden = !me;
+    if (!me) return;
+    const k = this.sort;
+    const i = BOARD_STATS.indexOf(k);
+    const what = COLS[k][0].toLowerCase();
+    const mine = me[k] | 0;
+    const rank = me.ranks?.[i] | 0;
+    this.youRank.textContent = rank ? `#${num(rank)}` : '#–';
+    this.youWhat.textContent = rank ? `your place in ${what}` : `no ${what} on record yet`;
+    this.youVal.textContent = num(mine);
+    const ahead = d.rows.filter((r) => !r.me && r[k] > mine).sort((a, b) => a[k] - b[k] || a.name.localeCompare(b.name));
+    let text = '';
+    let next = '';
+    let fill = -1;
+    if (rank === 1) {
+      const second = d.rows.filter((r) => !r.me && r[k] > 0 && r[k] <= mine).sort((a, b) => b[k] - a[k])[0];
+      text = second ? (second[k] === mine ? `Level with ${second.name} at the top` : `Top of the board, ${num(mine - second[k])} ahead of ${second.name}`) : 'Top of the board';
+    } else if (rank && ahead.length === rank - 1 && ahead.length) {
+      const t = ahead[0];
+      text = `${num(t[k] - mine + 1)} more to pass ${t.name}`;
+      next = `#${num(rank - 1)}`;
+      fill = mine / t[k];
+    } else if (rank > BOARD_TOP) {
+      const board = d.rows.filter((r) => r[k] > 0).sort((a, b) => b[k] - a[k]);
+      const last = board[BOARD_TOP - 1];
+      if (last && last[k] > mine) {
+        text = `${num(last[k] - mine + 1)} more to make the top ${BOARD_TOP}`;
+        next = `#${BOARD_TOP}`;
+        fill = mine / last[k];
+      }
+    } else if (!rank) text = `Your first ${what.replace(/s$/, '')} puts you on the board`;
+    this.youGap.hidden = !text;
+    this.youGapText.textContent = text;
+    this.youGap.classList.toggle('solo', fill < 0);
+    this.youBar.hidden = fill < 0;
+    if (fill >= 0) this.youFill.style.transform = `scaleX(${Math.max(0.02, Math.min(1, fill)).toFixed(3)})`;
+    this.youNext.textContent = next;
+    this.youNext.hidden = !next;
+    // your places in the other stats: a click picks that stat
+    this.youOthers.textContent = '';
+    BOARD_STATS.forEach((s, j) => {
+      if (s === k) return;
+      const b = el('button', 'lb-you-other', this.youOthers);
+      b.type = 'button';
+      b.title = `Sort by ${COLS[s][0].toLowerCase()}`;
+      el('span', '', b, COLS[s][0]);
+      el('b', '', b, me.ranks?.[j] ? `#${num(me.ranks[j])}` : '–');
+      b.addEventListener('click', () => this._choose(this.list, s));
+    });
+  }
+
   _render() {
     const d = this.data;
     const k = this.sort;
@@ -193,6 +270,7 @@ export class Leaderboard {
     this.body.textContent = '';
     this.mine.textContent = '';
     this.mine.hidden = true;
+    this._you(d);
     this.count.textContent = d ? `${num(d.total)} ${d.total === 1 ? 'player' : 'players'} on record` : '';
     if (!d) {
       this.note.textContent = this.error || 'Asking the server…';

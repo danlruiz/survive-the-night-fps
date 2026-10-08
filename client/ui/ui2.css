@@ -2453,58 +2453,6 @@
   visibility: hidden;
 }
 
-/* ------------------------------------------------------------------ player list */
-/* up while [Tab] is held, over a game that goes on: it takes no clicks (until pinned) and hides none of the HUD */
-.stn-ui .rosterscr {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  animation: stn-fadeIn 0.12s ease-out;
-}
-
-.stn-ui .roster-frame {
-  width: min(92vw, max(440px, calc(600 * var(--u))));
-  max-height: 86vh;
-  overflow: hidden;
-  padding: calc(12 * var(--u)) calc(16 * var(--u)) calc(16 * var(--u));
-  /* (opaque: the prompt and the markers of the HUD under it would read through the paper) */
-  background: linear-gradient(175deg, #1e1a17, #0d0b0a);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-}
-
-/* pinned up by a click (Game.pinRoster): the pointer is free and a player's row opens their profile */
-.stn-ui .rosterscr.pinned {
-  pointer-events: auto;
-}
-
-.stn-ui .roster-frame .map-close[hidden],
-.stn-ui .sv-keys .gh[hidden],
-.stn-ui .sv-keys-pin[hidden] {
-  display: none;
-}
-
-.stn-ui .sv-keys {
-  margin-top: calc(12 * var(--u));
-}
-
-.stn-ui .sv-keys-pin {
-  display: contents;
-}
-
-.stn-ui .sv.pick {
-  cursor: pointer;
-}
-
-.stn-ui .sv.pick:hover,
-.stn-ui .sv.pick:focus-visible {
-  outline: none;
-  background: rgba(232, 163, 61, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(232, 163, 61, 0.5);
-}
-
 /* like the map: on top of the HUD, with the titles and toasts behind it hidden */
 .stn-ui.board-open .obj,
 .stn-ui.board-open .wmk-layer,
@@ -3675,12 +3623,7 @@
   color: var(--ink);
 }
 
-/* the level beside a name: the player list [Tab], the leaderboard */
-.stn-ui .sv {
-  grid-template-columns: calc(18 * var(--u)) auto 1fr auto auto auto minmax(3.2em, auto) auto;
-}
-
-.stn-ui .sv-lv,
+/* the level beside a name: the leaderboard */
 .stn-ui .lb-lv {
   flex: none;
   min-width: 1.9em;
