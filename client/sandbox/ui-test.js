@@ -725,7 +725,10 @@ switch (screen) {
     ui.hideSplash();
     ui.updateHud({ ...baseHud, phase: PHASE.NIGHT, night: 1, hordeLeft: 30 });
     ui.setRoom({ code: 'J68QMM', name: "Webdevcody's game", inviteOnly: false }, `${location.origin}/?game=J68QMM`);
+    if (q.get('solo')) ui.setPlayers([players[0]]); // pause: &solo=1 alone in the game, &ask=1 Leave pressed, &hit=1 being hit
     ui.showPause(true);
+    if (q.get('ask')) ui.pause.select(ui.pause.rows.indexOf(ui.pause.leave), false), ui.pause._ask(true);
+    if (q.get('hit')) ui.damage(18, 0.5);
     if (screen === 'settings') ui.settingsPanel.show();
     if (screen === 'invite') ui.invitePanel.show();
     break;

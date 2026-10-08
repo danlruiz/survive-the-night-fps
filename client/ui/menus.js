@@ -14,6 +14,9 @@ import { fetchProgress, lastProgress, onProgress } from '../net/progress.js';
 import { xpBar } from './progress.js';
 import { XP_SRC_NAMES, levelInfo } from '../../shared/progress.js';
 import { CharacterCard, releaseStage } from './picker.js';
+import { bestiaryView, onBestiary } from '../net/bestiary.js';
+import { BESTIARY, seenCount } from '../../shared/bestiary.js';
+import './ux-pause.css'; // the Esc menu (Pause)
 
 // the count on a button (unread messages): '' hides it
 function setBadge(b, n) {
@@ -512,80 +515,190 @@ export class Splash {
 }
 
 // ---------------------------------------------------------------- pause
-// how long "Leave game" is held before it leaves (a stray click can't end a run)
-const LEAVE_HOLD_MS = 900;
+// how long the "You're taking hits" bar stays up after the last hit
+const HIT_SHOW_MS = 2600;
 
-// The Esc menu: a rail down the left edge, the rest of the screen left almost clear, because the game never stops for
-// it (no "paused" or "resume" anywhere on it). The arrow keys move through the rows and Enter opens one. Esc is not a
-// way back: the browser counts no Esc as a gesture (the mouse can't be taken back on one), and in fullscreen holding
-// Esc leaves fullscreen.
+// the text onto the clipboard: the API, or (none outside https / localhost) the old way, from a field off the screen
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const f = el('textarea', '', document.body);
+    f.value = text;
+    f.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    f.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {}
+    f.remove();
+    return ok;
+  }
+}
+
+// who is down, in a line: "A is down", "A and B are down", "3 teammates are down"
+function downLine(names) {
+  if (names.length === 1) return `${names[0]} is down and needs a hand.`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are down and need a hand.`;
+  return `${names.length} teammates are down and need a hand.`;
+}
+
+// The Esc menu: a rail down the left edge with the world left in view, because the game never stops for it (no
+// "paused" or "resume" anywhere on it). One big "Back to the game", then the rows in three groups (Squad, Progress,
+// Options), and Leave apart at the foot, saying what leaving costs and who is down and needs a hand. Leave asks once
+// - "Stay" picked first, where the pointer already is - instead of being held. A red bar across the top says when you
+// are being hit behind the menu. The arrow keys move through the rows and stop at the ends, → on Invite picks Copy
+// link, and Enter opens one. Esc is not a way back: the browser counts no Esc as a gesture (the mouse can't be taken
+// back on one), and in fullscreen holding Esc leaves fullscreen. A short window (a zoomed-in browser) folds the rail
+// into two columns (ux-pause.css).
 export class Pause {
   constructor(ui, parent) {
     this.ui = ui;
     this.room = null;
+    this.link = '';
     this.sel = 0;
+    this.side = false; // Copy link picked, on the Invite row
+    this.asking = false; // Leave pressed: "Stay / Leave" up in its place
+    this.pick = 0; // ...and which of the two Enter takes: 0 Stay, 1 Leave
     const root = (this.root = el('div', 'pause', parent));
     root.hidden = true;
     el('div', 'pause-shade', root);
-    const rail = el('div', 'pause-rail', root);
-    const live = el('div', 'pause-live', rail);
-    el('i', 'pause-dot', live);
-    el('span', '', live, 'Live · the world keeps moving');
-    this.title = el('div', 'pause-title', rail, 'Menu');
-    this.sub = el('div', 'pause-sub', rail, '');
 
-    const list = el('div', 'pause-list', rail);
-    list.setAttribute('role', 'menu');
+    // hit behind the menu: the bar across the top, for a moment after each hit
+    const hit = (this.hitBar = el('div', 'pm-hit', root));
+    hit.hidden = true;
+    hit.setAttribute('role', 'alert');
+    svgEl('i', 'pm-hit-ico', hit, glyph('hazard'));
+    el('b', 'pm-hit-t', hit, 'You’re taking hits');
+    this.hitHp = el('span', 'pm-hit-hp', hit, '');
+    el('span', 'pm-hit-go', hit, 'Click anywhere to fight');
+
+    const rail = el('div', 'pm-rail', root);
+    const head = el('div', 'pm-head', rail);
+    const live = el('div', 'pm-live', head);
+    el('i', 'pm-dot', live);
+    el('b', 'pm-live-tag', live, 'Live');
+    this.liveTxt = el('span', '', live, '');
+    this.title = el('div', 'pm-title', head, 'Menu');
+    const meta = el('div', 'pm-meta', head);
+    this.code = el('span', 'pm-code', meta, '');
+    this.code.title = 'Game code';
+    this.sub = el('span', 'pm-sub', meta, '');
+
     this.rows = [];
     const row = (into, icon, label, run, cls = '') => {
-      const b = el('button', 'pr-row' + cls, into);
+      const b = el('button', 'pm-row' + cls, into);
       b.type = 'button';
       b.setAttribute('role', 'menuitem');
-      svgEl('i', 'pr-ico', b, glyph(icon));
-      el('span', 'pr-label', b, label);
-      const hint = el('span', 'pr-hint', b);
+      svgEl('i', 'pm-ico', b, glyph(icon));
+      el('span', 'pm-label', b, label);
+      const hint = el('span', 'pm-hint', b);
       const r = { b, hint, run };
       b.addEventListener('pointerenter', () => this.select(this.rows.indexOf(r), false));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!r.run) return;
         this.ui.sound('ui_click');
         r.run();
       });
       this.rows.push(r);
       return r;
     };
-    const back = row(list, 'arrowRight', 'Back to the game', () => this.ui.cb.onResume(), ' pr-back');
-    el('span', 'kbd sm pr-key', back.hint, 'Enter');
-    this.invite = row(list, 'personPlus', 'Invite friends', () => this.ui.invitePanel.show());
-    this.perks = row(list, 'arrowUp', 'Perks', () => this.ui.progress.show());
-    this.ach = row(list, 'trophy', 'Achievements', () => this.ui.achPanel.show());
-    row(list, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
-    row(list, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
-    this.fr = row(list, 'star', 'Friends', () => this.ui.friends.show());
-    row(list, 'gear', 'Settings', () => this.ui.settingsPanel.show());
-    row(list, 'keyboard', 'Controls', () => this.ui.controlsPanel.show());
+    const back = row(rail, 'arrowRight', 'Back to the game', () => this.ui.cb.onResume(), ' pm-back');
+    el('span', 'kbd sm pm-key', back.hint, 'Enter');
 
-    // held, not clicked: the fill runs along the row while it is held, and letting go early cancels
-    el('div', 'pause-sep', rail);
-    const leave = row(rail, 'exit', 'Leave game', null, ' pr-leave');
-    this.leave = leave;
-    this.fill = el('i', 'pr-fill', leave.b);
-    this.fill.style.transitionDuration = `${LEAVE_HOLD_MS}ms`;
-    this.leaveTxt = el('span', '', leave.hint, 'Hold');
-    el('span', 'kbd sm', leave.hint, 'Enter');
-    leave.b.addEventListener('pointerdown', (e) => e.button === 0 && this._hold());
-    for (const t of ['pointerup', 'pointerleave', 'pointercancel']) leave.b.addEventListener(t, () => this._release());
+    // the world is the way back: a hint over it (beside the rail; in the left column of a short window)
+    const play = el('div', 'pm-play', rail);
+    svgEl('i', 'pm-play-ico', play, glyph('arrowRight'));
+    el('span', 'pm-play-t', play, 'Click anywhere here to play');
+    el('span', 'pm-play-t pm-play-esc', play, 'Esc can’t close this: click the world to play');
+    play.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.ui.sound('ui_click');
+      this.ui.cb.onResume();
+    });
 
-    const keys = el('div', 'pause-keys', rail);
-    const key = (caps, what) => {
-      const k = el('span', 'pk', keys);
-      for (const c of caps) el('span', 'kbd sm', k, c);
-      el('span', 'pk-t', k, what);
+    const groups = el('div', 'pm-groups', rail);
+    groups.setAttribute('role', 'menu');
+    const group = (name) => {
+      const g = el('div', 'pm-group', groups);
+      el('div', 'pm-gh', g, name);
+      return g;
     };
-    key(['↑', '↓'], 'Select');
-    key(['Enter'], 'Open');
-    el('span', 'pk pk-t', keys, 'Click away to go back');
+    let g = group('Squad');
+    // Copy link beside the Invite row (not in it: a button in a button is no button)
+    const wrap = (this.inviteWrap = el('div', 'pm-wrap', g));
+    this.invite = row(wrap, 'personPlus', 'Invite friends', () => this.ui.invitePanel.show());
+    const copy = (this.copyBtn = el('button', 'pm-copy', wrap));
+    copy.type = 'button';
+    copy.title = 'Copy the invite link';
+    svgEl('i', 'pm-copy-ico', copy, glyph('link'));
+    this.copyTxt = el('span', '', copy, 'Copy link');
+    copy.addEventListener('pointerenter', () => {
+      this.select(this.rows.indexOf(this.invite), false);
+      this._side(true, false);
+    });
+    copy.addEventListener('pointerleave', () => this._side(false, false));
+    copy.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.ui.sound('ui_click');
+      this._copy();
+    });
+    this.fr = row(g, 'star', 'Friends', () => this.ui.friends.show());
+    g = group('Progress');
+    this.perks = row(g, 'arrowUp', 'Perks', () => this.ui.progress.show(), ' pm-perks');
+    this.ach = row(g, 'trophy', 'Achievements', () => this.ui.achPanel.show());
+    this.best = row(g, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
+    row(g, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
+    g = group('Options');
+    row(g, 'gear', 'Settings', () => this.ui.settingsPanel.show()).hint.textContent = 'Mouse · sound · video';
+    row(g, 'keyboard', 'Key list', () => this.ui.controlsPanel.show()).hint.textContent = 'Every control';
+
+    // Leave, apart: asks once, Stay first
+    const box = el('div', 'pm-leavebox', rail);
+    const leave = (this.leave = row(box, 'exit', 'Leave game', () => this._ask(true), ' pm-leave'));
+    el('span', 'kbd sm pm-key', leave.hint, 'Enter');
+    const ask = (this.askEl = el('div', 'pm-ask', box));
+    ask.hidden = true;
+    ask.setAttribute('role', 'group');
+    const q = el('div', 'pm-ask-q', ask);
+    svgEl('i', 'pm-ico', q, glyph('exit'));
+    this.askQ = el('span', '', q, 'Leave this game?');
+    const btns = el('div', 'pm-ask-btns', ask);
+    const choice = (cls, label, i, run) => {
+      const b = el('button', cls, btns);
+      b.type = 'button';
+      if (i) svgEl('i', 'pm-ico', b, glyph('exit'));
+      el('span', '', b, label);
+      el('span', 'kbd sm pm-key', b, 'Enter');
+      b.addEventListener('pointerenter', () => this._pick(i));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.ui.sound('ui_click');
+        run();
+      });
+      return b;
+    };
+    this.stayBtn = choice('pm-stay', 'Stay', 0, () => this._ask(false));
+    this.goBtn = choice('pm-go', 'Leave', 1, () => this.ui.cb.onLeave());
+    this.cost = el('p', 'pm-cost', box, '');
+    const warn = (this.warn = el('p', 'pm-warn', box));
+    warn.hidden = true;
+    svgEl('i', 'pm-ico', warn, glyph('downed'));
+    this.warnTxt = el('span', '', warn, '');
+
+    const keys = el('div', 'pm-keys', rail);
+    const key = (into, caps, what) => {
+      const k = el('span', 'pm-k', into);
+      for (const c of caps) el('span', 'kbd sm', k, c);
+      el('span', 'pm-k-t', k, what);
+    };
+    const menuKeys = el('span', 'pm-keyset pm-keys-menu', keys);
+    key(menuKeys, ['↑', '↓'], 'Select (stops at the ends)');
+    key(menuKeys, ['Enter'], 'Open');
+    const askKeys = el('span', 'pm-keyset pm-keys-ask', keys);
+    key(askKeys, ['←', '→'], 'Stay or leave');
+    key(askKeys, ['Enter'], 'Choose');
 
     // the hints on the right of the rows, kept as what they stand for changes
     const sync = () => this._syncHints();
@@ -593,13 +706,13 @@ export class Pause {
     onAchievements(sync);
     onSocialChange(sync);
     onAccountChange(sync);
+    onBestiary(sync);
 
     // captured before input.js, which would otherwise take Enter for the chat
     window.addEventListener('keydown', (e) => this._key(e), true);
-    window.addEventListener('keyup', (e) => (e.code === 'Enter' || e.code === 'NumpadEnter') && this._release(), true);
     // clicking anywhere off the rail resumes (keeps the user gesture for pointer lock)
     root.addEventListener('click', (e) => {
-      if (e.target.closest('.pause-rail')) return;
+      if (e.target.closest('.pm-rail')) return;
       this.ui.sound('ui_click');
       this.ui.cb.onResume();
     });
@@ -608,54 +721,155 @@ export class Pause {
   // the game we are in: { code, name, inviteOnly, difficulty } (null: none), and its invite link
   setRoom(room, link) {
     this.room = room;
+    this.link = room ? link || '' : '';
     this.ui.invitePanel.set(room, link);
-    this.invite.b.hidden = !room;
+    this.inviteWrap.hidden = !room;
     this.title.textContent = room ? room.name : 'Menu';
+    this._sync();
+  }
+
+  // what changes while the menu is up: the clock, who is here and who is down
+  _sync() {
+    this._syncLive();
     this._syncSub();
+    this._syncLeave();
     this._syncHints();
+  }
+
+  // "Live · Night 3 · dawn in 2:14 · 30 left": the HUD's clock, as it last drew it (hud.js _clock)
+  _syncLive() {
+    const c = this.ui.hud.c;
+    const parts = [];
+    if (c.clkTitle) parts.push(c.clkTitle);
+    const when = [c.clkLabel, c.clkTime].filter(Boolean).join(' ');
+    if (when) parts.push(when);
+    if (c.remain >= 0) parts.push(`${c.remain} left`);
+    const t = parts.length ? '· ' + parts.join(' · ') : '';
+    if (this.liveTxt.textContent !== t) this.liveTxt.textContent = t;
+  }
+
+  // the players as the player list last had them (game.js pushRoster)
+  get _players() {
+    return this.ui.roster.players || [];
   }
 
   _syncSub() {
     const room = this.room;
+    this.code.hidden = !room;
     if (!room) return void (this.sub.textContent = '');
-    const n = this.ui.cb.onPeers?.()?.players?.length || 0;
-    const parts = [difficultyText(room.difficulty), room.inviteOnly ? 'Invite only' : 'Public', `Code ${room.code}`];
-    if (n) parts.push(`${n} survivor${n === 1 ? '' : 's'}`);
+    this.code.textContent = room.code;
+    const list = this._players;
+    const parts = [difficultyText(room.difficulty), room.inviteOnly ? 'Invite only' : 'Public'];
+    if (list.length) parts.push(`${list.filter((p) => p.status === 'alive' || p.status === 'downed').length} alive of ${list.length}`);
+    else {
+      const n = this.ui.cb.onPeers?.()?.players?.length || 0;
+      if (n) parts.push(`${n} survivor${n === 1 ? '' : 's'}`);
+    }
     this.sub.textContent = parts.join(' · ');
+  }
+
+  // what leaving costs (server/game.js removePlayer: the starting kit goes along, what was found on top of it drops
+  // for the team; the last one out ends the run) and who is down and needs a hand
+  _syncLeave() {
+    const room = this.room;
+    const list = this._players;
+    const me = list.find((p) => p.self);
+    const others = list.filter((p) => !p.self);
+    this.askQ.textContent = room ? `Leave ${room.name}?` : 'Leave this game?';
+    let cost = 'Leaves at once.';
+    if (!me || me.status === 'alive' || me.status === 'downed') cost += ' What you found drops where you stand for the team; your starting kit goes with you.';
+    if (list.length && !others.length) cost += ' You’re the only one here, so the run ends.';
+    else if (room) cost += ` Back in with ${room.code}.`;
+    if (this.cost.textContent !== cost) this.cost.textContent = cost;
+    const down = others.filter((p) => p.status === 'downed').map((p) => p.name || '???');
+    this.warn.hidden = !down.length;
+    this.root.classList.toggle('pm-someone-down', down.length > 0);
+    if (down.length) this.warnTxt.textContent = downLine(down);
   }
 
   _syncHints() {
     const count = (hint, n, text) => {
       hint.textContent = '';
-      if (n) el('b', 'pr-n', hint, n > 99 ? '99+' : String(n));
-      el('span', '', hint, text);
+      if (n) el('b', 'pm-n', hint, n > 99 ? '99+' : String(n));
+      if (text) el('span', '', hint, text);
     };
-    this.invite.hint.textContent = this.room?.code || '';
-    const pending = lastProgress()?.pending || 0;
-    count(this.perks.hint, pending, pending ? 'to spend' : '');
+    const p = lastProgress();
+    const pending = p?.pending || 0;
+    count(this.perks.hint, pending, [pending ? 'to spend' : '', p?.level ? `Lv ${p.level}` : ''].filter(Boolean).join(' · '));
     const a = achievementsView();
     this.ach.hint.textContent = a.loading || a.error ? '' : `${Object.keys(a.unlocked).length} / ${ACH_TOTAL}`;
+    const b = bestiaryView();
+    this.best.hint.textContent = b.loading ? '' : `${seenCount(b.mask)} / ${BESTIARY.length} seen`;
     const s = socialState();
-    const unread = accountState().user ? unreadCount() : 0;
-    if (unread) count(this.fr.hint, unread, 'new');
-    else this.fr.hint.textContent = accountState().user && s.loaded ? `${s.friends.filter((f) => f.status !== 'offline').length} online` : '';
+    const user = !!accountState().user;
+    const unread = user ? unreadCount() : 0;
+    const online = user && s.loaded ? `${s.friends.filter((f) => f.status !== 'offline').length} online` : '';
+    count(this.fr.hint, unread, [unread ? 'new' : '', online].filter(Boolean).join(' · '));
   }
 
   // the row that Enter opens: hovered, or moved to with the arrow keys (hidden rows are stepped over)
   select(i, sound = true) {
-    if (i < 0 || i === this.sel) return;
+    if (i < 0) return;
+    if (this.asking && this.rows[i] !== this.leave) this._ask(false); // (moved off the question: it is put away)
+    if (i === this.sel) return;
     this.rows[this.sel]?.b.classList.remove('on');
+    this._side(false, false);
     this.sel = i;
     this.rows[i].b.classList.add('on');
     if (sound) this.ui.sound('ui_hover');
   }
 
+  // up or down a row; the ends stop it (one ↑ from "Back to the game" is not Leave)
   _step(d) {
-    const n = this.rows.length;
-    for (let k = 1; k < n; k++) {
-      const i = (this.sel + d * k + n * k) % n;
-      if (!this.rows[i].b.hidden) return this.select(i);
+    for (let i = this.sel + d; i >= 0 && i < this.rows.length; i += d) {
+      const b = this.rows[i].b;
+      if (!b.hidden && !b.parentElement.hidden) return this.select(i);
     }
+  }
+
+  // Copy link picked (→ on the Invite row, or pointed at), or not
+  _side(on, sound = true) {
+    on = !!on && this.rows[this.sel] === this.invite;
+    if (on === this.side) return;
+    this.side = on;
+    this.copyBtn.classList.toggle('on', on);
+    this.invite.b.classList.toggle('side', on);
+    if (on && sound) this.ui.sound('ui_hover');
+  }
+
+  async _copy() {
+    if (!this.link) return;
+    const ok = await copyText(this.link);
+    this.copyTxt.textContent = ok ? 'Link copied' : 'Copy it here';
+    this.copyBtn.classList.toggle('done', ok);
+    clearTimeout(this._copyT);
+    this._copyT = setTimeout(() => {
+      this.copyTxt.textContent = 'Copy link';
+      this.copyBtn.classList.remove('done');
+    }, 2200);
+    if (!ok) this.ui.invitePanel.show(); // (no clipboard: the panel's field, to select and copy by hand)
+  }
+
+  // Leave pressed: the question up in its place, Stay picked; or put away again
+  _ask(on) {
+    on = !!on;
+    if (on === this.asking) return;
+    this.asking = on;
+    this.root.classList.toggle('asking', on);
+    this.leave.b.hidden = on;
+    this.askEl.hidden = !on;
+    if (on) {
+      this._syncLeave();
+      this._pick(0, false);
+    }
+  }
+
+  _pick(i, sound = true) {
+    const moved = i !== this.pick;
+    this.pick = i;
+    this.stayBtn.classList.toggle('on', i === 0);
+    this.goBtn.classList.toggle('on', i === 1);
+    if (sound && moved) this.ui.sound('ui_hover');
   }
 
   // a panel opened from here, or the chat, has the keys
@@ -665,41 +879,48 @@ export class Pause {
 
   _key(e) {
     if (this.root.hidden || this._covered) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      this._step(e.key === 'ArrowDown' ? 1 : -1);
-    } else if (e.key === 'Enter') {
-      const r = this.rows[this.sel];
-      if (e.repeat) {
-        // (a repeat only keeps a hold going)
-      } else if (r === this.leave) this._hold();
-      else {
+    const k = e.key;
+    if (this.asking) {
+      if (k === 'ArrowLeft' || k === 'ArrowRight') this._pick(k === 'ArrowRight' ? 1 : 0);
+      else if (k === 'ArrowUp') {
+        this._ask(false);
+        this._step(-1);
+      } else if (k === 'Enter') {
+        // (a held Enter repeats: never a way out)
+        if (!e.repeat) {
+          this.ui.sound('ui_click');
+          if (this.pick) this.ui.cb.onLeave();
+          else this._ask(false);
+        }
+      } else if (k !== 'ArrowDown') return;
+    } else if (k === 'ArrowDown' || k === 'ArrowUp') this._step(k === 'ArrowDown' ? 1 : -1);
+    else if ((k === 'ArrowRight' || k === 'ArrowLeft') && this.rows[this.sel] === this.invite) this._side(k === 'ArrowRight');
+    else if (k === 'Enter') {
+      if (!e.repeat) {
         this.ui.sound('ui_click');
-        r.run();
+        if (this.side) this._copy();
+        else this.rows[this.sel].run();
       }
     } else return;
     e.preventDefault();
     e.stopPropagation();
   }
 
-  _hold() {
-    if (this._holdT) return;
-    this.leave.b.classList.add('holding');
-    this.leaveTxt.textContent = 'Hold';
-    this._holdT = setTimeout(() => {
-      this._holdT = 0;
-      this.leave.b.classList.remove('holding');
-      this.ui.cb.onLeave();
-    }, LEAVE_HOLD_MS);
+  // a hit while the menu is up (ui.damage): the bar across the top, and the health it left
+  hit() {
+    if (this.root.hidden) return;
+    this.hitBar.hidden = false;
+    this._syncHit();
+    this.hitBar.classList.remove('flash');
+    void this.hitBar.offsetWidth;
+    this.hitBar.classList.add('flash');
+    clearTimeout(this._hitT);
+    this._hitT = setTimeout(() => (this.hitBar.hidden = true), HIT_SHOW_MS);
   }
 
-  _release() {
-    if (!this._holdT) return;
-    clearTimeout(this._holdT);
-    this._holdT = 0;
-    this.leave.b.classList.remove('holding');
-    this.leaveTxt.textContent = 'Keep holding';
-    clearTimeout(this._nudgeT);
-    this._nudgeT = setTimeout(() => (this.leaveTxt.textContent = 'Hold'), 1800);
+  _syncHit() {
+    const hp = this.ui.hud.c.hp;
+    this.hitHp.textContent = hp >= 0 ? `${hp} health` : '';
   }
 
   show(on) {
@@ -708,18 +929,26 @@ export class Pause {
     this.root.hidden = !on;
     this.ui.root.classList.toggle('paused', on);
     clearInterval(this._iv);
+    clearTimeout(this._hitT);
+    this.hitBar.hidden = true;
+    this._ask(false);
     if (on) {
       this.sel = -1;
       this.rows.forEach((r) => r.b.classList.remove('on'));
       this.select(0, false);
-      this._syncSub();
-      this._syncHints();
-      this._iv = setInterval(() => this._syncSub(), 1000); // (survivors joining and leaving while it is up)
+      this._sync();
+      // (the clock, survivors joining, leaving and going down while it is up)
+      this._iv = setInterval(() => {
+        this._syncLive();
+        this._syncSub();
+        this._syncLeave();
+        if (!this.hitBar.hidden) this._syncHit();
+      }, 250);
       this.root.classList.remove('in');
       void this.root.offsetWidth;
       this.root.classList.add('in');
     } else {
-      this._release();
+      this._side(false, false);
       if (this.ui.splash.root.hidden) {
         if (this.ui.settingsPanel.visible) this.ui.settingsPanel.hide();
         if (this.ui.controlsPanel.visible) this.ui.controlsPanel.hide();
