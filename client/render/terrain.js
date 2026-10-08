@@ -415,6 +415,18 @@ export function buildTerrain(world) {
           float la = dot(a, vec3(0.333)), lb = dot(b, vec3(0.333));
           float k = smoothstep(0.4, 0.6, n + (lb - la) * 1.5);
           return vec4(mix(a, b, k), mix(la, lb, k));
+        }
+        // rock laid on from three sides by the normal (a face that stands up is not the ground's texture drawn out down it
+        // in streaks): p the world position, n the normal, sc the scale; dpx / dpy its screen gradients
+        vec4 triRock(sampler2D t, vec3 p, vec3 n, float sc, vec3 dpx, vec3 dpy) {
+          vec3 an = abs(n);
+          an = an * an * an * an;
+          an /= an.x + an.y + an.z;
+          vec3 rX = textureGrad(t, p.zy * sc, dpx.zy * sc, dpy.zy * sc).rgb;
+          vec3 rY = textureGrad(t, p.xz * sc, dpx.xz * sc, dpy.xz * sc).rgb;
+          vec3 rZ = textureGrad(t, p.xy * sc + 0.37, dpx.xy * sc, dpy.xy * sc).rgb;
+          vec3 r = rX * an.x + rY * an.y + rZ * an.z;
+          return vec4(r, dot(r, vec3(0.333)));
         }`,
       )
       .replace(
@@ -484,7 +496,11 @@ export function buildTerrain(world) {
         // steep slopes: rock breaks through (height-aware too)
         float rk = 0.0;
         if (vExtra.w > 0.01) {
-          vec4 cK = terrLayer(tRock, tuv * (0.21 / 0.22), gx * (0.21 / 0.22), gy * (0.21 / 0.22), n2, 1.7, 0.71, vec2(0.41, 0.05));
+          // (from three sides: on a steep face the ground's own mapping smeared the rock down it in streaks)
+          vec4 cK = triRock(tRock, vWPos, normalize(vNw), 0.21, dpx, dpy);
+          // (a second, coarser sample over it: the face's larger slabs and seams, so no one scale tiles)
+          vec4 cK2 = triRock(tRock, vWPos * 0.37 + vec3(3.1, 0.0, 1.7), normalize(vNw), 0.21, dpx * 0.37, dpy * 0.37);
+          cK = vec4(mix(cK.rgb, cK.rgb * (0.7 + 0.6 * cK2.w), 0.6), mix(cK.w, cK.w * (0.7 + 0.6 * cK2.w), 0.6));
           rk = smoothstep(0.3, 0.7, vExtra.w + (cK.w - 0.35) * 0.9);
           // (the faces of the quarry's benches are cut stone in the shade of the pit: darker)
           float inPit = uPit.z > 0.0 ? 1.0 - smoothstep(uPit.z - 3.0, uPit.z + 6.0, distance(wp, uPit.xy)) : 0.0;
@@ -496,15 +512,9 @@ export function buildTerrain(world) {
           float hi = smoothstep(52.0, 110.0, vWPos.y);
           // (the rock laid on from three sides by the normal, so a face that stands up is not the ground's texture
           // drawn out down it in streaks)
-          vec3 an = abs(vNw);
-          an = an * an * an * an;
-          an /= an.x + an.y + an.z;
-          const float RS = 0.12;
-          vec3 rX = textureGrad(tRock, vWPos.zy * RS, dpx.zy * RS, dpy.zy * RS).rgb;
-          vec3 rY = textureGrad(tRock, vWPos.xz * RS, dpx.xz * RS, dpy.xz * RS).rgb;
-          vec3 rZ = textureGrad(tRock, vWPos.xy * RS + 0.37, dpx.xy * RS, dpy.xy * RS).rgb;
-          vec3 rT = rX * an.x + rY * an.y + rZ * an.z;
-          vec4 cR = vec4(rT, dot(rT, vec3(0.333)));
+          vec4 cR = triRock(tRock, vWPos, normalize(vNw), 0.16, dpx, dpy);
+          vec4 cR2 = triRock(tRock, vWPos * 0.29 + vec3(1.3, 0.0, 4.1), normalize(vNw), 0.16, dpx * 0.29, dpy * 0.29);
+          cR = vec4(cR.rgb * (0.68 + 0.64 * cR2.w), cR.w * (0.68 + 0.64 * cR2.w));
           vec3 rockC = cR.rgb * vec3(0.7, 0.69, 0.68);
           float scree = smoothstep(0.62, 0.86, vNw.y) * (1.0 - smoothstep(0.86, 0.97, vNw.y));
           rockC = mix(rockC, cR.w * vec3(1.16, 1.12, 1.06) + 0.05, scree * 0.55);
@@ -567,7 +577,7 @@ export function buildTerrain(world) {
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'terrain-splat-5';
+  mat.customProgramCacheKey = () => 'terrain-splat-6';
   const group = new THREE.Group();
   group.name = 'terrain';
   const mesh = new MultiMesh(geo, mat, runs);
