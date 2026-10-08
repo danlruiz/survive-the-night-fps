@@ -3162,7 +3162,9 @@ export class Game {
     const dark = Math.max(deep, this.world.darkAt(rp.x, rp.y + 1, rp.z));
     this.under += (dark - this.under) * Math.min(1, dt * 4);
     if (this.under < 0.002) this.under = 0;
-    this._envOver.under = this.under;
+    // (the mainland's passage was kept lit to the end - its lamps every few metres: down it a little of the light stays,
+    // so its timbers, rails and tubs read; the island's mine is as dark as it was)
+    this._envOver.under = this.world.size > 1000 && deep > 0 ? this.under * 0.8 : this.under;
     this._envOver.fogMul = this.debugFog ?? (cine ? cine.fogMul : 0); // (a cutscene's long shots see further than the day's haze lets a survivor; debugFog: a look-dev camera's)
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it
