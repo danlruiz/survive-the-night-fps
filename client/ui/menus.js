@@ -9,7 +9,7 @@ import { accountState, onAccountChange, refreshAccount } from '../net/account.js
 import { playingFriends, unreadCount, onSocialChange, socialState } from '../net/friends.js';
 import { achievementsView, onAchievements, ACH_TOTAL } from '../net/achievements.js';
 import { fetchProgress, lastProgress, onProgress } from '../net/progress.js';
-import { CharacterCard, releaseStage } from './picker.js';
+import { CharacterCard, releaseStage, storedChoice, RANDOM } from './picker.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
 import { BESTIARY, seenCount } from '../../shared/bestiary.js';
 import './ux-pause.css'; // the Esc menu (Pause)
@@ -47,9 +47,26 @@ export class Splash {
     el('div', 'grain', root);
     el('div', 'scratches', root);
 
-    // the menu down the left; the scene is drawn off-centre into the open part beside it (sceneX)
-    this.credit = el('div', 'sp-kicker', root, `Co-op survival horror · 1–${MAX_PLAYERS} players`);
-    const main = (this.main = el('div', 'sp-main', root));
+    // Everything that can be clicked sits in one page laid out in the flow (ux-splash.css): a bar across the top, the
+    // menu down the left (the scene is drawn off-centre into the open part beside it: sceneX), and the "You" and
+    // "People" groups along the bottom - or, on a short screen, in a column of their own. Nothing is pinned to a
+    // corner, so nothing can land on anything else at any zoom; when it all cannot fit, the page scrolls down.
+    const page = (this.page = el('div', 'sp-page', root));
+    const top = el('div', 'sp-top', page);
+    this.credit = el('div', 'sp-kicker', top, `Co-op survival horror · 1–${MAX_PLAYERS} players`);
+    const tools = el('div', 'sp-tools', top);
+    const tile = (parent, icon, text, fn, cls = '') => {
+      const b = el('button', 'btn btn-ghost sp-tile' + (cls ? ' ' + cls : ''), parent);
+      b.type = 'button';
+      svgEl('i', 'btn-ico', b, glyph(icon));
+      const t = el('span', 'sp-tile-t', b, text);
+      b.addEventListener('click', fn);
+      b.txt = t;
+      return b;
+    };
+    tile(tools, 'keyboard', 'Keys & controls', () => this.ui.settingsPanel.show('keys'));
+    tile(tools, 'gear', 'Settings', () => this.ui.settingsPanel.show(), 'sp-settings');
+    const main = (this.main = el('div', 'sp-main', page));
     this.sceneX = 0.5;
     window.addEventListener('resize', () => this._measure());
     const logo = el('h1', 'logo', main);
@@ -87,105 +104,112 @@ export class Splash {
     this.invName = el('div', 'sp-inv-name', inv, '');
     this.invMeta = el('div', 'sp-inv-meta', inv, '');
 
-    // who to play as (picker.js): a card over the name and the way in
+    // Who you are, in one card: the survivor (picker.js), the name, and the account. Then the way in under it.
     const form = (this.form = el('form', 'sp-join', main));
-    this.character = new CharacterCard(ui, main, root, form);
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       this._join();
     });
-    const field = el('label', 'sp-field', form);
-    this.nameL = el('span', 'sp-field-l', field, 'Playing as');
-    this.name = el('input', 'sp-name', field);
+    const who = (this.who = el('div', 'sp-who', form));
+    this.nameL = el('span', 'sp-field-l sp-who-l', who, 'Playing as');
+    this.name = el('input', 'sp-name', who);
     this.name.type = 'text';
     this.name.maxLength = 16;
     this.name.autocomplete = 'off';
     this.name.spellcheck = false;
+    this.name.setAttribute('aria-label', 'Your name');
     let saved = lsGet('stn.name', '');
     if (!saved) saved = 'Survivor' + String(100 + ((Math.random() * 900) | 0));
     this.name.value = saved.slice(0, 16);
     // kept as it is typed, not only on Join: a name outlives a tab closed, or a full server, before the first run
-    this.name.addEventListener('input', () => lsSet('stn.name', this._typedName()));
-    this.joinBtn = el('button', 'btn btn-blood sp-joinbtn', form);
-    this.joinBtn.type = 'submit';
-    this.joinTxt = el('span', '', this.joinBtn, 'Quick join');
-    svgEl('i', 'btn-ico sp-go', this.joinBtn, glyph('arrowRight'));
-
-    // the other ways in
-    const alt = el('div', 'sp-alt', main);
-    const altBtn = (icon, text, fn) => {
-      const b = el('button', 'btn btn-ghost', alt);
-      b.type = 'button';
-      svgEl('i', 'btn-ico', b, glyph(icon));
-      el('span', '', b, text);
-      b.addEventListener('click', fn);
-      return b;
-    };
-    this.quickAlt = altBtn('bolt', 'Quick join', () => this.join(''));
-    altBtn('search', 'Browse games', () => this.browser.show());
-    altBtn('plus', 'Create game', () => this.creator.show());
-    this.friendsBtn = altBtn('people', 'Friends', () => this.ui.friends.show());
-    this.friendsTxt = this.friendsBtn.lastChild;
-    this.friendsBadge = el('b', 'sp-badge', this.friendsBtn, '');
-    this.friendsBadge.hidden = true;
-    onSocialChange(() => this._syncFriends());
-
-    // the account (account.js), top right: Sign in, or who you are signed in as
-    const acct = (this.acctBtn = el('button', 'btn btn-ghost sp-acct', root));
-    acct.type = 'button';
-    svgEl('i', 'btn-ico', acct, glyph('person'));
-    this.acctTxt = el('span', '', acct, 'Sign in');
-    acct.addEventListener('click', () => this.ui.accountPanel.show());
+    this.name.addEventListener('input', () => {
+      lsSet('stn.name', this._typedName());
+      this._syncAs();
+    });
+    this.character = new CharacterCard(ui, who, root);
+    this.character.onChange = () => this._syncAs();
+    // the account (account.js): a guest is asked to sign in; signed in, the way to the account
+    const acct = el('div', 'sp-acct-line', who);
+    this.acctIco = svgEl('i', 'sp-acct-ico', acct, glyph('person'));
+    this.acctPre = el('span', '', acct, 'Guest. ');
+    this.acctBtn = el('button', 'sp-link', acct, 'Sign in');
+    this.acctBtn.type = 'button';
+    this.acctBtn.addEventListener('click', () => this.ui.accountPanel.show());
+    this.acctPost = el('span', '', acct, ' to keep your name, stats and friends.');
     onAccountChange(() => {
       this._syncAccount();
       this._syncFriends();
+      this._syncAch();
     });
+
+    this.joinBtn = el('button', 'btn btn-blood sp-joinbtn', form);
+    this.joinBtn.type = 'submit';
+    const jt = el('span', 'sp-jb-text', this.joinBtn);
+    this.joinTxt = el('span', 'sp-jb-t', jt, 'Quick join');
+    this.joinSub = el('span', 'sp-jb-sub', jt, '');
+    svgEl('i', 'btn-ico sp-go', this.joinBtn, glyph('arrowRight'));
+    // ...and, under it, who that will be as: the words open what changes them
+    const as = el('p', 'sp-as', form);
+    el('span', '', as, 'as ');
+    this.asName = el('button', 'sp-link sp-as-v', as, '');
+    this.asName.type = 'button';
+    this.asName.addEventListener('click', () => {
+      if (this.name.readOnly) return this.ui.accountPanel.show();
+      this.name.focus();
+      this.name.select();
+    });
+    el('span', '', as, ' playing ');
+    this.asWho = el('button', 'sp-link sp-as-v', as, '');
+    this.asWho.type = 'button';
+    this.asWho.title = 'Choose who to play as';
+    this.asWho.addEventListener('click', () => this.character.panel.show());
+
+    // the other ways in
+    const alt = el('div', 'sp-alt', main);
+    this.quickAlt = tile(alt, 'bolt', 'Quick join', () => this.join(''));
+    this.browseBtn = tile(alt, 'search', 'Browse games', () => this.browser.show());
+    this.browseN = el('b', 'sp-count', this.browseBtn, '');
+    tile(alt, 'plus', 'Create game', () => this.creator.show());
 
     this.err = el('div', 'sp-err', main, '');
     this.err.hidden = true;
     const st = (this.status = el('div', 'sp-status', main));
     this.dot = el('i', 'dot', st);
     this.statusTxt = el('span', '', st, 'Contacting server…');
-    // the player's own record (records.js): not there at all until a first run is on it
-    this.record = el('div', 'sp-record', main);
+    // a first visit: the keys the first minute needs, where a returning player's record would be
+    this.keys = el('div', 'sp-keys', page); // (beside the menu on a short screen: ux-splash.css)
+    this.keys.hidden = true;
 
-    const foot = el('div', 'sp-foot', root);
-    const btns = el('div', 'sp-btns', foot);
-    // your level, and the perks to pick (progress.js): lit while one is waiting
-    const pb = (this.perksBtn = el('button', 'btn btn-ghost sp-perks', btns));
-    pb.type = 'button';
-    svgEl('i', 'btn-ico', pb, glyph('arrowUp'));
-    this.perksTxt = el('span', '', pb, 'Perks');
-    this.perksBadge = el('b', 'sp-badge', pb, '');
+    const groups = el('div', 'sp-groups', page);
+    const group = (label) => {
+      const g = el('section', 'sp-grp sp-grp-' + label.toLowerCase(), groups);
+      el('h2', 'sp-grp-l', g, label);
+      return el('div', 'sp-grp-tiles', g);
+    };
+    // You: your level and the perks to pick (progress.js, lit while one is waiting), achievements, your record
+    const you = group('You');
+    this.perksBtn = tile(you, 'arrowUp', 'Perks', () => this.ui.progress.show(), 'sp-perks');
+    this.perksTxt = this.perksBtn.txt;
+    this.perksBadge = el('b', 'sp-badge', this.perksBtn, '');
     this.perksBadge.hidden = true;
-    pb.addEventListener('click', () => this.ui.progress.show());
     onProgress((v) => this._syncPerks(v));
-    const ab = el('button', 'btn btn-ghost', btns);
-    ab.type = 'button';
-    svgEl('i', 'btn-ico', ab, glyph('trophy'));
-    el('span', '', ab, 'Achievements');
-    ab.addEventListener('click', () => this.ui.achPanel.show());
-    const lb = el('button', 'btn btn-ghost', btns);
-    lb.type = 'button';
-    svgEl('i', 'btn-ico', lb, glyph('skull'));
-    el('span', '', lb, 'Leaderboard');
-    lb.addEventListener('click', () => this._showLeaderboard());
-    // the whole game's numbers (/stats, client/stats/), in a tab of its own
-    const gs = el('button', 'btn btn-ghost', btns);
-    gs.type = 'button';
-    svgEl('i', 'btn-ico', gs, glyph('signal'));
-    el('span', '', gs, 'Stats');
-    gs.addEventListener('click', () => window.open('/stats', '_blank', 'noopener'));
-    const cb = el('button', 'btn btn-ghost', btns);
-    cb.type = 'button';
-    svgEl('i', 'btn-ico', cb, glyph('keyboard'));
-    el('span', '', cb, 'Controls');
-    cb.addEventListener('click', () => this.ui.settingsPanel.show('keys'));
-    const sb = el('button', 'btn btn-ghost sp-settings', btns);
-    sb.type = 'button';
-    svgEl('i', 'btn-ico', sb, glyph('gear'));
-    el('span', '', sb, 'Settings');
-    sb.addEventListener('click', () => this.ui.settingsPanel.show());
+    this.achBtn = tile(you, 'trophy', 'Achievements', () => this.ui.achPanel.show());
+    this.achN = el('b', 'sp-count', this.achBtn, '');
+    onAchievements(() => this._syncAch());
+    // the player's own record (records.js): not there at all until a first run is on it
+    this.record = el('div', 'sp-record', you);
+    // People: friends (how many are playing, unread messages), the leaderboard, the whole game's numbers
+    const people = group('People');
+    this.friendsBtn = tile(people, 'people', 'Friends', () => this.ui.friends.show(), 'sp-friends');
+    this.friendsTxt = this.friendsBtn.txt;
+    this.friendsBadge = el('b', 'sp-badge', this.friendsBtn, '');
+    this.friendsBadge.hidden = true;
+    onSocialChange(() => this._syncFriends());
+    tile(people, 'skull', 'Leaderboard', () => this._showLeaderboard());
+    // (/stats, client/stats/), in a tab of its own
+    const gs = tile(people, 'signal', 'Server stats', () => window.open('/stats', '_blank', 'noopener'));
+    el('span', 'sp-ext', gs, '↗');
+    gs.title = 'Every game on this server, in a new tab';
 
     this.browser = new GameBrowser(ui, root, this);
     this.creator = new GameCreator(ui, root, this);
@@ -232,15 +256,17 @@ export class Splash {
   // takes no typing. Signed out again, the name typed before comes back (it stayed in storage all along).
   _syncAccount() {
     const user = accountState().user;
-    this.acctTxt.textContent = user ? user.username : 'Sign in';
-    this.acctBtn.classList.toggle('on', !!user);
+    this.acctPre.textContent = user ? 'Signed in. ' : 'Guest. ';
+    this.acctBtn.textContent = user ? 'Your account' : 'Sign in';
+    this.acctPost.textContent = user ? ' · stats, last games, signing out' : ' to keep your name, stats and friends.';
+    this.who.classList.toggle('on', !!user);
     this.acctBtn.title = user ? 'Your account: stats, last games, signing out' : 'Sign in or make an account: stats kept on the server, friends';
     if (user) {
       if (!this.name.readOnly) this.guestName = this._typedName(); // (a made-up one is not in storage until a join)
       this.name.value = user.username;
       this.name.readOnly = true;
       this.name.classList.add('locked');
-      this.name.title = "Your account's name. Sign out (top right) to play under another.";
+      this.name.title = "Your account's name. Sign out (Your account, below) to play under another.";
       this.nameL.textContent = 'Signed in as';
     } else if (this.name.readOnly) {
       this.name.readOnly = false;
@@ -249,6 +275,21 @@ export class Splash {
       this.name.value = (lsGet('stn.name', '') || this.guestName || '').slice(0, 16);
       this.nameL.textContent = 'Playing as';
     }
+    this._syncAs();
+  }
+
+  // the line under the big button: "as <name> playing <survivor>"
+  _syncAs() {
+    this.asName.textContent = this._typedName() || 'a made-up name';
+    this.asName.title = this.name.readOnly ? 'Your account' : 'Change your name';
+    const c = storedChoice();
+    this.asWho.textContent = c === RANDOM ? 'a random survivor' : this.character.name.textContent || 'a survivor';
+  }
+
+  // Achievements: how many of them are unlocked (this browser's, or the account's while signed in)
+  _syncAch() {
+    const a = achievementsView();
+    this.achN.textContent = a.loading || a.error ? '' : `${Object.keys(a.unlocked).length}/${ACH_TOTAL}`;
   }
 
   // the name to play under (one is made up if the field is empty)
@@ -257,6 +298,7 @@ export class Splash {
     if (!name) {
       name = 'Survivor' + String(100 + ((Math.random() * 900) | 0));
       this.name.value = name;
+      this._syncAs();
     }
     return name;
   }
@@ -287,6 +329,8 @@ export class Splash {
     const full = this.invited && !!this.game?.full;
     this.joinBtn.disabled = this.joining || full;
     this.joinTxt.textContent = this.joining ? 'Joining…' : !this.invited ? 'Quick join' : full ? 'Game full' : 'Join game';
+    // (what the big button does: Lobby.quick takes the busiest public game with a seat, or makes one)
+    this.joinSub.textContent = this.invited ? (full ? 'Every seat is taken' : this.game ? `Into ${this.game.name}` : 'Into the game you were sent') : 'Busiest game with a free seat, or a new one';
     this.quickAlt.hidden = !this.invited; // (without an invitation, the big button is the quick join)
   }
 
@@ -366,8 +410,13 @@ export class Splash {
       const n = lobby.games;
       this.statusTxt.textContent = n ? `${n} game${n === 1 ? '' : 's'} running · ${lobby.players} survivor${lobby.players === 1 ? '' : 's'} online` : 'No games running · start one';
       this.status.className = 'sp-status online' + (this.invited && this.game?.phase === PHASE.NIGHT ? ' night' : '');
+      // (the public games, the ones Browse lists)
+      const open = Array.isArray(lobby.list) ? lobby.list.length : 0;
+      this.browseN.textContent = open ? String(open) : '';
+      this.browseBtn.title = open ? `${open} public game${open === 1 ? '' : 's'} to pick from` : 'No public games right now';
     } catch {
       if (this.root.hidden) return;
+      this.browseN.textContent = '';
       this.offline = true;
       this.statusTxt.textContent = 'Server offline';
       this.status.className = 'sp-status offline';
@@ -380,19 +429,37 @@ export class Splash {
     const { total: t, best: b } = loadRecord();
     this.record.textContent = '';
     this.record.hidden = !t.runs;
+    this._syncKeys(!t.runs);
     if (!t.runs) return;
-    el('b', 'sp-rec-l', this.record, 'Your record');
-    const stat = (value, label, cls = '') => {
-      const d = el('div', 'sp-stat' + cls, this.record);
-      el('span', 'sp-stat-v', d, String(value));
-      el('span', 'sp-stat-l', d, label);
+    this.record.title = 'Your record, kept in this browser';
+    const stat = (value, label) => {
+      const d = el('span', 'sp-rec', this.record);
+      el('b', 'sp-rec-v', d, String(value));
+      el('span', 'sp-rec-w', d, label);
     };
-    stat(t.runs, t.runs === 1 ? 'Run' : 'Runs');
-    stat(b.nights, 'Most nights');
-    if (t.escapes) {
-      stat(t.escapes, 'Escaped');
-      stat(fmtTime(b.secs), 'Fastest');
-    } else stat('Not yet', 'Escaped', ' none');
+    stat(t.runs, t.runs === 1 ? 'run' : 'runs');
+    stat(t.escapes, 'escaped');
+    stat(b.nights, b.nights === 1 ? 'best night' : 'best nights');
+    if (t.escapes) stat(fmtTime(b.secs), 'fastest');
+  }
+
+  // "First night?": the keys the first minute needs, as they are bound now; shown until a first run is on the record
+  _syncKeys(first) {
+    this.keys.hidden = !first;
+    this.keys.textContent = '';
+    if (!first) return;
+    el('h2', 'sp-keys-l', this.keys, 'First night?');
+    const row = el('div', 'sp-keys-row', this.keys);
+    const key = (caps, what) => {
+      const k = el('span', 'sp-key', row);
+      for (const c of caps) el('span', 'kbd', k, c);
+      el('span', 'sp-key-w', k, what);
+    };
+    key(['forward', 'left', 'back', 'right'].map((a) => keysOf(a)[0] || '–'), 'move');
+    key([keysOf('interact')[0] || '–'], 'pick up');
+    key([keysOf('flashlight')[0] || '–'], 'flashlight');
+    key([keysOf('inventory')[0] || '–'], 'inventory');
+    key(['Esc'], 'menu');
   }
 
   // How far across the screen the middle of the open part beside the menu is (where Renderer.setCenter puts the
@@ -402,6 +469,8 @@ export class Splash {
     const w = window.innerWidth;
     const right = this.main.getBoundingClientRect().right;
     this.sceneX = right > 0 && right < w * 0.65 ? (right + w) / 2 / w : 0.5;
+    // (where the menu ends: the lobby's panels open as a sheet beside it, ux-splash.css, the account's included)
+    this.ui.root.style.setProperty('--sp-edge', `${Math.round(Math.max(0, right))}px`);
   }
 
   // the cut between two shots of the walk behind: 0 shows the scene, 1 is black
@@ -427,6 +496,7 @@ export class Splash {
     this._syncAccount();
     this._syncFriends();
     this._syncPerks(lastProgress());
+    this._syncAch();
     fetchProgress().catch(() => {}); // (what the run just played earned: the button says if a pick is waiting)
     this.syncRecord();
     this.character.show();
