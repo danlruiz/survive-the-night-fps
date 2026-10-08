@@ -42,7 +42,23 @@ export function house(b, hx, hz, front, k, K, car = true) {
   s.prop('table', 2, -1.6, 0.1);
   s.loot(2, -1.6, 0.82);
   s.loot(-2.4, 2);
-  if (k % 3 === 0 && car) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
+  if (k % 3 === 0 && car && (!K.fits || K.fits(s, k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1))) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
+  // its plot: the house on its pad (the foundation, down into the ground where the plot falls away), a post-and-rail
+  // fence along the front and down the sides with a gap for the path and the drive, the mailbox at the lane, a woodpile
+  // or a bin by a side wall - where nothing else stands and no road runs
+  s.box(0, -1.6, 0, 10.5, 1.6, 8.5, 'concrete');
+  const yard = (type, lx, lz, ry, o = {}, keep = 4.2) => {
+    if (K.fits && !K.fits(s, type, lx, lz, ry)) return;
+    if (K.roadDistAt && K.roadDistAt(s.wx(lx, lz), s.wz(lx, lz)) < keep) return;
+    s.prop(type, lx, lz, ry, { ground: true, ...o });
+  };
+  if (k % 2 === 0) {
+    for (const lx of [-8.5, -5.5, -2.5, 2.5]) yard('fence', lx, -9.4, 0, { seed: k });
+    for (const sx of [-1, 1]) for (const lz of [-7.9, -4.9]) yard('fence', sx * 10.1, lz, PI / 2, { seed: k + 1 });
+  }
+  yard('mailbox', -2.2, -10.4, 0, {}, 2.4);
+  if (k % 2 === 1) yard('woodpile', 6.3, 2.6, PI / 2);
+  if (k % 3 === 2) yard('trash_bin', -7.6, -5.6, 0.2); // (clear of the window a barricade may go across)
   if (k % 2 === 0) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k });
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)

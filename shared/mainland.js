@@ -176,6 +176,13 @@ export function createMainland(seed) {
   const SHORE = FX(0.2); // ...and the shore it comes to there
   const head = { x: SHORE + 44, z: zb };
   const inCity = (x, z, pad) => Math.abs(x - city.x) < G2 + pad && Math.abs(z - city.z) < G2 + pad;
+  // The picture's Town Center is no plain grid: in its middle a square, the town hall on it, and avenues out from the
+  // square's corners on the diagonals to the ring. The four blocks round the middle are the square (Main Street runs
+  // through it; the cross street does not); a block a diagonal avenue cuts through, corner to corner, keeps a lot in
+  // each of its two other corners. (bi, bj: a block's column and row)
+  const SQ0 = GRID / 2 - 1, SQ1 = GRID / 2;
+  const onSquare = (bi, bj) => bi >= SQ0 && bi <= SQ1 && bj >= SQ0 && bj <= SQ1;
+  const onAvenue = (bi, bj) => !onSquare(bi, bj) && (bi === bj || bi + bj === GRID - 1);
   const cityW = [city.x - G2, city.z];
   const cityE = [city.x + G2, city.z];
 
@@ -903,9 +910,15 @@ export function createMainland(seed) {
   // the city's streets (Main Street is Route 9 itself)
   for (let i = 0; i <= GRID; i++) {
     const o = -G2 + i * PITCH;
-    buildRoad([[city.x + o, city.z - G2 - 8], [city.x + o, city.z + G2 + 8]], ROAD.ASPHALT, 3.4, '', cityH);
+    if (i === GRID / 2) {
+      // (the cross street up the middle stops at the square, from the north and from the south)
+      buildRoad([[city.x + o, city.z - G2 - 8], [city.x + o, city.z - PITCH]], ROAD.ASPHALT, 3.4, '', cityH);
+      buildRoad([[city.x + o, city.z + PITCH], [city.x + o, city.z + G2 + 8]], ROAD.ASPHALT, 3.4, '', cityH);
+    } else buildRoad([[city.x + o, city.z - G2 - 8], [city.x + o, city.z + G2 + 8]], ROAD.ASPHALT, 3.4, '', cityH);
     if (i !== GRID / 2) buildRoad([[city.x - G2 - 8, city.z + o], [city.x + G2 + 8, city.z + o]], ROAD.ASPHALT, 3.4, '', cityH);
   }
+  // the avenues: from each corner of the square out on the diagonal to the ring's corner
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) buildRoad([[city.x + sx * PITCH, city.z + sz * PITCH], [city.x + sx * G2, city.z + sz * G2]], ROAD.ASPHALT, 3.4, '', cityH);
   // the airfield: the runway, the taxiway down the apron, the perimeter road, the road in through the gate
   const runwayRoad = buildRoad([aw(0, -RUNWAY_LEN / 2), aw(0, RUNWAY_LEN / 2)], ROAD.ASPHALT, RUNWAY_HALF, 'Runway 36', fieldH);
   buildRoad([aw(RUNWAY_HALF + 8, -RUNWAY_LEN / 2 + 20), aw(RUNWAY_HALF + 8, APRON.lz - APRON.hz), aw(APRON.lx, APRON.lz - APRON.hz - 6)], ROAD.ASPHALT, 2.8, '', fieldH);
@@ -1115,7 +1128,7 @@ export function createMainland(seed) {
   const lots = [];
   {
     const order = [];
-    for (let k = 0; k < GRID * GRID; k++) order.push(k);
+    for (let k = 0; k < GRID * GRID; k++) if (!onSquare((k / GRID) | 0, k % GRID) && !onAvenue((k / GRID) | 0, k % GRID)) order.push(k);
     for (let i = order.length - 1; i > 0; i--) {
       const j = rng.int(0, i);
       [order[i], order[j]] = [order[j], order[i]];
@@ -1126,14 +1139,26 @@ export function createMainland(seed) {
       for (let bj = 0; bj < GRID; bj++) {
         const bx = city.x - G2 + (bi + 0.5) * PITCH;
         const bz = city.z - G2 + (bj + 0.5) * PITCH;
+        if (onSquare(bi, bj)) continue; // (the square: below)
         const b = new Builder(bx, bz, 0, cityH);
         b.zone = ZONE.CITY;
-        b.box(0, 0, 0, PAVED, PAVE, PAVED, 'concrete'); // the pavement, out to the kerb
         b.clear(0, 0, PITCH * 0.72);
-        const r = rng();
-        const layout = layoutOf.get(bi * GRID + bj) || (r < 0.45 ? 'quad' : r < 0.9 ? 'long' : 'big');
         // which way a lot faces: out of the block, onto the street it stands on. face: the world direction [dx, dz]
         const lot = (lx, lz, w, d, face) => lots.push({ x: bx + lx, z: bz + lz, w, d, ry: Math.atan2(-face[0], -face[1]), bi, bj, what: '' });
+        if (onAvenue(bi, bj)) {
+          // an avenue through it corner to corner (down the diagonal bi = bj, or across it): a lot in each of the two
+          // other corners, its paving round it, the avenue's side of it ground the roadway was laid on
+          const k = bi === bj ? -1 : 1;
+          for (const sx of [-1, 1]) {
+            const sz = sx * k;
+            b.box(sx * 14.3, 0, sz * 14.3, 20, PAVE, 20, 'concrete');
+            lot(sx * 14.5, sz * 14.5, 19.5, 19.5, rng.chance(0.5) ? [sx, 0] : [0, sz]);
+          }
+          continue;
+        }
+        b.box(0, 0, 0, PAVED, PAVE, PAVED, 'concrete'); // the pavement, out to the kerb
+        const r = rng();
+        const layout = layoutOf.get(bi * GRID + bj) || (r < 0.45 ? 'quad' : r < 0.9 ? 'long' : 'big');
         if (layout === 'quad') {
           for (const sx of [-1, 1]) for (const sz of [-1, 1]) lot(sx * 11.25, sz * 11.25, 19.5, 19.5, rng.chance(0.5) ? [sx, 0] : [0, sz]);
         } else if (layout === 'long') {
@@ -2201,6 +2226,28 @@ export function createMainland(seed) {
     },
     // ST. BRENDAN'S: a stone church on a corner lot - a nave under a steep roof, a tower at its door with a spire,
     // coloured glass in what is left of its windows, its yard gone to weed
+    // Port Calder's town hall on the square: two storeys of stone over its hall, which is walked into from the
+    // square up its steps; a clock tower over the door
+    hall(b, L) {
+      const F = frame(L, 30, 16);
+      const R = groundRoom(b, 0, F.cz, F.w, F.d, 4.4, 'stone', { n: [door(F.w / 2, 2.2), win(F.w * 0.18, 1.6, 1.3, 2.4), win(F.w * 0.36, 1.6, 1.3, 2.4), win(F.w * 0.64, 1.6, 1.3, 2.4), win(F.w * 0.82, 1.6, 1.3, 2.4)], s: [door(F.w / 2, 1.2)] }, { roof: 'flat', roofMat: 'concrete', floorMat: 'concrete', lino: true, tint: 3 });
+      block(b, 0, F.cz, F.w, F.d, 4.7, 2, 3.6, 'stone', 'stone', { lost: 0, wear: 0.4 });
+      // the clock tower over the door, and its roof
+      b.box(0, 4.7 + 7.2, F.front + 2.6, 5, 7, 5, 'stone', { collide: false });
+      b.cone(0, 4.7 + 14.2, F.front + 2.6, 3.7, 5.2, 'shingles', 4);
+      // the steps up to the door
+      b.box(0, PAVE, F.front - 1.4, 9, 0.22, 2.8, 'concrete');
+      // inside: the counter, the records, the benches of the hall, what was left
+      b.prop('reception_desk', 0, F.cz - 2.2, 0, inside);
+      b.loot(0, F.cz - 2.2, FLOOR_Y + 1.14);
+      cont(b, CONT.CABINET, 'cabinet', rightX(F, 0.55), F.cz, PI / 2);
+      cont(b, CONT.CABINET, 'cabinet', leftX(F, 0.55), F.cz + 2, -PI / 2, { seed: 1 });
+      for (const dx of [-8, -4, 4, 8]) b.prop('waiting_chairs', dx, F.cz + 3.4, 0, inside);
+      b.prop('skeleton', 3, F.cz + 1, 1.2, { nocollide: true, ly: FLOOR_Y, seed: 1 });
+      b.loot(-9, F.cz - 3.4, FLOOR_Y + 0.02);
+      mess(b, F, 10, 4.4, R);
+      landmarks.push({ x: b.wx(0, F.cz), z: b.wz(0, F.cz), name: 'Port Calder Town Hall' });
+    },
     church(b, L, name = "St. Brendan's") {
       const F = frame(L, 9.6, 14);
       const R = groundRoom(b, 0, F.cz, F.w, F.d, 5.4, 'stone', { n: [door(4.8, 1.6)], s: [door(7.6, 1.1)] }, { roof: 'gable', roofH: 3.9, roofMat: 'shingles', floorMat: 'planks', tint: 3 });
@@ -2362,7 +2409,10 @@ export function createMainland(seed) {
         for (let c = 0; c < cols; c++) {
           if (!rng.chance(0.5)) continue;
           const t = rng();
-          b.wreck(t < 0.4 ? 'car_wreck' : t < 0.62 ? 'car_burnt' : t < 0.8 ? 'car_open' : t < 0.9 ? 'van_wreck' : 'pickup_truck', -L.w / 2 + 2.6 + c * 3.4 + rng.range(-0.2, 0.2), -L.d / 2 + 5 + r * 7, (rng.chance(0.5) ? 0 : PI) + rng.range(-0.1, 0.1), { trunk: t < 0.4 && rng.chance(0.45), ly: PAVE });
+          const type = t < 0.4 ? 'car_wreck' : t < 0.62 ? 'car_burnt' : t < 0.8 ? 'car_open' : t < 0.9 ? 'van_wreck' : 'pickup_truck';
+          const [px, pz, pr] = [-L.w / 2 + 2.6 + c * 3.4 + rng.range(-0.2, 0.2), -L.d / 2 + 5 + r * 7, (rng.chance(0.5) ? 0 : PI) + rng.range(-0.1, 0.1)];
+          const trunk = t < 0.4 && rng.chance(0.45);
+          if (fits(b, type, px, pz, pr, PAVE)) b.wreck(type, px, pz, pr, { trunk, ly: PAVE }); // (a pickup is longer than its bay)
         }
       }
       b.prop('streetlight', L.w / 2 - 1, L.d / 2 - 1, PI, { ly: PAVE });
@@ -2453,7 +2503,7 @@ export function createMainland(seed) {
     const plan = new Map();
     // (the tower whose shaft came down: the first big lot. It fell across the street beside its block - east, or
     // west from the city's last column - onto what stood on the far side: those lots are under it.)
-    const fi = order.find((i) => lots[i].w > 40 && lots[i].d > 40);
+    const fi = order.find((i) => lots[i].w > 40 && lots[i].d > 40 && ((L) => { const nb = L.bi < GRID - 1 ? L.bi + 1 : L.bi - 1; return !onSquare(nb, L.bj) && !onAvenue(nb, L.bj); })(lots[i]));
     if (fi !== undefined) {
       const T = lots[fi];
       const dir = T.bi < GRID - 1 ? 1 : -1;
@@ -2501,6 +2551,58 @@ export function createMainland(seed) {
       else BUILD[what](b, L);
     });
   }
+  // THE SQUARE: the paving between the four streets round it (Main Street through its middle), the town hall on its
+  // north side facing it, and on its south side the memorial, benches and lamps round it, a tree or two left
+  {
+    const b = new Builder(city.x, city.z, 0, cityH);
+    b.zone = ZONE.CITY;
+    const E = PITCH - 3.7; // (from the middle to the kerb of the streets round it)
+    for (const sz of [-1, 1]) b.box(0, 0, (sz * (E + 3.7)) / 2, E * 2, PAVE, E - 3.7, 'concrete');
+    b.clear(0, 0, PITCH * 1.3);
+    const L = { x: city.x, z: city.z - 28, w: 42, d: 42, ry: Math.atan2(0, -1), bi: SQ0, bj: SQ0, what: 'hall' };
+    lots.push(L);
+    BUILD.hall(new Builder(L.x, L.z, L.ry, cityH), L);
+    // the memorial: a plinth and its column, the benches round it, the lamps at the corners of the paving
+    b.box(0, PAVE, 30, 3.4, 1.3, 3.4, 'stone');
+    b.cyl(0, PAVE + 1.3, 30, 0.55, 4.2, 'stone', { sides: 10 });
+    b.box(0, PAVE + 5.5, 30, 1.6, 0.5, 1.6, 'stone', { collide: false });
+    for (const [lx, lz, ry] of [[-7, 30, -PI / 2], [7, 30, PI / 2], [0, 37, PI], [0, 23, 0]]) if (fits(b, 'street_bench', lx, lz, ry, PAVE)) b.prop('street_bench', lx, lz, ry, { ly: PAVE });
+    for (const [lx, lz] of [[-E + 2, 6], [E - 2, 6], [-E + 2, E - 2], [E - 2, E - 2], [-E + 2, -6], [E - 2, -6]]) if (fits(b, 'streetlight', lx, lz, 0, PAVE)) b.prop('streetlight', lx, lz, lx < 0 ? -PI / 2 : PI / 2, { ly: PAVE });
+    for (const [lx, lz] of [[-20, 42], [20, 42], [-34, 18], [34, 18]]) b.tree(lx, lz, rng.int(3, 4), rng.range(0.9, 1.15));
+    for (let n = 0; n < 14; n++) b.prop(['litter', 'paper_scatter', 'debris', 'glass_shards'][n & 3], rng.range(-40, 40), rng.range(10, 48), rng.range(0, 6), { nocollide: true, ly: PAVE, seed: n & 1 });
+    // the market that was set up on it the last week: stalls in two rows either side of the memorial, their awnings,
+    // counters and what was left on them
+    const put = (type, lx, lz, ry, o = {}) => fits(b, type, lx, lz, ry, PAVE) && b.prop(type, lx, lz, ry, { ly: PAVE, ...o });
+    const stall = (lx, lz, k) => {
+      for (const [px, pz] of [[-1.5, -1], [1.5, -1], [-1.5, 1], [1.5, 1]]) b.cyl(lx + px, PAVE, lz + pz, 0.06, 2.5, 'rust', { sides: 6, collide: false });
+      b.box(lx, PAVE, lz - 0.6, 3, 0.95, 0.9, 'planks');
+      b.box(lx, PAVE + 2.45, lz, 3.4, 0.08, 2.6, k % 2 ? 'tin' : 'tin_rust', { rx: 0.16, collide: false });
+      put('crate_small', lx - 0.8, lz + 0.5, 0.3, { seed: k & 1 });
+      if (k % 3 === 0) put('crate', lx + 0.9, lz + 0.6, -0.2, { seed: 1 });
+    };
+    let k = 0;
+    for (const lz of [16, 44]) for (const lx of [-38, -28, -18, 18, 28, 38]) stall(lx, lz, k++);
+    for (const [lx, lz] of [[-23, 30], [23, 30]]) put('picnic_table', lx, lz, 0.2);
+    // the evacuation point the army set up by the town hall: its tents, the triage tent, sandbags, barriers on Main
+    // Street's kerb, the board
+    put('military_tent', -38, -30, PI / 2);
+    put('military_tent', 38, -32, -PI / 2, { seed: 1 });
+    put('triage_tent', 38, -16, -PI / 2);
+    for (const [lx, lz, ry] of [[-30, -18, 0], [-27, -18, 0], [-24, -18, 0.1], [29, -44, 0], [32, -44, 0]]) put('sandbags', lx, lz, ry);
+    for (const lx of [-46, -40, 40, 46]) put('jersey_barrier', lx, -6.2, 0);
+    put('checkpoint_sign', -34, -6.5, 0);
+    // the street furniture along Main Street's kerbs, and the cars left parked down the square's sides
+    put('bus_shelter', -46, 6.4, PI);
+    put('phone_booth', 44, 6.2, PI);
+    put('newspaper_box', 36, 5.6, PI);
+    put('vending_machine', -30, 5.8, PI);
+    for (let lz = 12; lz < 50; lz += 6.5) {
+      if (rng.chance(0.75)) put(rng.chance(0.6) ? 'car_wreck' : 'car_burnt', -48.5, lz, PI / 2 + rng.range(-0.05, 0.05), { seed: rng.int(0, 2) });
+      if (rng.chance(0.75)) put(rng.chance(0.6) ? 'car_wreck' : 'car_open', 48.5, lz, -PI / 2 + rng.range(-0.05, 0.05), { seed: rng.int(0, 2) });
+    }
+    for (let n = 0; n < 10; n++) b.prop(['suitcases', 'stroller', 'shopping_cart', 'bicycle', 'skeleton'][n % 5], rng.range(-44, 44), rng.range(8, 50), rng.range(0, 6), { nocollide: true, ly: PAVE, seed: n & 1 });
+    landmarks.push({ x: city.x, z: city.z + 30, name: 'Town Square' });
+  }
   // The streets. Every few metres of them: the traffic that stopped for good - wrecks nose to tail, doors standing
   // open, burnt-out shells, one run up onto the pavement or into a shop front - lamps, hydrants, meters, bins,
   // benches, letter boxes and booths along the kerbs, rubbish, paper and broken glass, what people carried and
@@ -2531,6 +2633,7 @@ export function createMainland(seed) {
       }
     };
     if (fall) kinds.set(key(fall.bi, fall.bj, true), 'fallen');
+    for (let k = SQ0; k <= SQ1; k++) kinds.set(key(GRID / 2, k, true), 'square'); // (the cross street is the square there)
     mark('block', ROADBLOCKS);
     mark('jam', JAMS);
     mark('hole', SINKHOLES);
@@ -2553,6 +2656,20 @@ export function createMainland(seed) {
       for (const [t, wt] of W) if ((r -= wt) <= 0) return t;
       return W[0][0];
     };
+    // (what stands on a kerb of a block an avenue cuts: on one of its corners' paving, off it, or - astride its edge -
+    // not at all. lx, lz: in the city's frame; o: what onPave says for an ordinary block. Returns the prop's options or null)
+    const paveAt = (lx, lz, o) => {
+      const bi = Math.floor((lx + G2) / PITCH), bj = Math.floor((lz + G2) / PITCH);
+      if (bi < 0 || bj < 0 || bi >= GRID || bj >= GRID || !onAvenue(bi, bj)) return o;
+      const cx = -G2 + (bi + 0.5) * PITCH, cz = -G2 + (bj + 0.5) * PITCH;
+      const k = bi === bj ? -1 : 1;
+      for (const sx of [-1, 1]) {
+        const dx = Math.abs(lx - cx - sx * 14.3), dz = Math.abs(lz - cz - sx * k * 14.3);
+        if (dx < 10 - 0.8 && dz < 10 - 0.8) return { ly: PAVE };
+        if (dx < 10 + 0.8 && dz < 10 + 0.8) return null;
+      }
+      return {};
+    };
     const TRAFFIC = [['car_wreck', 3], ['car_burnt', 2.4], ['car_open', 2.8], ['pickup_truck', 1.1], ['van_wreck', 1.1], ['ambulance', 0.3], ['box_truck', 0.45]];
     const LITTER = ['litter', 'litter', 'paper_scatter', 'paper_scatter', 'glass_shards', 'glass_shards', 'debris', 'suitcases', 'bicycle', 'stroller', 'skeleton', 'corpse', 'bones', 'traffic_cones', 'shopping_cart', 'blood_pool', 'litter', 'debris'];
     const hasTrunk = (type) => type === 'car_wreck' || type === 'car_open';
@@ -2569,15 +2686,23 @@ export function createMainland(seed) {
           const faceAlong = (sign) => (ns ? (sign > 0 ? PI : 0) : sign > 0 ? -PI / 2 : PI / 2);
           const faceIn = (sgn) => (ns ? (sgn * PI) / 2 : sgn > 0 ? 0 : PI);
           const kind = kinds.get(key(i, k, ns));
+          if (kind === 'square') continue;
           // (the paving of a block stands PAVE over the city's level from 3.7 m off a street's middle - where there is
           // a block: the outer side of an edge street is a verge. What is put on it stands on it.)
           const onPave = (across) => (Math.abs(across) > 3.75 && (across > 0 ? i < GRID : i > 0) ? { ly: PAVE } : {});
-          const litter = (type, along, across, o2 = {}) => b.prop(type, ...at(along, across), rng.range(0, 6), { nocollide: true, seed: rng.int(0, 2), ...onPave(across), ...o2 });
-          const put = (type, along, across, ry, o2 = {}) => extra(b, type, ...at(along, across), ry, { ...onPave(across), ...o2 });
+          // (where a block an avenue cuts has paving at that spot: paveAt; astride its edge, a thing that is solid is
+          // left out and one that is not lies on the roadway's level)
+          const paveOf = (along, across) => paveAt(...at(along, across), onPave(across));
+          const litter = (type, along, across, o2 = {}) => b.prop(type, ...at(along, across), rng.range(0, 6), { nocollide: true, seed: rng.int(0, 2), ...(paveOf(along, across) || {}), ...o2 });
+          const put = (type, along, across, ry, o2 = {}) => {
+            const pv = paveOf(along, across);
+            if (pv) extra(b, type, ...at(along, across), ry, { ...pv, ...o2 });
+          };
           const car = (type, along, across, ry, trunk = false) => {
             const [x, z] = at(along, across);
-            if (!PROPS[type] || !fits(b, type, x, z, ry, onPave(across).ly ?? 0)) return false;
-            b.wreck(type, x, z, ry, { trunk: trunk && hasTrunk(type), zone: ZONE.ROADSIDE, ...onPave(across) });
+            const pv = paveOf(along, across);
+            if (!pv || !PROPS[type] || !fits(b, type, x, z, ry, pv.ly ?? 0)) return false;
+            b.wreck(type, x, z, ry, { trunk: trunk && hasTrunk(type), zone: ZONE.ROADSIDE, ...pv });
             return true;
           };
           // weeds along both kerbs and up the middle of the road, whatever else is here
@@ -2587,10 +2712,12 @@ export function createMainland(seed) {
           // the kerbs: a lamp at either end, meters down one side, and what a city sets along its pavements
           {
             const [lx, lz] = at(-20, 4.5);
-            if (free('streetlight', lx, lz, 0)) b.prop('streetlight', lx, lz, ns ? PI / 2 : 0, onPave(4.5)); // (its arm out over the roadway)
+            const pl = paveAt(lx, lz, onPave(4.5));
+            if (pl && free('streetlight', lx, lz, 0)) b.prop('streetlight', lx, lz, ns ? PI / 2 : 0, pl); // (its arm out over the roadway)
             const [rx, rz] = at(14, -4.5);
             const there = rng.chance(0.7);
-            if (there && free('streetlight', rx, rz, 0)) b.prop('streetlight', rx, rz, ns ? -PI / 2 : PI, onPave(-4.5));
+            const pr = paveAt(rx, rz, onPave(-4.5));
+            if (there && pr && free('streetlight', rx, rz, 0)) b.prop('streetlight', rx, rz, ns ? -PI / 2 : PI, pr);
             const side = rng.chance(0.5) ? 1 : -1;
             for (let a = -15; a <= 15; a += 6) {
               const here = rng.chance(0.6);
@@ -2718,7 +2845,7 @@ export function createMainland(seed) {
             const pr = rng.range(0, 6);
             const [px, pz] = at(pa, across);
             if (r < 0.3) litter('pole_down', rng.range(-8, 8), rng.range(-1, 1), { ry: undefined });
-            else if (r < 0.5 && !rim && fits(b, 'dumpster_tipped', px, pz, pr, PAVE)) b.cont(CONT.DUMPSTER, px, pz, { prop: 'dumpster_tipped', ry: pr, ...onPave(across) });
+            else if (r < 0.5 && !rim && paveAt(px, pz, onPave(across))?.ly && fits(b, 'dumpster_tipped', px, pz, pr, PAVE)) b.cont(CONT.DUMPSTER, px, pz, { prop: 'dumpster_tipped', ry: pr, ...onPave(across) });
             else if (r < 0.62 && !rim) put('barricade', pa, across, yaw + PI / 2);
           }
           // the roadway, heaved: slabs of it tipped up out of the street (round a hole, all of its rim)
@@ -2778,8 +2905,8 @@ export function createMainland(seed) {
         const [t1, t2] = [rng.range(0, 6), rng.range(0, 6)];
         if (main || r < 0.5) {
           if ((i + j) % 3 === 1) b.prop('pole_down', x + 4.4, z - 4.6, 0.7, { nocollide: true, seed: 1 });
-          else if (fits(b, 'traffic_light', x + 5.2, z - 5.2, PI, PAVE)) b.prop('traffic_light', x + 5.2, z - 5.2, PI, { ly: PAVE }); // (their arms out over the cross street)
-          if (fits(b, 'traffic_light', x - 5.2, z + 5.2, 0, PAVE)) b.prop('traffic_light', x - 5.2, z + 5.2, 0, { ly: PAVE });
+          else if (paveAt(x + 5.2, z - 5.2, { ly: PAVE })?.ly && fits(b, 'traffic_light', x + 5.2, z - 5.2, PI, PAVE)) b.prop('traffic_light', x + 5.2, z - 5.2, PI, { ly: PAVE }); // (their arms out over the cross street)
+          if (paveAt(x - 5.2, z + 5.2, { ly: PAVE })?.ly && fits(b, 'traffic_light', x - 5.2, z + 5.2, 0, PAVE)) b.prop('traffic_light', x - 5.2, z + 5.2, 0, { ly: PAVE });
         }
         if (crash && !(fall && Math.hypot(x - (fall.xs - city.x), z - (fall.zc - city.z)) < 34)) {
           const a = pickW(TRAFFIC.slice(0, 5));
@@ -2988,9 +3115,9 @@ export function createMainland(seed) {
       q.box(SX, deckY - 7.5, SZ, SW, 7.5, SL, 'rust'); // the hull, down into the water
       for (const sd of [-1, 1]) q.box(SX + sd * 3.3, deckY - 7.5, SZ - SL / 2 - 4.2, SW * 0.55, 7.5, 9, 'rust', { ry: sd * 0.42 }); // the bow
       q.box(SX, deckY, SZ, SW - 0.6, 0.12, SL - 0.6, 'dark', { collide: false });
-      for (const sd of [-1, 1]) q.box(SX + sd * (SW / 2 - 0.1), deckY, SZ, 0.2, 1.1, SL, 'rust', { collide: false }); // (the bulwarks)
+      for (const sd of [-1, 1]) q.box(SX + sd * (SW / 2 - 0.1), deckY, SZ, 0.2, 1.1, SL, 'rust'); // (the bulwarks)
       q.box(SX, deckY, SZ + SL / 2 - 6, 11, 7.2, 9, 'tin', { collide: true }); // the house
-      q.box(SX, deckY + 7.2, SZ + SL / 2 - 7, 12.4, 2.6, 6, 'tin_rust', { collide: false }); // the bridge
+      q.box(SX, deckY + 7.2, SZ + SL / 2 - 7, 12.4, 2.6, 6, 'tin_rust'); // the bridge
       q.cyl(SX, deckY + 7.2, SZ + SL / 2 - 3, 1.3, 5, 'rust', { sides: 10, collide: false }); // the funnel
       for (const [cx, cz, two] of [[-3, -20, true], [3, -20, false], [-3, -13, true], [3, -13, true], [-3, -6, false], [3, -6, true], [-3, 1, true], [3, 1, false], [3, 8, true]]) {
         q.prop('shipping_container', SX + cx, SZ + cz, 0.01, { ly: deckY + 0.12, seed: (cz + cx + 40) & 3 });
@@ -3022,7 +3149,7 @@ export function createMainland(seed) {
     }
   });
 
-  Object.assign(K, { block, groundRoom, partition, signAt, heap, extra, jagged, weed }); // (what the third pass's places are built with)
+  Object.assign(K, { block, groundRoom, partition, signAt, heap, extra, jagged, weed, fits, roadDistAt }); // (what the third pass's places are built with)
 
   // THE SUBURBS, THE STREETS ROUND TOWN CENTER AND NORTH COAST VILLAGE: houses along the lanes of the picture's areas
   // of houses (and the roads through them), each turned to the lane it stands on - a quarter turn at a time, so its
@@ -3312,7 +3439,7 @@ export function createMainland(seed) {
       const RISE = 2.6, R = (TUNNEL_HW ** 2 + RISE ** 2) / (2 * RISE), CY = TUNNEL_H - R;
       for (let x = -TUNNEL_HW + 0.4; x < TUNNEL_HW; x += 0.8) {
         const ya = CY + Math.sqrt(Math.max(0, R * R - x * x));
-        if (TUNNEL_H - ya > 0.05) b.box(x, y + ya, zf, 0.82, TUNNEL_H - ya, 2.2, 'stone', { collide: false });
+        if (TUNNEL_H - ya > 0.05) b.box(x, y + ya, zf, 0.82, TUNNEL_H - ya, 2.2, 'stone');
       }
       // the voussoirs: a band round the arch, standing proud of the face
       for (let k = 0; k <= 10; k++) {
@@ -3320,7 +3447,7 @@ export function createMainland(seed) {
         const vx = Math.sin(a) * (R + 0.5), vy = CY + Math.cos(a) * (R + 0.5);
         b.box(vx, y + vy - 0.55, zf + sd * 1.25, 1.05, k === 5 ? 1.5 : 1.1, 0.4, k === 5 ? 'concrete' : 'stone', { rz: -a, collide: false });
       }
-      b.box(0, y + TUNNEL_H + 7.6, zf + sd * 0.2, TUNNEL_HW * 2 + 8.4, 0.5, 2.8, 'concrete', { collide: false }); // (the cornice)
+      b.box(0, y + TUNNEL_H + 7.6, zf + sd * 0.2, TUNNEL_HW * 2 + 8.4, 0.5, 2.8, 'concrete'); // (the cornice)
       b.box(0, y + TUNNEL_H + 3.6, zf + sd * 1.15, 6.4, 1.2, 0.12, 'metal', { collide: false }); // (the plaque)
       // the wing walls: along the cutting either side, splaying a little, stepping down as they go
       for (const lat of [-1, 1]) {
@@ -4354,6 +4481,7 @@ export function createMainland(seed) {
     // (most at the feet of the cliffs, where they came down)
     if (up < -30 && die(a, 0, 13) < 0.7) continue;
     if (zoneClear(x, z) || onRoad(x, z, 1.2) || inWater(x, z) || clearHit(x, z, 1) || tunnelOf(x, z, 4) || (up > -2 && up < CLIFF_IN + 1)) continue;
+    if (Math.hypot(x - head.x, z - head.z) < 110) continue; // (the bridgehead's fields, where the car is first driven off, are clear of them)
     const v = Math.min(ROCK_R.length - 1, Math.floor(die(a, 0, 14) * ROCK_R.length));
     const scale = 0.6 + die(a, 0, 15) * 1.2;
     const r = ROCK_R[v] * scale;
@@ -4499,7 +4627,7 @@ export function createMainland(seed) {
   const marks = [];
   {
     const zp = (id) => zoneById[id];
-    marks.push({ kind: 'town', x: city.x, z: city.z + 10 });
+    marks.push({ kind: 'town', x: city.x, z: city.z - 16 }); // (on the town hall, as the picture has it)
     marks.push({ kind: 'church', ...(([x, z]) => ({ x, z }))(P([0.183, 0.128])) });
     marks.push({ kind: 'industrial', x: zp(ZONE.INDUSTRIAL).x + 10, z: zp(ZONE.INDUSTRIAL).z - 6 });
     marks.push({ kind: 'gas', x: zp(ZONE.TRUCKSTOP).x + 26, z: zp(ZONE.TRUCKSTOP).z - 4 });
