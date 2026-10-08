@@ -17,8 +17,8 @@ import { FarForest } from './farforest.js';
 
 const CELL = 32;
 const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
-const FAR_LOD = 30; // m: there, where the trees' near copy gives way to the far one
-const FAR_CAST = 64; // m: there, how far from the eye a tree throws a shadow
+const FAR_LOD = 24; // m: there, where the trees' near copy gives way to the far one
+const FAR_CAST = 50; // m: there, how far from the eye a tree throws a shadow
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
 // The view the instance buffers were last filled for, padded: what is outside it is not drawn at all (two thirds of
