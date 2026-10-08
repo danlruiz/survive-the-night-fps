@@ -3,6 +3,7 @@
 // Names and live markers are drawn on top by the map screen / compass, never baked in.
 import { MAP_HALF, MAP_SIZE, GRID_STEP, WATER_LEVEL } from '../../shared/constants.js';
 import { WHEEL } from '../../shared/fair.js';
+import { drawMainland } from './mapmainland.js';
 
 // The map is baked at MAP_PPM px per metre, whatever the size of the world: 1280 px for the island, 2560 for the
 // mainland (which is twice as far across). mapX / mapY are of the map baked last: the client has one world at a time.
@@ -22,6 +23,12 @@ export function renderMapCanvas(world) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = MAP_PX;
   const g = cv.getContext('2d');
+  // (the mainland is drawn as the picture it was built to: mapmainland.js)
+  if (world.kind === 2) {
+    drawMainland(g, world, S, mapX, mapY);
+    drawWorkings(g, world);
+    return cv;
+  }
 
   // ---- raster: paper + hillshade + contours + water (1 px per metre, scaled up)
   const R = MAP_SIZE;
@@ -50,8 +57,6 @@ export function renderMapCanvas(world) {
   for (let py = 0; py < R; py++) for (let px = 0; px < R; px++) hs[py * R + px] = hAt(px - MAP_HALF + 0.5, py - MAP_HALF + 0.5);
   let seed = 1234567;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const rock = world.cliffAt || null;
-  const forest = world.forestAt || null;
   for (let py = 0; py < R; py++) {
     for (let px = 0; px < R; px++) {
       const k = py * R + px;
@@ -74,41 +79,13 @@ export function renderMapCanvas(world) {
       gg += shade * 30;
       b += shade * 24;
       // contour lines every 2.5 m (index line every 10 m)
-      const step = rock && rock(px - MAP_HALF + 0.5, py - MAP_HALF + 0.5) > 0 ? 10 : 2.5;
-      const c0 = Math.floor(h / step);
-      if (Math.floor(hr / step) !== c0 || Math.floor(hd / step) !== c0) {
-        const idx = Math.floor(Math.max(h, hr, hd) / step) % 4 === 0;
+      const c0 = Math.floor(h / 2.5);
+      if (Math.floor(hr / 2.5) !== c0 || Math.floor(hd / 2.5) !== c0) {
+        const idx = Math.floor(Math.max(h, hr, hd) / 2.5) % 4 === 0;
         const a = idx ? 0.34 : 0.18;
         r = r * (1 - a) + 96 * a;
         gg = gg * (1 - a) + 64 * a;
         b = b * (1 - a) + 38 * a;
-      }
-      // the mainland's forest (mainland.js forestAt): the woods a shade darker and greener under their stipple
-      if (forest) {
-        const f = forest(px - MAP_HALF + 0.5, py - MAP_HALF + 0.5);
-        if (f > 0.15 && h > WATER_LEVEL) {
-          const u = Math.min(1, (f - 0.15) * 0.9) * 0.32;
-          r = r * (1 - u) + 92 * u;
-          gg = gg * (1 - u) + 104 * u;
-          b = b * (1 - u) + 72 * u;
-        }
-      }
-      // the mainland's mountains (shared/mainland.js cliffAt): rock, grey and hatched with light, no contours on them
-      // but every 10 m; their cliffs at the foot inked
-      if (rock) {
-        const m = rock(px - MAP_HALF + 0.5, py - MAP_HALF + 0.5);
-        if (m > -1.5) {
-          const u = Math.max(0, Math.min(1, (m + 1.5) / 6));
-          const lit = 150 + shade * 70 + (e - 0.5) * 30;
-          r = r * (1 - u) + (lit + 4) * u;
-          gg = gg * (1 - u) + (lit - 4) * u;
-          b = b * (1 - u) + (lit - 14) * u;
-          if (m < 2.5 && m > -1.5) {
-            r = 92;
-            gg = 80;
-            b = 66;
-          }
-        }
       }
       if (h < WATER_LEVEL) {
         const depth = Math.min(1, (WATER_LEVEL - h) / 5);
@@ -158,55 +135,7 @@ export function renderMapCanvas(world) {
   };
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  // The mainland draws its roads by the legend of the layout they were built to (issue #232): main roads a dark
-  // double line, secondary roads orange-brown, dirt roads a dashed red-brown, trails a dashed black
-  if (world.kind === 2) {
-    const styleOf = (road) => (road.kind === 3 ? 'trail' : road.kind === 1 ? 'dirt' : road.width >= 3.6 ? 'main' : road.width >= 3.3 ? 'street' : road.width >= 2.7 && road.width < 3.3 ? 'secondary' : 'lane');
-    const STYLE = {
-      main: [[10, '#2a2420'], [5.6, '#9b968c'], [1, '#3a332c']],
-      street: [[8, '#3a332c'], [4.4, '#a29c90']],
-      secondary: [[6.4, '#4e2e18'], [3.6, '#b9733a']],
-      lane: [[3.6, 'rgba(90, 56, 30, 0.75)'], [1.8, '#cf9a62']],
-    };
-    for (const pass of [0, 1, 2]) {
-      for (const road of world.roads) {
-        const st = styleOf(road);
-        if (road.width > 6) {
-          // (the runway: a grey band, its centre line dashed)
-          if (pass) continue;
-          path(road);
-          g.strokeStyle = '#2a2420';
-          g.lineWidth = road.width * 2 * S + 3;
-          g.stroke();
-          g.strokeStyle = '#7d7a74';
-          g.lineWidth = road.width * 2 * S;
-          g.stroke();
-          g.setLineDash([10, 8]);
-          g.strokeStyle = '#d8d2c4';
-          g.lineWidth = 1.4;
-          g.stroke();
-          g.setLineDash([]);
-          continue;
-        }
-        if (st === 'dirt' || st === 'trail') {
-          if (pass !== 1) continue;
-          path(road);
-          g.setLineDash(st === 'dirt' ? [9, 6] : [5, 5]);
-          g.strokeStyle = st === 'dirt' ? 'rgba(116, 38, 22, 0.9)' : 'rgba(24, 18, 14, 0.85)';
-          g.lineWidth = st === 'dirt' ? 3 : 1.8;
-          g.stroke();
-          g.setLineDash([]);
-          continue;
-        }
-        const layer = STYLE[st][pass];
-        if (!layer) continue;
-        path(road);
-        g.strokeStyle = layer[1];
-        g.lineWidth = layer[0];
-        g.stroke();
-      }
-    }
-  } else for (const pass of [0, 1]) {
+  for (const pass of [0, 1]) {
     for (const road of world.roads) {
       path(road);
       if (road.kind === 3) {
@@ -260,32 +189,7 @@ export function renderMapCanvas(world) {
     }
   }
 
-  // ---- the workings of the mine, as the surveyor drew them: the drifts dashed under the ground they run
-  // beneath, a tick across each mouth
-  if (world.mine) {
-    g.strokeStyle = 'rgba(52, 30, 24, 0.7)';
-    g.lineWidth = 2.6;
-    g.setLineDash([2.5, 4.5]);
-    for (const l of [world.mine.main, ...world.mine.galleries]) {
-      g.beginPath();
-      g.moveTo(mapX(l.x[0]), mapY(l.z[0]));
-      for (let i = 1; i < l.n; i++) g.lineTo(mapX(l.x[i]), mapY(l.z[i]));
-      g.stroke();
-    }
-    g.setLineDash([]);
-    for (const rm of world.mine.rooms) {
-      g.beginPath();
-      g.arc(mapX(rm.x), mapY(rm.z), rm.r * S * 0.8, 0, Math.PI * 2);
-      g.stroke();
-    }
-    g.lineWidth = 3;
-    for (const p of world.mine.portals) {
-      g.beginPath();
-      g.moveTo(mapX(p.x - p.dz * 4.5), mapY(p.z + p.dx * 4.5));
-      g.lineTo(mapX(p.x + p.dz * 4.5), mapY(p.z - p.dx * 4.5));
-      g.stroke();
-    }
-  }
+  drawWorkings(g, world);
 
   // ---- St. Agnes Cemetery: its railings as a broken line, a cross for every grave
   const cem = world.cemetery;
@@ -383,6 +287,34 @@ export function renderMapCanvas(world) {
   g.fillStyle = grad;
   g.fillRect(0, 0, MAP_PX, MAP_PX);
   return cv;
+}
+
+// the workings of a mine, as the surveyor drew them: the drifts dashed under the ground they run beneath, a tick across
+// each mouth
+function drawWorkings(g, world) {
+  if (!world.mine) return;
+  g.strokeStyle = 'rgba(52, 30, 24, 0.7)';
+  g.lineWidth = 2.6;
+  g.setLineDash([2.5, 4.5]);
+  for (const l of [world.mine.main, ...world.mine.galleries]) {
+    g.beginPath();
+    g.moveTo(mapX(l.x[0]), mapY(l.z[0]));
+    for (let i = 1; i < l.n; i++) g.lineTo(mapX(l.x[i]), mapY(l.z[i]));
+    g.stroke();
+  }
+  g.setLineDash([]);
+  for (const rm of world.mine.rooms) {
+    g.beginPath();
+    g.arc(mapX(rm.x), mapY(rm.z), rm.r * S * 0.8, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.lineWidth = 3;
+  for (const p of world.mine.portals) {
+    g.beginPath();
+    g.moveTo(mapX(p.x - p.dz * 4.5), mapY(p.z + p.dx * 4.5));
+    g.lineTo(mapX(p.x + p.dz * 4.5), mapY(p.z - p.dx * 4.5));
+    g.stroke();
+  }
 }
 
 const PROP_SIZE = {

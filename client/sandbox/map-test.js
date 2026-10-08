@@ -58,15 +58,28 @@ if (q.get('export')) {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   const k = cv.width / 2560;
-  const name = (text, x, z, size) => {
-    g.font = `bold ${Math.round(size * k)}px Georgia, serif`;
+  // (as the map screen writes them at its least zoom: where a place asks for its name to be (label), the lesser places
+  // smaller, nothing of what is inside the city, and nothing over the map's edge)
+  const name = (text, x, z, size, italic = false) => {
+    g.font = `${italic ? 'italic ' : 'bold '}${Math.round(size * k)}px Georgia, serif`;
+    const w = g.measureText(text).width;
+    const px = Math.max(w / 2 + 8 * k, Math.min(cv.width - w / 2 - 8 * k, mapX(x)));
     g.lineWidth = 6 * k;
-    g.strokeStyle = 'rgba(232, 220, 192, 0.85)';
-    g.strokeText(text, mapX(x), mapY(z));
+    g.strokeStyle = 'rgba(240, 228, 200, 0.9)';
+    g.strokeText(text, px, mapY(z));
     g.fillStyle = '#1b120b';
-    g.fillText(text, mapX(x), mapY(z));
+    g.fillText(text, px, mapY(z));
   };
-  for (const z of world.zones) name(ZONE_NAMES[z.id].toUpperCase(), z.x, z.z, 34);
-  for (const m of world.landmarks || []) name(m.name, m.x, m.z, 24);
+  for (const z of world.zones) {
+    const [x, zz] = z.label || [z.x, z.z + (world.kind === 2 ? 0 : 0)];
+    if (z.minor) name(ZONE_NAMES[z.id], x, zz, 22, true);
+    else name(ZONE_NAMES[z.id].toUpperCase(), x, zz, 34);
+  }
+  for (const m of world.landmarks || []) {
+    if (m.city) continue;
+    const [x, z] = m.label || [m.x, m.z];
+    if (m.big || m.pass) name(m.name.toUpperCase(), x, z, m.big ? 34 : 28);
+    else name(m.name.toUpperCase(), x, z, 30);
+  }
   window.__mapPNG = out.toDataURL('image/png');
 }

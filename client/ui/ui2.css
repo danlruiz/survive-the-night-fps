@@ -1758,6 +1758,26 @@
   color: #5b2a9d;
   font-style: normal;
 }
+/* a name written where the world put it (the mainland's: its middle on its spot), and kept on the map at its edges */
+.stn-ui .map-lab.at {
+  transform: rotate(var(--unrot, 0rad)) translate(-50%, -50%);
+}
+.stn-ui .map-lab.edge-r {
+  transform: rotate(var(--unrot, 0rad)) translate(-100%, -50%);
+}
+.stn-ui .map-lab.edge-l {
+  transform: rotate(var(--unrot, 0rad)) translate(0, -50%);
+}
+/* the mainland's places, as its picture writes them: capitals, spaced, a size up */
+.stn-ui .map-lab.big {
+  font-size: max(11px, calc(15 * var(--u)));
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+/* what is named inside a city: only when the map is zoomed in on it */
+.stn-ui .map-pane.far .map-lab.city {
+  display: none;
+}
 /* a named part of a place (St. Agnes Cemetery behind the chapel): smaller, under the place's own name */
 .stn-ui .map-lab.sub {
   font-size: max(8px, calc(10 * var(--u)));
