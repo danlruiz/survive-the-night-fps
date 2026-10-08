@@ -844,7 +844,7 @@ export function buildWater(world) {
         if (uEdge > 0.0) alpha = mix(1.0, 0.9, smoothstep(0.0, 70.0, uEdge - max(abs(vW.x), abs(vW.z)))) * (1.0 - smoothstep(${SEA_FADE[0].toFixed(1)}, ${SEA_FADE[1].toFixed(1)}, distance(vW.xz, uCam.xz)))
           // (and past the map's north and south edges, where the land stops short at the edge, the strips of sea at the
           // corners end close by too: out there they stood up over the land's own horizon as a grey wedge, seen from high)
-          * (1.0 - smoothstep(60.0, 220.0, abs(vW.z) - uEdge)) * (1.0 - smoothstep(700.0, 1100.0, -vW.x - uEdge));
+          * (1.0 - smoothstep(0.0, 50.0, abs(vW.z) - uEdge)) * (1.0 - smoothstep(700.0, 1100.0, -vW.x - uEdge));
         gl_FragColor = vec4(col, alpha);
         #include <fog_fragment>
       }`,

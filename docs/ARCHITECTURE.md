@@ -638,7 +638,8 @@ act 2, where the same loop is played with a plane and flying out wins.
     stands in the water: no strip of bank leads past it.
   - *The tunnels* are corridors cut through a mountain's mask along the road's line (`TUNNELS`): the ground at the
     road's level, the cuttings walled as the cliffs are, and a concrete gallery over the stretch inside the mountain
-    with a face over either mouth (`world.tunnels`). The heightfield is one level - the road's, inside - so the mountain
+    with a portal over either mouth - a concrete face with its opening arched, voussoirs, cornice and plaque, wing
+    walls along the cutting where no road or fence runs, the gallery's lamps lit (`world.tunnels`). The heightfield is one level - the road's, inside - so the mountain
     over a gallery is its cap (`world.tunnels[i].cap`: the heights as they were before the cut, coming down to the top
     of the face at either mouth), which the client draws as more of the terrain: the mountain is whole over the tunnel.
   - *The river* is fast water (`world.river`: `at`, `flow`, `speed`): afloat in it a survivor is carried downstream
@@ -651,7 +652,12 @@ act 2, where the same loop is played with a plane and flying out wins.
     sump under the water (the hydraulic pump is down there). It was kept up till the end: lamps along the drift that
     still burn (`world.lights` kind `lamp`: a glow and no flame) and tubs on its rails. No vehicle goes into a mine's mouth. The adits by the
     quarry and in the yard are sealed.
-  - *The places*: the docks (the ironworks' yard, warehouses, cranes, piers), Town Center (`GRID` x `GRID` blocks
+  - *The places*: the docks (a quay where the picture has it, `QUAY_LX`: the ground level to its edge and its wall
+    down into water dredged deep along the whole front - H1 - gantry cranes on rails with their booms over the water,
+    the picture's two piers with their fingers, a freighter moored, the apron paved, `world.paved`, with container
+    stacks and a rail spur; the ironworks' yard and the warehouses behind), Town Center (`GRID` x `GRID` blocks, the four
+    in the middle a square - the town hall on its north side, the market, the evacuation point - and avenues on the
+    diagonals from its corners to the ring, the blocks they cut keeping a lot in each of their other corners,
     where the picture's ring road is: a road of the picture that comes to the ring comes to the city's edge street,
     and what stands just outside the ring is pushed out with the city's grid, `W`), houses along the lanes of the
     picture's areas of houses (each turned to its lane a quarter turn at a time, its yard levelled), North Coast
