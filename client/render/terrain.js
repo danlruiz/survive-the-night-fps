@@ -505,7 +505,7 @@ export function buildTerrain(world) {
           vec3 rZ = textureGrad(tRock, vWPos.xy * RS + 0.37, dpx.xy * RS, dpy.xy * RS).rgb;
           vec3 rT = rX * an.x + rY * an.y + rZ * an.z;
           vec4 cR = vec4(rT, dot(rT, vec3(0.333)));
-          vec3 rockC = cR.rgb * vec3(0.92, 0.91, 0.9);
+          vec3 rockC = cR.rgb * vec3(0.7, 0.69, 0.68);
           float scree = smoothstep(0.62, 0.86, vNw.y) * (1.0 - smoothstep(0.86, 0.97, vNw.y));
           rockC = mix(rockC, cR.w * vec3(1.16, 1.12, 1.06) + 0.05, scree * 0.55);
           ground = mix(ground, rockC, hi * (0.55 + 0.45 * (1.0 - rk)));

@@ -1001,6 +1001,20 @@ export function createMainland(seed) {
     if (tx + tz <= 1) return heights[k] + (heights[k + 1] - heights[k]) * tx + (heights[k + N] - heights[k]) * tz;
     return heights[k + N + 1] + (heights[k + N] - heights[k + N + 1]) * (1 - tx) + (heights[k + 1] - heights[k + N + 1]) * (1 - tz);
   };
+  // (is the ground under a prop's footprint level enough to set it down on: within 0.8 m corner to corner?)
+  const levelUnder = (type, x, z, ry) => {
+    const [sx, , sz] = PROPS[type]?.size || [2, 1, 4];
+    const c = Math.cos(ry);
+    const sn = Math.sin(ry);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const [lx, lz] of [[-sx / 2, -sz / 2], [sx / 2, -sz / 2], [sx / 2, sz / 2], [-sx / 2, sz / 2]]) {
+      const h = heightAt(x + c * lx + sn * lz, z - sn * lx + c * lz);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    return hi - lo < 0.8;
+  };
   const sampleGrid = (arr, x, z) => arr[clamp(Math.round((z + HALF) / GRID_STEP), 0, N - 1) * N + clamp(Math.round((x + HALF) / GRID_STEP), 0, N - 1)];
   const roadDistAt = (x, z) => sampleGrid(roadDist, x, z);
   const roadKindAt = (x, z) => sampleGrid(roadKind, x, z);
@@ -3010,7 +3024,9 @@ export function createMainland(seed) {
       const b = new Builder(o.x, o.z, o.ry, o.h);
       b.zone = o.zone;
       b.yard = { x: o.x, z: o.z, flat: 5.5 }; // (what stands out past the house - its car, its bins - stands on the ground)
-      house(b, 0, 0, 0, k, K);
+      // (its car at its front - house(): (7.6, -7.5) - only where the ground under it is level: at the lane it can stand
+      // half on the road, which is not always at the yard's height)
+      house(b, 0, 0, 0, k, K, levelUnder('car_wreck', b.wx(7.6, -7.5), b.wz(7.6, -7.5), b.ry + 0.1));
       b.clear(0, 0, 9);
       if (k % 5 === 2) b.prop('mailbox', 2.6, -6.6, 0);
     });
@@ -3686,20 +3702,6 @@ export function createMainland(seed) {
       for (const o of box(p.type, p.x, p.z, p.ry, p.seed)) for (const a of mine) if (kit.solidsMeet(a, o)) return false;
     }
     return true;
-  };
-  // (is the ground under a prop's footprint level enough to set it down on: within 0.8 m corner to corner?)
-  const levelUnder = (type, x, z, ry) => {
-    const [sx, , sz] = PROPS[type]?.size || [2, 1, 4];
-    const c = Math.cos(ry);
-    const sn = Math.sin(ry);
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (const [lx, lz] of [[-sx / 2, -sz / 2], [sx / 2, -sz / 2], [sx / 2, sz / 2], [-sx / 2, sz / 2]]) {
-      const h = heightAt(x + c * lx + sn * lz, z - sn * lx + c * lz);
-      lo = Math.min(lo, h);
-      hi = Math.max(hi, h);
-    }
-    return hi - lo < 0.8;
   };
   // The main roads first: every so often the traffic out of the city stopped for good - a dozen wrecks across both
   // lanes, a truck jack-knifed among them, what their people dropped as they ran

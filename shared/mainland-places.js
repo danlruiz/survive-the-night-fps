@@ -29,8 +29,9 @@ function fenced(b, hx, hz, gate = 4, boom = true) {
   if (boom) b.prop('boom_gate', -0.4, -hz, 0);
 }
 
-// a house: two rooms, a bed, a kitchen corner. k: which of its variants (walls, what the kitchen keeps, what is outside)
-export function house(b, hx, hz, front, k, K) {
+// a house: two rooms, a bed, a kitchen corner. k: which of its variants (walls, what the kitchen keeps, what is outside);
+// car: false leaves out the car at its front (where the ground under it is not level)
+export function house(b, hx, hz, front, k, K, car = true) {
   const { door, win, hole } = K;
   const s = b.sub(hx, hz, front);
   const w = (at, wd = 1.2) => (k % 3 === 1 ? hole(at, wd) : win(at, wd));
@@ -41,7 +42,7 @@ export function house(b, hx, hz, front, k, K) {
   s.prop('table', 2, -1.6, 0.1);
   s.loot(2, -1.6, 0.82);
   s.loot(-2.4, 2);
-  if (k % 3 === 0) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
+  if (k % 3 === 0 && car) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
   if (k % 2 === 0) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k });
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)
