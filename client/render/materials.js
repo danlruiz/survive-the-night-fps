@@ -537,7 +537,7 @@ const DEFS = {
   logwall: () => surface('logwall'),
   concrete: () => surface('concrete'),
   // fresh concrete, pale: a tunnel's portal and the inside of its gallery (in a cutting's shade the plain one is black)
-  concrete_pale: () => surface('concrete_pale', { color: new THREE.Color(2.7, 2.62, 2.48) }, 'concrete'),
+  concrete_pale: () => surface('concrete_pale', { color: new THREE.Color(3.8, 3.7, 3.5) }, 'concrete'),
   brick: () => surface('brick'),
   shingles: () => surface('shingles'),
   tin: () => surface('tin'),

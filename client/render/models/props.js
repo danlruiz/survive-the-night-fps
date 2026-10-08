@@ -3413,7 +3413,11 @@ BUILD.shipping_container = (b, r, v) => {
   // the corner posts and rails stand proud of the ribbed sides
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box('paint', 0.14, H, 0.14, { p: [sx * (W / 2 - 0.07), H / 2, sz * (D / 2 - 0.07)], c: col });
   for (const sx of [-1, 1]) for (const y of [0.08, H - 0.08]) b.box('paint', 0.12, 0.16, D, { p: [sx * (W / 2 - 0.06), y, 0], c: col });
-  for (const sx of [-1, 1]) for (let k = 0; k < 14; k++) b.box('paint', 0.04, H - 0.4, 0.16, { p: [sx * (W / 2 - 0.02), H / 2, -D / 2 + 0.45 + k * 0.4], c: col });
+  // (the ribs a shade lighter than the panel between them, and standing further out: the corrugation reads from across
+  // the yard, where the light alone does not draw it)
+  const rib = col.map((v) => Math.min(1, v * 1.28 + 0.02));
+  for (const sx of [-1, 1]) for (let k = 0; k < 14; k++) b.box('paint', 0.07, H - 0.4, 0.18, { p: [sx * (W / 2 - 0.005), H / 2, -D / 2 + 0.45 + k * 0.4], c: rib });
+  for (let k = 0; k < 5; k++) b.box('paint', 0.36, H - 0.4, 0.06, { p: [-W / 2 + 0.42 + k * 0.4, H / 2, -D / 2 - 0.005], c: rib }); // (and down its blind end)
   for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) b.box('rust', 0.012, rr(r, 0.4, 1.2), rr(r, 0.6, 1.6), { p: [sx * (W / 2 + 0.001), rr(r, 0.4, 1.4), rr(r, -2.2, 2.2)] });
   // the doors: two leaves with their locking bars
   for (const sx of [-1, 1]) {

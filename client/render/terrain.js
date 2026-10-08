@@ -598,6 +598,16 @@ export function buildTerrain(world) {
           float snow = smoothstep(176.0, 214.0, vWPos.y + (n2 - 0.5) * 40.0) * smoothstep(0.55, 0.8, vNw.y + (n1 - 0.5) * 0.25);
           ground = mix(ground, vec3(0.78, 0.8, 0.83) * (0.9 + 0.1 * cR.w), snow);
         }
+        // a face that stands up is layered rock: bands of it a metre or so deep, wandering, and dark streaks run down it
+        // from the ledges (the mainland's faces only: their heights)
+        if (uMain > 0.5 && rk > 0.05) {
+          float steepF = 1.0 - smoothstep(0.35, 0.8, vNw.y);
+          float strata = 0.5 + 0.5 * sin(vWPos.y * 0.9 + (nMid.r - 0.5) * 7.0 + nz.g * 4.0);
+          vec2 hz = normalize(vNw.xz + vec2(1e-4));
+          float across = dot(wp, vec2(-hz.y, hz.x));
+          float streak = smoothstep(0.55, 0.85, texture2D(tNoise, vec2(across * 0.09, vWPos.y * 0.006) + 0.13).g);
+          ground *= mix(1.0, (0.8 + 0.28 * strata) * (1.0 - 0.3 * streak), steepF * rk);
+        }
         // drainage lines and hollows: darker, greener
         ground *= mix(vec3(1.0), vec3(0.74, 0.84, 0.7), wet * 0.75 * (1.0 - rk));
 

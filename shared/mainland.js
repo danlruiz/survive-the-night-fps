@@ -4415,6 +4415,69 @@ export function createMainland(seed) {
       b.prop('woodpile', 2.8, 0, PI / 2);
     }
   }
+  // A FARM on the city side, off a road where the woods leave open ground: the farmhouse, the barn with its doors
+  // open, the silo, the round bales, the tractor left in the yard, a paddock's fence, the field in rows with its
+  // scarecrow, the well. (The first open spot by a road the dice turn up; its ground levelled.)
+  {
+    let at = null;
+    roads.forEach((road, ri) => {
+      if (at || (road.kind !== ROAD.ASPHALT && road.kind !== ROAD.DIRT) || road.length < 300) return;
+      const p = road.pts;
+      for (let i = 4; i < p.length / 2 - 4 && !at; i += 6) {
+        const tx = p[i * 2 + 2] - p[i * 2 - 2];
+        const tz = p[i * 2 + 3] - p[i * 2 - 1];
+        const tl = Math.hypot(tx, tz) || 1;
+        for (const sd of [1, -1]) {
+          const off = road.width + 36;
+          const x = p[i * 2] + (tz / tl) * sd * off;
+          const z = p[i * 2 + 1] - (tx / tl) * sd * off;
+          if (!reachAt(x, z) || forestAt(x, z) > 0.5 || builtNear(x, z, 30) || nearZone(x, z, 30) || inCity(x, z, 50) || cliffAt(x, z) > -30 || seaAt(x, z) > -30 || lakeAt(x, z) > -25 || riverAt(x, z) < 45 || onField(x, z, 30) || Math.abs(x) > HALF - 80 || Math.abs(z) > HALF - 80) continue;
+          if (homes.some((o) => Math.hypot(o.x - x, o.z - z) < 45) || sites.some((st) => Math.hypot(st.x - x, st.z - z) < 40)) continue;
+          let lo = Infinity, hi = -Infinity, wet = false;
+          for (let dx = -26; dx <= 26; dx += 6.5) for (let dz = -26; dz <= 26; dz += 6.5) {
+            const hh = heightAt(x + dx, z + dz);
+            lo = Math.min(lo, hh);
+            hi = Math.max(hi, hh);
+            if (roadDistAt(x + dx, z + dz) < 6 || inWater(x + dx, z + dz)) wet = true;
+          }
+          if (wet || hi - lo > 4.5) continue;
+          at = { x, z, h: (lo + hi) / 2, ry: Math.atan2((-tz / tl) * -sd, (tx / tl) * -sd) };
+          break;
+        }
+      }
+    });
+    if (at) {
+      const R = 32;
+      for (let j = Math.max(0, Math.floor((at.z - R - 8 + HALF) / GRID_STEP)); j <= Math.min(N - 1, Math.ceil((at.z + R + 8 + HALF) / GRID_STEP)); j++) {
+        for (let i = Math.max(0, Math.floor((at.x - R - 8 + HALF) / GRID_STEP)); i <= Math.min(N - 1, Math.ceil((at.x + R + 8 + HALF) / GRID_STEP)); i++) {
+          const k = j * N + i;
+          if (roadDist[k] < 5) continue;
+          heights[k] = lerp(heights[k], at.h, 1 - smoothstep(R, R + 8, Math.hypot(-HALF + i * GRID_STEP - at.x, -HALF + j * GRID_STEP - at.z)));
+        }
+      }
+      const b = new Builder(at.x, at.z, at.ry, at.h);
+      b.zone = ZONE.ROADSIDE;
+      b.yard = { x: at.x, z: at.z, flat: R };
+      house(b, -12, -2, 0, 7, K, true);
+      b.room(11, 2, 12, 16, 5.6, 'barn', { n: [gap(6, 4.2, 4.4)], s: [door(6, 1.3)] }, { roof: 'gable', roofH: 3.6, roofMat: 'tin_rust', floorMat: 'planks' });
+      b.cont(CONT.CRATE, 14.5, 6, { prop: 'crate', ry: 0.2, ly: 0.12, seed: 1 });
+      b.prop('hay_square', 7.4, 7.5, 0.1, { ly: 0.12, seed: 0 });
+      b.loot(9, 4, 0.14);
+      b.cyl(21, 0, 9, 2.4, 11, 'tin', { sides: 14 });
+      b.cone(21, 11, 9, 2.6, 2.2, 'tin_rust', 14);
+      b.clear(0, 0, R - 2);
+      const put4 = (type, lx, lz, ry, seedv = 0) => fits(b, type, lx, lz, ry) && levelUnder(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && b.prop(type, lx, lz, ry, { seed: seedv });
+      for (const [lx, lz] of [[2, 12], [5, 13.5], [3.4, 16], [6.6, 16.6]]) put4('hay_round', lx, lz, lx * 0.7, Math.round(lx) & 1);
+      put4('tractor', 1.5, 2, 0.9);
+      put4('well', -20, 8, 0);
+      put4('woodpile', -20, -4, PI / 2, 1);
+      // the paddock's fence along the side of the yard, and the field behind it in rows, its scarecrow
+      for (let lz = -12; lz <= 12; lz += 3) put4('fence', 27.5, lz, PI / 2, lz & 1);
+      for (let r = 0; r < 5; r++) b.box(-6 + r * 0, -0.02, 20.5 + r * 2.2, 34, 0.08, 1.1, 'earth', { collide: false });
+      put4('scarecrow', 4, 24.8, 0.4);
+      landmarks.push({ x: at.x, z: at.z, name: 'Farm' });
+    }
+  }
   // ROAD SIGNS down the made and the dirt roads, every quarter of a kilometre or so, on the verge where the traffic
   // on that side reads them (dice of their own: nothing else moves; none where something stands or a road crosses)
   roads.forEach((road, ri) => {

@@ -679,6 +679,15 @@ export const OUTLYING = {
       b.prop('corpse', 3, -4, 1.4, { nocollide: true });
       b.loot(4, 1);
       b.loot(-2, -8);
+      // the sawmill by the road in: a long open shed over the saw's bed and the belt that fed it, the log deck it was fed
+      // from
+      b.shelter(-9, -20, 12, 6, 4.2, 'tin_rust', 'planks');
+      b.box(-9, 0, -20, 10, 0.9, 1.2, 'rust'); // the saw's bed
+      b.box(-9, 0.9, -20, 10.6, 0.12, 0.7, 'metal', { collide: false }); // (its carriage rails)
+      b.box(-4.2, 0.9, -20, 0.2, 1.4, 1.6, 'metal'); // the blade's housing
+      b.prop('saw_table', -13, -18.2, 0.1, { seed: 1 });
+      b.prop('log_pile', -9, -26.5, PI / 2 + 0.04, { seed: 2 });
+      b.prop('pallet', -2.6, -17.6, 0.2, { seed: 1 });
     },
   },
 
