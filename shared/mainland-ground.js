@@ -5,7 +5,8 @@
 
 // Fill closed outlines (even-odd: an outline inside another is a hole) onto an n x n grid of vertices, `step` apart
 // from -half. Each outline is [[x, z], ...] in world metres. -> Uint8Array, 1 inside.
-export function fillPolys(polys, n, step, half, out = new Uint8Array(n * n)) {
+// (or: set what is inside and leave what is set already - outlines that are one shape each, filled over what is there)
+export function fillPolys(polys, n, step, half, out = new Uint8Array(n * n), or = false) {
   const xs = [];
   for (let j = 0; j < n; j++) {
     const z = -half + j * step;
@@ -23,7 +24,8 @@ export function fillPolys(polys, n, step, half, out = new Uint8Array(n * n)) {
     for (let k = 0; k + 1 < xs.length; k += 2) {
       const i0 = Math.max(0, Math.ceil((xs[k] + half) / step));
       const i1 = Math.min(n - 1, Math.floor((xs[k + 1] + half) / step));
-      for (let i = i0; i <= i1; i++) out[j * n + i] ^= 1;
+      if (or) out.fill(1, j * n + i0, j * n + i1 + 1);
+      else for (let i = i0; i <= i1; i++) out[j * n + i] ^= 1;
     }
   }
   return out;
@@ -39,8 +41,9 @@ export function distanceTo(mask, n, to = 1, cap = 1e4) {
   const d = new Float64Array(n);
   const v = new Int32Array(n);
   const zz = new Float64Array(n + 1);
-  const pass = (get, set) => {
-    for (let q = 0; q < n; q++) line[q] = get(q);
+  // (one line: line -> d. A line with nothing on it stays as it is; the rows and the columns are copied in and out
+  // by plain loops, which a function call an element made twice as slow)
+  const pass = () => {
     let k = 0;
     v[0] = 0;
     zz[0] = -INF;
@@ -62,10 +65,23 @@ export function distanceTo(mask, n, to = 1, cap = 1e4) {
       while (zz[k + 1] < q) k++;
       d[q] = (q - v[k]) * (q - v[k]) + line[v[k]];
     }
-    for (let q = 0; q < n; q++) set(q, d[q]);
   };
-  for (let j = 0; j < n; j++) pass((i) => f[j * n + i], (i, val) => (f[j * n + i] = val));
-  for (let i = 0; i < n; i++) pass((j) => f[j * n + i], (j, val) => (f[j * n + i] = val));
+  for (let j = 0; j < n; j++) {
+    const o = j * n;
+    let any = false;
+    for (let q = 0; q < n; q++) {
+      line[q] = f[o + q];
+      any ||= line[q] < INF;
+    }
+    if (!any) continue;
+    pass();
+    for (let q = 0; q < n; q++) f[o + q] = d[q];
+  }
+  for (let i = 0; i < n; i++) {
+    for (let q = 0; q < n; q++) line[q] = f[q * n + i];
+    pass();
+    for (let q = 0; q < n; q++) f[q * n + i] = d[q];
+  }
   const out = new Float32Array(n * n);
   for (let k = 0; k < n * n; k++) out[k] = Math.min(cap, Math.sqrt(f[k]));
   return out;
@@ -77,6 +93,35 @@ export function signedDistance(mask, n, step, cap) {
   const outside = distanceTo(mask, n, 1, cap / step + 2);
   const out = new Float32Array(n * n);
   for (let k = 0; k < n * n; k++) out[k] = Math.max(-cap, Math.min(cap, mask[k] ? (inside[k] - 0.5) * step : -(outside[k] - 0.5) * step));
+  return out;
+}
+
+// The same, measured only over the square that holds what is set in the mask and `cap` past it (a lake: a twentieth of
+// the map): everywhere else is out past the cap, -cap. The same values as signedDistance where it measures.
+export function signedDistanceNear(mask, n, step, cap) {
+  let i0 = n;
+  let j0 = n;
+  let i1 = -1;
+  let j1 = -1;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      if (!mask[j * n + i]) continue;
+      if (i < i0) i0 = i;
+      if (i > i1) i1 = i;
+      if (j < j0) j0 = j;
+      if (j > j1) j1 = j;
+    }
+  }
+  const out = new Float32Array(n * n).fill(-cap);
+  if (i1 < 0) return out;
+  const pad = Math.ceil(cap / step) + 3;
+  const side = Math.min(n, Math.max(i1 - i0, j1 - j0) + 1 + pad * 2);
+  const si = Math.max(0, Math.min(n - side, i0 - pad));
+  const sj = Math.max(0, Math.min(n - side, j0 - pad));
+  const sub = new Uint8Array(side * side);
+  for (let j = 0; j < side; j++) for (let i = 0; i < side; i++) sub[j * side + i] = mask[(sj + j) * n + si + i];
+  const d = signedDistance(sub, side, step, cap);
+  for (let j = 0; j < side; j++) for (let i = 0; i < side; i++) out[(sj + j) * n + si + i] = d[j * side + i];
   return out;
 }
 

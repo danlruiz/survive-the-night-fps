@@ -125,9 +125,32 @@ export function createKit({ rng, heightAt, half }) {
     if (!a.hx && !b.hx) return Math.hypot(a.x - b.x, a.z - b.z) < a.r + b.r;
     return true;
   };
+  // (the props are found by 16 m cells, indexed as they are asked for: props is only ever pushed to while a world is
+  // built, and a scan of all of them for every pole, sign and wreck tried was most of the mainland's dressing time)
+  const PC = 16;
+  const propCells = new Map();
+  let propsIndexed = 0;
+  const propsNear = (x, z, out) => {
+    if (props.length < propsIndexed) {
+      propCells.clear();
+      propsIndexed = 0;
+    }
+    for (; propsIndexed < props.length; propsIndexed++) {
+      const p = props[propsIndexed];
+      const key = Math.floor(p.x / PC) * 4096 + Math.floor(p.z / PC);
+      let arr = propCells.get(key);
+      if (!arr) propCells.set(key, (arr = []));
+      arr.push(propsIndexed);
+    }
+    out.length = 0;
+    for (let i = Math.floor((x - 12) / PC); i <= Math.floor((x + 12) / PC); i++) for (let j = Math.floor((z - 12) / PC); j <= Math.floor((z + 12) / PC); j++) for (const k of propCells.get(i * 4096 + j) || []) out.push(k);
+    return out;
+  };
+  const _near = [];
   const propBlocked = (type, x, z, ry) => {
     const mine = solidsOf(type, x, z, ry);
-    for (const p of props) {
+    for (const k of propsNear(x, z, _near)) {
+      const p = props[k];
       if (Math.abs(p.x - x) > 12 || Math.abs(p.z - z) > 12) continue;
       for (const b of solidsOf(p.type, p.x, p.z, p.ry)) for (const a of mine) if (solidsMeet(a, b)) return true;
     }
