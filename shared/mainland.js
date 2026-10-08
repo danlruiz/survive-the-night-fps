@@ -3871,6 +3871,9 @@ export function createMainland(seed) {
     mine = planPassage({ seed, a: { x: passageW[0], z: passageW[1], zone: ZONE.PASSAGE }, b: { x: passageE[0], z: passageE[1], zone: ZONE.PASSAGE }, via: [under], heights, heightAt, roadDistAt, half: HALF, n: N, step: GRID_STEP });
   }
   if (mine) {
+    // (the ground out in front of a portal is the mine's yard, trodden bare: no tree grows within 40 m of a mouth on its
+    // line - in the woods the forest stood up to the timbers, and the mouth was not to be seen from anywhere)
+    for (const p of mine.portals) for (let s = 2; s <= 40; s += 5) clears.push([p.x - p.dx * s, p.z - p.dz * s, 6 + s * 0.12]);
     const n0 = partSpots.length;
     dressMine({ mine, seed, Builder, staticGrid, zone: ZONE.PASSAGE });
     // the pump: in the junction, by the sump, or in the deepest room
