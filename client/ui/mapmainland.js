@@ -113,10 +113,8 @@ export function drawMainland(g, world, S, mapX, mapY) {
       const hr = hs[py * R + (px < R - 1 ? px + 1 : px)];
       const hu = hs[(py > 0 ? py - 1 : py) * R + px];
       const hd = hs[(py < R - 1 ? py + 1 : py) * R + px];
-      // (the slope for the light over 3 m each way: the picture's ranges are broad lit and shaded faces, not the grain of
-      // every ledge)
-      const gx = (hs[py * R + Math.min(R - 1, px + 3)] - hs[py * R + Math.max(0, px - 3)]) / 6;
-      const gz = (hs[Math.min(R - 1, py + 3) * R + px] - hs[Math.max(0, py - 3) * R + px]) / 6;
+      const gx = (hr - hl) * 0.5;
+      const gz = (hd - hu) * 0.5;
       // light from the north-west, a little above (a lambert of the slope)
       const nl = Math.sqrt(gx * gx + 1 + gz * gz);
       const lit = (gx * -0.55 + gz * -0.55 + 0.63) / nl; // 0.63 on the flat
@@ -147,11 +145,21 @@ export function drawMainland(g, world, S, mapX, mapY) {
         r = ROCK_DARK[0] + (ROCK_LIT[0] - ROCK_DARK[0]) * t;
         gg = ROCK_DARK[1] + (ROCK_LIT[1] - ROCK_DARK[1]) * t;
         b = ROCK_DARK[2] + (ROCK_LIT[2] - ROCK_DARK[2]) * t;
-        // a crest: the ground falls away both sides (the four neighbours four pixels off all well lower), inked
-        if (px > 4 && py > 4 && px < R - 5 && py < R - 5) {
-          const c = hs[py * R + px - 4] + hs[py * R + px + 4] + hs[(py - 4) * R + px] + hs[(py + 4) * R + px] - 4 * h;
-          if (c < -7) {
-            const a = Math.min(1, (-c - 7) / 8) * 0.75;
+        // hachures down the faces in shade: short strokes along the fall of the ground
+        const sl = Math.sqrt(gx * gx + gz * gz);
+        if (sl > 0.25 && t < 0.55) {
+          const along = (px * -gz + py * gx) / sl; // (across the fall line)
+          const hatch = Math.sin(along * 1.7) > 0.55 ? 1 : 0;
+          const f = hatch * (0.55 - t) * 0.9;
+          r -= f * 46;
+          gg -= f * 46;
+          b -= f * 44;
+        }
+        // a crest: the ground falls away both sides (the four neighbours two pixels off all lower)
+        if (px > 2 && py > 2 && px < R - 3 && py < R - 3) {
+          const c = hs[py * R + px - 2] + hs[py * R + px + 2] + hs[(py - 2) * R + px] + hs[(py + 2) * R + px] - 4 * h;
+          if (c < -1.7) {
+            const a = Math.min(1, (-c - 1.7) / 2.4) * 0.85;
             r = r * (1 - a) + 40 * a;
             gg = gg * (1 - a) + 35 * a;
             b = b * (1 - a) + 28 * a;
@@ -209,35 +217,6 @@ export function drawMainland(g, world, S, mapX, mapY) {
   rg.putImageData(img, 0, 0);
   g.imageSmoothingEnabled = true;
   g.drawImage(raster, 0, 0, PX, PX);
-
-  // ---- the ranges as the picture draws them: peak after peak, each a lit face to the west and a shaded one to the
-  // east, ridged and inked, the northern first so the southern stand in front. A peak is stamped on each summit of the
-  // world's rock (the highest ground of every cell of PC metres well inside it), as tall as it stands
-  {
-    const PSP = peakSprites(S);
-    const PC = 44;
-    let pseed = 31337;
-    const prnd = () => (pseed = (pseed * 16807) % 2147483647) / 2147483647;
-    const peaks = [];
-    for (let cz = 0; cz + PC <= R; cz += PC) {
-      for (let cx = 0; cx + PC <= R; cx += PC) {
-        let best = -1e9, bx = 0, bz = 0, low = 1e9;
-        for (let dz = 1; dz < PC; dz += 6) for (let dx = 1; dx < PC; dx += 6) {
-          const hh = hs[(cz + dz) * R + cx + dx];
-          if (hh > best) { best = hh; bx = cx + dx; bz = cz + dz; }
-          low = Math.min(low, hh);
-        }
-        if (coarse(mtn, bx, bz) < 4 || best - low < 6) continue;
-        peaks.push([bx + (prnd() - 0.5) * 10, bz + (prnd() - 0.5) * 10, best, prnd()]);
-      }
-    }
-    peaks.sort((p, q) => p[1] - q[1]);
-    for (const [x, z, h, v] of peaks) {
-      const size = Math.max(0, Math.min(3, Math.floor((h - 10) / 30)));
-      const sp = PSP[size][Math.floor(v * PSP[size].length)];
-      g.drawImage(sp, Math.round(x * S - sp.ax), Math.round(z * S - sp.ay));
-    }
-  }
 
   // ---- the woods: a crown for every tree, the northern first so the southern stand in front of them (the picture
   // draws its trees from a little south of overhead). Conifers are a dark pointed crown, lit on its west side; birch a
@@ -694,76 +673,6 @@ function treeSprites(S) {
       g.stroke();
     });
   return [[26, 30, 34, 38].map((h) => conifer(h * k)), [22, 26, 30].map((h) => broad(h * k)), [17, 21].map((h) => dead(h * k))];
-}
-
-// The ranges' peaks, as the picture draws a mountain: [size][variant], a canvas each with its summit at (ax, ay)
-function peakSprites(S) {
-  let ps = 4242;
-  const r = () => (ps = (ps * 16807) % 2147483647) / 2147483647;
-  return [62, 80, 100, 122].map((W) =>
-    [0, 1, 2, 3].map(() => {
-      const w = W * S;
-      const h = w * (0.5 + r() * 0.22);
-      const c = document.createElement('canvas');
-      c.width = Math.ceil(w + 6);
-      c.height = Math.ceil(h + 6);
-      const g = c.getContext('2d');
-      const top = 3;
-      const foot = h + 3;
-      const ax = c.width / 2 + (r() - 0.5) * w * 0.14;
-      const L = 3;
-      const Rr = c.width - 3;
-      const lS = [L + (ax - L) * (0.45 + r() * 0.15), foot - h * (0.35 + r() * 0.2)]; // (a shoulder each side)
-      const rS = [ax + (Rr - ax) * (0.4 + r() * 0.2), foot - h * (0.3 + r() * 0.2)];
-      const base = [ax + w * (0.04 + r() * 0.06), foot]; // (where the ridge from the summit comes down)
-      const face = (pts, fill) => {
-        g.beginPath();
-        g.moveTo(...pts[0]);
-        for (const q of pts.slice(1)) g.lineTo(...q);
-        g.closePath();
-        g.fillStyle = fill;
-        g.fill();
-      };
-      const lit = g.createLinearGradient(0, top, 0, foot);
-      lit.addColorStop(0, '#cdc1ab');
-      lit.addColorStop(1, '#a3957f');
-      face([[L, foot], lS, [ax, top], base], lit);
-      const shade = g.createLinearGradient(0, top, 0, foot);
-      shade.addColorStop(0, '#776c60');
-      shade.addColorStop(1, '#5b5249');
-      face([[ax, top], rS, [Rr, foot], base], shade);
-      // gullies down the faces: the lit side's faint, the shaded side's dark
-      g.lineCap = 'round';
-      for (let k = 0; k < 8; k++) {
-        const t = 0.2 + r() * 0.7;
-        const sx = ax + (base[0] - ax) * t;
-        const sy = top + (foot - top) * t;
-        const left = k % 2 === 0;
-        g.strokeStyle = left ? 'rgba(96, 88, 78, 0.55)' : 'rgba(40, 36, 34, 0.6)';
-        g.lineWidth = 0.9 * S;
-        g.beginPath();
-        g.moveTo(sx, sy);
-        g.lineTo(sx + (left ? -1 : 1) * w * (0.08 + r() * 0.12), Math.min(foot - 1, sy + h * (0.18 + r() * 0.2)));
-        g.stroke();
-      }
-      // the outline and the ridge, inked; the foot left open (it goes into the woods)
-      g.strokeStyle = '#3a3029';
-      g.lineWidth = 1.3 * S;
-      g.lineJoin = 'round';
-      g.beginPath();
-      g.moveTo(L, foot);
-      g.lineTo(...lS);
-      g.lineTo(ax, top);
-      g.lineTo(...rS);
-      g.lineTo(Rr, foot);
-      g.moveTo(ax, top);
-      g.lineTo(...base);
-      g.stroke();
-      c.ax = ax;
-      c.ay = top;
-      return c;
-    }),
-  );
 }
 
 // a badge of the picture's: a rounded square of colour with a light glyph on it (r: half its size, px)
