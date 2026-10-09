@@ -5445,7 +5445,10 @@ export function createMainland(seed) {
   const marks = [];
   {
     const zp = (id) => zoneById[id];
-    marks.push({ kind: 'town', x: city.x, z: city.z - 16 }); // (on the town hall, as the picture has it)
+    // (on Main Street in the middle of the square, just south of the town hall: the badge is wider than the hall, and on
+    // it, as the picture has it, it hid the hall's footprint; here the hall's front is its edge and the fountain's ring
+    // of trees clear of it)
+    marks.push({ kind: 'town', x: city.x, z: city.z + 4 });
     marks.push({ kind: 'church', ...(([x, z]) => ({ x, z }))(P([0.183, 0.128])) });
     marks.push({ kind: 'industrial', x: zp(ZONE.INDUSTRIAL).x + 10, z: zp(ZONE.INDUSTRIAL).z - 6 });
     marks.push({ kind: 'gas', x: zp(ZONE.TRUCKSTOP).x + 26, z: zp(ZONE.TRUCKSTOP).z - 4 });

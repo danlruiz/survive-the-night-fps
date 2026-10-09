@@ -303,23 +303,8 @@ export function drawMainland(g, world, S, mapX, mapY) {
     }
   }
 
-  if (world.city) {
-    const c = world.city;
-    const h = (c.grid * c.pitch) / 2;
-    const rr = 30;
-    g.beginPath();
-    g.moveTo(mapX(c.x - h + rr), mapY(c.z - h));
-    g.arcTo(mapX(c.x + h), mapY(c.z - h), mapX(c.x + h), mapY(c.z + h), rr * S);
-    g.arcTo(mapX(c.x + h), mapY(c.z + h), mapX(c.x - h), mapY(c.z + h), rr * S);
-    g.arcTo(mapX(c.x - h), mapY(c.z + h), mapX(c.x - h), mapY(c.z - h), rr * S);
-    g.arcTo(mapX(c.x - h), mapY(c.z - h), mapX(c.x + h), mapY(c.z - h), rr * S);
-    g.closePath();
-    for (const [lw, col] of STYLE.main) {
-      g.strokeStyle = col;
-      g.lineWidth = lw;
-      g.stroke();
-    }
-  }
+  // (Town Center's ring is its grid's edge streets, square at the corners where the avenues come to it: drawn above as
+  // the streets they are, not as a main road of its own with rounded corners the avenues ran out past)
 
   // ---- the bridge to the island: its deck out over the sea to the edge of the map, and the picture's arrow
   if (world.bridge) {
