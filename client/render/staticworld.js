@@ -4,7 +4,7 @@
 // "casters": one or two more meshes per chunk that cover all of its materials at once (same vertices, never seen).
 import * as THREE from 'three';
 import { getMaterial, staticSurface } from './materials.js';
-import { createProp } from './models/props.js';
+import { createProp, propVariant } from './models/props.js';
 import { PROPS } from '../../shared/props.js';
 import { LIGHT_PROPS } from '../../shared/surfaces.js';
 import { buildCity, TIER } from './citykit.js';
@@ -13,6 +13,7 @@ import { MultiMesh } from './multimesh.js';
 const CHUNK = 80;
 const CHUNK_CITY = 128; // (the mainland's: its city is a great many materials, and every chunk draws each of them once)
 const IDENTITY = new THREE.Matrix4();
+const MODELS_KEPT = 48; // StaticWorld.model(): models kept (a car's is some 40 kB)
 // A (chunk, material) mesh whose largest piece has bounding radius r is drawn out to r * DETAIL_DIST
 // (never closer than DETAIL_MIN): bottles, cans and tail lights stop costing a draw call once they are a
 // few pixels wide, while anything with a building, wall or car in it keeps the full view distance.
@@ -288,6 +289,7 @@ export class StaticWorld {
     this.world = world;
     this.lifts = new Map(); // prop or pane -> [{ m, run, first, count }]: where its vertices are, of each material
     this.lifted = new Set();
+    this.models = new Map(); // 'type:variant' -> model(): the last few asked for, the latest last
     this.multi = []; // the MultiMeshes: one per material, and the shadow casters
     this.single = []; // { mesh, chunk, maxDist }: the few runs that are still meshes of their own
     // Geometry is written straight into one vertex buffer per (chunk, material): every source geometry is
@@ -733,16 +735,60 @@ export class StaticWorld {
   // The triangles of a prop as the static world drew them, built again (the buffers they were written into are on
   // the card and nowhere else): [{ name (the model's material), mat (the one it is drawn with), chunk, maxDist,
   // side (its shadow side), count, pos, nrm, uv, col, ground, tint (the vertex data, in the world) }], one per
-  // material, in the order they were built in.
-  pieces(pr) {
+  // material, in the order they were built in. Every array is the caller's own. model: the prop's model (model(),
+  // or one made from it with as many vertices as each of its pieces says).
+  pieces(pr, model = this.model(pr.type, pr.seed)) {
+    if (!model) return null;
     const l = this.lifts.get(pr) || null; // (one that cannot be lifted still has triangles to cast a ray at)
-    let obj;
-    try {
-      obj = createProp(pr.type, pr.seed);
-    } catch {
-      return null;
+    const world = this.world;
+    // (the model's frame turned about y and moved to where the prop stands: base in model())
+    const c = Math.cos(pr.ry), s = Math.sin(pr.ry), px = pr.x, py = pr.y, pz = pr.z;
+    const out = [];
+    for (const src of model) {
+      const n = src.count;
+      const piece = { mat: src.mat, count: n, names: src.names.map((r) => ({ ...r })), pos: new Float32Array(n * 3), nrm: new Float32Array(n * 3), uv: src.uv.slice(), col: src.col && src.col.slice(), ground: src.ground && new Float32Array(n), tint: src.tint && src.tint.slice() };
+      const P = src.pos, N = src.nrm, wp = piece.pos, wn = piece.nrm, G = piece.ground;
+      for (let i = 0, o = 0; i < n; i++, o += 3) {
+        const x = P[o], z = P[o + 2];
+        const wx = (wp[o] = c * x + s * z + px);
+        const wy = (wp[o + 1] = P[o + 1] + py);
+        const wz = (wp[o + 2] = c * z - s * x + pz);
+        if (G) G[i] = wy - (world.floorAt ? world.floorAt(wx, wz, wy + 0.3) : world.heightAt(wx, wz));
+        const nx = N[o], nz = N[o + 2];
+        wn[o] = c * nx + s * nz;
+        wn[o + 1] = N[o + 1];
+        wn[o + 2] = c * nz - s * nx;
+      }
+      // (drawn by the rule its stretch of the static world was: the same chunk, the same distance, the same shadow side)
+      const at = l && (l.find((r) => r.m.mat === src.mat) || l[0]);
+      if (at) {
+        piece.chunk = at.run.chunk;
+        piece.maxDist = at.run.maxDist;
+        piece.side = at.run.side;
+      }
+      out.push(piece);
     }
-    const base = new THREE.Matrix4().compose(new THREE.Vector3(pr.x, pr.y, pr.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), pr.ry), new THREE.Vector3(1, 1, 1));
+    return out;
+  }
+  // A prop's model as pieces() hands it over but in the prop's own frame (ground: zeros, written where it stands),
+  // or null. One is built a model (a type's variant), not a prop: the last MODELS_KEPT asked for are kept.
+  model(type, seed) {
+    const key = `${type}:${propVariant(type, seed)}`;
+    let m = this.models.get(key);
+    if (m !== undefined) this.models.delete(key);
+    else {
+      try {
+        m = this.buildModel(type, seed);
+      } catch {
+        m = null;
+      }
+    }
+    this.models.set(key, m);
+    if (this.models.size > MODELS_KEPT) this.models.delete(this.models.keys().next().value);
+    return m;
+  }
+  buildModel(type, seed) {
+    const obj = createProp(type, seed);
     const byMat = new Map();
     const push = (mat0, geo, gi, m) => {
       let mat = staticSurface(mat0);
@@ -769,12 +815,11 @@ export class StaticWorld {
     obj.traverse((o) => {
       if (!o.isMesh || !o.geometry) return;
       o.updateMatrix();
-      const m = o.matrix.equals(IDENTITY) && o.parent === obj ? base : new THREE.Matrix4().multiplyMatrices(base, localMatrix(o, obj));
+      const m = o.matrix.equals(IDENTITY) && o.parent === obj ? IDENTITY : localMatrix(o, obj);
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       if (mats.length !== 1) o.geometry.groups.forEach((grp, gi) => push(mats[grp.materialIndex], o.geometry, gi, m));
       else push(mats[0], o.geometry, -1, m);
     });
-    const world = this.world;
     const nm = new THREE.Matrix3();
     const v = new THREE.Vector3();
     const out = [];
@@ -790,7 +835,6 @@ export class StaticWorld {
         for (let i = 0; i < sp.count; i++, o++) {
           v.fromBufferAttribute(sp, i).applyMatrix4(m);
           piece.pos.set([v.x, v.y, v.z], o * 3);
-          if (piece.ground) piece.ground[o] = v.y - (world.floorAt ? world.floorAt(v.x, v.z, v.y + 0.3) : world.heightAt(v.x, v.z));
           v.fromBufferAttribute(sn, i).applyMatrix3(nm).normalize();
           piece.nrm.set([v.x, v.y, v.z], o * 3);
           piece.uv[o * 2] = su.getX(i);
@@ -799,13 +843,6 @@ export class StaticWorld {
           else if (piece.col && sc) piece.col.set([sc.getX(i), sc.getY(i), sc.getZ(i)], o * 3);
         }
         g.dispose();
-      }
-      // (drawn by the rule its stretch of the static world was: the same chunk, the same distance, the same shadow side)
-      const at = l && (l.find((r) => r.m.mat === mat) || l[0]);
-      if (at) {
-        piece.chunk = at.run.chunk;
-        piece.maxDist = at.run.maxDist;
-        piece.side = at.run.side;
       }
       out.push(piece);
     }

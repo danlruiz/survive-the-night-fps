@@ -22,16 +22,22 @@ const ALL_POOL = LOADOUT_CATALOG.map((def) => def.id);
 export const LOADOUT_BOSS_CHANCE = 0.15;
 export const LOADOUT_STRONGBOX_CHANCE = 0.02;
 
+// (a player's loadout mods are a new object whenever they change: the sum is made once for them and their perks,
+// not each time it is asked for - every zombie asks of every survivor every tick)
+const combined = new WeakMap(); // loadout mods -> { base (the perks' mods), out }
 export function playerMods(p) {
   const base = perkMods(p?.perks || 0);
   const lm = p?.loadoutMods || NO_PERKS;
   if (lm === NO_PERKS) return base;
+  const c = combined.get(lm);
+  if (c && c.base === base) return c.out;
   const out = { ...base };
   for (const [k, v] of Object.entries(lm)) {
     if (!(k in out) || v === NO_PERKS[k]) continue;
     if (NO_PERKS[k] === 1) out[k] *= v;
     else out[k] += v;
   }
+  combined.set(lm, { base, out });
   return out;
 }
 
