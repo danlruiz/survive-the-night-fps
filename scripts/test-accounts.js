@@ -248,6 +248,18 @@ try {
     check('the social socket is refused without a session', !anon);
   }
 
+  // ---- a guest's id, the only key to their items and Zombie Skulls, is never taken from a URL
+  {
+    const dan = browser();
+    const asGuest = { 'X-STN-Guest': dan.guestId };
+    const loadout = await dan.req('GET', '/api/loadout', undefined, asGuest);
+    const auction = await dan.req('GET', '/api/loadout/auction', undefined, asGuest);
+    check("a guest's loadout and the auction are read with their id in the X-STN-Guest header", loadout.status === 200 && Array.isArray(loadout.body?.items) && auction.status === 200, JSON.stringify([loadout, auction.status]));
+    const inUrl = await dan.get(`/api/loadout?guestId=${dan.guestId}`);
+    const auctionInUrl = await dan.get(`/api/loadout/auction?guestId=${dan.guestId}`);
+    check('...and not with it in the query string, which proxies, the CDN and browser history keep', inUrl.status === 400 && auctionInUrl.status === 400, JSON.stringify([inUrl, auctionInUrl]));
+  }
+
   // ---- friends
   const ids = {};
   {

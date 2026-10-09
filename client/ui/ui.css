@@ -8583,7 +8583,8 @@ body {
   right: 0.4rem;
   top: 0.4rem;
 }
-.stn-ui .lo-note {
+.stn-ui .lo-note,
+.stn-ui .lo-panel .lo-guest {
   grid-column: 1 / -1;
   margin: 0;
 }

@@ -122,6 +122,7 @@ export function api(app, method, path, fn, { body = false, max = 4096, address =
       contentType: req.getHeader('content-type'),
       site: req.getHeader('sec-fetch-site'), // what the browser says of where the request came from ('' : not a browser, or an old one)
       panel: req.getHeader('x-stn-admin'), // the admin panel's own header (adminpanel.js guard)
+      guest: req.getHeader('x-stn-guest'), // a guest's browser id, on a read that has no body (never in the URL: client/net/identity.js)
       ip: address(res, req),
     };
     res.aborted = false;

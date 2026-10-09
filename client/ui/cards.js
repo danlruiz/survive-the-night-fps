@@ -29,6 +29,7 @@ import { RevealView } from './cardreveal.js';
 import { GuideView, guideOffered } from './cardguide.js';
 import { bindLabel, liveText, actionsOf } from '../game/binds.js';
 import { ACTION } from '../../shared/binds.js';
+import { accountState } from '../net/account.js';
 
 const TABS = [
   ['table', 'Table'],
@@ -82,6 +83,13 @@ function deckSelect(parent, c, onChange = null) {
   return sel;
 }
 export const slotOf = (v) => Number(v) | 0;
+
+// A guest (where there are accounts to keep things on) who has found cards or holds loadout items: kept in this
+// browser only, under an id that goes with the browser's data (client/net/identity.js) - so they are asked to sign in
+const guestKeeps = (s) => {
+  const a = accountState();
+  return a.ready && a.accounts && !a.offline && !a.user && s.loaded && s.kept && (Object.values(s.found).some((n) => n > 0) || s.loadouts.length > 0);
+};
 
 // a hold-to-confirm button: the fill runs along it while it is held, and letting go early calls it off
 function holdButton(parent, cls, label, secs, run) {
@@ -297,7 +305,8 @@ export class CardsScreen {
     for (const [id, t] of this.tabs) t.b.classList.toggle('on', id === this.view);
     const found = Object.values(s.found).reduce((a, n) => a + n, 0);
     const all = Object.values(STARTER).reduce((a, n) => a + n, 0) + found;
-    this.count.textContent = `${all} cards · ${found} found${s.loaded ? (s.kept ? ' · kept' : ' · not kept: sign in to keep them') : ''}`;
+    const keep = !s.loaded ? '' : !s.kept ? ' · not kept: sign in to keep them' : guestKeeps(s) ? ' · in this browser only: sign in to keep them' : ' · kept';
+    this.count.textContent = `${all} cards · ${found} found${keep}`;
     this.views[this.view].render(what);
     this.renderKeys();
   }
@@ -1525,7 +1534,8 @@ class LobbyTablesView {
     const c = this.c;
     const s = c.s;
     const mine = s.tables?.find((t) => t.host === c.myId) || null;
-    const key = JSON.stringify([s.tables || [], s.decks, s.found, s.loadouts, s.loaded, s.kept, !!s.match, c.myId]);
+    const guest = guestKeeps(s);
+    const key = JSON.stringify([s.tables || [], s.decks, s.found, s.loadouts, s.loaded, s.kept, !!s.match, c.myId, guest]);
     if (this.root.dataset.key === key) return;
     this.root.dataset.key = key;
     const r = this.root;
@@ -1533,6 +1543,19 @@ class LobbyTablesView {
     const box = el('div', 'cd-lobby-box paper', r);
     el('div', 'cd-choose-h', box, 'Lobby tables');
     el('p', 'cd-hint', box, 'Open a no-bet table from the title screen, or join one that another player is waiting at. Found cards never change hands here.');
+    if (guest) {
+      const note = el('div', 'ach-note cd-lobby-guest', box);
+      el('span', '', note, 'Your cards and loadout items are kept in this browser only: clearing its data, a private window or another device and they are out of reach. Sign in and they move onto your account.');
+      const signIn = el('button', 'btn btn-ghost', note);
+      signIn.type = 'button';
+      svgEl('i', 'btn-ico', signIn, glyph('person'));
+      el('span', '', signIn, 'Sign in');
+      // (back to these tables once signed in: the lobby socket joins again as the account, game/cardlobby.js)
+      signIn.addEventListener('click', () => {
+        this.sc.onClose?.();
+        this.sc.ui.accountPanel.show({ after: { show: () => this.sc.ui.cb.onLobbyCards?.() } });
+      });
+    }
 
     if (s.match && !s.match.local) {
       const live = el('div', 'cd-lobby-live', box);
