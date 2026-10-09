@@ -643,6 +643,7 @@ export function createMainland(seed) {
     [SHORE + 26, zb, 26, 10, BLUFF, 9], // the bluff out to the abutment: the road off the bridge
     [docks.x - 22, docks.z, 70, 128, cityH, 16], // the docks, out to their quays
     [city.x, city.z, G2 + 16, G2 + 16, cityH, 30], // the city, to its corners (they lie outside the circle of its zone)
+    [city.x - G2 - PITCH / 2 + 2, city.z + G2 - PITCH, PITCH / 2 + 4, PITCH + 4, cityH, 12], // the harbour streets, between the two (below)
   ];
   // (H1 is asked of every vertex of the heightfield, a million of them: what only depends on a flat or a zone is worked
   // out once, and the distance to a zone only taken where it can matter)
@@ -988,6 +989,14 @@ export function createMainland(seed) {
       buildRoad([[city.x + o, city.z + PITCH], [city.x + o, city.z + e]], ROAD.ASPHALT, 3.4, '', cityH);
     } else buildRoad([[city.x + o, city.z - e], [city.x + o, city.z + e]], ROAD.ASPHALT, 3.4, '', cityH);
     if (i !== GRID / 2) buildRoad([[city.x - e, city.z + o], [city.x + e, city.z + o]], ROAD.ASPHALT, 3.4, '', cityH);
+  }
+  // the harbour streets: the town's grid carried out past the ring's south-west curve to the docks, as the picture has
+  // them joined - its two streets west from the ring, and one down to the docks' road (two blocks between: below)
+  {
+    const xw = city.x - G2 - PITCH;
+    buildRoad([[city.x - G2, city.z + PITCH], [xw, city.z + PITCH]], ROAD.ASPHALT, 3.4, '', cityH);
+    buildRoad([[city.x - ringAt(2 * PITCH), city.z + 2 * PITCH], [xw, city.z + 2 * PITCH]], ROAD.ASPHALT, 3.4, '', cityH);
+    buildRoad([[xw, city.z + PITCH], [xw, city.z + G2]], ROAD.ASPHALT, 3.4, '', cityH);
   }
   // the airfield: the runway, the taxiway down the apron, the perimeter road, the road in through the gate
   const runwayRoad = buildRoad([aw(0, -RUNWAY_LEN / 2), aw(0, RUNWAY_LEN / 2)], ROAD.ASPHALT, RUNWAY_HALF, 'Runway 36', fieldH);
@@ -3255,6 +3264,31 @@ export function createMainland(seed) {
     const tx = -G2 + rng.int(1, GRID - 1) * PITCH;
     const tz = -G2 + [1, 2, 4, 5][rng.int(0, 3)] * PITCH;
     if (fits(b, 'semi_truck', tx - 1, tz + 0.5, 2.2)) b.wreck('semi_truck', tx - 1, tz + 0.5, 2.2, { trunk: false, seed: 1 });
+  }
+
+  // THE HARBOUR STREETS: the two blocks between the ring's south-west curve and the docks, on the town's pitch, paved,
+  // a lamp at each corner, and on each a building to each street: warehouses to the docks' road, terraces or a block
+  // of flats to the town (dealt from dice of their own: what the town deals stays put)
+  {
+    const qd = (n) => hash2(n, 37, (seed ^ 0x0d0c5) | 0);
+    for (const bj of [GRID - 2, GRID - 1]) {
+      const bx = city.x - G2 - PITCH / 2;
+      const bz = city.z - G2 + (bj + 0.5) * PITCH;
+      const b = new Builder(bx, bz, 0, cityH);
+      b.zone = ZONE.ROADSIDE; // (between two places, in neither: nothing in it is said to be in one)
+      b.clear(0, 0, PITCH * 0.72);
+      b.box(0, 0, 0, PAVED, PAVE, PAVED, 'concrete');
+      for (const sz of [-1, 1]) {
+        const n = bj * 2 + (sz > 0 ? 1 : 0);
+        const L = { x: bx, z: bz + sz * 11.25, w: 42, d: 19.5, ry: Math.atan2(0, -sz), bi: -1, bj, what: '' };
+        L.what = (bj === GRID - 1 && sz > 0) || qd(n) < 0.3 ? 'warehouse' : qd(n + 9) < 0.6 ? 'terrace' : 'block';
+        const lb = new Builder(L.x, L.z, L.ry, cityH);
+        lb.zone = ZONE.ROADSIDE;
+        BUILD[L.what](lb, L);
+      }
+      const E = PAVED / 2 - 0.9;
+      for (const [lx, lz] of [[-E, -E], [E, -E], [-E, E], [E, E]]) if (fits(b, 'streetlight', lx, lz, 0, PAVE)) b.prop('streetlight', lx, lz, lx < 0 ? -PI / 2 : PI / 2, { ly: PAVE });
+    }
   }
 
   // THE BRIDGES: wherever a road crosses the river. A concrete deck on piers a little over the water, rusted
