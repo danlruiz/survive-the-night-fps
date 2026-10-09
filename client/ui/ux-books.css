@@ -1476,3 +1476,12 @@
     display: none;
   }
 }
+
+@media (max-height: 520px) and (min-width: 761px) {
+  .stn-ui .bkn {
+    top: 10px;
+    bottom: 10px;
+    translate: 0;
+    max-height: none;
+  }
+}
