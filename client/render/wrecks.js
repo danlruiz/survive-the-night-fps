@@ -31,7 +31,9 @@ import { refine, islands, boxDist, rayPieces, dent, PANEL } from './wreckgeo.js'
 const PAINTED = new Set(['carpaint', 'paint', 'aircraft']);
 const TRIM = new Set(['chrome', 'steel', 'taillight', 'metal', 'rust', 'wood', 'plastic', 'iron', 'olive', 'tin', 'rubber', 'wire', 'emissive_red', 'cloth']);
 const FINE = 0.27; // m: no edge of a panel is longer (a dent has vertices to move)
-const FINES_KEPT = 24; // Wrecks.fineModel(): models kept (a car's is some 400 kB)
+const FINES_KEPT = 24; // Wrecks.fineModel(): models kept (a car's is about 1 MB)
+const PREFETCH_NEAR = 120; // m: the wrecks whose models Wrecks.prefetch makes ahead of a blow...
+const PREFETCH_EVERY = 0.25; // s: ...one at a time, at most this often
 const LOOSE_MAX = 14;
 const SIM_DT = 1 / 60;
 const BUILD_NEAR = 170; // m: a wreck on record is built when the eye is this near
@@ -60,6 +62,13 @@ function seeded(seed) {
 const ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 // a hinge swinging to where it stops: past it a little, and back
 const swing = (t) => (t >= 1 ? 1 : 1 - Math.exp(-5.5 * t) * Math.cos(9 * t));
+// a wreck's model, as Wrecks.fineModel keeps it: one a type's variant
+const fineKey = (prop) => `${prop.type}:${propVariant(prop.type, prop.seed)}`;
+// how finely its panels are cut (refine's edge): by its size
+const fineEdge = (prop) => {
+  const size = PROPS[prop.type].size;
+  return Math.max(FINE, Math.hypot(size[0], size[2]) * 0.062);
+};
 
 // ---------------------------------------------------------------- a prop out of the static world
 class Lifted {
@@ -1189,6 +1198,9 @@ export class Wrecks {
     this.alarms = new Map(); // prop -> { until, blink, chirp }
     this.cache = []; // the last few props a ray was cast at: [prop, pieces]
     this.fines = new Map(); // 'type:variant' -> fineModel(): the last few wrecks' models, the latest last
+    this.salvage = []; // the world's wrecks (props that give salvage and can be taken out of the static world)
+    // prefetch's worker, its job, and the models it has been asked for in this world (each once: kept or not after)
+    this.prep = { worker: null, tried: false, busy: null, sent: null, gen: 0, t: 0, asked: new Set() };
     this.scanT = 0;
     this.pried = new Set(); // the cars whose boot stands open (Wrecks.pry)
   }
@@ -1198,6 +1210,10 @@ export class Wrecks {
     this.world = world;
     this.staticWorld = staticWorld;
     this.marks = marks;
+    this.salvage = world && staticWorld ? world.props.filter((p) => PROPS[p.type]?.salvage && staticWorld.lifts.has(p)) : [];
+    this.prep.gen++; // (what the worker is making is of the old world: dropped when it comes)
+    this.prep.busy = null;
+    this.prep.asked.clear();
   }
   clear() {
     for (const l of this.live.values()) {
@@ -1231,23 +1247,91 @@ export class Wrecks {
   // { pieces (StaticWorld.model's, cut), isles } or null. Made once a model, not once a car: the cutting and the
   // sorting were most of the frame a car's first blow froze for (80 to 150 ms).
   fineModel(prop) {
-    const key = `${prop.type}:${propVariant(prop.type, prop.seed)}`;
+    const key = fineKey(prop);
     let f = this.fines.get(key);
     if (f !== undefined) this.fines.delete(key);
     else {
+      // (not made ahead - prefetch - or not yet: made here, now)
       const model = this.staticWorld.model(prop.type, prop.seed);
       f = null;
       if (model) {
-        const size = PROPS[prop.type].size;
         // (refine puts new arrays on the piece it is given: the model's own are left as they are)
         const pieces = model.map((p) => ({ ...p }));
-        for (const p of pieces) refine(p, Math.max(FINE, Math.hypot(size[0], size[2]) * 0.062));
+        for (const p of pieces) refine(p, fineEdge(prop));
         f = { pieces, isles: islands(pieces, (x, y, z, o) => ((o[0] = x), (o[1] = y), (o[2] = z), o)) };
       }
     }
+    this.keepFine(key, f);
+    return f;
+  }
+  keepFine(key, f) {
     this.fines.set(key, f);
     if (this.fines.size > FINES_KEPT) this.fines.delete(this.fines.keys().next().value);
-    return f;
+  }
+
+  // In the background: the model of the nearest wreck whose model is not made yet, cut and sorted by a worker
+  // (wreckworker.js), so that a car's first blow finds it made and costs what any other blow does. One at a time, at
+  // most every PREFETCH_EVERY s, within PREFETCH_NEAR m; here on the main thread only StaticWorld.model (a few ms).
+  // Without workers (node, an old browser) nothing is made ahead: fineModel makes it at the blow, as before.
+  prefetch(dt, eye) {
+    const P = this.prep;
+    if (P.busy || !eye || !this.salvage.length || (P.t -= dt) > 0) return;
+    P.t = PREFETCH_EVERY;
+    let best = null, bd = PREFETCH_NEAR * PREFETCH_NEAR;
+    for (const pr of this.salvage) {
+      const d = (pr.x - eye.x) ** 2 + (pr.z - eye.z) ** 2;
+      if (d < bd && !P.asked.has(fineKey(pr)) && !this.fines.has(fineKey(pr))) {
+        best = pr;
+        bd = d;
+      }
+    }
+    if (!best) return;
+    const w = this.prepWorker();
+    if (!w) return;
+    const key = fineKey(best);
+    P.asked.add(key); // (once: more wrecks about than are kept must not make the same ones over and over)
+    const model = this.staticWorld.model(best.type, best.seed);
+    if (!model) return this.keepFine(key, null);
+    // (copies: the model's own arrays stay with StaticWorld, these go to the worker)
+    const pieces = model.map((p) => ({ count: p.count, names: p.names.map((r) => ({ ...r })), pos: p.pos.slice(), nrm: p.nrm.slice(), uv: p.uv.slice(), col: p.col && p.col.slice(), ground: p.ground && p.ground.slice(), tint: p.tint && p.tint.slice() }));
+    const bufs = [];
+    for (const p of pieces) for (const c of ['pos', 'nrm', 'uv', 'col', 'ground', 'tint']) if (p[c]) bufs.push(p[c].buffer);
+    P.busy = key;
+    P.sent = model;
+    w.postMessage({ key, gen: P.gen, edge: fineEdge(best), pieces }, bufs);
+  }
+  prepWorker() {
+    const P = this.prep;
+    if (P.worker || P.tried) return P.worker;
+    P.tried = true;
+    if (typeof Worker === 'undefined') return null;
+    try {
+      P.worker = new Worker(new URL('./wreckworker.js', import.meta.url), { type: 'module' });
+    } catch {
+      return null;
+    }
+    P.worker.onmessage = (e) => {
+      const { key, gen, pieces, isles, error } = e.data;
+      const sent = P.sent;
+      P.busy = P.sent = null;
+      if (error) return this.dropWorker(error);
+      // (a world swapped meanwhile, or a blow came first and made it on the main thread)
+      if (gen !== P.gen || this.fines.has(key)) return;
+      pieces.forEach((p, i) => (p.mat = sent[i].mat));
+      this.keepFine(key, { pieces, isles });
+    };
+    P.worker.onerror = (e) => {
+      e?.preventDefault?.();
+      this.dropWorker(e?.message);
+    };
+    return P.worker;
+  }
+  dropWorker(why) {
+    const P = this.prep;
+    console.warn('[wrecks] the model worker failed: wrecks are made at their first blow', why);
+    P.worker?.terminate();
+    P.worker = null;
+    P.busy = P.sent = null;
   }
   wreck(prop) {
     let w = this.live.get(prop);
@@ -1391,6 +1475,7 @@ export class Wrecks {
 
   update(dt, time, eye) {
     this.time = time;
+    this.prefetch(dt, eye);
     for (const l of this.active) {
       const busy = l.update(dt);
       if (busy) continue;
@@ -1427,5 +1512,7 @@ export class Wrecks {
   dispose() {
     this.clear();
     this.batch.dispose();
+    this.prep.worker?.terminate();
+    this.prep.worker = null;
   }
 }
