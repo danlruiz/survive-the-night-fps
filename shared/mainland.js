@@ -1278,20 +1278,24 @@ export function createMainland(seed) {
   const lots = [];
   {
     const order = [];
-    let trimmed = 0;
-    for (let k = 0; k < GRID * GRID; k++) {
-      const [bi, bj] = [(k / GRID) | 0, k % GRID];
-      if (trimBlock(bi, bj)) trimmed++;
-      else if (!onSquare(bi, bj) && !onAvenue(bi, bj)) order.push(k);
-    }
+    for (let k = 0; k < GRID * GRID; k++) if (!onSquare((k / GRID) | 0, k % GRID) && !onAvenue((k / GRID) | 0, k % GRID)) order.push(k);
     for (let i = order.length - 1; i > 0; i--) {
       const j = rng.int(0, i);
       [order[i], order[j]] = [order[j], order[i]];
     }
-    // (the first BIG_BLOCKS of the shuffle are one lot each, the next four - QUAD_BLOCKS of them with the blocks the
-    // ring trims, which are always of small lots - the next LONG_BLOCKS two long ones: the rest as the seed has it)
-    const Q0 = BIG_BLOCKS + QUAD_BLOCKS - trimmed;
-    const layoutOf = new Map(order.map((k, n) => [k, n < BIG_BLOCKS ? 'big' : n < Q0 ? 'quad' : n < Q0 + LONG_BLOCKS ? 'long' : null]));
+    // (the first BIG_BLOCKS of the shuffle are one lot each, the next QUAD_BLOCKS four: the rest as the seed has it.
+    // The blocks the ring trims are of small lots whatever their place in it - one dealt a big lot hands it on to the
+    // first of the others dealt small ones - and of the rest LONG_BLOCKS are always of two long lots)
+    const trim = (k) => trimBlock((k / GRID) | 0, k % GRID);
+    const layoutOf = new Map(order.map((k, n) => [k, n < BIG_BLOCKS ? 'big' : n < BIG_BLOCKS + QUAD_BLOCKS ? 'quad' : null]));
+    for (const k of order) {
+      if (!trim(k) || layoutOf.get(k) !== 'big') continue;
+      const to = order.find((q) => !trim(q) && layoutOf.get(q) === 'quad');
+      if (to !== undefined) layoutOf.set(to, 'big');
+      layoutOf.set(k, 'quad');
+    }
+    let longs = [...layoutOf.values()].filter((v) => v === 'long').length;
+    for (const k of order) if (longs < LONG_BLOCKS && !trim(k) && layoutOf.get(k) === null) (layoutOf.set(k, 'long'), longs++);
     for (let bi = 0; bi < GRID; bi++) {
       for (let bj = 0; bj < GRID; bj++) {
         const bx = city.x - G2 + (bi + 0.5) * PITCH;
@@ -4477,6 +4481,32 @@ export function createMainland(seed) {
     }
     return false;
   };
+  // (the boots of a pile-up: a wreck's colliders kept a stride from every boot there, and a boot only where a stride
+  // behind it is clear of every wreck's)
+  const STRIDE = 0.9;
+  let jamProps = 0, jamConts = 0; // (where this pile-up's props and containers begin: only its own can box a boot in)
+  const bootsClear = (type, x, z, ry) => {
+    const mine = [0, 1, 2].flatMap((sd) => (collidersOf(type, sd)?.boxes || []).map(([lx, , lz, sx, , sz]) => ({ x: x + Math.cos(ry) * lx + Math.sin(ry) * lz, z: z - Math.sin(ry) * lx + Math.cos(ry) * lz, hx: sx / 2, hz: sz / 2, c: Math.cos(ry), s: Math.sin(ry), r: 0 })));
+    for (let k = jamConts; k < containers.length; k++) {
+      const o = containers[k];
+      if (o.ctype !== CONT.TRUNK || Math.abs(o.x - x) > 8 || Math.abs(o.z - z) > 8) continue;
+      const q = { x: o.x, z: o.z, hx: 0, hz: 0, c: 1, s: 0, r: STRIDE };
+      if (mine.some((a) => kit.solidsMeet(a, q))) return false;
+    }
+    return true;
+  };
+  const bootRoom = (x, z) => {
+    const q = { x, z, hx: 0, hz: 0, c: 1, s: 0, r: STRIDE };
+    for (let k = jamProps; k < props.length; k++) {
+      const p = props[k];
+      if (Math.abs(p.x - x) > 8 || Math.abs(p.z - z) > 8 || p.nocollide) continue;
+      for (const [lx, , lz, sx, , sz] of collidersOf(p.type, p.seed)?.boxes || []) {
+        const c = Math.cos(p.ry), s2 = Math.sin(p.ry);
+        if (kit.solidsMeet({ x: p.x + c * lx + s2 * lz, z: p.z - s2 * lx + c * lz, hx: sx / 2, hz: sz / 2, c, s: s2, r: 0 }, q)) return false;
+      }
+    }
+    return true;
+  };
   const siteFree = (x, z, gapTo) => sites.every((s) => Math.hypot(s.x - x, s.z - z) >= (s.type === 'jam' ? Math.max(gapTo, 48) : gapTo)); // (a jam is 60 m of road)
   // (a wreck of a pile-up is put down only clear of the colliders of every wreck already there, as they are, by a
   // hand's width: on a bend the cars of one lane come round into each other)
@@ -4514,6 +4544,7 @@ export function createMainland(seed) {
       b.zone = ZONE.FOREST;
       b.ground = true;
       sites.push({ x, z, ry: b.ry, type: 'jam', road: ROAD.ASPHALT });
+      [jamProps, jamConts] = [props.length, containers.length];
       const truck = rng.chance(0.5);
       const tx0 = rng.range(-0.6, 0.6);
       const tr = rng.chance(0.5) ? 0.5 : PI - 0.4;
@@ -4528,7 +4559,13 @@ export function createMainland(seed) {
         const trunk = rng.chance(0.5);
         const type = t < 0.4 ? 'car_wreck' : t < 0.68 ? 'car_burnt' : t < 0.86 ? 'pickup_truck' : t < 0.95 ? 'ambulance' : 'school_bus';
         if (!levelUnder(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || propBlocked(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !wreckClear(type, b.wx(lane, along), b.wz(lane, along), b.ry + ry) || !longClear(type, b.wx(lane, along), b.wz(lane, along)) || otherRoad(main, b.wx(lane, along), b.wz(lane, along), 13)) continue;
-        b.wreck(type, lane, along, ry, { trunk: trunk && type !== 'car_burnt' && type !== 'ambulance' && type !== 'school_bus', zone: ZONE.ROADSIDE });
+        // (a boot is opened from behind: no wreck pulled up within a stride of one, nor one opened where a wreck stands
+        // that close behind it - boxed in among them it could not be reached)
+        const wx = b.wx(lane, along), wz = b.wz(lane, along);
+        if (!bootsClear(type, wx, wz, b.ry + ry)) continue;
+        const back = type === 'pickup_truck' ? 2.9 : 2.45;
+        const boot = trunk && type !== 'car_burnt' && type !== 'ambulance' && type !== 'school_bus' && bootRoom(wx + Math.sin(b.ry + ry) * back, wz + Math.cos(b.ry + ry) * back);
+        b.wreck(type, lane, along, ry, { trunk: boot, zone: ZONE.ROADSIDE });
       }
       b.prop('suitcases', rng.range(-5, 5), rng.range(-12, 12), rng.range(0, 6), { nocollide: true });
       b.prop('litter', rng.range(-4, 4), rng.range(-12, 12), rng.range(0, 6), { nocollide: true, seed: 1 });
