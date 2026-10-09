@@ -998,6 +998,27 @@ export function createMainland(seed) {
     buildRoad([[city.x - ringAt(2 * PITCH), city.z + 2 * PITCH], [xw, city.z + 2 * PITCH]], ROAD.ASPHALT, 3.4, '', cityH);
     buildRoad([[xw, city.z + PITCH], [xw, city.z + G2]], ROAD.ASPHALT, 3.4, '', cityH);
   }
+  // ...and the streets out of the ring into the suburbs, as the picture runs them on: north from its top and south
+  // from its foot, down the grid's lines, out until they meet a road, or the water, the rock or a place, or run 150 m
+  {
+    const hitsRoad = (x, z, self) => roads.some((r) => r !== self && r.width < 6 && (() => {
+      const p = r.pts;
+      for (let k = 0; k < p.length; k += 2) if (Math.abs(p[k] - x) < 5 && Math.abs(p[k + 1] - z) < 5) return true;
+      return false;
+    })());
+    for (const [lx, sz] of [[0, -1], [PITCH, -1], [2 * PITCH, -1], [-PITCH, 1], [PITCH, 1]]) {
+      const x = city.x + lx;
+      const z0 = city.z + sz * ringAt(Math.abs(lx));
+      let len = 0;
+      for (let d = 12; d <= 150; d += 3) {
+        const z = z0 + sz * d;
+        if (seaAt(x, z) > -10 || lakeAt(x, z) > -10 || cliffAt(x, z) > -8 || riverAt(x, z) < RIVER_HW + 10 || zones.some((zn) => zn.id !== ZONE.CITY && Math.hypot(zn.x - x, zn.z - z) < zn.flat + 6)) break;
+        len = d;
+        if (d > 24 && hitsRoad(x, z, null)) break;
+      }
+      if (len >= 40) buildRoad([[x, z0], [x, z0 + sz * len]], ROAD.ASPHALT, 2.6, '', null);
+    }
+  }
   // the airfield: the runway, the taxiway down the apron, the perimeter road, the road in through the gate
   const runwayRoad = buildRoad([aw(0, -RUNWAY_LEN / 2), aw(0, RUNWAY_LEN / 2)], ROAD.ASPHALT, RUNWAY_HALF, 'Runway 36', fieldH);
   buildRoad([aw(RUNWAY_HALF + 8, -RUNWAY_LEN / 2 + 20), aw(RUNWAY_HALF + 8, APRON.lz - APRON.hz), aw(APRON.lx, APRON.lz - APRON.hz - 6)], ROAD.ASPHALT, 2.8, '', fieldH);
@@ -3685,9 +3706,11 @@ export function createMainland(seed) {
               hi = Math.max(hi, hh);
             }
             if (hi - lo > 3.5) continue;
+            // (its plot is levelled out to 15 m: a neighbour that near is on ground of much the same height, or one would
+            // be cut into the other's)
+            if (homes.some((o) => Math.hypot(o.x - hx, o.z - hz) < 30 && Math.abs(o.h - (lo + hi) / 2) > 0.35)) continue;
             homes.push({ x: hx, z: hz, ry, h: (lo + hi) / 2, zone });
-            acc = rng.range(-4, 2);
-            break;
+            acc = rng.range(-4, 2); // (and on to the other side of the lane: as the picture draws them, a house each side)
           }
         }
       }
@@ -4985,12 +5008,19 @@ export function createMainland(seed) {
           const r1 = fr();
           const r2 = fr();
           const r3 = fr();
-          if ((ramp && ramp[0] > -0.05 && ramp[1] < PIT.hw + 2.2) || (Math.abs(Math.sin(a - toYard) * rad) < 2.2 && Math.cos(a - toYard) > 0)) continue;
+          if ((ramp && ramp[0] > -0.05 && ramp[1] < PIT.hw + 4.5) || (Math.abs(Math.sin(a - toYard) * rad) < 2.2 && Math.cos(a - toYard) > 0)) continue;
           const lx = c0 * (wx - PIT.x) - s0 * (wz - PIT.z);
           const lz = s0 * (wx - PIT.x) + c0 * (wz - PIT.z);
           const len = ((2 * PI * rad) / n) * (1.12 + r1 * 0.2);
           const inset = (r2 - 0.5) * 0.8;
-          b.box(lx * (1 + inset / rad), y0, lz * (1 + inset / rad), len, y1 - y0 + (r3 - 0.5) * 0.5, 2.0, 'stone_rough', { ry: a - toYard + (r3 - 0.5) * 0.18 });
+          // (its top knee high over the ledge it holds up as that ledge is here: a lip of rock along the bench's edge, too
+          // high for a wheel to ride up onto - along the tops, off the end of one, a vehicle dropped into the face below -
+          // and no higher: the benches wander, and where one ran low a face stood up out of it a metre)
+          const out = rad + inset + 1; // (its outer side: where the ledge it holds up begins)
+          let ledge = -Infinity; // (the ledge's highest along the face's length, just outside it)
+          for (const t of [-0.5, 0, 0.5]) for (const o of [out, out + 0.7]) ledge = Math.max(ledge, heightAt(PIT.x + Math.sin(a + (t * len) / rad) * o, PIT.z + Math.cos(a + (t * len) / rad) * o));
+          const top = ledge - fy + 0.45;
+          b.box(lx * (1 + inset / rad), y0, lz * (1 + inset / rad), len, Math.max(0.5, top - y0), 2.0, 'stone_rough', { ry: a - toYard + (r3 - 0.5) * 0.18 });
         }
       }
     }
