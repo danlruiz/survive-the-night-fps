@@ -87,6 +87,7 @@ import {
   STRUCT_DEFS,
   structPickRadius,
   REPAIR_COST,
+  demolishRefund,
   CAMPFIRE_FUEL,
   CAMPFIRE_MAX_FUEL,
   ZTYPE,
@@ -3719,12 +3720,11 @@ export class Game {
     if (!e || e.kind !== ENT.STRUCTURE) return;
     const s = p.state;
     if (Math.hypot(e.x - s.x, e.z - s.z) > 5) return;
-    const def = STRUCT_DEFS[e.stype];
-    const frac = (e.hp / e.maxHp) * 0.5;
-    for (const k in def.cost) {
-      const n = Math.floor(def.cost[k] * frac);
-      if (n <= 0) continue;
+    const back = demolishRefund(e); // (what it cost, in the share of it left: its health, a torch's or a fire's fuel)
+    for (const k in back) {
+      const n = back[k];
       const taken = this.giveItem(p, +k, n);
+      if (taken > 0) this.pickupEvent(p, +k, taken);
       if (taken < n) this.dropItem(+k, n - taken, e.x, e.y, e.z); // only what did not fit, not the whole refund again
     }
     this.power.demolished(p, e); // (what is left in a generator's tank comes back)
