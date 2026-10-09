@@ -16,9 +16,9 @@ import { isShadowFrustum } from './multimesh.js';
 import { FarForest } from './farforest.js';
 
 const CELL = 32;
-const FAR_TREES = 150; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
-const FAR_LOD = 17; // m: there, where the trees' near copy gives way to the far one
-const FAR_CAST = 34; // m: there, how far from the eye a tree throws a shadow
+const FAR_TREES = 125; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
+const FAR_LOD = 14; // m: there, where the trees' near copy gives way to the far one
+const FAR_CAST = 26; // m: there, how far from the eye a tree throws a shadow
 const CRAG_DIST = 320; // m: the cliffs' crags are drawn this far (the haze thins up the mountains: they are seen far)
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
@@ -533,7 +533,9 @@ export class Foliage {
     // few metres casts: there only those within FAR_CAST do (past that the ground under the woods is in their shade
     // whichever tree throws it)
     this.trees.castDist = sd ? (this.far ? Math.min(sd, FAR_CAST) : sd + 25) : 0;
-    this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, 40) : 0;
+    // (on the mainland the bushes to 50 m and their shadows to 20: in its woods they are under the trees, where little
+    // past that reads, and they cost the woods' frame more than they showed)
+    this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, this.far ? 20 : 40) : 0;
     this.rocks.castDist = sd && q.foliageShadows ? Math.min(sd, 90) : 0;
     if (this.crags) this.crags.castDist = sd ? Math.min(sd, 60) : 0;
     // (where the near copy - every bough a card of its own, many deep in a crown - gives way to the far one: on the
@@ -566,7 +568,7 @@ export class Foliage {
     const treeR = Math.min(this.treeDist, fogVisibility + 30);
     this.trees.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
     this.far?.update(Math.round(treeR / 10) * 10, camPos.x, camPos.z);
-    this.bushes.update(camPos.x, camPos.z, Math.min(85, fogVisibility + 10), view);
+    this.bushes.update(camPos.x, camPos.z, Math.min(this.far ? 50 : 85, fogVisibility + 10), view);
     this.rocks.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
     this.crags?.update(camPos.x, camPos.z, CRAG_DIST, view);
     this.grass.update(camPos.x, camPos.z, view);

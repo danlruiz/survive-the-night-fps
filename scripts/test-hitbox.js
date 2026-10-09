@@ -211,9 +211,8 @@ check('the props that give scrap are the ones they were', SALVAGE_PROPS.length >
 // found, before it: island 704 / 859, mainland 3123 / 5014 (shots / bodies stopped in the open).
 const SWEPT = {
   island: { airShot: 130, airWalk: 180, holeShot: 265, holeWalk: 172 },
-  // (holeWalk 410: Layout 12's last world changes re-deal the roadside sites of seed 1337, and two more country bus stops
-  // come up - a shelter and a bench, about 20 m3 of their known small holes each; no new kind of fault)
-  mainland: { airShot: 1085, airWalk: 1115, holeShot: 550, holeWalk: 410 },
+
+  mainland: { airShot: 1085, airWalk: 1115, holeShot: 550, holeWalk: 380 },
 };
 if (!only && !argv.includes('--no-sweep')) {
   for (const [name, act] of [['island', 1], ['mainland', 2]]) {

@@ -441,6 +441,9 @@ export class Deer {
       m.stuckT = 0;
       m.stucks = 0;
       m.detourT = 0;
+      // (on the mainland each sets out now: one still standing out a pause of its grazing - up to half a minute - was
+      // left that far behind the pack on the way, strung out across open ground. The island's deer are as they were)
+      if (this.g.world.size > 1000) m.pause = 0;
     }
   }
 

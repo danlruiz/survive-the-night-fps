@@ -5,7 +5,7 @@ export const STREET_PROP_DEFS = {
   // ---- street furniture
   fire_hydrant: { size: [0.4, 0.8, 0.4], cyls: [[0, 0, 0.16, 0.75]], desc: 'a fire hydrant: barrel and bonnet, a hose cap each side and the pumper cap to -Z, faded red or yellow, rusting' },
   mail_dropbox: { size: [0.6, 1.3, 0.6], boxes: [[0, 0.65, 0, 0.6, 1.3, 0.6]], desc: 'the blue round-topped street collection box on four short legs, its chute to -Z, lettering faded, rust at the feet; one variant dented' },
-  street_bench: { size: [1.8, 0.9, 0.65], boxes: [[0, 0.225, 0, 1.8, 0.45, 0.6]], desc: 'a bench along X facing -Z: cast-iron ends, wooden slats, some missing or snapped' },
+  street_bench: { size: [1.8, 0.9, 0.65], boxes: [[0, 0.225, -0.05, 1.8, 0.45, 0.5], [0, 0.45, 0.18, 1.66, 0.9, 0.26]], plan: { boxes: [[0, 0.225, 0, 1.8, 0.45, 0.6]] }, desc: 'a bench along X facing -Z: cast-iron ends, wooden slats, some missing or snapped' },
   trash_bin: { size: [0.6, 1.05, 0.6], cyls: [[0, 0, 0.28, 1.0]], desc: 'a municipal litter bin (a slatted drum under a domed lid; or a wire one, its bag heaped over), rubbish at its foot' },
   newspaper_box: { size: [0.5, 1.15, 0.45], boxes: [[0, 0.575, 0, 0.5, 1.15, 0.45]], desc: 'a coin-operated newspaper box on a pedestal, front to -Z: the window broken, the door hanging down; red or blue' },
   phone_booth: {
