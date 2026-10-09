@@ -337,6 +337,8 @@ function buildStage(type, d) {
   return b.build();
 }
 
+// the parts (a geometry and a material each) a structure of this type is drawn with in damage stage d (render/structbatch.js)
+export const structureParts = (type, d) => stageParts(type, d);
 function stageParts(type, d) {
   const key = `${type}:${d}`;
   let p = cache.get(key);

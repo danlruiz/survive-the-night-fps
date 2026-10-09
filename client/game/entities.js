@@ -13,6 +13,7 @@ import { createCat } from '../render/models/cat.js';
 import { createDeerView, deerAnimChanged, removeDeerView, updateDeer } from './deer.js';
 import { createPickup } from '../render/models/pickups.js';
 import { createStructure, setStructureDamage } from '../render/models/structures.js';
+import { StructureBatch } from '../render/structbatch.js';
 import { createSupplyCrate, createProjectile } from '../render/models/misc.js';
 import { getTexture } from '../render/textures.js';
 import { nkSounds } from './nunchaku.js';
@@ -326,6 +327,10 @@ export class Entities {
   get scene() {
     return this.g.renderer.scene;
   }
+  // what draws the structures (render/structbatch.js): each kind in one instanced call, not each structure on its own
+  get structs() {
+    return (this._structs ||= new StructureBatch(this.scene));
+  }
 
   // a cutscene is on: the survivors are in its car or its plane, not standing where the server has their bodies
   hidePlayers() {
@@ -478,6 +483,7 @@ export class Entities {
           }
           if (def.station) this.stations.push(e);
           g.power?.add(e, v); // (a generator's drone and exhaust, a floodlight's lamp: game/power.js)
+          this.structs.add(e);
           break;
         }
         case ENT.PROJECTILE: {
@@ -739,6 +745,7 @@ export class Entities {
     if (e.kind === ENT.STRUCTURE) {
       const i = this.stations.indexOf(e);
       if (i >= 0) this.stations.splice(i, 1);
+      this.structs.remove(e);
     }
     if (e.kind === ENT.ZOMBIE) {
       this.zombieCount--;
