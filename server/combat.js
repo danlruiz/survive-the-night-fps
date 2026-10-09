@@ -1135,6 +1135,7 @@ export class Combat {
         this.damageZombie(z, def.dps * dt, null, { trap: true });
         z.trapSlow = Math.min(z.trapSlow, def.slow);
         s.hp -= s.stype === STRUCT.SPIKES ? dt * 2.2 : dt * 3;
+        g.noteStructureHealth(s);
         if (g.tick % 8 === 0) g.impact(IMPACT.BLOOD, z.x, z.y + 0.4, z.z);
       });
       if (s.hp <= 0) g.destroyStructure(s, true);

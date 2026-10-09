@@ -1396,6 +1396,11 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   doorways recorded by world generation (`world.openings`); campfires and workbenches are crafting stations
   (`STRUCT_DEFS[t].station`), recipes name the station they need (`RECIPES[i].station`) and optionally a
   schematic (`schem`, team-wide unlock bitmask in the global state).
+- **Demolishing structures** (`ACT.DEMOLISH`) has a 15 s undo window from `placedAt`: the whole build cost comes back,
+  including one-off parts, so a misplaced piece is free to pick back up. After that, `demolishRefund` returns 75% of
+  each material, rounded down and scaled by the structure's lowest health fraction (`minHealth`, lowered by damage and
+  never raised by repairs); costs of exactly one item do not come back. Torches and campfires are also capped by the
+  fuel left from their original build. `test-demolish` holds the refund, repair, loop and handoff cases.
 - **Crafting in bulk** (the crafting panel's quantity and Craft ×N, or Shift / Ctrl+click a recipe) is not in the
   protocol: it is `ACT.CRAFT` sent n times. The
   server refuses each craft it cannot do with a toast, so the client counts first: `craftRun` in
