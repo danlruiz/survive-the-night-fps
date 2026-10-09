@@ -3,7 +3,9 @@
 // - equipped slots persist and guests merge into accounts
 // - in-run loadout copies cannot be dropped/salvaged/traded and do not drop on death
 import { createHash, randomUUID } from 'node:crypto';
-import { LoadoutService, MemoryLoadoutStore } from '../server/userloadout.js';
+import { LoadoutService, MemoryLoadoutStore, PgLoadoutStore } from '../server/userloadout.js';
+import { openDb } from '../server/db/index.js';
+import { migrate } from '../server/db/migrate.js';
 import { Loadouts, LocalLoadouts, clearLoadoutRun, loadoutCombatEffect } from '../server/loadouts.js';
 import { Game } from '../server/game.js';
 import { AMMO, ITEM, ZTYPE } from '../shared/defs.js';
@@ -476,6 +478,44 @@ async function leaveDuringWagerLock() {
   check('in-run leave while wager lock is in flight refunds both items', store.wagerLocks.size === 0 && (await service.collection(aOwner)).items.some((it) => it.id === aItem.id) && (await service.collection(bOwner)).items.some((it) => it.id === bItem.id));
 }
 
+// A browser that signs in, signs out, earns more as the same guest and signs in to the same account again: the second
+// merge moves what was earned in between too (its skulls were once deleted instead - the move's ledger id was made of
+// the guest and the account, and already taken), and each merge leaves the guest owner with nothing. Both stores.
+async function guestMergeTwice() {
+  for (const [label, makeStore] of [
+    ['memory', async (uid) => Object.assign(new MemoryLoadoutStore(), { accounts: new Set([uid]) })],
+    [
+      'postgres',
+      async (uid) => {
+        const db = await openDb('pglite:memory');
+        await migrate(db);
+        await db.query("INSERT INTO users (id, email, username, password_hash) VALUES ($1, 'twice@example.com', 'Twice', 'x')", [uid]);
+        return new PgLoadoutStore(db);
+      },
+    ],
+  ]) {
+    console.log(`\n-- loadout guest merged twice (${label})`);
+    const uid = randomUUID();
+    const svc = new LoadoutService({ store: await makeStore(uid) });
+    const browser = randomUUID();
+    const g = `g:${createHash('sha256').update(browser).digest('hex')}`;
+    const a = `a:${uid}`;
+    await svc.earnSkulls(g, 10, { kind: 'test' });
+    await svc.grant(g, 1, {}, 'twice:first');
+    const first = await svc.mergeGuest(uid, browser);
+    check(`${label}: the first merge moves the guest's skulls and item`, first.skulls === 10 && first.items === 1 && (await svc.balance(a)) === 10, JSON.stringify(first));
+    check(`${label}: ...and leaves the guest owner empty`, (await svc.balance(g)) === 0 && (await svc.collection(g)).items.length === 0);
+    await svc.earnSkulls(g, 7, { kind: 'test' });
+    await svc.grant(g, 2, {}, 'twice:second');
+    const second = await svc.mergeGuest(uid, browser);
+    check(`${label}: a second merge from the same browser moves what was earned since`, second.skulls === 7 && second.items === 1 && (await svc.balance(a)) === 17 && (await svc.collection(a)).items.length === 2, JSON.stringify([second, await svc.balance(a)]));
+    check(`${label}: ...and leaves the guest owner empty again`, (await svc.balance(g)) === 0 && (await svc.collection(g)).items.length === 0);
+    const again = await svc.mergeGuest(uid, browser);
+    check(`${label}: a merge with nothing left to move moves nothing`, again.skulls === 0 && again.items === 0 && (await svc.balance(a)) === 17, JSON.stringify(again));
+    await svc.close();
+  }
+}
+
 catalogRules();
 await persistence();
 await inRunRules();
@@ -483,6 +523,7 @@ await inRunTrade();
 await handoffTradeReplay();
 await handoffWagerReplay();
 await leaveDuringWagerLock();
+await guestMergeTwice();
 
 if (fails.length) {
   console.error(`\n${fails.length} loadout test(s) failed: ${fails.join(', ')}`);

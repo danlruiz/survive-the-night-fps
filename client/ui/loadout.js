@@ -5,6 +5,7 @@ import { el, svgEl } from './dom.js';
 import { glyph } from './icons.js';
 import { Panel } from './games.js';
 import { buyAuctionListing, cancelAuctionListing, fetchAuction, fetchLoadout, listAuctionItem, saveLoadout } from '../net/loadout.js';
+import { accountState } from '../net/account.js';
 
 const fmtGrant = (def) => {
   const g = def.grant || {};
@@ -102,6 +103,19 @@ export class LoadoutPanel extends Panel {
 
     this.slotBox = el('div', 'lo-slots', this.body);
     this.balance = el('div', 'lo-balance', this.body);
+    // a guest with something to lose (where there are accounts to keep it on): their browser's id is the only key to
+    // it, and goes with the browser's data (client/net/identity.js)
+    this.guest = el('div', 'ach-note lo-guest', this.body);
+    this.guest.hidden = true;
+    el('span', '', this.guest, 'Kept in this browser only: clearing its data, a private window or another device and they are out of reach. Sign in and your items and Zombie Skulls move onto your account.');
+    const signIn = el('button', 'btn btn-ghost', this.guest);
+    signIn.type = 'button';
+    svgEl('i', 'btn-ico', signIn, glyph('person'));
+    el('span', '', signIn, 'Sign in');
+    signIn.addEventListener('click', () => {
+      this.hide();
+      this.ui.accountPanel.show({ after: this });
+    });
     this.note = el('p', 'ac-note lo-note', this.body, 'Loadout items are permanent profile items. Equipped copies join you at the start of a run and never drop for other players.');
     this.controls = el('div', 'lo-controls', this.body);
     this.makeControls();
@@ -306,6 +320,8 @@ export class LoadoutPanel extends Panel {
     if (this.selected && visible.length && !visible.some((it) => it.id === this.selected)) this.selected = visible[0].id;
     if (this.selected && !visible.length && this.data?.items?.length) this.selected = '';
     this.root.classList.toggle('busy', this.busy);
+    const a = accountState();
+    this.guest.hidden = !a.ready || !a.accounts || a.offline || !!a.user || !(this.data?.items?.length || this.data?.balance);
     this.renderSlots(byId);
     this.renderGrid(byId);
     this.renderDetail(byId);

@@ -2,9 +2,12 @@
 // and kept in localStorage under 'stn.player'. The server files this player's kills, nights, wins and revives
 // under it (server/stats.js).
 //
-// It is the only thing that proves who the player is - whoever has it plays as them - so it goes to the server
-// inside the JOIN and nowhere else: it is not shown, logged or put in a URL, and the server never sends it on.
-// Clearing the browser's storage makes a new player of this one, and there is no way back to the old record.
+// It is the only thing that proves who the player is - whoever has it plays as them, and spends, trades and bets
+// their cards, loadout items and Zombie Skulls - so it goes to the server only inside a socket's JOIN, a JSON body or
+// (on a read with no body) the X-STN-Guest header: it is never shown, logged or put in a URL (a query string is kept
+// by proxies, the CDN and browser history), and the server never sends it on.
+// Clearing the browser's storage makes a new player of this one, and there is no way back to the old record: signing
+// in moves it all onto an account (server/auth.js claimGuest), which is why the cards and loadout screens ask guests to.
 const KEY = 'stn.player';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

@@ -441,11 +441,13 @@ has; an active auction listing hides its item from the collection and deletes an
 cancelled, bought or expired.
 
 Zombie Skulls are the endgame currency (`017_loadout_auction_house.sql`). Balances live beside loadout items, guests
-can earn them, and signing in moves guest skulls onto the account with the guest's loadout items. Every credit/debit
+can earn them, and signing in moves guest skulls onto the account with the guest's loadout items (each move a ledger
+row of its own, so the same browser signing in again later moves what it earned since). Every credit/debit
 has a `loadout_skull_ledger` row and normalized entries; earn events from a game use stable ledger ids and an hourly
 cap, while auction buys debit buyer and credit seller minus the fee in the same transaction that moves the item. Guests
 may browse and earn but must sign in to buy or sell. The main menu's Loadout and Auction House panels read the same
-service (`client/net/loadout.js`, `client/ui/loadout.js`).
+service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
+header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
 ## Experience, levels and perks
 

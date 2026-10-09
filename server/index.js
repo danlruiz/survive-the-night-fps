@@ -639,10 +639,12 @@ route(
   { body: true }
 );
 
+// a guest's id comes in the body, or for a GET in the X-STN-Guest header: never from the query string, which proxies,
+// the CDN and browser history keep (it is the only key to that guest's items and Zombie Skulls)
 const loadoutOwner = async (ctx, body = null) => {
   const u = auth ? await auth.me(ctx) : null;
   if (u) return `a:${u.id}`;
-  const key = loadoutOwnerKey('', body?.guestId || ctx.query.get('guestId') || '');
+  const key = loadoutOwnerKey('', body?.guestId || ctx.guest || '');
   if (!key) throw new HttpError(400, 'This browser has no player id yet.');
   return key;
 };
