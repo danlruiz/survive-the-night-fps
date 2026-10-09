@@ -112,16 +112,19 @@ export class Minimap {
     const dot = this.size * 0.018 * sc;
     let en = 0;
     if (this.enN) eg.clearRect(0, 0, n, n);
+    // (every dot one path, filled and outlined once: a horde in range is two draws, not two a zombie)
     for (const e of d.enemies || []) {
       const [px, py] = at(e.x, e.z);
       if (px * px + py * py > (r - 2) * (r - 2)) continue;
-      if (!en++) {
-        eg.fillStyle = '#c41414';
-        eg.strokeStyle = 'rgba(232, 220, 192, 0.9)';
-        eg.lineWidth = Math.max(1, 1.2 * sc);
-      }
-      eg.beginPath();
-      eg.arc((px + r) * sc, (py + r) * sc, e.big ? dot * 1.7 : dot, 0, Math.PI * 2);
+      if (!en++) eg.beginPath();
+      const cx = (px + r) * sc, cy = (py + r) * sc, rad = e.big ? dot * 1.7 : dot;
+      eg.moveTo(cx + rad, cy);
+      eg.arc(cx, cy, rad, 0, Math.PI * 2);
+    }
+    if (en) {
+      eg.fillStyle = '#c41414';
+      eg.strokeStyle = 'rgba(232, 220, 192, 0.9)';
+      eg.lineWidth = Math.max(1, 1.2 * sc);
       eg.fill();
       eg.stroke();
     }

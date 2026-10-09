@@ -1220,6 +1220,8 @@ export class Entities {
           break;
         }
         case ENT.STRUCTURE: {
+          // (past the drawing distance the haze has it: not drawn, nor its shadow, as the static world and a vehicle)
+          if (e.obj) e.obj.visible = (e.rx - camPos.x) ** 2 + (e.rz - camPos.z) ** 2 < (g.viewDist ?? 1e9) ** 2;
           if (e.shakeT > 0 && e.obj) {
             e.shakeT -= dt;
             const s = e.shakeT * 0.2;
