@@ -80,9 +80,12 @@ const SMOKES = 9; // columns of smoke standing over the city (world.lights 'smok
 const FIRES = 3;
 const JAM_EVERY = 150; // a pile-up on a main road about this often (m)
 // what is drawn for a lot nothing was dealt to, by weight: [kind, weight]
-const SMALL_LOTS = [['grocery', 0.9], ['diner', 0.7], ['pharmacy', 0.4], ['hardware', 0.5], ['liquor', 0.4], ['pawn', 0.3], ['laundry', 0.3], ['bakery', 0.3], ['bar', 0.4], ['books', 0.3], ['flats', 3.6], ['office', 0.9], ['ruin', 2.0], ['burnt', 1.6], ['gas', 0.4], ['green', 0.5]];
-const LONG_LOTS = [['terrace', 3], ['block', 3], ['carpark', 1], ['parking', 0.5], ['cinema', 0.3], ['warehouse', 1.2]];
-const BIG_LOTS = [['collapse', 1.4], ['tower', 1], ['depot', 0.5], ['parking', 0.5]];
+// (what a lot the run does not ask for has on it: as the picture draws the town, a building on nearly every one - a
+// few ruins and burnt shells, an open lot or a car park here and there)
+const SMALL_LOTS = [['grocery', 0.9], ['diner', 0.7], ['pharmacy', 0.4], ['hardware', 0.5], ['liquor', 0.4], ['pawn', 0.3], ['laundry', 0.3], ['bakery', 0.3], ['bar', 0.4], ['books', 0.3], ['flats', 3.6], ['office', 0.9], ['ruin', 0.7], ['burnt', 1.0], ['gas', 0.25], ['green', 0.2]];
+const LONG_LOTS = [['terrace', 3], ['block', 3], ['carpark', 0.3], ['parking', 0.15], ['cinema', 0.3], ['warehouse', 1.2]];
+const LONGISH = new Set(['car_wreck', 'car_burnt', 'car_open', 'pickup_truck', 'van_wreck', 'ambulance', 'box_truck', 'city_bus', 'army_truck', 'semi_truck', 'police_car', 'taxi']); // (what the streets' traffic is)
+const BIG_LOTS = [['collapse', 1.4], ['tower', 1], ['depot', 0.5], ['parking', 0.15]];
 
 // The river: fast water in a ravine. RIVER_HW is the half width it is measured against (riverAt below: the picture's
 // own width is in the layout, and riverAt is shifted by it so that RIVER_HW is the bank everywhere).
@@ -179,17 +182,17 @@ export function createMainland(seed) {
   const SHORE = FX(0.2); // ...and the shore it comes to there
   const head = { x: SHORE + 44, z: zb };
   const inCity = (x, z, pad) => Math.abs(x - city.x) < G2 + pad && Math.abs(z - city.z) < G2 + pad;
-  // The picture's Town Center is no plain grid: in its middle a square, the town hall on it, and avenues out from the
-  // square's corners on the diagonals to the ring. The four blocks round the middle are the square (Main Street runs
-  // through it; the cross street does not); a block a diagonal avenue cuts through, corner to corner, keeps a lot in
-  // each of its two other corners. (bi, bj: a block's column and row)
+  // The picture's Town Center: a plain grid, and in its middle a square, the town hall on it. The four blocks round
+  // the middle are the square (Main Street runs through it; the cross street does not). (bi, bj: a block's column and
+  // row.) The blocks on the diagonals once had avenues through them, corner to corner, out to the ring: they are
+  // ordinary blocks now, of small lots, and come last in the blocks' shuffle so that it deals the others as it did.
   const SQ0 = GRID / 2 - 1, SQ1 = GRID / 2;
   const onSquare = (bi, bj) => bi >= SQ0 && bi <= SQ1 && bj >= SQ0 && bj <= SQ1;
-  const onAvenue = (bi, bj) => !onSquare(bi, bj) && (bi === bj || bi + bj === GRID - 1);
+  const onDiagonal = (bi, bj) => !onSquare(bi, bj) && (bi === bj || bi + bj === GRID - 1);
   // ...and its ring road is no square: as the picture draws it, it runs down the grid's edges and rounds each corner on
   // a curve of RING_R about the square's corner (RING_C in from the edge each way). Inside a corner the ring takes
-  // the corner block (the avenue goes on through it to the ring) and the outer corner of the two blocks beside it,
-  // whose paving follows the curve and whose lot there is given up. (lx, lz: in the city's frame)
+  // the corner block and the outer corner of the two blocks beside it, whose paving follows the curve and whose lot
+  // there is given up. (lx, lz: in the city's frame)
   const RING_R = 2 * PITCH;
   const RING_C = G2 - RING_R;
   const ringAt = (a) => (a <= RING_C ? G2 : RING_C + Math.sqrt(Math.max(0, RING_R * RING_R - (Math.min(a, G2) - RING_C) ** 2))); // (how far out the ring is, at |x| (or |z|) = a)
@@ -198,7 +201,7 @@ export function createMainland(seed) {
     if (ax > RING_C && az > RING_C) return Math.hypot(ax - RING_C, az - RING_C) <= RING_R - margin;
     return ax <= G2 - margin && az <= G2 - margin;
   };
-  const RING_DIAG = RING_C + RING_R / Math.SQRT2; // (where an avenue meets the ring, each way from the middle)
+  const RING_DIAG = RING_C + RING_R / Math.SQRT2; // (where the ring crosses a diagonal, each way from the middle)
   const goneBlock = (bi, bj) => (bi === 0 || bi === GRID - 1) && (bj === 0 || bj === GRID - 1); // (a corner: the ring's)
   const trimBlock = (bi, bj) => !goneBlock(bi, bj) && (bi === 0 || bi === GRID - 1 || bj === 0 || bj === GRID - 1) && (bi <= 1 || bi >= GRID - 2) && (bj <= 1 || bj >= GRID - 2);
   const cityW = [city.x - G2, city.z];
@@ -986,8 +989,6 @@ export function createMainland(seed) {
     } else buildRoad([[city.x + o, city.z - e], [city.x + o, city.z + e]], ROAD.ASPHALT, 3.4, '', cityH);
     if (i !== GRID / 2) buildRoad([[city.x - e, city.z + o], [city.x + e, city.z + o]], ROAD.ASPHALT, 3.4, '', cityH);
   }
-  // the avenues: from each corner of the square out on the diagonal to the ring
-  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) buildRoad([[city.x + sx * PITCH, city.z + sz * PITCH], [city.x + sx * RING_DIAG, city.z + sz * RING_DIAG]], ROAD.ASPHALT, 3.4, '', cityH);
   // the airfield: the runway, the taxiway down the apron, the perimeter road, the road in through the gate
   const runwayRoad = buildRoad([aw(0, -RUNWAY_LEN / 2), aw(0, RUNWAY_LEN / 2)], ROAD.ASPHALT, RUNWAY_HALF, 'Runway 36', fieldH);
   buildRoad([aw(RUNWAY_HALF + 8, -RUNWAY_LEN / 2 + 20), aw(RUNWAY_HALF + 8, APRON.lz - APRON.hz), aw(APRON.lx, APRON.lz - APRON.hz - 6)], ROAD.ASPHALT, 2.8, '', fieldH);
@@ -1015,7 +1016,7 @@ export function createMainland(seed) {
     // (two points of the picture's ring the city's grid puts on one crossing: once)
     for (let i = ctrl.length - 1; i > 0; i--) if (Math.hypot(ctrl[i][0] - ctrl[i - 1][0], ctrl[i][1] - ctrl[i - 1][1]) < 1) ctrl.splice(i, 1);
     // (a road that comes to a crossing of the grid's edge round a corner, where the ring is a curve, goes on in to it:
-    // down the street's line to where that comes to the ring, or from the corner itself down the avenue's)
+    // down the street's line to where that comes to the ring, or from the corner itself down the diagonal)
     const inTo = (q) => {
       const [lx, lz] = [q[0] - city.x, q[1] - city.z];
       if (inRing(lx, lz, -0.5) || Math.max(Math.abs(lx), Math.abs(lz)) > G2 + 0.5) return null;
@@ -1119,7 +1120,7 @@ export function createMainland(seed) {
     }
   }
   // the docks' own: the quay road along the waterfront and the road in to it from the city's south-west corner (the
-  // picture's road out of the ring there runs in from it down the avenue's line)
+  // picture's road out of the ring there runs in from it down the diagonal)
   buildRoad([[docks.x - 40, docks.z - 120], [docks.x - 40, docks.z], [docks.x - 38, docks.z + 118]], ROAD.ASPHALT, 2.8, '', zoneById[ZONE.INDUSTRIAL].h);
   buildRoad([[city.x - G2, city.z + G2], [docks.x - 10, city.z + G2], [docks.x - 40, city.z + G2]], ROAD.ASPHALT, 2.8, '');
 
@@ -1192,7 +1193,8 @@ export function createMainland(seed) {
       lo = Math.min(lo, h);
       hi = Math.max(hi, h);
     }
-    return hi - lo < 0.8;
+    // (...and no hollow under its middle: it is seated on its lowest corner, and over a ditch it would hang in the air)
+    return hi - lo < 0.8 && heightAt(x, z) > lo - 0.06;
   };
   const sampleGrid = (arr, x, z) => arr[clamp(Math.round((z + HALF) / GRID_STEP), 0, N - 1) * N + clamp(Math.round((x + HALF) / GRID_STEP), 0, N - 1)];
   const roadDistAt = (x, z) => sampleGrid(roadDist, x, z);
@@ -1278,16 +1280,18 @@ export function createMainland(seed) {
   const lots = [];
   {
     const order = [];
-    for (let k = 0; k < GRID * GRID; k++) if (!onSquare((k / GRID) | 0, k % GRID) && !onAvenue((k / GRID) | 0, k % GRID)) order.push(k);
+    for (let k = 0; k < GRID * GRID; k++) if (!onSquare((k / GRID) | 0, k % GRID) && !onDiagonal((k / GRID) | 0, k % GRID)) order.push(k);
     for (let i = order.length - 1; i > 0; i--) {
       const j = rng.int(0, i);
       [order[i], order[j]] = [order[j], order[i]];
     }
+    // (the diagonal blocks after them, of small lots: the town as dense as the picture draws it)
+    for (let k = 0; k < GRID * GRID; k++) if (onDiagonal((k / GRID) | 0, k % GRID) && !goneBlock((k / GRID) | 0, k % GRID)) order.push(k);
     // (the first BIG_BLOCKS of the shuffle are one lot each, the next QUAD_BLOCKS four: the rest as the seed has it.
     // The blocks the ring trims are of small lots whatever their place in it - one dealt a big lot hands it on to the
     // first of the others dealt small ones - and of the rest LONG_BLOCKS are always of two long lots)
     const trim = (k) => trimBlock((k / GRID) | 0, k % GRID);
-    const layoutOf = new Map(order.map((k, n) => [k, n < BIG_BLOCKS ? 'big' : n < BIG_BLOCKS + QUAD_BLOCKS ? 'quad' : null]));
+    const layoutOf = new Map(order.map((k, n) => [k, onDiagonal((k / GRID) | 0, k % GRID) ? 'quad' : n < BIG_BLOCKS ? 'big' : n < BIG_BLOCKS + QUAD_BLOCKS ? 'quad' : null]));
     for (const k of order) {
       if (!trim(k) || layoutOf.get(k) !== 'big') continue;
       const to = order.find((q) => !trim(q) && layoutOf.get(q) === 'quad');
@@ -1304,7 +1308,7 @@ export function createMainland(seed) {
         const b = new Builder(bx, bz, 0, cityH);
         b.zone = ZONE.CITY;
         b.clear(0, 0, PITCH * 0.72);
-        if (goneBlock(bi, bj)) continue; // (the ring's: its curve and the avenue's end, verges between)
+        if (goneBlock(bi, bj)) continue; // (the ring's: its curve, verges inside it)
         // which way a lot faces: out of the block, onto the street it stands on. face: the world direction [dx, dz]
         const lot = (lx, lz, w, d, face) => lots.push({ x: bx + lx, z: bz + lz, w, d, ry: Math.atan2(-face[0], -face[1]), bi, bj, what: '' });
         if (trimBlock(bi, bj)) {
@@ -1331,17 +1335,6 @@ export function createMainland(seed) {
                 b.box(sx * (u + w / 2), 0, (sz * len) / 2, w, PAVE, len, 'concrete');
               }
             }
-          }
-          continue;
-        }
-        if (onAvenue(bi, bj)) {
-          // an avenue through it corner to corner (down the diagonal bi = bj, or across it): a lot in each of the two
-          // other corners, its paving round it, the avenue's side of it ground the roadway was laid on
-          const k = bi === bj ? -1 : 1;
-          for (const sx of [-1, 1]) {
-            const sz = sx * k;
-            b.box(sx * 14.3, 0, sz * 14.3, 20, PAVE, 20, 'concrete');
-            lot(sx * 14.5, sz * 14.5, 19.5, 19.5, rng.chance(0.5) ? [sx, 0] : [0, sz]);
           }
           continue;
         }
@@ -2740,7 +2733,7 @@ export function createMainland(seed) {
     const plan = new Map();
     // (the tower whose shaft came down: the first big lot. It fell across the street beside its block - east, or
     // west from the city's last column - onto what stood on the far side: those lots are under it.)
-    const fi = order.find((i) => lots[i].w > 40 && lots[i].d > 40 && ((L) => { const nb = L.bi < GRID - 1 ? L.bi + 1 : L.bi - 1; return !onSquare(nb, L.bj) && !onAvenue(nb, L.bj) && !trimBlock(nb, L.bj); })(lots[i]));
+    const fi = order.find((i) => lots[i].w > 40 && lots[i].d > 40 && ((L) => { const nb = L.bi < GRID - 1 ? L.bi + 1 : L.bi - 1; return !onSquare(nb, L.bj) && !trimBlock(nb, L.bj); })(lots[i]));
     if (fi !== undefined) {
       const T = lots[fi];
       const dir = T.bi < GRID - 1 ? 1 : -1;
@@ -2763,8 +2756,8 @@ export function createMainland(seed) {
     const left = order.filter((i) => !plan.has(i));
     const big = left.filter((i) => lots[i].w > 40 && lots[i].d > 40);
     const long = left.filter((i) => lots[i].w > 40 && lots[i].d < 40);
-    // (the places the run needs only on lots inside the city's circle - its zone: an avenue's corner lots stand out
-    // past it, where a part would be said to lie in the woods)
+    // (the places the run needs only on lots inside the city's circle - its zone: a lot by the ring stands out past
+    // it, where a part would be said to lie in the woods)
     const small = left.filter((i) => lots[i].w < 40 && Math.hypot(lots[i].x - city.x, lots[i].z - city.z) < CITY_R - 14);
     const deal = (from, list) => list.forEach((what) => from.length && plan.set(from.shift(), what));
     // (two of each: the towers, and the parts shops the plane's magneto may be in)
@@ -2934,6 +2927,22 @@ export function createMainland(seed) {
     const free = (type, lx, lz, ry) => !propBlocked(type, b.wx(lx, lz), b.wz(lx, lz), ry);
     // which stretch is which: i, the street; k, the block along it; ns, which way it runs
     const key = (i, k, ns) => `${i}:${k}:${ns ? 1 : 0}`;
+    // (the streets' wrecks clear of each other as their colliders are, by a hand's width: a plan is a shade short of
+    // some of them - the pickup's - and nose to tail in a jam that was 20 cm into the next)
+    const street0 = props.length;
+    const boxesOf = (type, x, z, ry, sd, m) => {
+      const c = Math.cos(ry), s2 = Math.sin(ry);
+      return (collidersOf(type, sd)?.boxes || []).map(([lx, , lz, sx, , sz]) => ({ x: x + c * lx + s2 * lz, z: z - s2 * lx + c * lz, hx: sx / 2 + m, hz: sz / 2 + m, c, s: s2, r: 0 }));
+    };
+    const carsClear = (type, x, z, ry) => {
+      const mine = [0, 1, 2].flatMap((sd) => boxesOf(type, x, z, ry, sd, 0.05));
+      for (let k = street0; k < props.length; k++) {
+        const p = props[k];
+        if (Math.abs(p.x - x) > 10 || Math.abs(p.z - z) > 10 || !LONGISH.has(p.type)) continue;
+        for (const o of boxesOf(p.type, p.x, p.z, p.ry, p.seed, 0)) for (const a of mine) if (kit.solidsMeet(a, o)) return false;
+      }
+      return true;
+    };
     const kinds = new Map();
     // (a stretch the ring's curve took - an edge street's round a corner, an inner street's last before the ring - is
     // no street now: nothing is set along it)
@@ -2979,19 +2988,11 @@ export function createMainland(seed) {
       for (const [t, wt] of W) if ((r -= wt) <= 0) return t;
       return W[0][0];
     };
-    // (what stands on a kerb of a block an avenue cuts: on one of its corners' paving, off it, or - astride its edge -
-    // not at all. lx, lz: in the city's frame; o: what onPave says for an ordinary block. Returns the prop's options or null)
+    // (what stands by a kerb: on the paving, unless the block there is the ring's, which has none. lx, lz: in the
+    // city's frame; o: what onPave says for an ordinary block. Returns the prop's options)
     const paveAt = (lx, lz, o) => {
       const bi = Math.floor((lx + G2) / PITCH), bj = Math.floor((lz + G2) / PITCH);
-      if (bi < 0 || bj < 0 || bi >= GRID || bj >= GRID || !onAvenue(bi, bj)) return o;
-      const cx = -G2 + (bi + 0.5) * PITCH, cz = -G2 + (bj + 0.5) * PITCH;
-      const k = bi === bj ? -1 : 1;
-      for (const sx of [-1, 1]) {
-        const dx = Math.abs(lx - cx - sx * 14.3), dz = Math.abs(lz - cz - sx * k * 14.3);
-        if (dx < 10 - 0.8 && dz < 10 - 0.8) return { ly: PAVE };
-        if (dx < 10 + 0.8 && dz < 10 + 0.8) return null;
-      }
-      return {};
+      return bi >= 0 && bj >= 0 && bi < GRID && bj < GRID && goneBlock(bi, bj) ? {} : o;
     };
     const TRAFFIC = [['car_wreck', 3], ['car_burnt', 2.4], ['car_open', 2.8], ['pickup_truck', 1.1], ['van_wreck', 1.1], ['ambulance', 0.3], ['box_truck', 0.45]];
     const LITTER = ['litter', 'litter', 'paper_scatter', 'paper_scatter', 'glass_shards', 'glass_shards', 'debris', 'suitcases', 'bicycle', 'stroller', 'skeleton', 'corpse', 'bones', 'traffic_cones', 'shopping_cart', 'blood_pool', 'litter', 'debris'];
@@ -3013,8 +3014,7 @@ export function createMainland(seed) {
           // (the paving of a block stands PAVE over the city's level from 3.7 m off a street's middle - where there is
           // a block: the outer side of an edge street is a verge. What is put on it stands on it.)
           const onPave = (across) => (Math.abs(across) > 3.75 && (across > 0 ? i < GRID : i > 0) ? { ly: PAVE } : {});
-          // (where a block an avenue cuts has paving at that spot: paveAt; astride its edge, a thing that is solid is
-          // left out and one that is not lies on the roadway's level)
+          // (where a block has paving at that spot: paveAt - the blocks the ring took have none)
           const paveOf = (along, across) => paveAt(...at(along, across), onPave(across));
           const litter = (type, along, across, o2 = {}) => b.prop(type, ...at(along, across), rng.range(0, 6), { nocollide: true, seed: rng.int(0, 2), ...(paveOf(along, across) || {}), ...o2 });
           const put = (type, along, across, ry, o2 = {}) => {
@@ -3024,7 +3024,7 @@ export function createMainland(seed) {
           const car = (type, along, across, ry, trunk = false) => {
             const [x, z] = at(along, across);
             const pv = paveOf(along, across);
-            if (!pv || !PROPS[type] || !fits(b, type, x, z, ry, pv.ly ?? 0)) return false;
+            if (!pv || !PROPS[type] || !fits(b, type, x, z, ry, pv.ly ?? 0) || !carsClear(type, b.wx(x, z), b.wz(x, z), b.ry + ry)) return false;
             b.wreck(type, x, z, ry, { trunk: trunk && hasTrunk(type), zone: ZONE.ROADSIDE, ...pv });
             return true;
           };
@@ -4719,7 +4719,8 @@ export function createMainland(seed) {
           const x = p[i * 2] + (tz / tl) * sd * off;
           const z = p[i * 2 + 1] - (tx / tl) * sd * off;
           if (!reachAt(x, z) || forestAt(x, z) > 0.5 || builtNear(x, z, 30) || nearZone(x, z, 30) || inCity(x, z, 50) || cliffAt(x, z) > -30 || seaAt(x, z) > -30 || lakeAt(x, z) > -25 || riverAt(x, z) < 45 || onField(x, z, 30) || Math.abs(x) > HALF - 80 || Math.abs(z) > HALF - 80) continue;
-          if (homes.some((o) => Math.hypot(o.x - x, o.z - z) < 45) || sites.some((st) => Math.hypot(st.x - x, st.z - z) < 40)) continue;
+          // (its ground is levelled out to 40 m: clear of every site and of what a site puts down round it, a dozen metres)
+          if (homes.some((o) => Math.hypot(o.x - x, o.z - z) < 45) || sites.some((st) => Math.hypot(st.x - x, st.z - z) < 54)) continue;
           let lo = Infinity, hi = -Infinity, wet = false;
           for (let dx = -26; dx <= 26; dx += 6.5) for (let dz = -26; dz <= 26; dz += 6.5) {
             const hh = heightAt(x + dx, z + dz);
