@@ -35,7 +35,7 @@ export const CODE_RE = /^[A-Z2-9]{6,10}$/;
 // An empty game shuts down after this long: long enough for a reload, or for whoever made it to get the link out
 // before they join.
 const IDLE_MS = 90_000;
-const SEND_LIMIT = 256 * 1024; // a socket with this much unsent is backed up: its messages are dropped or held
+const SEND_LIMIT = 256 * 1024; // a socket with this much unsent is backed up: its snapshots are held back
 // Per address: making games (a few in a row, then one a minute) and asking for codes that turn out not to exist.
 const CREATE_BURST = 3;
 const CREATE_EVERY = 60;
@@ -301,11 +301,13 @@ export class Room {
       const sock = runs[i];
       const slot = runs[i + 1];
       const msgs = runs[i + 2];
+      // A backed-up client is held back by the game (congested: no snapshot until it drains), never by losing what
+      // the game already wrote for it. A snapshot is the delta from what the game takes the client to have, so one
+      // that went missing left entities created in it unknown to the client, and every later update of them threw
+      // there ("update for unknown entity") until they left its view. What a socket may hold is still bounded:
+      // uWS's maxBackpressure (index.js), a tick or two past SEND_LIMIT.
       sock.cork(() => {
         for (const bytes of msgs) {
-          // a badly backed-up client loses messages rather than the server's memory growing without end (the game
-          // holds its snapshots back meanwhile: congested)
-          if (sock.getBufferedAmount() > SEND_LIMIT) break;
           this.lobby.netMetrics?.wsOut(gameOutChannel(bytes), bytes);
           sock.send(bytes, true, false);
         }
