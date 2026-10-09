@@ -1733,8 +1733,9 @@
   transform: rotate(var(--unrot, 0rad)) translate(-50%, 60%);
   font: 700 max(10px, calc(13 * var(--u))) / 1 Georgia, 'Times New Roman', serif;
   letter-spacing: 0.04em;
-  color: #2a1c10;
-  text-shadow: 0 0 3px rgba(232, 220, 192, 0.95), 0 0 6px rgba(232, 220, 192, 0.8);
+  color: #1e140b;
+  /* (the picture's names: dark ink in a light halo round every letter) */
+  text-shadow: 0 0 2px rgba(236, 222, 190, 1), 0 0 3px rgba(236, 222, 190, 1), 0 0 6px rgba(236, 222, 190, 0.85);
   white-space: nowrap;
 }
 

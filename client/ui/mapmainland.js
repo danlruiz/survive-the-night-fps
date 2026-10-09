@@ -12,11 +12,14 @@
 import { GRID_STEP, WATER_LEVEL } from '../../shared/constants.js';
 
 // the picture's colours
-const PAPER = [226, 208, 166];
-const SEA = [58, 104, 142];
-const SHALLOW = [104, 150, 172];
-const ROCK_LIT = [188, 180, 166];
-const ROCK_DARK = [92, 84, 76];
+// (the picture's: a warm aged parchment, the sea a deep slate blue with lighter teal shallows, the ranges grey-brown)
+const PAPER = [216, 192, 150];
+const SEA = [44, 84, 112];
+const SHALLOW = [86, 124, 136];
+const SHORE = [22, 40, 52];
+const ROCK_LIT = [190, 178, 158];
+const ROCK_DARK = [92, 84, 74];
+const BUSH = [74, 80, 58];
 const INK = '#2a2018';
 
 export function drawMainland(g, world, S, mapX, mapY) {
@@ -86,6 +89,20 @@ export function drawMainland(g, world, S, mapX, mapY) {
   const SN = Math.ceil(R / 4) + 1;
   const stains = new Float32Array(SN * SN);
   for (let j = 0; j < SN; j++) for (let i = 0; i < SN; i++) stains[j * SN + i] = 0.5 * Math.sin(i * 4 * 0.0041 + Math.sin(j * 4 * 0.0033) * 2.2) * Math.cos(j * 4 * 0.0037 - i * 4 * 0.0011) + 0.5 * Math.sin(i * 4 * 0.017 + j * 4 * 0.013);
+  // (and the picture's tea stains and the browning toward the sheet's edges: soft rings and blots, on the same 4 px grid)
+  for (let n = 0; n < 9; n++) {
+    const sx = rnd() * SN, sy = rnd() * SN, sr = (0.05 + rnd() * 0.09) * SN, ring = rnd() < 0.5;
+    for (let j = Math.max(0, (sy - sr * 1.3) | 0); j < Math.min(SN, sy + sr * 1.3); j++) {
+      for (let i = Math.max(0, (sx - sr * 1.3) | 0); i < Math.min(SN, sx + sr * 1.3); i++) {
+        const q = Math.hypot(i - sx, j - sy) / sr;
+        stains[j * SN + i] -= ring ? Math.max(0, 1 - Math.abs(q - 1) * 9) * 0.9 : Math.max(0, 1 - q) * 0.7;
+      }
+    }
+  }
+  for (let j = 0; j < SN; j++) for (let i = 0; i < SN; i++) {
+    const e = Math.min(i, j, SN - 1 - i, SN - 1 - j) / SN; // (0 at the edge, 0.5 in the middle)
+    stains[j * SN + i] -= Math.max(0, 0.09 - e) * 26;
+  }
   const stain = (px, py) => stains[(py >> 2) * SN + (px >> 2)];
   const RIVER = world.river;
   for (let py = 0; py < R; py++) {
@@ -96,8 +113,10 @@ export function drawMainland(g, world, S, mapX, mapY) {
       const hr = hs[py * R + (px < R - 1 ? px + 1 : px)];
       const hu = hs[(py > 0 ? py - 1 : py) * R + px];
       const hd = hs[(py < R - 1 ? py + 1 : py) * R + px];
-      const gx = (hr - hl) * 0.5;
-      const gz = (hd - hu) * 0.5;
+      // (the slope for the light over 3 m each way: the picture's ranges are broad lit and shaded faces, not the grain of
+      // every ledge)
+      const gx = (hs[py * R + Math.min(R - 1, px + 3)] - hs[py * R + Math.max(0, px - 3)]) / 6;
+      const gz = (hs[Math.min(R - 1, py + 3) * R + px] - hs[Math.max(0, py - 3) * R + px]) / 6;
       // light from the north-west, a little above (a lambert of the slope)
       const nl = Math.sqrt(gx * gx + 1 + gz * gz);
       const lit = (gx * -0.55 + gz * -0.55 + 0.63) / nl; // 0.63 on the flat
@@ -118,9 +137,9 @@ export function drawMainland(g, world, S, mapX, mapY) {
           b += 14;
         }
         if (hr >= WATER_LEVEL || hd >= WATER_LEVEL || hl >= WATER_LEVEL || hu >= WATER_LEVEL) {
-          r = 46;
-          gg = 62;
-          b = 70;
+          r = SHORE[0];
+          gg = SHORE[1];
+          b = SHORE[2];
         }
       } else if (m > 0.5) {
         // rock: the faces in the light pale, those away from it dark, steeper darker; the crests inked
@@ -128,24 +147,14 @@ export function drawMainland(g, world, S, mapX, mapY) {
         r = ROCK_DARK[0] + (ROCK_LIT[0] - ROCK_DARK[0]) * t;
         gg = ROCK_DARK[1] + (ROCK_LIT[1] - ROCK_DARK[1]) * t;
         b = ROCK_DARK[2] + (ROCK_LIT[2] - ROCK_DARK[2]) * t;
-        // hachures down the faces in shade: short strokes along the fall of the ground
-        const sl = Math.sqrt(gx * gx + gz * gz);
-        if (sl > 0.25 && t < 0.55) {
-          const along = (px * -gz + py * gx) / sl; // (across the fall line)
-          const hatch = Math.sin(along * 1.7) > 0.55 ? 1 : 0;
-          const f = hatch * (0.55 - t) * 0.9;
-          r -= f * 46;
-          gg -= f * 46;
-          b -= f * 44;
-        }
-        // a crest: the ground falls away both sides (the four neighbours two pixels off all lower)
-        if (px > 2 && py > 2 && px < R - 3 && py < R - 3) {
-          const c = hs[py * R + px - 2] + hs[py * R + px + 2] + hs[(py - 2) * R + px] + hs[(py + 2) * R + px] - 4 * h;
-          if (c < -1.7) {
-            const a = Math.min(1, (-c - 1.7) / 2.4) * 0.85;
-            r = r * (1 - a) + 52 * a;
-            gg = gg * (1 - a) + 46 * a;
-            b = b * (1 - a) + 40 * a;
+        // a crest: the ground falls away both sides (the four neighbours four pixels off all well lower), inked
+        if (px > 4 && py > 4 && px < R - 5 && py < R - 5) {
+          const c = hs[py * R + px - 4] + hs[py * R + px + 4] + hs[(py - 4) * R + px] + hs[(py + 4) * R + px] - 4 * h;
+          if (c < -7) {
+            const a = Math.min(1, (-c - 7) / 8) * 0.75;
+            r = r * (1 - a) + 40 * a;
+            gg = gg * (1 - a) + 35 * a;
+            b = b * (1 - a) + 28 * a;
           }
         }
         // into the woods at the foot (the first few metres take the paper's colour back)
@@ -157,16 +166,16 @@ export function drawMainland(g, world, S, mapX, mapY) {
         // paper, the land lightly shaded by its slope, the foothills and the river's ravine with it
         const sh = (lit - 0.63) * 1.4;
         const st = stain(px, py);
-        r = PAPER[0] + sh * 60 + st * 5;
-        gg = PAPER[1] + sh * 56 + st * 5;
-        b = PAPER[2] + sh * 46 + st * 3;
+        r = PAPER[0] + sh * 60 + st * 9;
+        gg = PAPER[1] + sh * 56 + st * 10;
+        b = PAPER[2] + sh * 46 + st * 9;
         // the light rim round the water, as the picture draws round every islet and along the coast
         const out = coarse(wet, px, py);
         if (out > -9) {
           const a = (1 - Math.max(0, -out) / 9) * 0.55;
-          r = r * (1 - a) + 240 * a;
-          gg = gg * (1 - a) + 230 * a;
-          b = b * (1 - a) + 200 * a;
+          r = r * (1 - a) + 236 * a;
+          gg = gg * (1 - a) + 218 * a;
+          b = b * (1 - a) + 178 * a;
         }
         // faint contours every 5 m (the quarry's steps among them)
         const c0 = Math.floor(h / 5);
@@ -184,9 +193,51 @@ export function drawMainland(g, world, S, mapX, mapY) {
     }
   }
   void RIVER;
+  // the undergrowth, as the picture dots its open ground: every bush of the world a dark speck (two pixels a metre's
+  // raster, under the trees' stamps)
+  const BU = world.bushes || [];
+  for (let i = 0; i < BU.length; i += 6) {
+    const px = (BU[i] + HALF) | 0, py = (BU[i + 2] + HALF) | 0;
+    if (px < 1 || py < 1 || px >= R - 1 || py >= R - 1 || hs[py * R + px] < WATER_LEVEL) continue;
+    for (const o of [0, 1, R, R + 1]) {
+      const k4 = (py * R + px + o) * 4;
+      d[k4] = (d[k4] + BUSH[0] * 2) / 3;
+      d[k4 + 1] = (d[k4 + 1] + BUSH[1] * 2) / 3;
+      d[k4 + 2] = (d[k4 + 2] + BUSH[2] * 2) / 3;
+    }
+  }
   rg.putImageData(img, 0, 0);
   g.imageSmoothingEnabled = true;
   g.drawImage(raster, 0, 0, PX, PX);
+
+  // ---- the ranges as the picture draws them: peak after peak, each a lit face to the west and a shaded one to the
+  // east, ridged and inked, the northern first so the southern stand in front. A peak is stamped on each summit of the
+  // world's rock (the highest ground of every cell of PC metres well inside it), as tall as it stands
+  {
+    const PSP = peakSprites(S);
+    const PC = 44;
+    let pseed = 31337;
+    const prnd = () => (pseed = (pseed * 16807) % 2147483647) / 2147483647;
+    const peaks = [];
+    for (let cz = 0; cz + PC <= R; cz += PC) {
+      for (let cx = 0; cx + PC <= R; cx += PC) {
+        let best = -1e9, bx = 0, bz = 0, low = 1e9;
+        for (let dz = 1; dz < PC; dz += 6) for (let dx = 1; dx < PC; dx += 6) {
+          const hh = hs[(cz + dz) * R + cx + dx];
+          if (hh > best) { best = hh; bx = cx + dx; bz = cz + dz; }
+          low = Math.min(low, hh);
+        }
+        if (coarse(mtn, bx, bz) < 4 || best - low < 6) continue;
+        peaks.push([bx + (prnd() - 0.5) * 10, bz + (prnd() - 0.5) * 10, best, prnd()]);
+      }
+    }
+    peaks.sort((p, q) => p[1] - q[1]);
+    for (const [x, z, h, v] of peaks) {
+      const size = Math.max(0, Math.min(3, Math.floor((h - 10) / 30)));
+      const sp = PSP[size][Math.floor(v * PSP[size].length)];
+      g.drawImage(sp, Math.round(x * S - sp.ax), Math.round(z * S - sp.ay));
+    }
+  }
 
   // ---- the woods: a crown for every tree, the northern first so the southern stand in front of them (the picture
   // draws its trees from a little south of overhead). Conifers are a dark pointed crown, lit on its west side; birch a
@@ -200,13 +251,15 @@ export function drawMainland(g, world, S, mapX, mapY) {
   // fill, a stamp is microseconds. A stamp is a tree seen from the side, as the picture draws them: its foot at the
   // tree's place, its shadow thrown to the south-east)
   const SPR = treeSprites(S);
-  const taken = new Uint8Array(Math.ceil(PX / 3) * Math.ceil(PX / 3)); // (3 px cells: no two stamps on one)
-  const TW = Math.ceil(PX / 3);
+  // (cells of 5 m: no two stamps on one - the picture draws its woods as trees standing apart, the paper between them)
+  const TC = Math.max(3, Math.round(5 * S));
+  const TW = Math.ceil(PX / TC);
+  const taken = new Uint8Array(TW * TW);
   for (let n = 0; n < order.length; n++) {
     const i = order[n] * 6;
     const x = mapX(T[i]);
     const y = mapY(T[i + 2]);
-    const cell = Math.floor(y / 3) * TW + Math.floor(x / 3);
+    const cell = Math.floor(y / TC) * TW + Math.floor(x / TC);
     if (taken[cell]) continue;
     taken[cell] = 1;
     const kind = KIND[T[i + 5] | 0] ?? 0;
@@ -234,7 +287,7 @@ export function drawMainland(g, world, S, mapX, mapY) {
         const fa = world.forestAt(jx, jz);
         if (fa < 0.12 || frnd() > Math.min(1, fa * 1.3)) continue;
         const px = mapX(jx), py = mapY(jz);
-        const cell = Math.floor(py / 3) * TW + Math.floor(px / 3);
+        const cell = Math.floor(py / TC) * TW + Math.floor(px / TC);
         if (taken[cell]) continue;
         if (world.roadDistAt(jx, jz) < 7 || world.heightAt(jx, jz) < WATER_LEVEL + 0.4 || (world.cliffAt && world.cliffAt(jx, jz) > -2) || built(jx, jz)) continue;
         taken[cell] = 1;
@@ -511,6 +564,33 @@ export function drawMainland(g, world, S, mapX, mapY) {
   // ---- the legend, in the south-west corner of the sea where the picture has it
   drawLegend(g, PX);
 
+  // ---- the sheet's title, as the picture writes its own over the north-west corner: spaced bold capitals in a light
+  // halo, a rule under them
+  {
+    const k = PX / 4096;
+    const t = 'THE CALDER COAST';
+    g.save();
+    g.font = `bold ${Math.round(124 * k)}px Georgia, serif`;
+    g.letterSpacing = `${Math.round(7 * k)}px`;
+    g.textAlign = 'left';
+    g.textBaseline = 'alphabetic';
+    const x = 84 * k;
+    const y = 170 * k;
+    const w = g.measureText(t).width;
+    g.lineJoin = 'round';
+    g.lineWidth = 16 * k;
+    g.strokeStyle = 'rgba(232, 214, 176, 0.94)';
+    g.strokeText(t, x, y);
+    g.fillStyle = INK;
+    g.fillText(t, x, y);
+    g.fillStyle = 'rgba(232, 214, 176, 0.94)';
+    g.fillRect(x - 6 * k, y + 20 * k, w + 12 * k, 14 * k);
+    g.fillStyle = INK;
+    g.fillRect(x, y + 24 * k, w, 3 * k);
+    g.fillRect(x, y + 30 * k, w, 1.4 * k);
+    g.restore();
+  }
+
   // ---- grid (a square of 128 m) and the age of the sheet
   g.strokeStyle = 'rgba(70, 48, 30, 0.1)';
   g.lineWidth = 1;
@@ -522,9 +602,10 @@ export function drawMainland(g, world, S, mapX, mapY) {
     g.lineTo(PX, v * S);
   }
   g.stroke();
-  const grad = g.createRadialGradient(PX / 2, PX / 2, PX * 0.32, PX / 2, PX / 2, PX * 0.78);
-  grad.addColorStop(0, 'rgba(60,40,20,0)');
-  grad.addColorStop(1, 'rgba(60,40,20,0.3)');
+  const grad = g.createRadialGradient(PX / 2, PX / 2, PX * 0.3, PX / 2, PX / 2, PX * 0.74);
+  grad.addColorStop(0, 'rgba(70,44,18,0)');
+  grad.addColorStop(0.7, 'rgba(70,44,18,0.16)');
+  grad.addColorStop(1, 'rgba(60,36,14,0.46)');
   g.fillStyle = grad;
   g.fillRect(0, 0, PX, PX);
 }
@@ -564,17 +645,17 @@ function treeSprites(S) {
       tiers.forEach(([b, half], t) => {
         const top = t === 2 ? 1 : 0.62 + t * 0.2;
         tri(b, half, top);
-        g.fillStyle = '#2b3c2d';
+        g.fillStyle = '#2b4034';
         g.fill();
-        g.lineWidth = 0.7 * k;
-        g.strokeStyle = '#1b261c';
+        g.lineWidth = 0.9 * k;
+        g.strokeStyle = '#18251d';
         g.stroke();
         g.save();
         g.beginPath();
         g.rect(0, 0, cx, H + 4);
         g.clip();
         tri(b, half, top);
-        g.fillStyle = '#4b6447';
+        g.fillStyle = '#4e6d57';
         g.fill();
         g.restore();
       });
@@ -612,7 +693,77 @@ function treeSprites(S) {
       g.lineTo(cx + H * 0.24, foot - H * 0.68);
       g.stroke();
     });
-  return [[17, 20, 23, 26].map((h) => conifer(h * k)), [15, 18, 21].map((h) => broad(h * k)), [13, 16].map((h) => dead(h * k))];
+  return [[26, 30, 34, 38].map((h) => conifer(h * k)), [22, 26, 30].map((h) => broad(h * k)), [17, 21].map((h) => dead(h * k))];
+}
+
+// The ranges' peaks, as the picture draws a mountain: [size][variant], a canvas each with its summit at (ax, ay)
+function peakSprites(S) {
+  let ps = 4242;
+  const r = () => (ps = (ps * 16807) % 2147483647) / 2147483647;
+  return [62, 80, 100, 122].map((W) =>
+    [0, 1, 2, 3].map(() => {
+      const w = W * S;
+      const h = w * (0.5 + r() * 0.22);
+      const c = document.createElement('canvas');
+      c.width = Math.ceil(w + 6);
+      c.height = Math.ceil(h + 6);
+      const g = c.getContext('2d');
+      const top = 3;
+      const foot = h + 3;
+      const ax = c.width / 2 + (r() - 0.5) * w * 0.14;
+      const L = 3;
+      const Rr = c.width - 3;
+      const lS = [L + (ax - L) * (0.45 + r() * 0.15), foot - h * (0.35 + r() * 0.2)]; // (a shoulder each side)
+      const rS = [ax + (Rr - ax) * (0.4 + r() * 0.2), foot - h * (0.3 + r() * 0.2)];
+      const base = [ax + w * (0.04 + r() * 0.06), foot]; // (where the ridge from the summit comes down)
+      const face = (pts, fill) => {
+        g.beginPath();
+        g.moveTo(...pts[0]);
+        for (const q of pts.slice(1)) g.lineTo(...q);
+        g.closePath();
+        g.fillStyle = fill;
+        g.fill();
+      };
+      const lit = g.createLinearGradient(0, top, 0, foot);
+      lit.addColorStop(0, '#cdc1ab');
+      lit.addColorStop(1, '#a3957f');
+      face([[L, foot], lS, [ax, top], base], lit);
+      const shade = g.createLinearGradient(0, top, 0, foot);
+      shade.addColorStop(0, '#776c60');
+      shade.addColorStop(1, '#5b5249');
+      face([[ax, top], rS, [Rr, foot], base], shade);
+      // gullies down the faces: the lit side's faint, the shaded side's dark
+      g.lineCap = 'round';
+      for (let k = 0; k < 8; k++) {
+        const t = 0.2 + r() * 0.7;
+        const sx = ax + (base[0] - ax) * t;
+        const sy = top + (foot - top) * t;
+        const left = k % 2 === 0;
+        g.strokeStyle = left ? 'rgba(96, 88, 78, 0.55)' : 'rgba(40, 36, 34, 0.6)';
+        g.lineWidth = 0.9 * S;
+        g.beginPath();
+        g.moveTo(sx, sy);
+        g.lineTo(sx + (left ? -1 : 1) * w * (0.08 + r() * 0.12), Math.min(foot - 1, sy + h * (0.18 + r() * 0.2)));
+        g.stroke();
+      }
+      // the outline and the ridge, inked; the foot left open (it goes into the woods)
+      g.strokeStyle = '#3a3029';
+      g.lineWidth = 1.3 * S;
+      g.lineJoin = 'round';
+      g.beginPath();
+      g.moveTo(L, foot);
+      g.lineTo(...lS);
+      g.lineTo(ax, top);
+      g.lineTo(...rS);
+      g.lineTo(Rr, foot);
+      g.moveTo(ax, top);
+      g.lineTo(...base);
+      g.stroke();
+      c.ax = ax;
+      c.ay = top;
+      return c;
+    }),
+  );
 }
 
 // a badge of the picture's: a rounded square of colour with a light glyph on it (r: half its size, px)

@@ -64,10 +64,11 @@ if (q.get('export')) {
     g.font = `${italic ? 'italic ' : 'bold '}${Math.round(size * k)}px Georgia, serif`;
     const w = g.measureText(text).width;
     const px = Math.max(w / 2 + 8 * k, Math.min(cv.width - w / 2 - 8 * k, mapX(x)));
-    g.lineWidth = 6 * k;
-    g.strokeStyle = 'rgba(240, 228, 200, 0.9)';
+    g.lineWidth = 8 * k;
+    g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(236, 222, 190, 0.95)';
     g.strokeText(text, px, mapY(z));
-    g.fillStyle = '#1b120b';
+    g.fillStyle = '#1e140b';
     g.fillText(text, px, mapY(z));
   };
   for (const z of world.zones) {
