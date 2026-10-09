@@ -738,6 +738,7 @@ export class Game {
         set.add(s, createGhost(t));
       });
     }
+    steps.push(() => set.add(...this.entities.structs.warm())); // the structures as their batches draw them (instanced)
     steps.push(() => set.add(...this.power.warm())); // a floodlight's lens, glow and beam
     steps.push(() => set.add(...this.foliage.falling.warmViews())); // a felled tree coming down, in its fading twins
     steps.push(() => set.add(this.skyflares.warm())); // a flare gun flare's glow
@@ -3188,6 +3189,7 @@ export class Game {
     const fires = this.entities.fireSources.concat(this.staticFires, this.fair.lights, this.flameLights);
     this.lights.update(dt, time, cam.position, this.localFlash && self.alive && !s.zombie, fires, this.entities.remoteFlash, Math.max(this.env.night, this.under));
     this.power.update(dt, time, cam.position, Math.max(this.env.night, this.under));
+    this.entities.structs.update(); // (after everything that moves a structure this frame: a blow's shake, a generator's)
     // nearest big fire warms the viewmodel & the ambience
     let nearFire = 0;
     for (const f of fires) {
@@ -3358,6 +3360,7 @@ export class Game {
     this.foliage.update(cam.position, this.env.fogVisibility, this.time, weather, cam);
     this.lights.update(dt, this.time, cam.position, false, this.staticFires, [], this.env.night);
     this.power.update(dt, this.time, cam.position, this.env.night); // (no floodlight is left lit from the game before)
+    this.entities.structs.update();
     this.effects.update(dt, cam, this.renderer.renderer.domElement.height);
     this.impacts.update(dt);
     this.atmosphere.update(dt, this.time, cam, this.env, false, this.world.heightAt, weather);
