@@ -674,6 +674,8 @@ export class Pause {
     this.perks = row(g, 'arrowUp', 'Perks', () => this.ui.progress.show(), ' pm-perks');
     this.ach = row(g, 'trophy', 'Achievements', () => this.ui.achPanel.show());
     this.best = row(g, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
+    this.notes = row(g, 'map', 'Field notes', () => this.ui.fieldNotes.show());
+    this.notes.hint.textContent = 'Tonight · tracked';
     row(g, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
     g = group('Options');
     row(g, 'gear', 'Settings', () => this.ui.settingsPanel.show()).hint.textContent = 'Mouse · sound · video';
@@ -905,6 +907,14 @@ export class Pause {
   _key(e) {
     if (this.root.hidden || this._covered) return;
     const k = e.key;
+    if (this.ui.fieldNotes?.visible) {
+      if (k === 'Escape' || k === 'Backspace') {
+        this.ui.fieldNotes.hide();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
     if (this.asking) {
       if (k === 'ArrowLeft' || k === 'ArrowRight') this._pick(k === 'ArrowRight' ? 1 : 0);
       else if (k === 'ArrowUp') {
@@ -957,6 +967,7 @@ export class Pause {
     clearTimeout(this._hitT);
     this.hitBar.hidden = true;
     this._ask(false);
+    this.ui.fieldNotes?.hide();
     if (on) {
       this.sel = -1;
       this.rows.forEach((r) => r.b.classList.remove('on'));

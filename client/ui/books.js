@@ -326,14 +326,30 @@ export class FieldNotes {
   constructor(ui, pauseRoot) {
     this.ui = ui;
     this.ctx = () => null;
+    this.open = false;
     this.root = el('aside', 'bkn paper', pauseRoot);
     this.root.hidden = true;
+    this.root.tabIndex = -1;
+    this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-label', 'Field notes');
     // (a click in here is not a click away from the menu)
     this.root.addEventListener('click', (e) => e.stopPropagation());
     const h = el('div', 'bkn-h', this.root);
     this.title = el('span', 'bkn-title', h, 'Out tonight');
     this.night = el('span', 'bkn-night', h, '');
+    const back = el('button', 'bkn-back', h, 'Back');
+    back.type = 'button';
+    back.addEventListener('click', () => this.hide());
+    this.root.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.key !== 'Escape' && e.key !== 'Backspace') return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.hide();
+      },
+      true,
+    );
     this.theme = el('div', 'bkn-theme', this.root);
     this.kinds = el('div', 'bkn-kinds', this.root);
     const th = el('div', 'bkn-h bkn-h2', this.root);
@@ -352,13 +368,26 @@ export class FieldNotes {
     onAchievements(sync);
     onTracked(sync);
     onBestiary(sync);
-    // shown with the pause menu: it watches the menu's root rather than being told
-    if (typeof MutationObserver !== 'undefined') new MutationObserver(() => this.render()).observe(pauseRoot, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  show() {
+    this.open = true;
+    this.render();
+    if (!this.root.hidden) this.root.focus({ preventScroll: true });
+  }
+
+  hide() {
+    this.open = false;
+    this.root.hidden = true;
+  }
+
+  get visible() {
+    return !this.root.hidden;
   }
 
   render() {
     const c = this.ctx();
-    const up = !this.root.parentElement.hidden && !!c && c.day > 0;
+    const up = this.open && !this.root.parentElement.hidden && !!c && c.day > 0;
     this.root.hidden = !up;
     if (!up) return;
     // the portraits, if the book has not drawn them yet (the menu is up, so a hitch is fine), then drawn in here
