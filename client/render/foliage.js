@@ -313,8 +313,9 @@ class GrassField {
     this._f = {};
   }
 
-  // mul: the grass distance setting
+  // mul: the grass distance setting (0: no grass drawn at all)
   setQuality(q, mul = 1) {
+    const on = (this.on = mul > 0);
     this.R = grassRadius(q, mul);
     // (rounded up so dragging the slider does not reallocate the buffer at every step)
     const cap = Math.ceil(((Math.PI * (this.R + GCH) ** 2) / (GSTEP * GSTEP)) * 0.75 / 2048) * 2048;
@@ -330,6 +331,14 @@ class GrassField {
     this.nearR = Math.min(GNEAR, this.R);
     VEG.uGrassNear.value.set(this.nearR * 0.5, this.nearR);
     this.lastX = 1e9;
+    // (gone at once: the settings are open over a game that may be paused, and so not updating its grass)
+    if (!on) this._empty();
+  }
+  // nothing drawn (the meshes stay in the scene, empty and hidden as any empty one is: the warm-up still builds
+  // their programs, so grass turned on again comes back without a hitch)
+  _empty() {
+    if (this.mesh?.count) upload(this.mesh, 0);
+    if (this.near.count) upload(this.near, 0);
   }
 
   _mesh(material, cap) {
@@ -420,6 +429,7 @@ class GrassField {
   }
 
   update(cx, cz, view) {
+    if (!this.on) return this._empty();
     if (!this.mesh || (Math.hypot(cx - this.lastX, cz - this.lastZ) < 2 && view.stamp === this.stamp)) return;
     this.stamp = view.stamp;
     const R = this.R + 3;
