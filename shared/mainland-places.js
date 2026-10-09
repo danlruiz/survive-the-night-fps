@@ -30,8 +30,9 @@ function fenced(b, hx, hz, gate = 4, boom = true) {
 }
 
 // a house: two rooms, a bed, a kitchen corner. k: which of its variants (walls, what the kitchen keeps, what is outside);
-// car: false leaves out the car at its front (where the ground under it is not level)
-export function house(b, hx, hz, front, k, K, car = true) {
+// car: false leaves out the car at its front (where the ground under it is not level); bins: false, the dumpster at its
+// side (where a neighbour's house will stand)
+export function house(b, hx, hz, front, k, K, car = true, bins = true) {
   const { door, win, hole } = K;
   const s = b.sub(hx, hz, front);
   const w = (at, wd = 1.2) => (k % 3 === 1 ? hole(at, wd) : win(at, wd));
@@ -56,7 +57,7 @@ export function house(b, hx, hz, front, k, K, car = true) {
   yard('mailbox', -2.2, -10.4, 0, {}, 2.4);
 
   if (k % 3 === 2) yard('trash_bin', -7.6, -5.6, 0.2); // (clear of the window a barricade may go across)
-  if (k % 2 === 0 && (!K.fits || K.fits(s, 'dumpster', -7.2, 2, PI / 2))) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k }); // (where a neighbour's wall is not)
+  if (k % 2 === 0 && bins && (!K.fits || K.fits(s, 'dumpster', -7.2, 2, PI / 2))) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k }); // (where a neighbour's wall is not)
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)
   return s;

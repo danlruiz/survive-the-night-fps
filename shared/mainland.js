@@ -202,6 +202,29 @@ export function createMainland(seed) {
     return ax <= G2 - margin && az <= G2 - margin;
   };
   const RING_DIAG = RING_C + RING_R / Math.SQRT2; // (where the ring crosses a diagonal, each way from the middle)
+  // ...and round it all the outer ring, as the picture draws the town's: out past the grid's own ring by thirty to fifty
+  // metres to the north, the east and the south, never the same width twice, and into it on the west, where the bridge
+  // and the docks come. Between the two the suburbs' lanes and houses come up to the grid. (a: the angle from the
+  // middle, atan2(lz, lx))
+  const RIN = new Float32Array(721); // (how far out the grid's ring is, every half degree)
+  for (let k = 0; k <= 720; k++) {
+    const a = (k / 720) * 2 * PI - PI;
+    let lo = 0, hi = 260;
+    for (let it = 0; it < 30; it++) {
+      const m = (lo + hi) / 2;
+      if (inRing(Math.cos(a) * m, Math.sin(a) * m, 0)) lo = m;
+      else hi = m;
+    }
+    RIN[k] = lo;
+  }
+  const rIn = (a) => {
+    const f = ((a + PI) / (2 * PI)) * 720;
+    const k = Math.max(0, Math.min(719, Math.floor(f)));
+    return RIN[k] + (RIN[k + 1] - RIN[k]) * (f - k);
+  };
+  const BAND_A = 0.7 * PI; // (past this angle either way - the west - the two rings are one)
+  const bandW = (a) => (1 - smoothstep(0.52 * PI, BAND_A, Math.abs(a))) * (40 + 7 * Math.sin(3 * a + 1) + 5 * Math.sin(5 * a + 2));
+  const rOut = (a) => rIn(a) + bandW(a);
   const goneBlock = (bi, bj) => (bi === 0 || bi === GRID - 1) && (bj === 0 || bj === GRID - 1); // (a corner: the ring's)
   const trimBlock = (bi, bj) => !goneBlock(bi, bj) && (bi === 0 || bi === GRID - 1 || bj === 0 || bj === GRID - 1) && (bi <= 1 || bi >= GRID - 2) && (bj <= 1 || bj >= GRID - 2);
   const cityW = [city.x - G2, city.z];
@@ -1059,6 +1082,33 @@ export function createMainland(seed) {
     if (ctrl.length < 2) continue;
     if (r.name === 'airport spur') ctrl[ctrl.length - 1] = aw(GATE_AT.lx - 30, GATE_AT.lz - 14); // (to the road in through the gate)
     buildRoad(ctrl, KIND[r.kind][0], KIND[r.kind][1], r.name);
+  }
+  // the outer ring (after the picture's roads, which come to the grid's ring across it), and the grid's streets carried
+  // on across to it where nothing already crosses there
+  {
+    const hitsRoad = (x, z) => roads.some((r) => r.width < 6 && (() => {
+      const p = r.pts;
+      for (let k = 0; k < p.length; k += 2) if (Math.abs(p[k] - x) < 5 && Math.abs(p[k + 1] - z) < 5) return true;
+      return false;
+    })());
+    const outer = [];
+    for (let a = -BAND_A; a <= BAND_A + 1e-6; a += PI / 180) outer.push([city.x + Math.cos(a) * rOut(a), city.z + Math.sin(a) * rOut(a)]);
+    buildRoad(outer, ROAD.ASPHALT, 3.5, 'Outer Ring', cityH); // (a town's road: no pile-up, billboard or pole line of the highways' along it)
+    const across = (lx, lz, ux, uz) => {
+      let d = 0;
+      while (d < 80 && Math.hypot(lx + ux * d, lz + uz * d) < rOut(Math.atan2(lz + uz * d, lx + ux * d))) d += 0.5;
+      return d;
+    };
+    for (let i = 1; i < GRID; i++) {
+      const o = -G2 + i * PITCH;
+      const e = ringAt(Math.abs(o));
+      for (const [lx, lz, ux, uz] of [[o, -e, 0, -1], [o, e, 0, 1], [e, o, 1, 0]]) {
+        const d = across(lx, lz, ux, uz);
+        const mx = city.x + lx + (ux * d) / 2, mz = city.z + lz + (uz * d) / 2;
+        if (d < 18 || hitsRoad(mx, mz)) continue;
+        buildRoad([[city.x + lx, city.z + lz], [city.x + lx + ux * (d + 1), city.z + lz + uz * (d + 1)]], ROAD.ASPHALT, 3.4, '', cityH);
+      }
+    }
   }
   // a place the picture's roads pass near but do not reach has a track of its own down to the nearest of them
   for (const zn of zones) {
@@ -3738,7 +3788,9 @@ export function createMainland(seed) {
       b.yard = { x: o.x, z: o.z, flat: 5.5 }; // (what stands out past the house - its car, its bins - stands on the ground)
       // (its car at its front - house(): (7.6, -7.5) - only where the ground under it is level: at the lane it can stand
       // half on the road, which is not always at the yard's height)
-      house(b, 0, 0, 0, k, K, levelUnder('car_wreck', b.wx(7.6, -7.5), b.wz(7.6, -7.5), b.ry + 0.1));
+      // (its dumpster at its side only where no neighbour's house stands near it: one built after it is not seen by fits)
+      const bins = homes.every((q) => q === o || Math.hypot(q.x - b.wx(-7.2, 2), q.z - b.wz(-7.2, 2)) > 8);
+      house(b, 0, 0, 0, k, K, levelUnder('car_wreck', b.wx(7.6, -7.5), b.wz(7.6, -7.5), b.ry + 0.1), bins);
       b.clear(0, 0, 9);
       if (k % 5 === 2) b.prop('mailbox', 2.6, -6.6, 0);
       // ITS PLOT, kept once: the drive to its car and the path to its door, a hedge down its sides and along its front
@@ -3758,11 +3810,14 @@ export function createMainland(seed) {
         for (let lz = -9; lz <= 6; lz += 1.0) if (offLane(sx * 9.2, lz)) weed(b, sx * 9.2 + (hd(10 + lz) - 0.5) * 0.25, lz, 1.25 + hd(20 + lz) * 0.4, null, 0);
       }
       if (hd(4) < 0.7) for (let lx = -8.6; lx <= 8.6; lx += 1.0) if ((lx < -1.3 || lx > 1.3) && (lx < 5.4 || lx > 9.8) && offLane(lx, -10.2)) weed(b, lx, -10.2 + (hd(30 + lx) - 0.5) * 0.25, 1.15 + hd(40 + lx) * 0.35, null, 0);
-      const out = (type, lx, lz, ry, o = {}) => fits(b, type, lx, lz, ry) && levelUnder(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && b.prop(type, lx, lz, ry, { seed: Math.floor(hd(50) * 3), ...o });
+      // (what stands out in its garden: clear of a neighbour's house too, which may be built after it)
+      const out = (type, lx, lz, ry, oo = {}) => fits(b, type, lx, lz, ry) && levelUnder(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && homes.every((q) => q === o || Math.hypot(q.x - b.wx(lx, lz), q.z - b.wz(lx, lz)) > 8.5) && b.prop(type, lx, lz, ry, { seed: Math.floor(hd(50) * 3), ...oo });
       if (hd(5) < 0.5) {
         // the shed: planked, a lean-to roof of tin, its door to the garden
         const [sx, sz] = [6.6, 6.4];
-        if ([[sx - 1.6, sz - 1.4], [sx + 1.6, sz + 1.4], [sx + 1.6, sz - 1.4], [sx - 1.6, sz + 1.4]].every(([x, z]) => offLane(x, z) && Math.abs(heightAt(b.wx(x, z), b.wz(x, z)) - b.y0) < 0.25) && !propBlocked('crate', b.wx(sx, sz), b.wz(sx, sz), 0)) {
+        if ([[sx - 1.6, sz - 1.4], [sx + 1.6, sz + 1.4], [sx + 1.6, sz - 1.4], [sx - 1.6, sz + 1.4]].every(([x, z]) => offLane(x, z) && Math.abs(heightAt(b.wx(x, z), b.wz(x, z)) - b.y0) < 0.25) && !propBlocked('crate', b.wx(sx, sz), b.wz(sx, sz), 0) && homes.every((q) => q === o || Math.hypot(q.x - b.wx(sx, sz), q.z - b.wz(sx, sz)) > 10) && !props.some((q) => Math.abs(q.x - b.wx(sx, sz)) < 3.6 && Math.abs(q.z - b.wz(sx, sz)) < 3.6 && PROPS[q.type]?.boxes)) {
+          // (...and clear of a neighbour's house and the doors in its sides - one built after it was boxed in by it - and
+          // of what stands in a neighbour's garden behind it)
           b.box(sx, -0.1, sz, 2.8, 2.3, 2.2, 'planks');
           b.box(sx, 2.2, sz, 3.2, 0.12, 2.6, 'tin_rust', { rx: 0.12, collide: false });
           b.box(sx - 0.5, 0, sz - 1.13, 0.9, 1.9, 0.05, 'door', { collide: false });
@@ -4677,7 +4732,10 @@ export function createMainland(seed) {
   }
   // (what a site has more of than it always had is dealt from dice of its own - sd - so nothing after it moves)
   const sd = (st, n) => hash2(Math.round(st.x * 8), Math.round(st.z * 8) + n * 7919, (seed ^ 0x51e5) | 0);
-  const put3 = (b, type, lx, lz, ry, seedv = 0) => fits(b, type, lx, lz, ry) && levelUnder(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && b.prop(type, lx, lz, ry, { seed: seedv });
+  // (...seated on its lowest corner: not where the ground under its middle stands well above that, on the slope out past
+  // the site's levelled ground)
+  const seatedTrue = (type, x, z, ry) => heightAt(x, z) - seatY(type, x, z, ry) <= 0.12 + (Math.hypot(PROPS[type].size[0], PROPS[type].size[2]) / 2) * 0.3;
+  const put3 = (b, type, lx, lz, ry, seedv = 0) => fits(b, type, lx, lz, ry) && levelUnder(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && seatedTrue(type, b.wx(lx, lz), b.wz(lx, lz), b.ry + ry) && b.prop(type, lx, lz, ry, { seed: seedv });
   for (const st of sites) {
     if (st.type === 'jam') continue;
     const b = new Builder(st.x, st.z, st.ry, st.h);

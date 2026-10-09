@@ -296,7 +296,7 @@ export function drawMainland(g, world, S, mapX, mapY) {
   };
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  const styleOf = (road) => (road.width > 6 ? 'runway' : road.kind === 3 ? 'trail' : road.kind === 1 ? 'dirt' : road.width >= 3.6 ? 'main' : road.width >= 3.3 ? 'street' : road.width >= 2.7 ? 'secondary' : 'lane');
+  const styleOf = (road) => (road.width > 6 ? 'runway' : road.kind === 3 ? 'trail' : road.kind === 1 ? 'dirt' : road.width >= 3.5 ? 'main' : road.width >= 3.3 ? 'street' : road.width >= 2.7 ? 'secondary' : 'lane');
   const STYLE = {
     main: [[17, '#2a2420'], [11, '#8e8a82'], [2.2, '#d4cec2']],
     street: [[12, '#2e2824'], [7.6, '#9a958c']],
