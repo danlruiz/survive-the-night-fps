@@ -5224,11 +5224,17 @@ export function createMainland(seed) {
     bushes.push(x, heightAt(x, z), z, 0.7 + die(a, 1, 24) * 0.8, die(a, 1, 25) * PI * 2, Math.min(2, Math.floor(die(a, 1, 26) * 3)));
   }
 
-  // undergrowth: ferns and brush thick under the trees where the woods are dense and round the clearings' edges
+  // undergrowth: ferns and brush where the dense woods meet the open - along the roads through them and round the
+  // clearings' edges, where it is seen (deep in the woods it is hidden by the trunks, and it was what the woods' frame
+  // cost more than Cody's had)
   for (let a = 0; a < 26000; a++) {
     const x = -LIM + die(a, 8, 131) * LIM * 2;
     const z = -LIM + die(a, 8, 132) * LIM * 2;
     if (forestAt(x, z) < 0.45 || roadDistAt(x, z) < 5 || inWater(x, z) || cliffAt(x, z) > 2 || nearZone(x, z, -4) || clearHit(x, z, 0) || occupied(x, z, 0.5)) continue;
+    if (roadDistAt(x, z) > 14) {
+      const c = clearingAt(x, z) || clearingAt(x + 7, z) || clearingAt(x - 7, z) || clearingAt(x, z + 7) || clearingAt(x, z - 7);
+      if (!c) continue;
+    }
     bushes.push(x, heightAt(x, z), z, 0.6 + die(a, 8, 133) * 0.7, die(a, 8, 134) * PI * 2, die(a, 8, 135) < 0.6 ? 1 : Math.floor(die(a, 8, 136) * 3));
   }
   // what came up through the city's paving, down its kerbs and in its yards
