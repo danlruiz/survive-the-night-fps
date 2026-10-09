@@ -106,7 +106,10 @@ export class Vehicles {
       if (e && s.kind === VEH.MOPED && manuals < 2 && !(g.unlocked & (1 << SCHEM_BIT[ITEM.SCHEM_VEHICLES]))) {
         manuals++;
         const P = VEHICLES[s.kind];
-        const mx = s.x - Math.cos(s.yaw) * (P.halfW + 0.6), mz = s.z + Math.sin(s.yaw) * (P.halfW + 0.6);
+        // (on its left, or - where that is under a roof or in a wall, a moped left against a building - on its right)
+        const side = (k) => [s.x - k * Math.cos(s.yaw) * (P.halfW + 0.6), s.z + k * Math.sin(s.yaw) * (P.halfW + 0.6)];
+        const open = ([x, z]) => groundAt(w, x, z, 200, 0.2) - groundAt(w, x, z, s.y + 1, 0.2) < 0.3;
+        const [mx, mz] = open(side(1)) || !open(side(-1)) ? side(1) : side(-1);
         const swap = g.rng;
         g.rng = this.rng;
         g.spawnItem(ITEM.SCHEM_VEHICLES, 1, mx, groundAt(w, mx, mz, s.y + 1, 0.2), mz, { permanent: true });
