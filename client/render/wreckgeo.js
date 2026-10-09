@@ -18,20 +18,33 @@ export function refine(piece, edge, max = 60000) {
   const ranges = piece.names.filter((n) => PANEL.has(n.name));
   if (!ranges.length) return;
   const e2 = edge * edge;
-  const chans = [['pos', 3], ['nrm', 3], ['uv', 2], ['col', 3], ['ground', 1], ['tint', 3]].filter(([k]) => piece[k]);
-  const out = {};
-  for (const [k] of chans) out[k] = [];
-  const names = [];
+  const chans = CHANS.filter(([k]) => piece[k]);
+  // a vertex is a row of its channels' values (pos first), side by side: S numbers
+  const S = chans.reduce((s, [, w]) => s + w, 0);
+  let out = new Float32Array(Math.max(1024, piece.count * S * 2));
   let n = 0;
-  const P = piece.pos;
-  // a vertex as the list of its channels' values
-  const read = (i) => chans.map(([k, w]) => Array.from(piece[k].subarray(i * w, i * w + w)));
-  const mid = (a, b) => a.map((ch, c) => ch.map((v, j) => (v + b[c][j]) / 2));
+  const names = [];
+  const read = (i) => {
+    const v = new Array(S);
+    let o = 0;
+    for (const [k, w] of chans) for (let j = 0, a = piece[k]; j < w; j++) v[o++] = a[i * w + j];
+    return v;
+  };
+  const mid = (a, b) => {
+    const m = new Array(S);
+    for (let j = 0; j < S; j++) m[j] = (a[j] + b[j]) / 2;
+    return m;
+  };
   const emit = (v) => {
-    chans.forEach(([k], c) => out[k].push(...v[c]));
+    if ((n + 1) * S > out.length) {
+      const big = new Float32Array(out.length * 2);
+      big.set(out);
+      out = big;
+    }
+    out.set(v, n * S);
     n++;
   };
-  const len2 = (a, b) => (a[0][0] - b[0][0]) ** 2 + (a[0][1] - b[0][1]) ** 2 + (a[0][2] - b[0][2]) ** 2;
+  const len2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
   const tri = (a, b, c, depth) => {
     const ab = len2(a, b) > e2, bc = len2(b, c) > e2, ca = len2(c, a) > e2;
     if (depth > 7 || n > max || !(ab || bc || ca)) {
@@ -75,7 +88,13 @@ export function refine(piece, edge, max = 60000) {
     else for (let i = r.first; i < r.first + r.count; i += 3) tri(read(i), read(i + 1), read(i + 2), 0);
     names.push({ name: r.name, first, count: n - first });
   }
-  for (const [k] of chans) piece[k] = new Float32Array(out[k]);
+  // the rows back into one array a channel
+  let at = 0;
+  for (const [k, w] of chans) {
+    const a = (piece[k] = new Float32Array(n * w));
+    for (let v = 0, o = at; v < n; v++, o += S) for (let j = 0; j < w; j++) a[v * w + j] = out[o + j];
+    at += w;
+  }
   // (cut edges leave their halves' normals a little short)
   const N = piece.nrm;
   for (let i = 0; i < N.length; i += 3) {
@@ -86,8 +105,8 @@ export function refine(piece, edge, max = 60000) {
   }
   piece.count = n;
   piece.names = names;
-  void P;
 }
+const CHANS = [['pos', 3], ['nrm', 3], ['uv', 2], ['col', 3], ['ground', 1], ['tint', 3]];
 
 // ---------------------------------------------------------------- islands
 /**
@@ -108,11 +127,23 @@ export function islands(pieces, inv) {
         while (parent[i] !== i) i = parent[i] = parent[parent[i]];
         return i;
       };
-      const at = new Map();
+      // (corners within 2 mm are one: a position to the 1/500 m, as one number within the run's own box)
       const P = piece.pos;
+      const q = new Int32Array(n * 3);
+      let x0 = Infinity, y0 = Infinity, z0 = Infinity, y1 = -Infinity, z1 = -Infinity;
+      for (let i = 0; i < n * 3; i += 3) {
+        const o = r.first * 3 + i;
+        const x = (q[i] = Math.round(P[o] * 500)), y = (q[i + 1] = Math.round(P[o + 1] * 500)), z = (q[i + 2] = Math.round(P[o + 2] * 500));
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+        if (z < z0) z0 = z;
+        if (z > z1) z1 = z;
+      }
+      const ny = y1 - y0 + 1, nz = z1 - z0 + 1;
+      const at = new Map();
       for (let i = 0; i < n; i++) {
-        const o = (r.first + i) * 3;
-        const key = `${Math.round(P[o] * 500)},${Math.round(P[o + 1] * 500)},${Math.round(P[o + 2] * 500)}`;
+        const key = ((q[i * 3] - x0) * ny + (q[i * 3 + 1] - y0)) * nz + (q[i * 3 + 2] - z0);
         const j = at.get(key);
         if (j === undefined) at.set(key, i);
         else parent[find(i)] = find(j);
