@@ -3527,20 +3527,58 @@ BUILD.freighter_hull = (b) => {
   // its wings and the band of its windows; the funnel with its band
   const HZ = 50; // (the middle of the house)
   const white = [0.74, 0.72, 0.66];
-  b.box('paint', 16, 12, 12, { p: [0, D + 6, HZ], c: white });
+  const trimC = [0.58, 0.56, 0.51];
+  // the house aft in four tiers, each a little narrower and shorter than the one under it (their backs flush), every
+  // tier's deck edge overhanging, a band of windows round its front and sides, a rail along its front
   for (let k = 0; k < 4; k++) {
-    const y = D + 1.6 + k * 2.8;
-    b.box('paint', 16.3, 0.18, 12.3, { p: [0, y + 1.25, HZ], c: [0.6, 0.58, 0.53] }); // (each deck's edge)
-    for (let w = -3; w <= 3; w++) b.box('dark', 1.3, 0.95, 0.06, { p: [w * 2.1, y, HZ - 6.02] });
-    for (const side of [1, -1]) for (let w = -2; w <= 2; w++) b.cyl('dark', 0.24, 0.24, 0.06, 10, { p: [side * 8.02, y, HZ + w * 2.2], r: [0, 0, PI / 2] });
+    const w = 16 - k * 1.3;
+    const dep = 12 - k * 1.1;
+    const cz = HZ + 6 - dep / 2;
+    const y0 = D + k * 2.8;
+    b.box('paint', w, 2.8, dep, { p: [0, y0 + 1.4, cz], c: white });
+    b.box('paint', w + 0.6, 0.2, dep + 0.5, { p: [0, y0 + 2.85, cz - 0.1], c: trimC });
+    const front = cz - dep / 2;
+    for (let x = -w / 2 + 1; x <= w / 2 - 1; x += 1.55) b.box('dark', 1.05, 0.9, 0.06, { p: [x, y0 + 1.55, front - 0.02] });
+    for (const side of [1, -1]) {
+      for (let z = front + 1; z < cz + dep / 2 - 0.6; z += 1.7) {
+        if (k === 0) b.cyl('dark', 0.24, 0.24, 0.06, 10, { p: [side * (w / 2 + 0.01), y0 + 1.55, z], r: [0, 0, PI / 2] });
+        else b.box('dark', 0.06, 0.85, 1.0, { p: [side * (w / 2 + 0.02), y0 + 1.55, z] });
+      }
+    }
+    if (k > 0) for (let x = -w / 2 - 0.2; x <= w / 2 + 0.2; x += 1.4) b.box('steel', 0.05, 1.0, 0.05, { p: [x, y0 + 0.5, front - 0.45] });
+    if (k > 0) b.box('steel', w + 0.5, 0.05, 0.05, { p: [0, y0 + 1.0, front - 0.45] });
   }
-  b.box('paint', 20, 3.2, 7, { p: [0, D + 12 + 1.6, HZ - 1], c: white });
-  b.box('dark', 19.2, 1.15, 0.06, { p: [0, D + 12 + 1.9, HZ - 4.52] });
-  for (const side of [1, -1]) b.box('dark', 0.06, 1.15, 5.6, { p: [side * 10.02, D + 12 + 1.9, HZ - 1] });
-  b.box('paint', 20.4, 0.25, 7.4, { p: [0, D + 15.3, HZ - 1], c: [0.55, 0.54, 0.5] });
-  b.cyl('paint', 1.85, 1.85, 7, 14, { p: [0, D + 15.2 + 3.5, HZ + 4], c: [0.08, 0.08, 0.09] });
-  b.cyl('paint', 1.88, 1.88, 1.3, 14, { p: [0, D + 15.2 + 4.6, HZ + 4], c: [0.5, 0.12, 0.08] });
-  b.cyl('dark', 1.95, 1.95, 0.3, 14, { p: [0, D + 15.2 + 7.1, HZ + 4] });
+  // the bridge over it: wider than the house, its wings out over either side, the band of its windows raked forward
+  const BY = D + 4 * 2.8;
+  const bz = HZ + 6 - 7.2 / 2 - 1.2;
+  b.box('paint', 11.5, 3.0, 6, { p: [0, BY + 1.5, bz], c: white });
+  b.box('paint', 21, 0.3, 3.6, { p: [0, BY + 0.15, bz - 1.2], c: trimC }); // (the wings' deck)
+  for (const side of [1, -1]) {
+    b.box('paint', 4.8, 1.1, 0.08, { p: [side * 8.1, BY + 0.85, bz - 2.95], c: white }); // (a wing's breastwork)
+    b.box('paint', 0.08, 1.1, 3.4, { p: [side * 10.5, BY + 0.85, bz - 1.25], c: white });
+    b.box('paint', 2.2, 1.6, 1.6, { p: [side * 9.2, BY + 1.1, bz - 2.0], c: white }); // (its cab)
+    b.box('dark', 0.06, 0.8, 1.3, { p: [side * 10.32, BY + 1.45, bz - 2.0] });
+  }
+  b.box('dark', 11.0, 1.1, 0.06, { p: [0, BY + 1.95, bz - 3.05], r: [0.18, 0, 0] });
+  for (const side of [1, -1]) b.box('dark', 0.06, 1.0, 4.6, { p: [side * 5.77, BY + 1.95, bz] });
+  b.box('paint', 12.4, 0.25, 7.0, { p: [0, BY + 3.12, bz], c: trimC });
+  // its mast and radar
+  b.box('steel', 0.3, 4.2, 0.3, { p: [0, BY + 5.3, bz + 1] });
+  b.box('steel', 3.6, 0.12, 0.25, { p: [0, BY + 6.6, bz + 1] });
+  b.box('dark', 2.6, 0.18, 0.5, { p: [0, BY + 5.0, bz + 1.5], r: [0, 0.6, 0] });
+  // the funnel abaft the bridge, raked: wider at its foot, its band, its cap
+  b.cyl('paint', 1.55, 2.1, 7, 16, { p: [0, D + 11.2 + 3.5, HZ + 3.6], r: [0.12, 0, 0], c: [0.08, 0.08, 0.09] });
+  b.cyl('paint', 1.7, 1.75, 1.3, 16, { p: [0, D + 11.2 + 4.6, HZ + 3.75], r: [0.12, 0, 0], c: [0.5, 0.12, 0.08] });
+  b.cyl('dark', 1.62, 1.62, 0.35, 16, { p: [0, D + 11.2 + 7.0, HZ + 4.05], r: [0.12, 0, 0] });
+  // the hull's side: the strakes of its plating, its draught marks fore and aft, a pilot door, the accommodation
+  // ladder let down to the quay (on the quay's side, +X)
+  for (const side of [1, -1]) {
+    for (const y of [6.3, 8.0, 9.7]) b.box('paint', 0.05, 0.08, 78, { p: [side * 10.02, y, 0], c: [0.05, 0.08, 0.12] });
+    for (const z of [-60, 54]) for (let k = 0; k < 6; k++) b.box('paint', 0.04, 0.1, 0.5, { p: [at(z, 10, 2 + k)[0] * side + side * 0.03, 2.2 + k * 0.6, z], c: [0.85, 0.85, 0.8] });
+  }
+  b.box('dark', 0.05, 1.8, 1.0, { p: [10.03, 7.6, 30] });
+  b.box('steel', 0.9, 0.08, 9.5, { p: [11.2, 9.0, 20], r: [-0.42, 0, 0] });
+  for (const dz of [-4.6, 4.6]) b.box('steel', 0.05, 0.9, 0.05, { p: [11.6, 9.5 + dz * -0.42, 20 + dz] });
   // a mast forward with its crosstree, and its lamp
   b.box('steel', 0.45, 14, 0.45, { p: [0, D + 7, -50] });
   b.box('steel', 4.4, 0.25, 0.25, { p: [0, D + 11.5, -50] });

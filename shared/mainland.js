@@ -3320,10 +3320,29 @@ export function createMainland(seed) {
         strut(x0 + 8, 42.3, lz + sz * 0.5, bx0 + 1, 33.4, lz + sz * 1.9, 0.14);
         strut(x0 + 8, 42.3, lz + sz * 0.5, bx1 - 1, 33.4, lz + sz * 1.9, 0.14);
       }
-      q.box(x1 + 6, 31, lz, 9, 5, 9, 'tin', { collide: false }); // the machinery house
-      const tx = QX - 14; // (where the trolley stopped: over the ship's hold)
-      q.box(tx, 30, lz, 4, 1.2, 5, 'metal', { collide: false }); // the trolley
-      q.box(tx + 1, 26.6, lz + 2.6, 3.2, 3, 3.2, 'tin', { collide: false }); // the cab
+      // the machinery house on the boom's tail: clad in ribbed sheet, a roof that overhangs, louvres down its sides, a
+      // door and its landing, the hoist drums' housing on its roof
+      {
+        const mx = x1 + 6;
+        q.box(mx, 31, lz, 9, 4.6, 8.4, 'tin_rust', { collide: false });
+        q.box(mx, 35.6, lz, 9.6, 0.3, 9.0, 'rust', { collide: false });
+        for (const sz of [-1, 1]) for (let k = 0; k < 4; k++) q.box(mx - 3 + k * 2, 33.6, lz + sz * 4.22, 1.2, 0.8, 0.06, 'dark', { collide: false });
+        for (let k = 0; k < 5; k++) q.box(mx - 3.6 + k * 1.8, 31, lz + 4.23, 0.12, 4.6, 0.05, 'rust', { collide: false });
+        q.box(mx - 4.52, 31, lz + 2, 0.05, 2.1, 0.9, 'dark', { collide: false });
+        q.box(mx - 5.2, 30.9, lz + 2, 1.4, 0.1, 1.6, 'metal', { collide: false });
+        q.box(mx + 0.6, 35.9, lz, 4.2, 1.6, 3.4, 'rust', { collide: false });
+      }
+      // the trolley where it stopped over the ship's hold: its frame on four wheels on the boom's rails, the sheaves
+      // over it, and the operator's cab hung under it, glazed round and under
+      const tx = QX - 14;
+      q.box(tx, 30.0, lz, 4.2, 0.8, 4.6, 'rust', { collide: false });
+      for (const sx of [-1.6, 1.6]) for (const sz of [-1.9, 1.9]) q.cyl(tx + sx, 30.55, lz + sz, 0.38, 0.3, 'dark', { rx: PI / 2, sides: 10 });
+      for (const sx of [-0.9, 0.9]) q.cyl(tx + sx, 30.9, lz, 0.6, 1.2, 'metal', { rx: PI / 2, sides: 12 });
+      q.box(tx + 1, 26.8, lz + 2.4, 3.0, 2.8, 3.0, 'tin', { collide: false }); // the cab
+      q.box(tx + 1, 27.6, lz + 0.88, 2.9, 1.2, 0.05, 'dark', { collide: false });
+      q.box(tx - 0.52, 27.6, lz + 2.4, 0.05, 1.2, 2.8, 'dark', { collide: false });
+      q.box(tx + 1, 26.75, lz + 2.4, 2.6, 0.05, 2.6, 'dark', { collide: false });
+      q.box(tx + 1, 29.6, lz + 2.4, 0.4, 0.5, 0.4, 'rust', { collide: false });
       for (const sz of [-1, 1]) q.box(tx, 16, lz + sz * 1.6, 0.08, 14, 0.08, 'metal');
       q.box(tx, 15.4, lz, 2.6, 0.7, 12.2, 'rust'); // the spreader
     }
@@ -3572,6 +3591,51 @@ export function createMainland(seed) {
     const [cx2, cz2] = P([0.13, 0.166]);
     v.cont(CONT.CRATE, cx2 - v.ox, cz2 - v.oz, { prop: 'crate', ly: y, ry: 0.3 });
     v.loot(cx2 - v.ox + 2, cz2 - v.oz, y + 0.02);
+    // THE HARBOUR at work when it stopped: boats tied up along the pier and its finger, on the planks the fish boxes,
+    // pots, drums and pallets, nets hung to dry on their poles, and at the root of the pier on the shore the fish shed
+    // with its slipway. (Dice of their own: nothing after them moves.)
+    {
+      const hd = (n) => hash2(n, 31, (seed ^ 0x4a7b) | 0);
+      const at = (fx, fz) => { const [x, z] = P([fx, fz]); return [x - v.ox, z - v.oz]; };
+      const boats = [[0.1555, 0.176, PI / 2], [0.1485, 0.184, -PI / 2 + 0.1], [0.1555, 0.194, PI / 2 + 0.06], [0.142, 0.1695, 0.04], [0.133, 0.1625, PI - 0.05], [0.128, 0.1695, 0.08]];
+      boats.forEach(([fx, fz, ry], k) => {
+        const [x, z] = at(fx, fz);
+        if (!inWater(x + v.ox, z + v.oz)) return;
+        afloat(v.prop('boat', x, z, ry + (hd(k) - 0.5) * 0.2, { y: WATER_LEVEL - 0.15, nocollide: true, seed: k % 2 }));
+      });
+      const laid = [];
+      const deck = (fx, fz, type, ry, seedv = 0) => {
+        const [x, z] = at(fx, fz);
+        if (laid.some(([a, c]) => Math.hypot(a - x, c - z) < 2.2)) return; // (clear of what is already on the planks)
+        laid.push([x, z]);
+        v.prop(type, x, z, ry, { ly: y, nocollide: true, seed: seedv });
+      };
+      for (let k = 0; k < 9; k++) {
+        const fx = 0.126 + hd(10 + k) * 0.032;
+        const side = hd(20 + k) < 0.5 ? -1 : 1;
+        deck(fx, 0.166 + side * 0.0006, ['crate_small', 'barrel', 'crate_small', 'pallet', 'tire_pile'][k % 5], hd(30 + k) * 6, k & 1);
+      }
+      for (let k = 0; k < 4; k++) deck(0.152 + (hd(40 + k) - 0.5) * 0.0008, 0.172 + k * 0.006, k % 2 ? 'crate_small' : 'barrel', hd(50 + k) * 6, k & 1);
+      // nets on their poles, over the planks by the pier's root
+      {
+        const [nx, nz] = at(0.1575, 0.1652);
+        for (const dx of [-3, 0, 3]) v.cyl(nx + dx, y, nz, 0.06, 2.4, 'trim', { sides: 6, collide: false });
+        v.box(nx, y + 2.3, nz, 6.2, 0.04, 0.04, 'rope', { collide: false });
+        for (const dx of [-1.5, 1.5]) v.box(nx + dx, y + 1.25, nz, 2.9, 2.1, 0.03, 'canvas', { rz: (hd(60) - 0.5) * 0.1, collide: false });
+      }
+      // the fish shed on the shore where the pier starts, its door to it
+      const [sx, sz] = P([0.1635, 0.1655]);
+      const sh = heightAt(sx, sz);
+      if (sh > WATER_LEVEL + 0.6 && roadDistAt(sx, sz) > 6 && !staticGrid.query(sx, sz, 6, []).some((c) => !(c.flags & COL.TREE)) && [[-4, -3], [4, -3], [4, 3], [-4, 3]].every(([dx, dz]) => Math.abs(heightAt(sx + dx, sz + dz) - sh) < 0.8)) {
+        const fs = new Builder(sx, sz, PI / 2, sh);
+        fs.zone = ZONE.NORTH_COAST;
+        fs.box(0, -0.6, 0, 8.4, 0.6, 6.4, 'concrete');
+        fs.room(0, 0, 8, 6, 3, 'planks', { n: [door(4, 1.6)], s: [win(2), win(6)] }, { roof: 'gable', roofH: 1.8, roofMat: 'tin_rust', floorMat: 'concrete' });
+        fs.cont(CONT.CRATE, -2.6, 1.6, { prop: 'crate', ry: 0.2, seed: 1 });
+        fs.prop('barrel', 3.2, 2, 0, { seed: 2 });
+        fs.loot(1, 1);
+      }
+    }
   }
 
   // NORTH RIDGE OUTPOST: the army's post on the far side of North Pass. Its radio tower, a water tower, the domes of
@@ -5023,6 +5087,19 @@ export function createMainland(seed) {
   // The forest: one tree at the most to every TREE_CELL square, jittered in it, with the forest's density for its
   // chance: where the picture's woods are dense a tree every 3-4 m, a wall off the roads. Up a mountain the woods thin
   // with the height and stop at the tree line; on a face too steep for them, none.
+  // CLEARINGS in the woods: in about two 96 m squares of five a round opening 9-18 m across where no tree stands - grass,
+  // a deadfall, a rock or two (below) - so the woods are no even wall (dice of their own, by the square)
+  const CLR = 96;
+  const clearingAt = (x, z) => {
+    const ci = Math.floor((x + HALF) / CLR), cj = Math.floor((z + HALF) / CLR);
+    for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) {
+      if (die(i, j, 101) > 0.42) continue;
+      const cx = -HALF + (i + 0.2 + die(i, j, 102) * 0.6) * CLR, cz = -HALF + (j + 0.2 + die(i, j, 103) * 0.6) * CLR;
+      const r = 9 + die(i, j, 104) * 9;
+      if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) return [cx, cz, r, i, j];
+    }
+    return null;
+  };
   const TREE_CELL = 3.2;
   const TREE_LINE = 150;
   const MOUNTAIN_VERGE = 10;
@@ -5049,6 +5126,7 @@ export function createMainland(seed) {
         continue;
       }
       if (zoneClear(x, z) || onRoad(x, z, 0.6) || clearHit(x, z, 0.8) || tunnelOf(x, z, 4) || occupied(x, z, 1.1 * scale)) continue;
+      if (f > 0.35 && clearingAt(x, z)) continue;
       pushTree(x, z, r < 0.28 ? 0 : r < 0.5 ? 1 : r < 0.66 ? 2 : r < 0.84 ? 5 : r < 0.9 ? 6 : r < 0.96 ? 3 : 4, scale);
     }
   }
@@ -5087,6 +5165,54 @@ export function createMainland(seed) {
     staticGrid.add(makeCyl(x, z, y - 1, y + r * 0.9, r * 0.85, COL.STATIC));
     n++;
   }
+  // WHAT LIES IN THE WOODS: outcrops of rock, a few boulders shouldered together; deadfall - a trunk come down in
+  // lengths - in the clearings and among the trees (solid, as boulders and logs are: their colliders)
+  {
+    const solidOK = (x, z, r) => !(zoneClear(x, z) || onRoad(x, z, r + 1) || inWater(x, z) || clearHit(x, z, r) || tunnelOf(x, z, 6) || cliffAt(x, z) > -12 || occupied(x, z, r) || partBlocked(x, z, r) || Math.hypot(x - head.x, z - head.z) < 110 || !reachAt(x, z));
+    for (let a = 0, n = 0; a < 9000 && n < 420; a++) {
+      const x = -LIM + die(a, 5, 111) * LIM * 2;
+      const z = -LIM + die(a, 5, 112) * LIM * 2;
+      if (forestAt(x, z) < 0.35 || !solidOK(x, z, 3.5)) continue;
+      const k = 2 + Math.floor(die(a, 5, 113) * 3);
+      for (let q = 0; q < k; q++) {
+        const ang = die(a, q, 114) * PI * 2, dd = q ? 1.4 + die(a, q, 115) * 1.6 : 0;
+        const rx = x + Math.cos(ang) * dd, rz = z + Math.sin(ang) * dd;
+        const v = Math.min(ROCK_R.length - 1, Math.floor(die(a, q, 116) * ROCK_R.length));
+        const scale = (q ? 0.9 : 1.6) + die(a, q, 117) * 0.9;
+        const rr = ROCK_R[v] * scale;
+        if (q && (occupied(rx, rz, rr * 0.5) || onRoad(rx, rz, rr + 1))) continue;
+        const ry0 = heightAt(rx, rz) - 0.3 * scale;
+        rocks.push(rx, ry0, rz, scale, die(a, q, 118) * PI * 2, v);
+        staticGrid.add(makeCyl(rx, rz, ry0 - 1, ry0 + rr * 0.9, rr * 0.85, COL.STATIC));
+      }
+      occupy(x, z, 3.5);
+      n++;
+    }
+    for (let a = 0, n = 0; a < 12000 && n < 520; a++) {
+      const x = -LIM + die(a, 6, 121) * LIM * 2;
+      const z = -LIM + die(a, 6, 122) * LIM * 2;
+      const inClr = clearingAt(x, z);
+      if ((!inClr && (forestAt(x, z) < 0.3 || die(a, 6, 123) < 0.6)) || !solidOK(x, z, 2.8)) continue;
+      const ry = die(a, 6, 124) * PI;
+      const [ux, uz] = [Math.sin(ry), Math.cos(ry)];
+      const lengths = 1 + Math.floor(die(a, 6, 125) * 2);
+      let ok = true;
+      for (let q = 0; q <= lengths; q++) if (occupied(x + ux * q * 2.1, z + uz * q * 2.1, 0.6) || onRoad(x + ux * q * 2.1, z + uz * q * 2.1, 1.5)) ok = false;
+      if (!ok) continue;
+      for (let q = 0; q <= lengths; q++) {
+        const [lx, lz] = [x + ux * q * 2.15, z + uz * q * 2.15];
+        const lry = ry + (die(a, q, 126) - 0.5) * 0.25;
+        if (propBlocked('log_bench', lx, lz, lry)) break;
+        const hs = [[ux, uz], [-ux, -uz], [uz * 0.3, -ux * 0.3], [-uz * 0.3, ux * 0.3]].map(([dx, dz]) => heightAt(lx + dx * 1.1, lz + dz * 1.1));
+        if (Math.max(...hs) - Math.min(...hs) > 0.45) break; // (only where it lies along level ground)
+        const y0 = Math.min(...hs);
+        props.push({ type: 'log_bench', x: lx, y: y0, z: lz, ry: lry, seed: q });
+        addPropColliders('log_bench', lx, y0, lz, lry, props[props.length - 1]);
+      }
+      occupy(x + ux * lengths, z + uz * lengths, lengths * 1.2 + 1);
+      n++;
+    }
+  }
   let bushes = [];
   for (let a = 0; a < 70000; a++) {
     const x = -LIM + die(a, 1, 21) * LIM * 2;
@@ -5098,6 +5224,13 @@ export function createMainland(seed) {
     bushes.push(x, heightAt(x, z), z, 0.7 + die(a, 1, 24) * 0.8, die(a, 1, 25) * PI * 2, Math.min(2, Math.floor(die(a, 1, 26) * 3)));
   }
 
+  // undergrowth: ferns and brush thick under the trees where the woods are dense and round the clearings' edges
+  for (let a = 0; a < 26000; a++) {
+    const x = -LIM + die(a, 8, 131) * LIM * 2;
+    const z = -LIM + die(a, 8, 132) * LIM * 2;
+    if (forestAt(x, z) < 0.45 || roadDistAt(x, z) < 5 || inWater(x, z) || cliffAt(x, z) > 2 || nearZone(x, z, -4) || clearHit(x, z, 0) || occupied(x, z, 0.5)) continue;
+    bushes.push(x, heightAt(x, z), z, 0.6 + die(a, 8, 133) * 0.7, die(a, 8, 134) * PI * 2, die(a, 8, 135) < 0.6 ? 1 : Math.floor(die(a, 8, 136) * 3));
+  }
   // what came up through the city's paving, down its kerbs and in its yards
   // (a weed in a raised bed stands on its earth: y)
   for (const [x, z, scale, y] of weeds) if (y !== null || !partBlocked(x, z, 0.3)) bushes.push(x, y ?? heightAt(x, z), z, scale, rng.range(0, PI * 2), rng.int(0, 2));
