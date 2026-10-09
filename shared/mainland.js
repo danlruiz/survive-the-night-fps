@@ -5308,10 +5308,7 @@ export function createMainland(seed) {
     const x = -LIM + die(a, 8, 131) * LIM * 2;
     const z = -LIM + die(a, 8, 132) * LIM * 2;
     if (forestAt(x, z) < 0.45 || roadDistAt(x, z) < 5 || inWater(x, z) || cliffAt(x, z) > 2 || nearZone(x, z, -4) || clearHit(x, z, 0) || occupied(x, z, 0.5)) continue;
-    if (roadDistAt(x, z) > 14) {
-      const c = clearingAt(x, z) || clearingAt(x + 7, z) || clearingAt(x - 7, z) || clearingAt(x, z + 7) || clearingAt(x, z - 7);
-      if (!c) continue;
-    }
+    if (roadDistAt(x, z) > 11) continue; // (along the roads through them only: deep in, the trunks hide it)
     bushes.push(x, heightAt(x, z), z, 0.6 + die(a, 8, 133) * 0.7, die(a, 8, 134) * PI * 2, die(a, 8, 135) < 0.6 ? 1 : Math.floor(die(a, 8, 136) * 3));
   }
   // what came up through the city's paving, down its kerbs and in its yards

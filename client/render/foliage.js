@@ -16,9 +16,9 @@ import { isShadowFrustum } from './multimesh.js';
 import { FarForest } from './farforest.js';
 
 const CELL = 32;
-const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
-const FAR_LOD = 24; // m: there, where the trees' near copy gives way to the far one
-const FAR_CAST = 50; // m: there, how far from the eye a tree throws a shadow
+const FAR_TREES = 150; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
+const FAR_LOD = 17; // m: there, where the trees' near copy gives way to the far one
+const FAR_CAST = 34; // m: there, how far from the eye a tree throws a shadow
 const CRAG_DIST = 320; // m: the cliffs' crags are drawn this far (the haze thins up the mountains: they are seen far)
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 

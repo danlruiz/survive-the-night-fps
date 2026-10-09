@@ -690,6 +690,7 @@ export function buildTerrain(world) {
   // height and the slope as the terrain's shader colours them - rock, the snow on the tops, the woods low down - and
   // drawn only past the drawing distance.
   let farMtn = null;
+  let farLowFrom = 0;
   if (far) {
     const FS = 8;
     const FN = Math.floor((N - 1) / FS) + 1;
@@ -724,16 +725,21 @@ export function buildTerrain(world) {
         fc.set([r, g, b], k * 3);
       }
     }
+    // the mountains first, then the lowland, all of it that is dry: from high up the land runs on into the haze under
+    // the ranges (it was the sky's white with the mountains standing over it). From the ground the lowland past the
+    // drawing distance is hidden by what stands round the eye, so it is drawn only from high up (update: drawRange)
     const fi = [];
+    const lowland = [];
     for (let j = 0; j < FN - 1; j++) {
       for (let i = 0; i < FN - 1; i++) {
-        // (the lowland too, all of it that is dry: from high up the land runs on into the haze under the ranges, where it
-        // was the sky's white with the mountains standing over it)
-        if (Math.max(fh(i, j), fh(i + 1, j), fh(i, j + 1), fh(i + 1, j + 1)) < WATER_LEVEL - 0.5) continue;
+        const top = Math.max(fh(i, j), fh(i + 1, j), fh(i, j + 1), fh(i + 1, j + 1));
+        if (top < WATER_LEVEL - 0.5) continue;
         const k = j * FN + i;
-        fi.push(k, k + FN, k + 1, k + 1, k + FN, k + FN + 1);
+        (top >= 24 ? fi : lowland).push(k, k + FN, k + 1, k + 1, k + FN, k + FN + 1);
       }
     }
+    farLowFrom = fi.length;
+    for (const v of lowland) fi.push(v);
     const fg = new THREE.BufferGeometry();
     fg.setAttribute('position', new THREE.BufferAttribute(fp, 3));
     fg.setAttribute('color', new THREE.BufferAttribute(fc, 3));
@@ -816,7 +822,12 @@ export function buildTerrain(world) {
     if (!far) return;
     // (the terrain to the drawing distance, the far mountains from there: the line between them a circle about the eye)
     uniforms.uCut.value = viewDist;
-    if (farMtn) farMtn.material.userData.cut.value = viewDist;
+    if (farMtn) {
+      farMtn.material.userData.cut.value = viewDist;
+      // (the lowland only from 60 m over the ground under the eye)
+      const gi = Math.max(0, Math.min(N - 1, Math.round((cam.x + MAP_HALF) / GRID_STEP))), gj = Math.max(0, Math.min(N - 1, Math.round((cam.z + MAP_HALF) / GRID_STEP)));
+      farMtn.geometry.setDrawRange(0, cam.y - H[gj * N + gi] > 60 ? Infinity : farLowFrom);
+    }
     for (const run of runs) {
       run.chunk.near = Math.hypot(Math.max(0, Math.abs(cam.x - run.x) - run.hx), Math.max(0, Math.abs(cam.z - run.z) - run.hz));
       run.maxDist = viewDist;
