@@ -17,7 +17,7 @@
 // The players come back held (Game.hold): their body waits where it was, nothing hurts it, the dead pass it by, and
 // a JOIN from the same account or browser puts the player back in it (Game.resume). Who has not come back after
 // HANDOFF_RESERVE seconds has left, as anyone who does not come back after a drop does.
-import { ZOMBIE_DEFS, LOOT_TABLES, ZONE } from '../shared/defs.js';
+import { ZOMBIE_DEFS, LOOT_TABLES, ZONE, STRUCT_DEFS } from '../shared/defs.js';
 import { ENT, qpos, dqpos } from '../shared/protocol.js';
 import { COL } from '../shared/collision.js';
 import { createPlayerState, copyPlayerState } from '../shared/playersim.js';
@@ -182,6 +182,8 @@ export function loadGame(g, s) {
   for (const se of s.structures) {
     const e = g.spawnEntityAt({ ...se, collider: null }, se.id);
     if (!e) continue;
+    if (!Number.isFinite(e.placedAt)) e.placedAt = -Infinity;
+    if (!Number.isFinite(e.minHealth)) e.minHealth = Math.max(0, Math.min(1, e.maxHp > 0 ? e.hp / e.maxHp : e.hp / (STRUCT_DEFS[e.stype]?.hp || 1)));
     e.collider = g.structCollider(e.stype, e.x, e.y, e.z, e.rot8, e.id);
     w.structGrid.add(e.collider);
     g.nav.addStructure(e.collider);

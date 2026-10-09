@@ -3695,6 +3695,8 @@ export class Game {
       z,
       hp: def.hp,
       maxHp: def.hp,
+      minHealth: 1,
+      placedAt: this.time,
       state: 1,
       owner: p.id,
       burnLeft: def.burn || 0,
@@ -3720,7 +3722,7 @@ export class Game {
     if (!e || e.kind !== ENT.STRUCTURE) return;
     const s = p.state;
     if (Math.hypot(e.x - s.x, e.z - s.z) > 5) return;
-    const back = demolishRefund(e); // (what it cost, in the share of it left: its health, a torch's or a fire's fuel)
+    const back = demolishRefund(e, this.time); // (undo window, then 75% of lowest health/fuel share)
     for (const k in back) {
       const n = back[k];
       const taken = this.giveItem(p, +k, n);
@@ -3766,8 +3768,15 @@ export class Game {
   damageStructure(e, amount) {
     if (e.removed) return;
     e.hp -= amount;
+    this.noteStructureHealth(e);
     this.sound(STRUCT_DEFS[e.stype].metal ? SOUND.METAL_HIT : SOUND.WOOD_HIT, e.x, e.y + 1, e.z, 40);
     if (e.hp <= 0) this.destroyStructure(e, true);
+  }
+
+  noteStructureHealth(e) {
+    if (!e || e.maxHp <= 0) return;
+    const share = Math.max(0, Math.min(1, e.hp / e.maxHp));
+    e.minHealth = Math.min(Number.isFinite(e.minHealth) ? e.minHealth : 1, share);
   }
 
   destroyStructure(e, broken) {
