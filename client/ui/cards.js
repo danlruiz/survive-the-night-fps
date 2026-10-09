@@ -5,8 +5,9 @@
 //   Trade      a trade with a teammate, while one is open (ui/cardtrade.js)
 //   Challenges the asks to you and from you
 //   Practice   a match against the computer: no cards won or lost
-// and two without a tab: the chooser ([E] on a teammate: a match, with a deck and maybe a card bet, or a trade) and a
-// pack opened (ui/cardreveal.js).
+// and three without a tab: the chooser ([E] on a teammate: a match, with a deck and maybe a card bet, or a trade), a
+// pack opened (ui/cardreveal.js) and the guide to how it plays (ui/cardguide.js: the head's "How to play", and
+// offered once, the first time the cards are opened).
 //
 // What it shows comes from game/cards.js (CardsClient: bind, render), which also takes what the player does here.
 // The game opens and shuts it (Game.toggleCards: the key, the pause menu's row, [E] on a teammate) and sets onClose
@@ -18,17 +19,21 @@
 // Space for 0.6 s passes, Backspace or a right click puts it back.
 import { cardDef, AB, LA, ROW_NAMES, F, F_NAMES, DECK_SLOTS, validateDeck, rulesText, STARTER } from '../../shared/cards.js';
 import { legalMoves } from '../../shared/cardgame.js';
+import { LOADOUT_RARITY_NAMES, loadoutDef } from '../../shared/loadout.js';
 import { el, svgEl, replay, fmtTime } from './dom.js';
 import { glyph } from './icons.js';
 import { cardFace, cardBack, setPow, ROW_GLYPH } from './cardface.js';
 import { DeckBuilder } from './carddeck.js';
 import { TradeView } from './cardtrade.js';
 import { RevealView } from './cardreveal.js';
+import { GuideView, guideOffered } from './cardguide.js';
 import { bindLabel, liveText, actionsOf } from '../game/binds.js';
 import { ACTION } from '../../shared/binds.js';
+import { accountState } from '../net/account.js';
 
 const TABS = [
   ['table', 'Table'],
+  ['lobby', 'Lobby'],
   ['deck', 'Decks'],
   ['trade', 'Trade'],
   ['asks', 'Challenges'],
@@ -78,6 +83,13 @@ function deckSelect(parent, c, onChange = null) {
   return sel;
 }
 export const slotOf = (v) => Number(v) | 0;
+
+// A guest (where there are accounts to keep things on) who has found cards or holds loadout items: kept in this
+// browser only, under an id that goes with the browser's data (client/net/identity.js) - so they are asked to sign in
+const guestKeeps = (s) => {
+  const a = accountState();
+  return a.ready && a.accounts && !a.offline && !a.user && s.loaded && s.kept && (Object.values(s.found).some((n) => n > 0) || s.loadouts.length > 0);
+};
 
 // a hold-to-confirm button: the fill runs along it while it is held, and letting go early calls it off
 function holdButton(parent, cls, label, secs, run) {
@@ -142,6 +154,11 @@ export class CardsScreen {
       b.addEventListener('click', () => this.show(id));
       this.tabs.set(id, { b, n });
     }
+    const help = svgEl('button', 'btn btn-ghost cd-help', head, glyph('question'));
+    help.type = 'button';
+    el('span', '', help, 'How to play');
+    help.setAttribute('aria-label', 'How to play Dead Hand');
+    help.addEventListener('click', () => this.openGuide());
     this.count = el('span', 'map-coords cd-count', head, '');
     const close = (this.close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark')));
     close.type = 'button';
@@ -155,9 +172,11 @@ export class CardsScreen {
       deck: new DeckBuilder(this, body),
       trade: new TradeView(this, body),
       asks: new AsksView(this, body),
+      lobby: new LobbyTablesView(this, body),
       practice: new PracticeView(this, body),
       chooser: new ChooserView(this, body),
       reveal: new RevealView(this, body),
+      guide: new GuideView(this, body),
     };
     for (const v of Object.values(this.views)) v.root.hidden = true;
 
@@ -206,7 +225,13 @@ export class CardsScreen {
       window.addEventListener('keydown', this.onKeyDown);
       window.addEventListener('keyup', this.onKeyUp);
       this.returnFocus = document.activeElement;
-      this.show(view || this.pickView(), true);
+      const to = view || this.pickView();
+      // the first time: "New to Dead Hand?" over what it opens on (not with a match under way against somebody:
+      // their clock is running, and it is asked the next time)
+      if (!guideOffered() && !(this.c?.s.match && !this.c.s.match.local)) {
+        this.views.guide.start(true, to);
+        this.show('guide', true);
+      } else this.show(to, true);
       this.close.focus({ preventScroll: true });
     } else {
       window.removeEventListener('keydown', this.onKeyDown);
@@ -218,6 +243,13 @@ export class CardsScreen {
     }
   }
 
+  // How to play: the guide's first page, over the view that was up
+  openGuide() {
+    if (this.view !== 'guide') this.views.guide.start(false, this.view);
+    else this.views.guide.start(false, this.views.guide.from);
+    this.show('guide', true);
+  }
+
   // the view to open on: a pack to open, the trade, the match, an ask waiting, else the table
   pickView() {
     const s = this.c?.s;
@@ -225,12 +257,14 @@ export class CardsScreen {
     if (s.reveals.length) return 'reveal';
     if (s.trade) return 'trade';
     if (s.match) return 'table';
+    if (this.c?.isLobby) return 'lobby';
     if (s.asks.some((a) => a.to === this.c.myId)) return 'asks';
-    return this.view === 'chooser' || this.view === 'reveal' || this.view === 'trade' ? 'table' : this.view;
+    return this.view === 'chooser' || this.view === 'reveal' || this.view === 'trade' || this.view === 'guide' ? 'table' : this.view;
   }
 
   show(view, force = false) {
     if (!this.views[view]) view = 'table';
+    if (view === 'lobby' && !this.c?.isLobby) view = 'table';
     if (view === 'trade' && !this.c?.s.trade) view = 'table';
     if (view === this.view && !force && !this.dirty) return this.render('view');
     if (this.view !== view) this.views[this.view]?.leave?.();
@@ -254,20 +288,25 @@ export class CardsScreen {
     if (what === 'match-new' && this.view !== 'deck') return this.show('table');
     if (what === 'trade-new' && this.view !== 'table') return this.show('trade');
     if (what === 'trade-end' && this.view === 'trade') return this.show('table');
-    if (what === 'reveal' && !s.match && this.view !== 'deck' && this.view !== 'trade') return this.show('reveal');
+    if (what === 'reveal' && !s.match && this.view !== 'deck' && this.view !== 'trade' && this.view !== 'guide') return this.show('reveal');
     this.dirty = false;
     const mine = s.asks.filter((a) => a.to === this.c.myId).length;
     this.tabs.get('trade').b.hidden = !s.trade;
+    this.tabs.get('lobby').b.hidden = !this.c.isLobby;
     const asks = this.tabs.get('asks');
     asks.n.hidden = !mine;
     asks.n.textContent = String(mine);
     const tb = this.tabs.get('table');
     tb.n.hidden = !s.match;
     tb.n.textContent = s.match ? (s.match.local ? 'practice' : 'live') : '';
+    const lb = this.tabs.get('lobby');
+    lb.n.hidden = !this.c.isLobby || !s.tables?.length;
+    lb.n.textContent = String(s.tables?.length || 0);
     for (const [id, t] of this.tabs) t.b.classList.toggle('on', id === this.view);
     const found = Object.values(s.found).reduce((a, n) => a + n, 0);
     const all = Object.values(STARTER).reduce((a, n) => a + n, 0) + found;
-    this.count.textContent = `${all} cards · ${found} found${s.loaded ? (s.kept ? ' · kept' : ' · not kept: sign in to keep them') : ''}`;
+    const keep = !s.loaded ? '' : !s.kept ? ' · not kept: sign in to keep them' : guestKeeps(s) ? ' · in this browser only: sign in to keep them' : ' · kept';
+    this.count.textContent = `${all} cards · ${found} found${keep}`;
     this.views[this.view].render(what);
     this.renderKeys();
   }
@@ -290,6 +329,9 @@ export class CardsScreen {
       add(['Enter'], 'play');
       add(['Space'], 'hold to pass');
       add(['Backspace'], 'put back');
+    } else if (this.view === 'guide') {
+      add(['←', '→'], 'page');
+      add(['Enter'], 'next');
     }
     add([bindLabel('cards')], 'close');
     add(['Esc'], this.view === 'table' && this.views.table.sel ? 'put back' : 'close');
@@ -314,6 +356,7 @@ export class CardsScreen {
   back() {
     if (this.view === 'table') return this.views.table.back();
     if (this.view === 'deck') return this.views.deck.back();
+    if (this.view === 'guide') return this.views.guide.back();
     return false;
   }
 
@@ -324,6 +367,7 @@ export class CardsScreen {
     if (tag === 'SELECT' || tag === 'INPUT') return;
     if (actionsOf(e.code).some((a) => ACTION[a]?.menu)) return; // (the player's menu keys are the game's: they shut it)
     if (this.view === 'table') this.views.table.key(e, down);
+    else if (this.view === 'guide') this.views.guide.key(e, down);
     else if (this.view === 'reveal' && down && (e.code === 'Enter' || e.code === 'Space')) {
       e.preventDefault();
       this.views.reveal.next();
@@ -532,12 +576,13 @@ class TableView {
     const c = this.c;
     this.empty.hidden = false;
     this.root.classList.add('none');
-    const key = M ? `wait:${M.opp}` : `${!!c}`;
+    const key = M ? `wait:${M.opp}:${M.stake?.phase || ''}:${JSON.stringify(M.stake || {})}` : `${!!c}`;
     if (this.empty.dataset.key === key) return;
     this.empty.dataset.key = key;
     this.empty.textContent = '';
     const box = el('div', 'cd-empty-box paper', this.empty);
     if (M) {
+      if (M.stake?.phase) return this.renderStakeSetup(box, M);
       el('div', 'cd-empty-h', box, `Dead Hand vs ${c.name(M.opp)}`);
       el('p', '', box, 'The bets are going in. The cards come out in a moment.');
       return;
@@ -552,6 +597,33 @@ class TableView {
     const d = el('button', 'btn', row, 'Build a deck');
     d.type = 'button';
     d.addEventListener('click', () => this.sc.show('deck'));
+  }
+
+  renderStakeSetup(box, M) {
+    const c = this.c;
+    const s = M.stake;
+    const who = c.name(M.opp);
+    el('div', 'cd-empty-h', box, `Stakes vs ${who}`);
+    el('p', '', box, s.phase === 'locking' ? 'The wagered items are being locked. The cards come out in a moment.' : 'Choose loadout items to wager. Both players must confirm before the cards are dealt.');
+    const cols = el('div', 'cd-trade-cols', box);
+    const mine = el('div', 'cd-trade-side mine paper', cols);
+    el('div', 'cd-trade-h', mine, 'You wager');
+    renderStakeList(el('div', 'cd-offer', mine), s.mine, 'No item wagered.');
+    if (s.phase === 'staking') {
+      el('div', 'cd-label', mine, 'Your available loadout items');
+      stakePicker(mine, s.loadouts, s.mine.map((it) => it.id), (ids) => c.stake(ids));
+    }
+    const theirs = el('div', 'cd-trade-side theirs paper', cols);
+    el('div', 'cd-trade-h', theirs, `${who} wagers`);
+    renderStakeList(el('div', 'cd-offer', theirs), s.theirs, 'No item wagered.');
+    if (s.phase === 'staking') {
+      const acts = el('div', 'cd-over-acts', box);
+      const ready = el('button', 'btn btn-blood', acts, s.ok[0] ? 'Confirmed' : 'Confirm stakes');
+      ready.type = 'button';
+      ready.classList.toggle('on', s.ok[0]);
+      ready.addEventListener('click', () => c.stakeConfirm(!s.ok[0]));
+      el('p', 'cd-hint', box, s.ok[1] ? `${who} has confirmed.` : `Waiting for ${who} to confirm.`);
+    }
   }
 
   renderSide(P, v, s, name) {
@@ -760,6 +832,17 @@ class TableView {
       } else if (e.bet.paid && outcome === 'loss' && lost) el('p', 'cd-over-p bad', box, `Your ${lost.name} went to ${oppName}.`);
       else if (won || lost) el('p', 'cd-over-p', box, 'The bet stands down: nobody pays.');
     } else if (e?.local) el('p', 'cd-over-p', box, 'Practice: no cards change hands.');
+    if (e?.stake && !e.local && (e.stake.mine.length || e.stake.theirs.length)) {
+      if (e.stake.paid && outcome === 'win' && e.stake.theirs.length) {
+        el('p', 'cd-over-p good', box, `Won ${e.stake.theirs.length} loadout item${e.stake.theirs.length === 1 ? '' : 's'}.`);
+        renderStakeList(el('div', 'cd-offer', box), e.stake.theirs, '');
+      } else if (e.stake.paid && outcome === 'loss' && e.stake.mine.length) {
+        el('p', 'cd-over-p bad', box, `Lost ${e.stake.mine.length} loadout item${e.stake.mine.length === 1 ? '' : 's'} to ${oppName}.`);
+        renderStakeList(el('div', 'cd-offer', box), e.stake.mine, '');
+      } else {
+        el('p', 'cd-over-p', box, 'The item wager stands down: items return to their owners.');
+      }
+    }
     const acts = el('div', 'cd-over-acts', box);
     if (e?.local) {
       const again = el('button', 'btn btn-blood', acts, 'Again');
@@ -1196,7 +1279,7 @@ class AsksView {
     const c = this.c;
     const s = c.s;
     const r = this.root;
-    const key = JSON.stringify([s.asks.map((a) => [a.from, a.to, a.kind, a.bet]), s.found, s.decks.length, !!s.match]);
+    const key = JSON.stringify([s.asks.map((a) => [a.from, a.to, a.kind, a.bet, a.stake]), s.found, s.loadouts, s.decks.length, !!s.match]);
     if (r.dataset.key === key) return this.tick();
     r.dataset.key = key;
     r.textContent = '';
@@ -1230,6 +1313,7 @@ class AsksView {
     const body = el('div', 'cd-ask-b', row);
     let slot = c.lastSlot();
     let bet = 0;
+    let stake = [];
     if (a.kind === 'match') {
       const deck = el('label', 'cd-field', body);
       el('span', '', deck, 'Your deck');
@@ -1246,12 +1330,22 @@ class AsksView {
         }, false);
         if (!bp.count) el('p', 'cd-hint', pick, 'You have no found cards to bet: you cannot take this one on.');
       }
+      if (a.stake?.length) {
+        const theirs = el('div', 'cd-field', body);
+        el('span', '', theirs, 'They wager');
+        renderStakeList(el('div', 'cd-offer', theirs), a.stake, 'No loadout items.');
+      }
+      const lf = el('div', 'cd-field', body);
+      el('span', '', lf, 'Your loadout wager');
+      stakePicker(lf, c.s.loadouts, stake, (ids) => {
+        stake = ids;
+      });
     }
     const acts = el('div', 'cd-ask-acts', row);
     const yes = el('button', 'btn btn-blood', acts, a.kind === 'trade' ? 'Trade' : 'Play');
     yes.type = 'button';
     yes.disabled = a.kind === 'match' && !!a.bet && !bet;
-    yes.addEventListener('click', () => c.answer(a.from, a.kind, true, slot, bet));
+    yes.addEventListener('click', () => c.answer(a.from, a.kind, true, slot, bet, stake));
     const no = el('button', 'btn btn-ghost', acts, 'No thanks');
     no.type = 'button';
     no.addEventListener('click', () => c.answer(a.from, a.kind, false));
@@ -1297,6 +1391,44 @@ function betPicker(parent, c, onPick, none = true) {
   return { count: ids.length };
 }
 
+function loadoutChip(owned, mine = false) {
+  const def = loadoutDef(owned.catalog);
+  const b = el(mine ? 'button' : 'div', `cd-loadout r${def?.rarity || 1}`);
+  if (mine) b.type = 'button';
+  el('b', '', b, def?.name || 'Loadout item');
+  el('small', '', b, `${LOADOUT_RARITY_NAMES[def?.rarity] || 'Unknown'} · ${def?.type || 'item'}`);
+  b.title = (def?.flavor || 'Permanent loadout item') + (mine ? ': click to move' : '');
+  return b;
+}
+
+function renderStakeList(parent, rows, empty = 'No items') {
+  parent.textContent = '';
+  if (!rows?.length) return el('p', 'cd-none', parent, empty);
+  for (const it of rows) parent.appendChild(loadoutChip(it, false));
+}
+
+function stakePicker(parent, rows, picked, onChange) {
+  const box = el('div', 'cd-trade-loadouts', parent);
+  const selected = new Set(picked || []);
+  const available = rows || [];
+  for (const it of available) {
+    const b = loadoutChip(it, true);
+    b.classList.toggle('sel', selected.has(it.id));
+    b.addEventListener('click', () => {
+      const next = new Set(selected);
+      if (next.has(it.id)) next.delete(it.id);
+      else next.add(it.id);
+      selected.clear();
+      for (const id of next) selected.add(id);
+      b.classList.toggle('sel', selected.has(it.id));
+      onChange([...next]);
+    });
+    box.appendChild(b);
+  }
+  if (!available.length) el('p', 'cd-none', box, 'No loadout items available to wager.');
+  return box;
+}
+
 // ================================================================ the chooser: [E] on a teammate
 class ChooserView {
   constructor(screen, parent) {
@@ -1314,7 +1446,7 @@ class ChooserView {
     const id = this.sc.target;
     const out = s.asks.find((a) => a.from === c.myId && a.to === id);
     const inc = s.asks.find((a) => a.to === c.myId && a.from === id);
-    const key = JSON.stringify([id, !!out, out?.kind, !!inc, !!s.match, !!s.trade, s.found, s.decks.length]);
+    const key = JSON.stringify([id, !!out, out?.kind, out?.stake, !!inc, !!s.match, !!s.trade, s.found, s.loadouts, s.decks.length]);
     if (this.root.dataset.key === key) return this.tick();
     this.root.dataset.key = key;
     const r = this.root;
@@ -1349,6 +1481,7 @@ class ChooserView {
     el('p', 'cd-hint', m, 'Best of three rounds. Bet one of your found cards if you like: the winner keeps both.');
     let slot = c.lastSlot();
     let bet = 0;
+    let stake = [];
     const f1 = el('label', 'cd-field', m);
     el('span', '', f1, 'Your deck');
     deckSelect(f1, c, (v) => (slot = v));
@@ -1356,10 +1489,15 @@ class ChooserView {
     el('span', '', f2, 'Your bet');
     const bp = betPicker(f2, c, (v) => (bet = v));
     if (!bp.count) el('p', 'cd-hint', f2, 'No found cards to bet yet (the starter set stays yours).');
+    const f3 = el('div', 'cd-field', m);
+    el('span', '', f3, 'Loadout item wager');
+    stakePicker(f3, s.loadouts, stake, (ids) => {
+      stake = ids;
+    });
     const go = el('button', 'btn btn-blood', m, 'Challenge');
     go.type = 'button';
     go.disabled = !!busy;
-    go.addEventListener('click', () => c.ask(id, 'match', slot, bet));
+    go.addEventListener('click', () => c.ask(id, 'match', slot, bet, stake));
     // a trade
     const t = el('div', 'cd-choose-opt', cols);
     const th = el('div', 'cd-choose-oh', t);
@@ -1377,6 +1515,111 @@ class ChooserView {
     if (!this.out || !this.left) return;
     const t = `${Math.max(0, Math.ceil(this.out.left - (performance.now() - this.out.at) / 1000))} s`;
     if (this.left.textContent !== t) this.left.textContent = t;
+  }
+}
+
+// ================================================================ lobby tables: no-bet matches from the splash
+class LobbyTablesView {
+  constructor(screen, parent) {
+    this.sc = screen;
+    this.root = el('div', 'cd-view cd-lobby', parent);
+    this.slot = 0;
+  }
+
+  get c() {
+    return this.sc.c;
+  }
+
+  render() {
+    const c = this.c;
+    const s = c.s;
+    const mine = s.tables?.find((t) => t.host === c.myId) || null;
+    const guest = guestKeeps(s);
+    const key = JSON.stringify([s.tables || [], s.decks, s.found, s.loadouts, s.loaded, s.kept, !!s.match, c.myId, guest]);
+    if (this.root.dataset.key === key) return;
+    this.root.dataset.key = key;
+    const r = this.root;
+    r.textContent = '';
+    const box = el('div', 'cd-lobby-box paper', r);
+    el('div', 'cd-choose-h', box, 'Lobby tables');
+    el('p', 'cd-hint', box, 'Open a no-bet table from the title screen, or join one that another player is waiting at. Found cards never change hands here.');
+    if (guest) {
+      const note = el('div', 'ach-note cd-lobby-guest', box);
+      el('span', '', note, 'Your cards and loadout items are kept in this browser only: clearing its data, a private window or another device and they are out of reach. Sign in and they move onto your account.');
+      const signIn = el('button', 'btn btn-ghost', note);
+      signIn.type = 'button';
+      svgEl('i', 'btn-ico', signIn, glyph('person'));
+      el('span', '', signIn, 'Sign in');
+      // (back to these tables once signed in: the lobby socket joins again as the account, game/cardlobby.js)
+      signIn.addEventListener('click', () => {
+        this.sc.onClose?.();
+        this.sc.ui.accountPanel.show({ after: { show: () => this.sc.ui.cb.onLobbyCards?.() } });
+      });
+    }
+
+    if (s.match && !s.match.local) {
+      const live = el('div', 'cd-lobby-live', box);
+      el('b', '', live, `You are playing ${c.name(s.match.opp)}`);
+      const back = el('button', 'btn btn-blood', live, 'Back to table');
+      back.type = 'button';
+      back.addEventListener('click', () => this.sc.show('table'));
+      const leave = el('button', 'btn btn-ghost', live, 'Give up');
+      leave.type = 'button';
+      leave.addEventListener('click', () => c.leaveTable());
+      return;
+    }
+
+    const mineBox = el('div', 'cd-lobby-open', box);
+    el('div', 'fr-h', mineBox, mine ? 'Your open table' : 'Open a table');
+    if (mine) {
+      el('p', 'cd-hint', mineBox, `Waiting for someone to join with ${deckLabel(c, mine.slot)}.`);
+      const cancel = el('button', 'btn btn-ghost', mineBox, 'Cancel table');
+      cancel.type = 'button';
+      cancel.addEventListener('click', () => c.leaveTable());
+    } else {
+      this.slot = c.lastSlot();
+      this.stake ||= [];
+      const f = el('label', 'cd-field', mineBox);
+      el('span', '', f, 'Your deck');
+      deckSelect(f, c, (v) => (this.slot = v));
+      const sf = el('div', 'cd-field', mineBox);
+      el('span', '', sf, 'Loadout item wager');
+      stakePicker(sf, s.loadouts, this.stake, (ids) => (this.stake = ids));
+      const open = el('button', 'btn btn-blood', mineBox, 'Open table');
+      open.type = 'button';
+      open.disabled = !s.loaded;
+      open.addEventListener('click', () => c.openTable(this.slot, this.stake || []));
+      if (!s.loaded) el('p', 'cd-hint warn', mineBox, 'Your collection is still loading.');
+    }
+
+    const list = el('div', 'cd-lobby-list', box);
+    el('div', 'fr-h', list, 'Open tables');
+    const others = (s.tables || []).filter((t) => t.host !== c.myId);
+    if (!others.length) el('p', 'cd-none', list, mine ? 'Nobody else is waiting at a table.' : 'No open tables yet. Start one and other lobby players can join.');
+    for (const t of others) {
+      const row = el('div', 'cd-lobby-row', list);
+      const who = el('div', 'cd-lobby-who', row);
+      el('b', '', who, t.name || c.name(t.host));
+      el('span', '', who, `waiting with ${this.tableDeck(t)}`);
+      if (t.stake?.length) renderStakeList(el('div', 'cd-lobby-stake', row), t.stake, '');
+      const join = el('button', 'btn btn-ghost', row, 'Join');
+      join.type = 'button';
+      join.disabled = !s.loaded || !!mine;
+      let stake = [];
+      const wager = el('div', 'cd-lobby-stake', row);
+      stakePicker(wager, s.loadouts, stake, (ids) => (stake = ids));
+      join.addEventListener('click', () => {
+        const slot = c.lastSlot();
+        c.joinTable(t.id, slot, stake);
+      });
+    }
+  }
+
+  tableDeck(t) {
+    if (t.host === this.c.myId) return deckLabel(this.c, t.slot);
+    if (t.slot === -1) return 'the Survivors starter deck';
+    if (t.slot === -2) return 'the Dead starter deck';
+    return 'a saved deck';
   }
 }
 

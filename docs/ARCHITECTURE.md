@@ -430,15 +430,35 @@ map does, and can be shut to fight and opened again.
   after a day).
 - **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `carddeck.js`,
   `cardtrade.js`, `cardreveal.js`, `cardface.js`; `cards.css`): the table, the deck builder, trades, challenges,
-  practice against the computer (`client/game/cardlocal.js`, no rewards) and a pack's reveal. Card art is the game's
+  practice against the computer (`client/game/cardlocal.js`, no rewards), a pack's reveal and a three-page guide to how
+  it plays (`cardguide.js`: offered once, the first time the cards open in a browser, `stn.cards.guide`; "How to play"
+  in the head ever after). Card art is the game's
   own models drawn once by a short-lived WebGL renderer and kept as images (`cardart.js`, sharing the bestiary's
   portraits through `portrait.js`). A HUD line says when it is your turn or someone wants to play while the screen is
-  shut. `/sandbox/ui-test.html?screen=cards` (`&seed&moves=N&still=1&tab=deck|trade|reveal|chooser|asks|practice|end`)
+  shut. `/sandbox/ui-test.html?screen=cards` (`&seed&moves=N&still=1&tab=deck|trade|reveal|chooser|asks|practice|end|guide|first`)
   and `?screen=hud-cards` show it without a server.
 - **Tests**: `scripts/test-cardgame.js` (the set, every rule, hidden information, replays, AI-vs-AI fuzz and the
   starter decks' balance; `--long` for 2000 matches), `scripts/test-cards.js` (a game: asks, matches, trades, bets,
   packs, the clocks, a deploy), `scripts/test-usercards.js` (the stores on PGlite and in memory), and
   `npm run test:e2e:cards` (the screens in a browser, then a match against `scripts/lib/cardbot.js` on a real server).
+
+## Loadout items, Zombie Skulls and the auction house
+
+Permanent loadout items are profile-owned copies, not backpack items. Each owner is the same key shape as cards and
+stats (`a:<account>` or `g:<guest hash>`), and each copy has its own UUID so duplicates can be moved one at a time.
+`server/userloadout.js` keeps the collection in Postgres (`016_loadout_items.sql`) or memory, with `loadout_ledger`
+making grants and marketplace item moves idempotent. Equipped slots are cleaned against the copies the owner currently
+has; an active auction listing hides its item from the collection and deletes any slot using it until the listing is
+cancelled, bought or expired.
+
+Zombie Skulls are the endgame currency (`017_loadout_auction_house.sql`). Balances live beside loadout items, guests
+can earn them, and signing in moves guest skulls onto the account with the guest's loadout items (each move a ledger
+row of its own, so the same browser signing in again later moves what it earned since). Every credit/debit
+has a `loadout_skull_ledger` row and normalized entries; earn events from a game use stable ledger ids and an hourly
+cap, while auction buys debit buyer and credit seller minus the fee in the same transaction that moves the item. Guests
+may browse and earn but must sign in to buy or sell. The main menu's Loadout and Auction House panels read the same
+service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
+header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
 ## Experience, levels and perks
 

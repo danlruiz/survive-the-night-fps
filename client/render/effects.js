@@ -144,6 +144,7 @@ class ParticlePool {
     this.aColor = new THREE.BufferAttribute(new Float32Array(max * 4), 4).setUsage(THREE.DynamicDrawUsage);
     this.aTex = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
     this.aRot = new THREE.BufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage);
+    this.attrs = [this.aPos, this.aSize, this.aColor, this.aTex, this.aRot];
     geo.setAttribute('position', this.aPos);
     geo.setAttribute('aSize', this.aSize);
     geo.setAttribute('aColor', this.aColor);
@@ -240,11 +241,11 @@ class ParticlePool {
     }
     this.geo.setDrawRange(0, n);
     if (n) {
-      this.aPos.needsUpdate = true;
-      this.aSize.needsUpdate = true;
-      this.aColor.needsUpdate = true;
-      this.aTex.needsUpdate = true;
-      this.aRot.needsUpdate = true;
+      // (only the live particles go up to the card, not the whole pool)
+      for (const a of this.attrs) {
+        a.addUpdateRange(0, n * a.itemSize);
+        a.needsUpdate = true;
+      }
     }
   }
 

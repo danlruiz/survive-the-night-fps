@@ -19,6 +19,7 @@ import { difficultyOf } from '../shared/difficulty.js';
 import { PHASE, MAX_PLAYERS } from '../shared/constants.js';
 import { FramePacker, eachFrame } from './wire.js';
 import { HANDOFF_CLOSE } from './handoff.js';
+import { gameOutChannel } from './netmetrics.js';
 
 // A WebSocket close frame's reason is at most 123 bytes of UTF-8: what fits of `text`, cut between two characters
 export function closeReason(text, max = 120) {
@@ -34,7 +35,7 @@ export const CODE_RE = /^[A-Z2-9]{6,10}$/;
 // An empty game shuts down after this long: long enough for a reload, or for whoever made it to get the link out
 // before they join.
 const IDLE_MS = 90_000;
-const SEND_LIMIT = 256 * 1024; // a socket with this much unsent is backed up: its messages are dropped or held
+const SEND_LIMIT = 256 * 1024; // a socket with this much unsent is backed up: its snapshots are held back
 // Per address: making games (a few in a row, then one a minute) and asking for codes that turn out not to exist.
 const CREATE_BURST = 3;
 const CREATE_EVERY = 60;
@@ -271,7 +272,11 @@ export class Room {
     w.str(this.title);
     w.u8(this.inviteOnly ? ROOMF.INVITE_ONLY : 0);
     w.str(this.difficulty); // after the flags, so a client from before difficulties never reads it
-    this.socks[slot]?.send(w.bytes(), true, false);
+    const out = w.bytes();
+    if (this.socks[slot]) {
+      this.lobby.netMetrics?.wsOut('game_room', out);
+      this.socks[slot].send(out, true, false);
+    }
   }
   flushInbox() {
     if (this.inbox.empty || this.closed) return;
@@ -296,11 +301,14 @@ export class Room {
       const sock = runs[i];
       const slot = runs[i + 1];
       const msgs = runs[i + 2];
+      // A backed-up client is held back by the game (congested: no snapshot until it drains), never by losing what
+      // the game already wrote for it. A snapshot is the delta from what the game takes the client to have, so one
+      // that went missing left entities created in it unknown to the client, and every later update of them threw
+      // there ("update for unknown entity") until they left its view. What a socket may hold is still bounded:
+      // uWS's maxBackpressure (index.js), a tick or two past SEND_LIMIT.
       sock.cork(() => {
         for (const bytes of msgs) {
-          // a badly backed-up client loses messages rather than the server's memory growing without end (the game
-          // holds its snapshots back meanwhile: congested)
-          if (sock.getBufferedAmount() > SEND_LIMIT) break;
+          this.lobby.netMetrics?.wsOut(gameOutChannel(bytes), bytes);
           sock.send(bytes, true, false);
         }
       });
@@ -360,6 +368,8 @@ export class Room {
         return this.lobby.bestiary?.add(m.user, m.mask);
       case 'cards':
         return this.lobby.cards?.fromRoom(this, m); // (Dead Hand's collections: usercards.js, which never throws)
+      case 'loadout':
+        return this.lobby.loadouts?.fromRoom(this, m);
       case 'finished':
         this.finished?.();
         return;
@@ -468,7 +478,10 @@ export class Room {
         this.lobby.log(`game ${this.code}: its build's codec failed to write BOARD (${err.message}): written in this build's`);
         bytes = write(OWN_PROTOCOL, total, rows);
       }
-      if (ws.getBufferedAmount() <= SEND_LIMIT) ws.send(bytes, true, false);
+      if (ws.getBufferedAmount() <= SEND_LIMIT) {
+        this.lobby.netMetrics?.wsOut('game_board', bytes);
+        ws.send(bytes, true, false);
+      }
     };
     // the file-kept board answers at once, the database's (dbstats.js) in a moment
     const board = this.lobby.stats.board(this.recs.get(m.me) ?? null, here);
@@ -601,6 +614,7 @@ export class Room {
     this.match = null;
     // its card owners are let go, and the bets its matches held go back - unless the next server carries it on
     this.lobby.cards?.roomGone(this, handedOff);
+    this.lobby.loadouts?.roomGone(this, handedOff);
   }
 }
 
@@ -609,19 +623,22 @@ export class Lobby {
   // (MatchStore; none without a database). achievements: the accounts' (AchievementStore; none without a database).
   // bestiary: the kinds of the dead each account has seen (BestiaryStore; none without a database).
   // cards: Dead Hand's collections (usercards.js CardService: in the database, or in memory without one)
+  // loadouts: permanent loadout item collections (userloadout.js LoadoutService)
   // gameOpts: what every Game is made with (the env's test switches)
   // limits: false lifts the per-address allowances (load tests make many games from one address). store: where games
   // are handed from one server to the next on a deploy (handoff.js; none: a deploy ends them), and how old a save may
   // be and still be restored (s)
   // prepareMs: how long a server going down waits for the next one to have its games' valleys built (announce)
   // keepMs: how long a server going down waits at most for its own build to be in the store before it saves (KEEP_MS)
-  constructor({ stats, matches = null, achievements = null, bestiary = null, cards = null, gameOpts = {}, maxGames = defaultMaxGames(), maxPlayers = MAX_PLAYERS, roomMaxPlayers = MAX_PLAYERS, limits = true, idleMs = IDLE_MS, store = null, handoffMaxAge = 300, prepareMs = 3000, keepMs = KEEP_MS, settings = null, log = console.log }) {
+  constructor({ stats, matches = null, achievements = null, bestiary = null, cards = null, loadouts = null, gameOpts = {}, maxGames = defaultMaxGames(), maxPlayers = MAX_PLAYERS, roomMaxPlayers = MAX_PLAYERS, limits = true, idleMs = IDLE_MS, store = null, handoffMaxAge = 300, prepareMs = 3000, keepMs = KEEP_MS, settings = null, netMetrics = null, log = console.log }) {
     this.stats = stats;
     this.settings = settings; // the game's settings in the database (serversettings.js; none without one)
+    this.netMetrics = netMetrics;
     this.matches = matches;
     this.achievements = achievements;
     this.bestiary = bestiary;
     this.cards = cards;
+    this.loadouts = loadouts;
     this.store = store;
     this.handoffMaxAge = handoffMaxAge;
     this.restoring = new Map(); // code -> the restore under way (restore)
@@ -970,7 +987,14 @@ export class Lobby {
     const room = this.rooms.get(code);
     proto ||= room?.proto || null;
     this.lost.set(code, { reason, at: Date.now(), proto: proto === OWN_PROTOCOL ? null : proto });
-    if (tell) for (const ws of room?.socks || []) ws?.send(rejectBytes(reason, room.proto), true, false);
+    if (tell && room) {
+      const bytes = rejectBytes(reason, room.proto);
+      for (const ws of room?.socks || []) {
+        if (!ws) continue;
+        this.netMetrics?.wsOut('game_rejects', bytes);
+        ws.send(bytes, true, false);
+      }
+    }
   }
   // the codec of the players of a game a deploy ended, when it was not this build's (else undefined)
   lostProto(code) {

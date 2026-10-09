@@ -171,6 +171,7 @@ export class Splash {
     this.browseBtn = tile(alt, 'search', 'Browse games', () => this.browser.show());
     this.browseN = el('b', 'sp-count', this.browseBtn, '');
     tile(alt, 'plus', 'Create game', () => this.creator.show());
+    tile(alt, 'cards', 'Dead Hand', () => this.ui.cb.onLobbyCards());
 
     this.err = el('div', 'sp-err', main, '');
     this.err.hidden = true;
@@ -194,6 +195,8 @@ export class Splash {
     this.perksBadge = el('b', 'sp-badge', this.perksBtn, '');
     this.perksBadge.hidden = true;
     onProgress((v) => this._syncPerks(v));
+    tile(you, 'star', 'Loadout', () => this.ui.loadout.show());
+    tile(you, 'skull', 'Auction', () => this.ui.auction.show());
     this.achBtn = tile(you, 'trophy', 'Achievements', () => this.ui.achPanel.show());
     this.achN = el('b', 'sp-count', this.achBtn, '');
     onAchievements(() => this._syncAch());

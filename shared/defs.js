@@ -398,6 +398,23 @@ export const STRUCT_ORDER = [STRUCT.BARRICADE, STRUCT.DOOR, STRUCT.WALL, STRUCT.
 // how near its interaction point the view ray has to pass to offer [E] on a structure (PICK_RADIUS in constants.js)
 export const structPickRadius = (stype) => Math.max(0.8, STRUCT_DEFS[stype].sx * 0.5);
 export const REPAIR_COST = { [ITEM.WOOD]: 1, [ITEM.NAILS]: 1 }; // per repair action (+35% hp)
+// What taking structure e down gives back (Game.demolish): each material of its cost in the share of it that is left,
+// rounded down - all of it whole and at full health, 3 of 5 Planks at 60%, and a cost of one item only whole. A torch
+// or a campfire is worth as much as is left of the fuel it was built with too, so a burnt-out one is not traded back
+// for a fresh one. Repairs bring the share back up, but never past the cost: nothing comes out of it beyond what was
+// paid to build it.
+export function demolishRefund(e) {
+  const def = STRUCT_DEFS[e.stype];
+  let share = e.maxHp > 0 ? e.hp / e.maxHp : 0;
+  if (def.burn) share = Math.min(share, e.burnLeft / def.burn);
+  share = Math.max(0, Math.min(1, share));
+  const out = {};
+  for (const k in def.cost) {
+    const n = Math.floor(def.cost[k] * share + 1e-9); // (60% of 5 is 3, not 2.9999)
+    if (n > 0) out[k] = n;
+  }
+  return out;
+}
 export const CAMPFIRE_FUEL = { [ITEM.WOOD]: 70, [ITEM.STICK]: 22 }; // seconds of burn per item fed
 export const CAMPFIRE_MAX_FUEL = 600;
 

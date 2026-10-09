@@ -195,6 +195,12 @@ const CRAFT_RATE = 40; // per second
 // the build ring's pointer (mouse px): how far out it goes, and how far it must be pushed to point at a structure
 const BUILD_MENU_REACH = 120;
 const BUILD_MENU_DEAD = 26;
+// how far the piece being placed turns, in 256ths of a turn (ACT.BUILD sends the angle as one byte): a right click
+// 45°, and with the fine-rotate key held (binds.js buildFine) a right click 11/256 (15.5°) and a notch of the wheel
+// 2/256 (2.8°), either way
+const BUILD_ROT_STEP = 32;
+const BUILD_ROT_FINE = 11;
+const BUILD_ROT_WHEEL = 2;
 const LAND_SPRING = 16; // rad/s of the camera's landing dip: lowest ~60 ms after touchdown, level again in ~0.35 s
 // m:ss, for the time a torch or a campfire has left to burn (Game.burnLeft)
 const mmss = (t) => {
@@ -2133,6 +2139,7 @@ export class Game {
       else if (ui.cardsOpen) {
         if (!ui.cards.back()) this.toggleCards(false); // (a view inside it first: a card picked, the chooser, a deck)
       } else if (ui.spawnOpen) this.toggleSpawn(false);
+      else if (ui.pauseOpen) this.resumeFromPause();
       // (Esc only gets here with the mouse still taken under fullscreen's keyboard lock, keyguard.js: it shuts the ring,
       // then puts the piece down, and only then lets go of the mouse for the menu - whatever the input is doing: the
       // browser no longer lets go of the mouse on Esc itself, so this is the only way out short of leaving fullscreen)
@@ -2248,7 +2255,8 @@ export class Game {
           if (this.buildPicked) this.tryBuild();
           else this.openBuildMenu();
         } else if (this.buildPicked) {
-          this.buildRot = (this.buildRot - 32) & 255; // 45deg clockwise seen from above (+yaw is counter-clockwise)
+          // clockwise seen from above (+yaw is counter-clockwise): 45°, or 15° with the fine-rotate key held
+          this.buildRot = (this.buildRot - (this.input.held('buildFine') ? BUILD_ROT_FINE : BUILD_ROT_STEP)) & 255;
           this.audio.playLocal('ui_click', { volume: 0.4 });
         }
         return;
@@ -2323,6 +2331,18 @@ export class Game {
   screenUp() {
     const ui = this.ui;
     return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned;
+  }
+
+  resumeFromPause() {
+    this.ui.showPause(false);
+    if (this.screenUp()) return; // (the map or the bestiary opened over the menu keeps the pointer)
+    this.input.enabled = true;
+    const lock = this.input.requestLock();
+    lock?.then?.((ok) => {
+      // Esc closes the menu, but browsers can refuse to re-lock immediately after Esc released it.
+      if (ok !== false || this.state !== 'playing' || this.input.locked || this.screenUp() || this.ui.pauseOpen || this.ui.isTyping()) return;
+      this.ui.notify('Click the game to resume looking around.', 'warning', 4);
+    });
   }
 
   toggleInventory(open) {
@@ -2468,6 +2488,10 @@ export class Game {
   toggleCards(open, relock = true, view = null) {
     const ui = this.ui;
     if (open && (this.state !== 'playing' || this.cine || this.overlay)) return;
+    if (open) {
+      ui.cards.bind(this.cards);
+      ui.cards.onClose = () => this.toggleCards(false);
+    }
     if (open === ui.cardsOpen) {
       if (open && view) ui.cards.show(view);
       return;
@@ -2898,10 +2922,12 @@ export class Game {
     const self = this.self;
     const inp = this.input;
 
-    // wheel: build type or weapon cycling
+    // wheel: build type or weapon cycling; with a piece picked and the fine-rotate key held, it turns the piece (down
+    // clockwise, as a right click does)
     const wheel = inp.consumeWheel();
     if (wheel) {
-      if (s.slot === SLOT_BUILD) this.cycleBuild(wheel > 0 ? 1 : -1);
+      if (s.slot === SLOT_BUILD && !s.zombie && this.buildPicked && !this.buildMenu && inp.held('buildFine')) this.buildRot = (this.buildRot - wheel * BUILD_ROT_WHEEL) & 255;
+      else if (s.slot === SLOT_BUILD) this.cycleBuild(wheel > 0 ? 1 : -1);
       else if (!s.zombie) {
         const order = [SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_THROW];
         let i = order.indexOf(s.slot);
@@ -3696,7 +3722,7 @@ export class Game {
     const valid = !reason;
     gh.userData.setValid?.(valid);
     this.ghostPlace = { x, z };
-    this.ui.setBuildMenu({ picked: true, selected: this.buildType, rotate: Math.round((((256 - this.buildRot) & 255) / 256) * 360), counts, ctx, valid, reason, unlocked, menu });
+    this.ui.setBuildMenu({ picked: true, selected: this.buildType, rotate: Math.round((((256 - this.buildRot) & 255) / 256) * 360), fine: this.input.held('buildFine'), counts, ctx, valid, reason, unlocked, menu });
   }
 
   // same overlap rules the server applies when placing a structure

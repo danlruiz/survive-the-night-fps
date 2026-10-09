@@ -1,6 +1,6 @@
 // UI sandbox: drives the UI with fake data. ?screen=splash|hud|hud-night|hud-horde|hud-zombie|hud-downed|hud-dawn|
 // hud-finale|hud-live|inventory|players|board|build|death|gameover|victory|pause|settings|achievements|bestiary|
-// cards|hud-cards|chat|icons|picker|creator
+// cards|hud-cards|chat|icons|picker|creator|auction
 // &bg=night|day|fire
 // &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=
 import { UI } from '../ui/ui.js';
@@ -22,6 +22,27 @@ const q = new URLSearchParams(location.search);
 const screen = q.get('screen') || 'hud';
 const statusMode = q.get('status') || 'ok';
 let buildState = null; // screen=build: what the build menu is showing
+const demoLoadout = {
+  catalog: [],
+  slotCount: 3,
+  balance: 240,
+  items: [
+    { id: '11111111-1111-4111-8111-111111111111', catalog: 1, source: { kind: 'demo' }, acquiredAt: Date.now() - 7200_000 },
+    { id: '22222222-2222-4222-8222-222222222222', catalog: 6, source: { kind: 'demo' }, acquiredAt: Date.now() - 3600_000 },
+    { id: '33333333-3333-4333-8333-333333333333', catalog: 9, source: { kind: 'demo' }, acquiredAt: Date.now() - 1200_000 },
+  ],
+  slots: ['11111111-1111-4111-8111-111111111111', null, null],
+};
+const demoAuction = {
+  balance: 240,
+  canTrade: true,
+  listings: [
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', itemId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', sellerName: 'Marlowe', catalog: 3, price: 65, status: 'active', createdAt: Date.now() - 1200_000, expiresAt: Date.now() + 41 * 3600_000 },
+    { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', itemId: 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb', sellerName: 'OldHank', catalog: 8, price: 220, status: 'active', createdAt: Date.now() - 2400_000, expiresAt: Date.now() + 12 * 3600_000 },
+    { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', itemId: 'cccccccc-3333-4333-8333-cccccccccccc', sellerName: 'Birdie', catalog: 5, price: 35, status: 'active', createdAt: Date.now() - 900_000, expiresAt: Date.now() + 67 * 3600_000 },
+  ],
+  mine: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', itemId: 'dddddddd-4444-4444-8444-dddddddddddd', sellerName: 'You', catalog: 2, price: 90, status: 'active', createdAt: Date.now() - 1800_000, expiresAt: Date.now() + 55 * 3600_000 }],
+};
 
 // ---------------------------------------------------------------- fake 3D scene background
 function pines(seed, h, color, count) {
@@ -88,11 +109,20 @@ function buildScene(kind) {
 // ---------------------------------------------------------------- mock /status
 const realFetch = window.fetch.bind(window);
 window.fetch = async (url, opts) => {
-  if (String(url).endsWith('/status')) {
+  const path = String(url);
+  if (path.endsWith('/status')) {
     await new Promise((r) => setTimeout(r, 120));
     if (statusMode === 'offline') throw new TypeError('Failed to fetch');
     const body = statusMode === 'full' ? { players: 8, max: 8, phase: PHASE.NIGHT, day: 4 } : { players: 3, max: 8, phase: PHASE.NIGHT, day: 2 };
     return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (path.includes('/api/loadout/auction')) {
+    await new Promise((r) => setTimeout(r, 80));
+    return new Response(JSON.stringify({ ...demoAuction }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (path.includes('/api/loadout')) {
+    await new Promise((r) => setTimeout(r, 80));
+    return new Response(JSON.stringify({ ...demoLoadout }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   return realFetch(url, opts);
 };
@@ -409,6 +439,12 @@ switch (screen) {
     buildScene(bg || 'fire');
     ui.showSplash();
     if (q.get('settings')) setTimeout(() => ui.settingsPanel.show(), 50);
+    break;
+  }
+  case 'auction': {
+    buildScene(bg || 'fire');
+    ui.showSplash();
+    setTimeout(() => ui.auction.show(), 100);
     break;
   }
   // who to play as: the picker (&customs=N, &choice=...), and the character creator (&section=body|face|hair|clothes|
@@ -807,7 +843,8 @@ switch (screen) {
   case 'hud-cards': {
     // Dead Hand (ui/cards.js). The table: a practice match dealt from &seed= and played &moves= moves in (the player's
     // own by the computer's hand too, so the table is mid-game), &tab=deck|trade|reveal|chooser|asks|practice for the
-    // other views, &still=1: the computer does not move on by itself (stills). hud-cards: the HUD's line, &kind=
+    // other views, &tab=guide&page=0..2 the guide to how it plays, &tab=first the first opening (the guide offered),
+    // &still=1: the computer does not move on by itself (stills). hud-cards: the HUD's line, &kind=
     // match|mine|ask|trade
     buildScene(bg || 'night');
     ui.hideSplash();
@@ -889,7 +926,16 @@ function cardsSandbox() {
   window.cards = c;
   const msg = (op, data) => c.onMessage({ op, data });
   // a collection with some finds, two decks kept (one of them not legal yet)
-  msg(CARDMSG.COLL, { loaded: true, kept: true, found: { 105: 1, 112: 2, 113: 1, 125: 1, 9: 1, 10: 1, 12: 1, 205: 1, 207: 1, 216: 1, 401: 1, 453: 1 } });
+  msg(CARDMSG.COLL, {
+    loaded: true,
+    kept: true,
+    found: { 105: 1, 112: 2, 113: 1, 125: 1, 9: 1, 10: 1, 12: 1, 205: 1, 207: 1, 216: 1, 401: 1, 453: 1 },
+    loadouts: [
+      { id: '11111111-1111-4111-8111-111111111111', catalog: 1 },
+      { id: '33333333-3333-4333-8333-333333333333', catalog: 3 },
+      { id: '44444444-4444-4444-8444-444444444444', catalog: 5 },
+    ],
+  });
   msg(CARDMSG.DECKS, {
     decks: [
       { slot: 0, name: 'Long guns', leader: 407, cards: { 1: 1, 2: 1, 4: 1, 5: 1, 6: 1, 100: 2, 101: 2, 104: 3, 105: 1, 108: 3, 109: 1, 110: 2, 111: 2, 112: 2, 113: 1, 114: 1, 116: 2, 117: 1, 121: 1, 125: 1 } },
@@ -898,6 +944,10 @@ function cardsSandbox() {
   });
   const tab = q.get('tab') || 'table';
   const seed = +(q.get('seed') ?? 7);
+  // the guide to how it plays (ui/cardguide.js) is offered the first time the cards open: tab=first shows that, the
+  // rest of the screens are drawn as a player who has seen it (tab=guide&page=0..2: its pages)
+  if (tab === 'first') localStorage.removeItem('stn.cards.guide');
+  else localStorage.setItem('stn.cards.guide', 'seen');
   if (screen === 'hud-cards') {
     const kind = q.get('kind') || 'mine';
     const h = { ...baseHud, prompt: '[E] Dead Hand · trade with Sam' };
@@ -924,8 +974,41 @@ function cardsSandbox() {
       i++;
     }
     if (q.get('still')) L.tick = () => {};
+  } else if (tab === 'stake') {
+    msg(CARDMSG.MATCH, {
+      me: 0,
+      opp: 2,
+      oppName: 'Sam',
+      v: 0,
+      bet: [0, 0],
+      stake: {
+        phase: 'staking',
+        mine: [{ id: '11111111-1111-4111-8111-111111111111', catalog: 1 }],
+        theirs: [{ id: '22222222-2222-4222-8222-222222222222', catalog: 2 }],
+        loadouts: [
+          { id: '11111111-1111-4111-8111-111111111111', catalog: 1 },
+          { id: '33333333-3333-4333-8333-333333333333', catalog: 3 },
+          { id: '44444444-4444-4444-8444-444444444444', catalog: 5 },
+        ],
+        ok: [false, true],
+      },
+      view: null,
+      events: [],
+    });
   } else if (tab === 'trade') {
-    msg(CARDMSG.TRADE, { with: 3, mine: { cards: { 112: 1 }, items: [[ITEM.NAILS, 10]] }, theirs: { cards: { 205: 1, 207: 1 }, items: [[ITEM.MEDKIT, 1]] }, ready: [false, true], ok: [false, false], committing: false });
+    msg(CARDMSG.TRADE, {
+      with: 3,
+      mine: { cards: {}, items: [], loadouts: [{ id: '11111111-1111-4111-8111-111111111111', catalog: 1 }] },
+      theirs: { cards: {}, items: [], loadouts: [{ id: '22222222-2222-4222-8222-222222222222', catalog: 2 }] },
+      loadouts: [
+        { id: '11111111-1111-4111-8111-111111111111', catalog: 1 },
+        { id: '33333333-3333-4333-8333-333333333333', catalog: 3 },
+        { id: '44444444-4444-4444-8444-444444444444', catalog: 5 },
+      ],
+      ready: [false, true],
+      ok: [false, false],
+      committing: false,
+    });
   } else if (tab === 'reveal') {
     msg(CARDMSG.REVEAL, { item: ITEM.SEALED_PACK, cards: [104, 213, 125], kept: true });
   } else if (tab === 'asks' || tab === 'chooser') {
@@ -938,7 +1021,11 @@ function cardsSandbox() {
     });
     ui.cards.target = 2;
   }
-  ui.setCardsOpen(true, tab === 'end' ? 'table' : tab);
+  ui.setCardsOpen(true, tab === 'end' || tab === 'first' || tab === 'guide' ? 'table' : tab);
+  if (tab === 'guide') {
+    ui.cards.openGuide();
+    ui.cards.views.guide.go(+(q.get('page') ?? 0));
+  }
   // the store's clocks and the computer's moves, as the game runs them each frame
   let t0 = performance.now();
   const step = (t) => {

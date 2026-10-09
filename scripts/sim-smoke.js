@@ -1594,8 +1594,8 @@ const standOff = (c, e, d) => {
   const bench = game.structures.find((e) => e.stype === STRUCT.WORKBENCH);
   const bm = A.global.benches;
   check('workbench on the field map', bench && bm.length === 1 && Math.hypot(bm[0].x - bench.x, bm[0].z - bench.z) < 0.05, JSON.stringify(bm));
-  // demolishing refunds half the cost (a wall: 2 planks, 2 nails). With room for one plank in the backpack the
-  // other plank and the nails go on the ground - the part that did not fit, not the whole refund over again
+  // demolishing a whole wall gives back all it cost (5 planks, 4 nails). With room for one plank in the backpack the
+  // other planks and the nails go on the ground - the part that did not fit, not the whole refund over again
   {
     const inv = p.inv.map((x) => x && { ...x });
     tryBuild(STRUCT.WALL);
@@ -1608,7 +1608,7 @@ const standOff = (c, e, d) => {
     run(2);
     const drops = game.items.filter((e) => !before.has(e));
     const dropped = (item) => drops.reduce((n, e) => n + (e.item === item ? e.count : 0), 0);
-    check('demolishing with a full backpack refunds each plank once', wall && !game.structures.includes(wall) && p.inv[0].count === planks + 1 && dropped(ITEM.WOOD) === 1 && dropped(ITEM.NAILS) === 2, `planks: ${p.inv[0].count - planks} kept, ${dropped(ITEM.WOOD)} dropped; nails: ${dropped(ITEM.NAILS)} dropped`);
+    check('demolishing with a full backpack refunds each plank once', wall && !game.structures.includes(wall) && p.inv[0].count === planks + 1 && dropped(ITEM.WOOD) === 4 && dropped(ITEM.NAILS) === 4, `planks: ${p.inv[0].count - planks} kept, ${dropped(ITEM.WOOD)} dropped; nails: ${dropped(ITEM.NAILS)} dropped`);
     for (const e of drops) game.removeItemEnt(e);
     p.inv.splice(0, p.inv.length, ...inv);
     p.invDirty = true;

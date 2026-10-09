@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   voiceVolume: 1, // 100% = the level the mix is balanced at (audio.js VOICE_BUS); the slider runs to 200%
   voiceDuck: true,
   quality: 'medium',
-  grassDistance: 1, // x the quality preset's grass radius
+  grassDistance: 1, // x the quality preset's grass radius (0: no grass at all)
   renderScale: 1,
   ps1: false,
   ps1Strength: 0.5,
@@ -54,7 +54,7 @@ const NUM_RANGES = {
   sfxVolume: [0, 1],
   voiceVolume: [0, 2],
   renderScale: [0.5, 1],
-  grassDistance: [0.5, 3],
+  grassDistance: [0, 3],
   ps1Strength: [0.1, 1],
   cameraShake: [0, 1],
   hudScale: [0.75, 1.5],
@@ -111,15 +111,26 @@ const TABS = [
     rows: [
       { head: 'Performance' },
       { k: 'quality', label: 'Quality', type: 'seg', options: ['low', 'medium', 'high', 'ultra'], hint: 'Shadows, sun rays, ambient occlusion, grass density, view distance' },
+      // (not a setting of its own: the grass distance slider all the way down. Turned off, the grass is back as far
+      // out as it is by default)
+      {
+        k: 'noGrass',
+        label: 'No grass',
+        type: 'toggle',
+        of: (s) => !(s.grassDistance > 0),
+        to: (on) => ({ grassDistance: on ? 0 : DEFAULT_SETTINGS.grassDistance }),
+        hint: 'No grass drawn at all, for a higher frame rate. The same as the grass distance all the way down',
+      },
       {
         k: 'grassDistance',
+        link: 'noGrass',
         label: 'Grass distance',
         type: 'range',
-        min: 0.5,
+        min: 0,
         max: 3,
         step: 0.05,
-        fmt: (v, s) => Math.round(grassRadius(QUALITY[s.quality] || QUALITY.medium, v)) + ' m',
-        hint: 'How far out grass is drawn. Further costs frame rate',
+        fmt: (v, s) => (v > 0 ? Math.round(grassRadius(QUALITY[s.quality] || QUALITY.medium, v)) + ' m' : 'Off'),
+        hint: 'How far out grass is drawn. Further costs frame rate; all the way down, none at all (No grass)',
       },
       { k: 'renderScale', label: 'Render scale', type: 'range', min: 0.5, max: 1, step: 0.05, fmt: pct, hint: 'Lower draws fewer pixels: faster, softer' },
       { head: 'View' },
@@ -431,6 +442,7 @@ export class SettingsPanel {
         this._paintRange(inp);
         this.ui._applySettings({ ...this.ui.settings, [row.k]: v });
         this._syncChanged();
+        if (row.link) this.inputs[row.link]?.sync(this.ui.settings); // (a toggle that is this slider at one end)
       });
       this.inputs[row.k] = {
         sync: (s) => {
@@ -447,15 +459,20 @@ export class SettingsPanel {
       b.setAttribute('aria-label', row.label);
       el('i', 'knob', b);
       const txt = el('span', 'set-toggle-txt', ctl);
+      // of / to: a toggle that is another setting seen one way (of: whether it is on; to(on): the settings that turn
+      // it so), not a setting of its own
+      const isOn = (s) => (row.of ? row.of(s) : !!s[row.k]);
       b.addEventListener('click', () => {
-        this.ui._applySettings({ ...this.ui.settings, [row.k]: !this.ui.settings[row.k] });
+        const on = !isOn(this.ui.settings);
+        this.ui._applySettings({ ...this.ui.settings, ...(row.to ? row.to(on) : { [row.k]: on }) });
         this.sync();
       });
       this.inputs[row.k] = {
         sync: (s) => {
-          b.classList.toggle('on', !!s[row.k]);
-          b.setAttribute('aria-pressed', s[row.k] ? 'true' : 'false');
-          txt.textContent = s[row.k] ? 'On' : 'Off';
+          const on = isOn(s);
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          txt.textContent = on ? 'On' : 'Off';
         },
       };
     } else if (row.type === 'seg') {

@@ -33,6 +33,8 @@ import { Progress } from './progress.js';
 import { AchievementStore } from './userachievements.js';
 import { BestiaryStore } from './userbestiary.js';
 import { CardService, PgCardStore, MemoryCardStore } from './usercards.js';
+import { LoadoutService, PgLoadoutStore, MemoryLoadoutStore, ownerKey as loadoutOwnerKey } from './userloadout.js';
+import { LobbyCards } from './lobbycards.js';
 import { PublicStats, RANGES } from './publicstats.js';
 import { idKey } from './stats.js';
 import { api, HttpError, parseCookies, sameOrigin } from './http.js';
@@ -42,8 +44,11 @@ import { compatOf } from './compat.js';
 import { Cluster } from './cluster.js';
 import { AdminPanel } from './adminpanel.js';
 import { clientOf } from './netaddr.js';
+import { NetworkMetrics, gameInChannel, payloadBytes } from './netmetrics.js';
 import { REJECT_REASON, PROTOCOL_VERSION } from '../shared/protocol.js';
 import { DEFAULT_PORT, MAX_PLAYERS } from '../shared/constants.js';
+import { LOADOUT_CATALOG, LOADOUT_SLOTS, cleanLoadoutSlots } from '../shared/loadout.js';
+import { AUCTION, SKULLS, SKULL_EARN } from '../shared/economy.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = +(process.env.PORT || DEFAULT_PORT);
@@ -57,6 +62,7 @@ const CONN_PER_IP = +(process.env.CONN_PER_IP ?? 24);
 const SEED = process.env.SEED ? +process.env.SEED : undefined;
 const DIST = resolve(__dirname, '../dist');
 const log = (...a) => console.log('[server]', ...a);
+const netMetrics = new NetworkMetrics();
 
 // ---------------------------------------------------------------- the database
 // Migrated on the way up (MIGRATE_ON_START=0: not); if a pre-deploy step did it already (npm run migrate,
@@ -96,6 +102,8 @@ const bestiary = db ? new BestiaryStore({ db, log }) : null;
 // process's memory - kept for as long as it runs. What changes here, the other servers of a cluster read again.
 const cards = new CardService({ store: db ? new PgCardStore(db) : new MemoryCardStore(), log, changed: (owners) => lobby.cluster?.publish({ t: 'cards', owners }) });
 if (!db) log('cards: no database - the card collections found are kept only as long as this server runs');
+const loadouts = new LoadoutService({ store: db ? new PgLoadoutStore(db) : new MemoryLoadoutStore(), log, changed: (owners) => lobby.cluster?.publish({ t: 'loadout', owners }) });
+if (!db) log('loadout: no database - loadout items found are kept only as long as this server runs');
 
 // Where a game waits between the server going down and the next one (handoff.js): Postgres when there is one (it is
 // what both servers of a deploy can reach), else files in HANDOFF_DIR or on the Railway volume (a restart on the
@@ -112,6 +120,7 @@ await settings?.start();
 
 const lobby = new Lobby({
   settings,
+  netMetrics,
   store,
   handoffMaxAge: HANDOFF_MAX_AGE,
   // how long a server going down waits for the next one to build its games' valleys before saving them (0: it does not)
@@ -121,6 +130,7 @@ const lobby = new Lobby({
   achievements,
   bestiary,
   cards,
+  loadouts,
   maxGames: MAX_GAMES,
   maxPlayers: MAX,
   roomMaxPlayers: ROOM_MAX,
@@ -145,17 +155,21 @@ const cluster = process.env.CLUSTER === '1' && db?.kind === 'postgres' ? new Clu
 if (process.env.CLUSTER === '1' && !cluster) log('CLUSTER=1 needs a Postgres DATABASE_URL: running as a server on its own');
 lobby.cluster = cluster;
 cluster?.on('cards', (m) => cards.reload(m.owners));
+cluster?.on('loadout', (m) => loadouts.reload(m.owners));
 // bets left in escrow by games that never settled them (usercards.js ESCROW_MAX_AGE) go back, now and every hour
 if (db) {
   cards.sweep();
+  loadouts.sweep({ startup: true });
   setInterval(() => cards.sweep(), 3600_000).unref();
+  setInterval(() => loadouts.sweep(), 3600_000).unref();
 }
 
 let stopping = false;
 
 // accounts, friends and messages: only with a database
-const auth = db ? new Auth({ db, stats, cards, log }) : null;
-const social = db ? new Social({ db, auth, lobby, cluster, log }) : null;
+const auth = db ? new Auth({ db, stats, cards, loadouts, log }) : null;
+const lobbyCards = new LobbyCards({ service: cards, loadouts, log, netMetrics });
+const social = db ? new Social({ db, auth, lobby, cluster, log, netMetrics }) : null;
 const feedback = db ? new Feedback({ db, matches, log }) : null; // what players think of the game: the end screen's poll
 const userSettings = db ? new UserSettings({ db }) : null; // a player's own settings on their account: their keybinds, their survivors
 if (auth) setInterval(() => auth.sweep().catch(() => {}), 3600_000).unref();
@@ -297,7 +311,9 @@ function seat(ws) {
   if (reason) {
     // told why, the way the game tells a join it turns away (the client closes on it; this closes it anyway) - in the
     // codec of the game's own client, for one an older build carries on (or carried on, when a deploy ended it)
-    ws.send(rejectBytes(reason, room?.proto || (d.code ? lobby.lostProto(d.code) : undefined)), true, false);
+    const bytes = rejectBytes(reason, room?.proto || (d.code ? lobby.lostProto(d.code) : undefined));
+    netMetrics.wsOut('game_rejects', bytes);
+    ws.send(bytes, true, false);
     ws.end(1000, 'rejected');
     return;
   }
@@ -363,9 +379,14 @@ app.ws('/ws', {
     });
   },
   message: (ws, message, isBinary) => {
-    if (!isBinary) return;
+    if (!isBinary) {
+      netMetrics.wsIn('game_other', payloadBytes(message));
+      return;
+    }
+    const bytes = new Uint8Array(message); // (copied by the room if it crosses an async boundary)
+    netMetrics.wsIn(gameInChannel(bytes), bytes.byteLength);
     const d = ws.getUserData();
-    if (!d.early) return hear(ws, new Uint8Array(message)); // (copied in the room: the buffer is only valid during this callback)
+    if (!d.early) return hear(ws, bytes);
     // (a client sends its JOIN and then waits for the answer: more than a few messages before it is not one of ours)
     if (d.early.length >= EARLY_MAX) return ws.end(1008, 'Too much before joining');
     d.early.push(new Uint8Array(message.slice(0)));
@@ -392,11 +413,60 @@ app.ws('/ws', {
   },
 });
 
+app.ws('/cards', {
+  compression: uWS.DISABLED,
+  maxPayloadLength: 16 * 1024,
+  maxBackpressure: 256 * 1024,
+  idleTimeout: 120,
+  sendPingsAutomatically: true,
+  upgrade: (res, req, context) => {
+    const token = sessionToken(req);
+    const key = req.getHeader('sec-websocket-key');
+    const proto = req.getHeader('sec-websocket-protocol');
+    const ext = req.getHeader('sec-websocket-extensions');
+    const wait = token
+      ? auth.userForToken(token, true).catch((err) => {
+          log(`session lookup failed (${err.message}): playing lobby cards as a guest`);
+          return null;
+        })
+      : null;
+    res.upgrade({ ip: clientAddress(res, req), user: null, wait, early: null, cardsJoined: false }, key, proto, ext, context);
+  },
+  open: (ws) => {
+    const d = ws.getUserData();
+    if (!d.wait) return lobbyCards.open(ws);
+    d.early = [];
+    d.wait.then((user) => {
+      const early = d.early;
+      d.wait = d.early = null;
+      if (!early) return;
+      d.user = user;
+      lobbyCards.open(ws);
+      for (const bytes of early) lobbyCards.message(ws, bytes);
+    });
+  },
+  message: (ws, message, isBinary) => {
+    netMetrics.wsIn('lobby_cards', payloadBytes(message));
+    if (!isBinary) return;
+    const d = ws.getUserData();
+    const bytes = new Uint8Array(message.slice(0));
+    if (!d.early) return lobbyCards.message(ws, bytes);
+    if (d.early.length >= EARLY_MAX) return ws.end(1008, 'Too much before joining');
+    d.early.push(bytes);
+  },
+  close: (ws) => {
+    ws.getUserData().early = null;
+    lobbyCards.close(ws);
+  },
+});
+
 // ---------------------------------------------------------------- the lobby
 const STATUS_TEXT = { 200: '200 OK', 201: '201 Created', 400: '400 Bad Request', 404: '404 Not Found', 409: '409 Conflict', 413: '413 Payload Too Large', 415: '415 Unsupported Media Type', 429: '429 Too Many Requests', 503: '503 Service Unavailable' };
 function json(res, status, obj) {
+  const body = JSON.stringify(obj);
+  netMetrics.httpOut(body);
   res.cork(() => {
-    res.writeStatus(STATUS_TEXT[status] || String(status)).writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').end(JSON.stringify(obj));
+    res.writeStatus(STATUS_TEXT[status] || String(status)).writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').end(body);
   });
 }
 const lobbyInfo = () => ({ games: lobby.rooms.size, maxGames: lobby.cluster || lobby.maxTotal === null ? lobby.maxGames : Math.min(lobby.maxGames, lobby.maxTotal), canCreate: lobby.canCreate, players: lobby.players(), defaultPlayers: lobby.maxPlayers, maxPlayers: lobby.roomMaxPlayers });
@@ -465,6 +535,7 @@ app.post('/api/games', (res, req) => {
   });
   res.onData((chunk, last) => {
     if (done) return;
+    netMetrics.httpIn(chunk.byteLength);
     body = Buffer.concat([body, Buffer.from(chunk)]); // (copies it: chunk is only valid during this callback)
     if (body.length > 2048) {
       done = true;
@@ -501,7 +572,7 @@ app.post('/api/games', (res, req) => {
 // ---------------------------------------------------------------- accounts, friends, messages
 // All JSON; an error is { error } with its status (and a `field` it is about, for a form). Signed in is the
 // stn_session cookie. Without a database: /api/auth/me says { accounts: false } and the rest are 503s.
-const route = (method, path, fn, opts = {}) => api(app, method, path, fn, { address: clientAddress, ...opts });
+const route = (method, path, fn, opts = {}) => api(app, method, path, fn, { address: clientAddress, metrics: netMetrics, ...opts });
 const noAccounts = () => {
   throw new HttpError(503, 'Accounts are not set up on this server.');
 };
@@ -566,6 +637,84 @@ route(
     return { body: { ok: true }, cookies: auth ? [auth.clearCookie(Auth.secure(ctx))] : [] };
   },
   { body: true }
+);
+
+// a guest's id comes in the body, or for a GET in the X-STN-Guest header: never from the query string, which proxies,
+// the CDN and browser history keep (it is the only key to that guest's items and Zombie Skulls)
+const loadoutOwner = async (ctx, body = null) => {
+  const u = auth ? await auth.me(ctx) : null;
+  if (u) return `a:${u.id}`;
+  const key = loadoutOwnerKey('', body?.guestId || ctx.guest || '');
+  if (!key) throw new HttpError(400, 'This browser has no player id yet.');
+  return key;
+};
+route('get', '/api/loadout', async (ctx) => {
+  const owner = await loadoutOwner(ctx);
+  return { body: { catalog: LOADOUT_CATALOG, slotCount: LOADOUT_SLOTS, currency: SKULLS, ...(await loadouts.profile(owner)) } };
+});
+const saveLoadout = async (ctx, b) => {
+  const owner = await loadoutOwner(ctx, b);
+  const got = await loadouts.equip(owner, cleanLoadoutSlots(b.slots));
+  return { body: { catalog: LOADOUT_CATALOG, slotCount: LOADOUT_SLOTS, currency: SKULLS, balance: await loadouts.balance(owner), ...got } };
+};
+route('put', '/api/loadout', saveLoadout, { body: true, max: 4096 });
+route('post', '/api/loadout', saveLoadout, { body: true, max: 4096 });
+
+const marketError = (err) => {
+  if (err instanceof HttpError) throw err;
+  const msg = err?.message || 'That auction action did not work.';
+  const code = err?.code || '';
+  if (code === 'guest_market') throw new HttpError(401, msg);
+  if (code === 'bad_listing' || code === 'bad_price') throw new HttpError(400, msg);
+  if (code === 'insufficient_skulls' || code === 'not_owned' || code === 'listed' || code === 'not_listing_owner' || code === 'sold' || code === 'expired' || code === 'own_listing') throw new HttpError(409, msg);
+  throw err;
+};
+const loadoutAccountOwner = async (ctx) => {
+  const u = auth ? await auth.need(ctx) : noAccounts();
+  return `a:${u.id}`;
+};
+route('get', '/api/loadout/auction', async (ctx) => {
+  const owner = await loadoutOwner(ctx);
+  return { body: { catalog: LOADOUT_CATALOG, currency: SKULLS, auction: AUCTION, earn: SKULL_EARN, ...(await loadouts.auction(owner)) } };
+});
+route(
+  'post',
+  '/api/loadout/auction/list',
+  async (ctx, b) => {
+    try {
+      const owner = await loadoutAccountOwner(ctx);
+      return { status: 201, body: { listing: await loadouts.listItem(owner, b.itemId, b.price), ...(await loadouts.auction(owner)) } };
+    } catch (err) {
+      marketError(err);
+    }
+  },
+  { body: true, max: 2048 }
+);
+route(
+  'post',
+  '/api/loadout/auction/buy',
+  async (ctx, b) => {
+    try {
+      const owner = await loadoutAccountOwner(ctx);
+      return { body: { result: await loadouts.buyListing(owner, b.listingId), ...(await loadouts.auction(owner)) } };
+    } catch (err) {
+      marketError(err);
+    }
+  },
+  { body: true, max: 2048 }
+);
+route(
+  'post',
+  '/api/loadout/auction/cancel',
+  async (ctx, b) => {
+    try {
+      const owner = await loadoutAccountOwner(ctx);
+      return { body: { listing: await loadouts.cancelListing(owner, b.listingId), ...(await loadouts.auction(owner)) } };
+    } catch (err) {
+      marketError(err);
+    }
+  },
+  { body: true, max: 2048 }
 );
 
 // The stats page (/stats, publicstats.js): the whole game's numbers for anyone, ?range=7d|30d|90d|all. Without a
@@ -727,7 +876,9 @@ app.ws('/social', {
     );
   },
   open: (ws) => social.socketOpened(ws),
-  message: () => {},
+  message: (ws, message) => {
+    netMetrics.wsIn('social', payloadBytes(message));
+  },
   close: (ws) => social.socketClosed(ws),
 });
 
@@ -744,6 +895,7 @@ new AdminPanel({
   store,
   info: { build: BUILD, clientBuild: CLIENT_BUILD, port: PORT },
   net: () => ({ ...mainLoad, sockets: [...perIp.values()].reduce((a, b) => a + b, 0) }),
+  bandwidth: (ctx) => netMetrics.snapshot(ctx),
   stopping: () => stopping,
   restart: (code) => shutdown('admin restart', code),
   log,
@@ -767,6 +919,7 @@ app.get('/status', (res) => {
   const mem = process.memoryUsage();
   const games = [...lobby.rooms.values()].map((r) => ({ players: r.st.players, max: r.maxPlayers, public: !r.inviteOnly, phase: r.st.phase, day: r.st.day, load: r.st.load, heapMb: r.st.heapMb, tick: r.st.tick }));
   const body = JSON.stringify({ ...lobbyInfo(), db: db ? db.kind : null, server: cluster ? { id: cluster.id, deployment: cluster.deployment, draining: cluster.draining } : undefined, net: { ...mainLoad, sockets: [...perIp.values()].reduce((a, b) => a + b, 0) }, rssMb: Math.round(mem.rss / 1e6), list: games });
+  netMetrics.httpOut(body);
   res.writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').writeHeader('Access-Control-Allow-Origin', '*').end(body);
 });
 
@@ -935,7 +1088,9 @@ async function shutdown(signal, exitCode = 0) {
       await stats.close();
       await achievements.close();
       await bestiary.close();
+      await lobbyCards.closeAll();
       await cards.close([...lobby.rooms.values()]); // (the bets of the games not handed over go back; the finds are written)
+      await loadouts.close();
       await store?.close();
       await cluster?.stop().catch((err) => log(`cluster: rows of this server left for the others to sweep (${err.message})`));
       settings?.stop();

@@ -55,27 +55,30 @@ export function sameOrigin(origin, host) {
 }
 
 // Writes a reply, unless the client went away
-export function reply(res, { status = 200, body = null, cookies = [], headers = {} } = {}) {
+export function reply(res, { status = 200, body = null, cookies = [], headers = {} } = {}, metrics = null) {
   if (res.aborted) return;
+  const text = body === null ? '{}' : JSON.stringify(body);
+  metrics?.httpOut(text);
   res.cork(() => {
     res.writeStatus(STATUS_TEXT[status] || String(status));
     res.writeHeader('Content-Type', 'application/json');
     res.writeHeader('Cache-Control', 'no-store');
     for (const [k, v] of Object.entries(headers)) res.writeHeader(k, v);
     for (const c of cookies) res.writeHeader('Set-Cookie', c);
-    res.end(body === null ? '{}' : JSON.stringify(body));
+    res.end(text);
   });
   res.aborted = true; // (written: nothing more goes out on it)
 }
 
 // The body, up to `max` bytes, as one Buffer. Must be called before the handler returns (uWS)
-function readBody(res, max) {
+function readBody(res, max, metrics = null) {
   return new Promise((resolve, reject) => {
     const parts = [];
     let size = 0;
     let done = false;
     res.onData((chunk, last) => {
       if (done) return;
+      metrics?.httpIn(chunk.byteLength);
       size += chunk.byteLength;
       if (size > max) {
         done = true;
@@ -103,7 +106,7 @@ const decode = (v) => {
 
 // app: the uWS app. method: 'get' | 'post' | 'put' | 'del'. opts: { body: read a JSON body, max: its most bytes,
 // address: (res, req) -> the client's address }
-export function api(app, method, path, fn, { body = false, max = 4096, address = () => '', log = console.error } = {}) {
+export function api(app, method, path, fn, { body = false, max = 4096, address = () => '', log = console.error, metrics = null } = {}) {
   const nParams = (path.match(/:/g) || []).length;
   app[method](path, (res, req) => {
     const ctx = {
@@ -119,6 +122,7 @@ export function api(app, method, path, fn, { body = false, max = 4096, address =
       contentType: req.getHeader('content-type'),
       site: req.getHeader('sec-fetch-site'), // what the browser says of where the request came from ('' : not a browser, or an old one)
       panel: req.getHeader('x-stn-admin'), // the admin panel's own header (adminpanel.js guard)
+      guest: req.getHeader('x-stn-guest'), // a guest's browser id, on a read that has no body (never in the URL: client/net/identity.js)
       ip: address(res, req),
     };
     res.aborted = false;
@@ -126,13 +130,13 @@ export function api(app, method, path, fn, { body = false, max = 4096, address =
       res.aborted = true;
     });
     const fail = (err) => {
-      if (err instanceof HttpError) return reply(res, { status: err.status, body: { error: err.message, ...(err.extra || {}) } });
+      if (err instanceof HttpError) return reply(res, { status: err.status, body: { error: err.message, ...(err.extra || {}) } }, metrics);
       log(`[server] ${ctx.method} ${ctx.url} failed:`, err);
-      reply(res, { status: 500, body: { error: 'Something went wrong on the server' } });
+      reply(res, { status: 500, body: { error: 'Something went wrong on the server' } }, metrics);
     };
     const run = (b) => {
       try {
-        Promise.resolve(fn(ctx, b)).then((out) => reply(res, out || {}), fail);
+        Promise.resolve(fn(ctx, b)).then((out) => reply(res, out || {}, metrics), fail);
       } catch (err) {
         fail(err);
       }
@@ -147,7 +151,7 @@ export function api(app, method, path, fn, { body = false, max = 4096, address =
       res.onData(() => {});
       return fail(new HttpError(403, 'Not from this site'));
     }
-    readBody(res, max).then((buf) => {
+    readBody(res, max, metrics).then((buf) => {
       let o;
       try {
         o = JSON.parse(buf.toString('utf8') || '{}');

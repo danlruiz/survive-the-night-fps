@@ -25,11 +25,13 @@ import { SURF, BLOW, MARK, LIGHT_PROPS, surfaceOfMat, markFor, blowForce, NO_SUR
 import { HITF, WRECK_SALVAGE, wreckOf, wreckLocal } from '../../shared/wrecks.js';
 import { LiftBatch } from './liftbatch.js';
 import { markCorners } from './marks.js';
+import { propVariant } from './models/props.js';
 import { refine, islands, boxDist, rayPieces, dent, PANEL } from './wreckgeo.js';
 
 const PAINTED = new Set(['carpaint', 'paint', 'aircraft']);
 const TRIM = new Set(['chrome', 'steel', 'taillight', 'metal', 'rust', 'wood', 'plastic', 'iron', 'olive', 'tin', 'rubber', 'wire', 'emissive_red', 'cloth']);
 const FINE = 0.27; // m: no edge of a panel is longer (a dent has vertices to move)
+const FINES_KEPT = 24; // Wrecks.fineModel(): models kept (a car's is some 400 kB)
 const LOOSE_MAX = 14;
 const SIM_DT = 1 / 60;
 const BUILD_NEAR = 170; // m: a wreck on record is built when the eye is this near
@@ -72,8 +74,8 @@ class Lifted {
     this.half = [size[0] / 2, size[1], size[2] / 2];
     this.W = new THREE.Matrix4().compose(_v.set(prop.x, prop.y, prop.z), _q.setFromAxisAngle(Y, prop.ry), _one);
     this.Wi = this.W.clone().invert();
-    const pieces = (this.pieces = sys.staticWorld.pieces(prop));
-    if (fine) for (const p of pieces) refine(p, Math.max(FINE, Math.hypot(size[0], size[2]) * 0.062));
+    this.model = fine ? sys.fineModel(prop) : null;
+    const pieces = (this.pieces = sys.staticWorld.pieces(prop, this.model?.pieces));
     this.orig = pieces.map((p) => p.pos);
     this.origN = pieces.map((p) => p.nrm);
     this.rest = pieces.map((p) => p.pos.slice());
@@ -244,7 +246,8 @@ class Wreck extends Lifted {
 
   // ---- the model's solid pieces, sorted into parts
   sort() {
-    const is = (this.isles = islands(this.pieces, (x, y, z, o) => this.local(x, y, z, o)));
+    // (the model's, its own copy: a wreck marks its islands as it is taken apart)
+    const is = (this.isles = this.model.isles.map((s) => ({ ...s, min: s.min.slice(), max: s.max.slice(), mid: s.mid.slice() })));
     this.isleOf = this.pieces.map((p) => new Int32Array(p.count).fill(-1));
     is.forEach((s, i) => {
       s.i = i;
@@ -1185,11 +1188,13 @@ export class Wrecks {
     this.active = new Set();
     this.alarms = new Map(); // prop -> { until, blink, chirp }
     this.cache = []; // the last few props a ray was cast at: [prop, pieces]
+    this.fines = new Map(); // 'type:variant' -> fineModel(): the last few wrecks' models, the latest last
     this.scanT = 0;
     this.pried = new Set(); // the cars whose boot stands open (Wrecks.pry)
   }
   setWorld(world, staticWorld, marks) {
     this.clear();
+    this.fines.clear();
     this.world = world;
     this.staticWorld = staticWorld;
     this.marks = marks;
@@ -1221,6 +1226,28 @@ export class Wrecks {
 
   get(prop) {
     return this.live.get(prop) || null;
+  }
+  // A wreck's model with its panels cut finer (refine) and sorted into its solid pieces (islands), in its own frame:
+  // { pieces (StaticWorld.model's, cut), isles } or null. Made once a model, not once a car: the cutting and the
+  // sorting were most of the frame a car's first blow froze for (80 to 150 ms).
+  fineModel(prop) {
+    const key = `${prop.type}:${propVariant(prop.type, prop.seed)}`;
+    let f = this.fines.get(key);
+    if (f !== undefined) this.fines.delete(key);
+    else {
+      const model = this.staticWorld.model(prop.type, prop.seed);
+      f = null;
+      if (model) {
+        const size = PROPS[prop.type].size;
+        // (refine puts new arrays on the piece it is given: the model's own are left as they are)
+        const pieces = model.map((p) => ({ ...p }));
+        for (const p of pieces) refine(p, Math.max(FINE, Math.hypot(size[0], size[2]) * 0.062));
+        f = { pieces, isles: islands(pieces, (x, y, z, o) => ((o[0] = x), (o[1] = y), (o[2] = z), o)) };
+      }
+    }
+    this.fines.set(key, f);
+    if (this.fines.size > FINES_KEPT) this.fines.delete(this.fines.keys().next().value);
+    return f;
   }
   wreck(prop) {
     let w = this.live.get(prop);
