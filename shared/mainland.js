@@ -3766,12 +3766,12 @@ export function createMainland(seed) {
     part(b, 3, 16.6, 9.4, 0.14 + 0.76);
     part(b, 3, 8.4, 3.2, 0.14);
     b.prop('satellite_dish', 22.6, 0.6, 2.2);
-    b.room(-14, 8, 12, 7, 3, 'tin', { n: [door(6, 1.2)], s: [win(6, 1.4)] }, { roof: 'flat', roofMat: 'tin', floorMat: 'planks' });
+    b.room(-14, 8, 12, 7, 3, 'olive', { n: [door(6, 1.2)], s: [win(6, 1.4)] }, { roof: 'flat', roofMat: 'tin', floorMat: 'planks' });
     b.prop('field_cot', -17, 9.6, PI / 2, { ly: 0.12 });
     b.prop('field_cot', -11, 9.6, PI / 2, { ly: 0.12 });
     b.cont(CONT.AMMO_BOX, -14, 10.4, { prop: 'military_crate', ry: 0, ly: 0.12 });
     part(b, 3, -18.6, 6.2, 0.14);
-    b.room(-14, 22, 12, 7, 3, 'tin_rust', { n: [door(6, 1.2)] }, { roof: 'flat', roofMat: 'tin', floorMat: 'planks' });
+    b.room(-14, 22, 12, 7, 3, 'olive', { n: [door(6, 1.2)] }, { roof: 'flat', roofMat: 'tin', floorMat: 'planks' });
     b.cont(CONT.SHELF, -9.8, 24.6, { prop: 'shelf', ry: PI, ly: 0.12 });
     b.loot(-15, 21, 0.14);
     for (const [tx, tz, k] of [[24, 24, 0], [34, 24, 1]]) b.prop('military_tent', tx, tz, 0, { seed: k });
@@ -3784,6 +3784,26 @@ export function createMainland(seed) {
     b.loot(2, 10);
     b.loot(26, 18);
     b.loot(-26, -22);
+    // the compound as the army kept it, read from the road: a concrete apron from the gate to the huts and the comms
+    // room, a lamp over each door still lit off the generator, floodlights at the corners of the wire, the gate's
+    // sandbagged post and barriers on the road in, its sign, wire along the inside of the front fence, a flagpole, the
+    // stacks of crates on pallets (dice of their own: what else the seed deals stays put)
+    {
+      const od = (n) => hash2(n, 77, (seed ^ 0x0b57) | 0);
+      for (const [px, pz, w, d] of [[0, 20, 8, 32], [6, 6, 34, 10], [-14, 15, 14, 22]]) b.box(px, -0.02, pz, w, 0.08, d, 'concrete', { collide: false });
+      for (const [lx, lz] of [[18, 1.2], [-14, 4.2], [-14, 18.2]]) b.light(lx, 2.6, lz, 'lamp');
+      for (const [lx, lz, ry] of [[-HX + 3, HZ - 3, PI * 0.75], [HX - 3, HZ - 3, -PI * 0.75], [-HX + 3, -HZ + 3, PI * 0.25], [HX - 3, -HZ + 3, -PI * 0.25]]) extra(b, 'floodlight_tower', lx, lz, ry);
+      extra(b, 'sandbag_nest', 9, HZ - 4, 0);
+      extra(b, 'checkpoint_sign', -8.5, HZ + 2.5, PI);
+      for (const lx of [-5, 5]) extra(b, 'jersey_barrier', lx, HZ + 9, 0.3 * Math.sign(lx));
+      for (let lx = -HX + 8; lx <= HX - 8; lx += 7) if (Math.abs(lx) > 9) extra(b, 'concertina', lx, HZ - 2.2, 0);
+      b.cyl(4, 0, 12, 0.08, 9, 'metal', { sides: 6 });
+      b.box(4.75, 7.2, 12, 1.4, 0.9, 0.02, 'canvas_mil', { collide: false });
+      for (let k = 0; k < 4; k++) {
+        const [lx, lz] = [26 + (k % 2) * 3.2, -6 - (k >> 1) * 3.4];
+        if (extra(b, 'pallet', lx, lz, od(k) * 0.3)) extra(b, 'military_crate', lx, lz, od(k + 9) * 0.4, { ly: 0.15 });
+      }
+    }
     // (cleared inside the wire, and a few metres out from it: the woods stand round it)
     for (let lx = -HX + 6; lx <= HX - 6; lx += 12) for (let lz = -HZ + 6; lz <= HZ - 6; lz += 12) b.clear(lx, lz, 10);
     for (let lx = -HX; lx <= HX; lx += 8) for (const lz of [-HZ, HZ]) b.clear(lx, lz, 5);
