@@ -3,6 +3,7 @@ import { CARDOP, CARDMSG } from '../../shared/protocol.js';
 import { loadoutDef } from '../../shared/loadout.js';
 import { CardsClient } from './cards.js';
 import { LobbyCardsConnection } from '../net/lobbycards.js';
+import { accountState, onAccountChange } from '../net/account.js';
 
 export class LobbyCardsClient extends CardsClient {
   constructor({ ui, audio, name }) {
@@ -22,6 +23,29 @@ export class LobbyCardsClient extends CardsClient {
     this.names = new Map();
     this.conn = new LobbyCardsConnection({ cards: (m) => this.onMessage(m), close: () => this.onClose() });
     this.s.tables = [];
+
+    // Whose cards, decks and loadout items the socket has was fixed when it joined (server/lobbycards.js ownerOf).
+    // Signing in or out on the splash joins it again as whoever this is now: signing in moves a guest's things onto
+    // the account, so it would show (and offer to bet) none, and signing out must not leave the account's here. A
+    // table match under way is played out first, since leaving would give it up.
+    let who = accountState().ready ? accountState().user?.id || '' : null; // (null: not known yet)
+    this.rejoin = false;
+    onAccountChange((a) => {
+      const now = a.user?.id || '';
+      const was = who;
+      who = now;
+      if (was === null || was === now) return; // (the first answer: a socket open by then joined with the same cookie)
+      this.rejoin = true;
+      this.rejoinIfIdle();
+    });
+  }
+
+  rejoinIfIdle() {
+    if (!this.rejoin || (this.s.match && !this.s.match.local)) return;
+    this.rejoin = false;
+    if (!this.conn.ws) return; // (not connected: the next open joins as whoever this is then)
+    this.conn.close();
+    this.conn.connect(this.getName());
   }
 
   reset() {
@@ -70,7 +94,9 @@ export class LobbyCardsClient extends CardsClient {
     }
     if (msg.op === CARDMSG.MATCH && msg.data?.oppName) this.names.set(msg.data.opp | 0, String(msg.data.oppName));
     if (msg.op === CARDMSG.MATCH_END && msg.data?.oppName) this.names.set(msg.data.opp | 0, String(msg.data.oppName));
-    return super.onMessage(msg);
+    const out = super.onMessage(msg);
+    if (msg.op === CARDMSG.MATCH_END) this.rejoinIfIdle();
+    return out;
   }
 
   openTable(slot = this.lastSlot(), stake = []) {

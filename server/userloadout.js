@@ -466,20 +466,21 @@ export class PgLoadoutStore {
           await t.query('INSERT INTO loadout_slots (owner, user_id, slot, item_id) VALUES ($1, $2::uuid, $3, $4::uuid) ON CONFLICT (owner, slot) DO NOTHING', [account, userOf(account), slot, row.item_id]);
         }
       }
+      // (a new ledger id for every move: the guest's balance row going in this same transaction is what stops it
+      // counting twice. One made of the guest and the account, as it was, was already taken the second time the
+      // same browser signed in to the same account, and the skulls it had earned in between were deleted, not moved.)
       let skulls = 0;
       const gb = (await t.query('DELETE FROM loadout_skull_balances WHERE owner = $1 RETURNING balance', [guest])).rows[0]?.balance || 0;
       if (gb > 0) {
-        const id = `guest-merge:${guest}:${account}`;
-        const fresh = (await t.query('INSERT INTO loadout_skull_ledger (id, kind, meta) VALUES ($1, $2, $3::jsonb) ON CONFLICT (id) DO NOTHING RETURNING id', [id, 'guest_merge', JSON.stringify({ guest, account })])).rows.length > 0;
-        if (fresh) {
-          await t.query('INSERT INTO loadout_skull_entries (ledger_id, owner, user_id, delta) VALUES ($1, $2, NULL, $3), ($1, $4, $5::uuid, $6)', [id, guest, -gb, account, userOf(account), gb]);
-          await t.query(
-            `INSERT INTO loadout_skull_balances (owner, user_id, balance) VALUES ($1, $2::uuid, $3)
-             ON CONFLICT (owner) DO UPDATE SET balance = loadout_skull_balances.balance + EXCLUDED.balance, updated_at = now()`,
-            [account, userOf(account), gb]
-          );
-          skulls = gb;
-        }
+        const id = `guest-merge:${randomUUID()}`;
+        await t.query('INSERT INTO loadout_skull_ledger (id, kind, meta) VALUES ($1, $2, $3::jsonb)', [id, 'guest_merge', JSON.stringify({ guest, account })]);
+        await t.query('INSERT INTO loadout_skull_entries (ledger_id, owner, user_id, delta) VALUES ($1, $2, NULL, $3), ($1, $4, $5::uuid, $6)', [id, guest, -gb, account, userOf(account), gb]);
+        await t.query(
+          `INSERT INTO loadout_skull_balances (owner, user_id, balance) VALUES ($1, $2::uuid, $3)
+           ON CONFLICT (owner) DO UPDATE SET balance = loadout_skull_balances.balance + EXCLUDED.balance, updated_at = now()`,
+          [account, userOf(account), gb]
+        );
+        skulls = gb;
       }
       return { items: moved.length, slots: guestSlots.length, skulls };
     });
@@ -802,14 +803,10 @@ export class MemoryLoadoutStore {
     let skulls = 0;
     const gb = this.skulls.get(guest) || 0;
     if (gb > 0) {
-      const id = `guest-merge:${guest}:${account}`;
-      if (!this.skullLedger.has(id)) {
-        const movedAt = Date.now();
-        this.skulls.delete(guest);
-        this.skulls.set(account, (this.skulls.get(account) || 0) + gb);
-        this.skullLedger.set(id, { kind: 'guest_merge', entries: [{ owner: guest, delta: -gb }, { owner: account, delta: gb }], meta: { guest, account }, at: movedAt });
-        skulls = gb;
-      }
+      this.skulls.delete(guest);
+      this.skulls.set(account, (this.skulls.get(account) || 0) + gb);
+      this.skullLedger.set(`guest-merge:${randomUUID()}`, { kind: 'guest_merge', entries: [{ owner: guest, delta: -gb }, { owner: account, delta: gb }], meta: { guest, account }, at: Date.now() });
+      skulls = gb;
     }
     return { items, slots: nslots, skulls };
   }
