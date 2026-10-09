@@ -225,6 +225,17 @@ export function groundFields(world) {
       }
     }
   }
+  // (the zones that reach into each 64 m cell: a vertex asks only those - a million vertices asked every zone of the
+  // mainland's forty, most of the field's build)
+  const ZC = 64;
+  const ZN = Math.ceil((MAP_HALF * 2) / ZC) + 1;
+  const zoneCells = Array.from({ length: ZN * ZN }, () => []);
+  for (const zn of zones) {
+    const r = zn.flat + 18;
+    for (let cj = Math.max(0, Math.floor((zn.z - r + MAP_HALF) / ZC)); cj <= Math.min(ZN - 1, Math.floor((zn.z + r + MAP_HALF) / ZC)); cj++) {
+      for (let cx = Math.max(0, Math.floor((zn.x - r + MAP_HALF) / ZC)); cx <= Math.min(ZN - 1, Math.floor((zn.x + r + MAP_HALF) / ZC)); cx++) zoneCells[cj * ZN + cx].push(zn);
+    }
+  }
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -233,7 +244,7 @@ export function groundFields(world) {
       const h = H[k];
       let open = 0;
       let yard = 0;
-      for (const zn of zones) {
+      for (const zn of zoneCells[Math.min(ZN - 1, Math.floor((z + MAP_HALF) / ZC)) * ZN + Math.min(ZN - 1, Math.floor((x + MAP_HALF) / ZC))]) {
         const d = Math.hypot(x - zn.x, z - zn.z);
         open = Math.max(open, 1 - smoothstep(zn.flat * 0.8, zn.flat + 18, d));
         if (zn.dirt) yard = Math.max(yard, zn.dirt * (1 - smoothstep(zn.flat * 0.35, zn.flat * 0.85, d)));
@@ -246,7 +257,7 @@ export function groundFields(world) {
       const slope = 1 - nrm[k * 3 + 1];
       // concavity at two scales: drainage lines and hollows collect water
       let lap = 0;
-      for (const s of [2, 5]) lap += ((at(i - s, j) + at(i + s, j) + at(i, j - s) + at(i, j + s)) * 0.25 - h) / (s * GRID_STEP);
+      for (let s = 2; s <= 5; s += 3) lap += ((at(i - s, j) + at(i + s, j) + at(i, j - s) + at(i, j + s)) * 0.25 - h) / (s * GRID_STEP);
       wet[k] = Math.max(smoothstep(0.02, 0.16, lap), smoothstep(WATER_LEVEL + 2.5, WATER_LEVEL + 0.4, h)) * (1 - road);
       rock[k] = smoothstep(0.16, 0.27, slope + n * 0.03) * (1 - road);
       // (a quarry's pit is bare stone, its benches and all: no grass in it)
@@ -324,7 +335,7 @@ export function buildTerrain(world) {
   const pos = new Float32Array(count * 3);
   const extra = new Float32Array(count * 4);
   const roadAttr = new Float32Array(count * 4);
-  const soilAttr = new Float32Array(count * 2);
+  const soilAttr = new Uint8Array(count * 2); // (bytes, normalized: a quarter of the memory floats took)
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -341,8 +352,8 @@ export function buildTerrain(world) {
       roadAttr[k * 4 + 1] = frame.along[k];
       roadAttr[k * 4 + 2] = frame.hw[k];
       roadAttr[k * 4 + 3] = F.paved[k] ? 0 : frame.conf[k]; // (a paved yard: its layer as it is, no road's edges or lines)
-      soilAttr[k * 2] = F.soil[k];
-      soilAttr[k * 2 + 1] = F.scree[k];
+      soilAttr[k * 2] = Math.round(F.soil[k] * 255);
+      soilAttr[k * 2 + 1] = Math.round(F.scree[k] * 255);
     }
   }
   // One vertex buffer for the whole heightfield, drawn as TERRAIN_CHUNK x TERRAIN_CHUNK-cell pieces with an index
@@ -355,7 +366,7 @@ export function buildTerrain(world) {
     aSplat: new THREE.BufferAttribute(F.base, 4),
     aExtra: new THREE.BufferAttribute(extra, 4),
     aRoad: new THREE.BufferAttribute(roadAttr, 4),
-    aSoil: new THREE.BufferAttribute(soilAttr, 2),
+    aSoil: new THREE.BufferAttribute(soilAttr, 2, true),
   };
   // (the pieces are runs of one index buffer, and the terrain one mesh that draws those in sight in one call: multimesh.js)
   // On a world as big as the mainland a piece wholly past the drawing distance (the haze has everything there) is not
