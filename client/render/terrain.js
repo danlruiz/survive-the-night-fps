@@ -546,24 +546,25 @@ export function buildTerrain(world) {
         vec3 ground = cG.rgb * w.x + cF.rgb * w.y + cM.rgb * w.z;
         // under the trees no one floor: patches of bare dark earth and needles between the moss and the litter
         if (w.y > 0.05 && uMain > 0.5) {
-          vec3 earth = textureGrad(tDirt, ROT * wp * 0.31 + 0.71, rwx * 0.31, rwy * 0.31).rgb * vec3(0.62, 0.55, 0.47);
-          float ke = smoothstep(0.55, 0.75, nMid.g * 0.75 + nFine.b * 0.3 + (dot(earth, vec3(0.333)) - 0.2)) * w.y * uMain;
+          // (the floor's own texel, darkened to earth: no texture more to read)
+          vec3 earth = cF.w * vec3(0.5, 0.4, 0.31) + 0.012;
+          float ke = smoothstep(0.55, 0.75, nMid.g * 0.75 + nFine.b * 0.3 + (cF.w - 0.3) * 0.8) * w.y * uMain;
           ground = mix(ground, earth, ke * 0.8);
         }
         // bare ground: gravel and trodden dirt (the roads' edges, the yards, patches in the open), and the scree of
         // broken stone along a mountain's foot - each laid on by the height of its texel, so the edges are ragged
-        if (vSoil.x + vSoil.y > 0.01) {
-          vec3 dirtS = textureGrad(tDirt, ROT * wp * 0.27 + 0.13, rwx * 0.27, rwy * 0.27).rgb * vec3(0.95, 0.9, 0.84);
-          vec3 grav = textureGrad(tGravel, wp * 0.45, wx * 0.45, wy * 0.45).rgb * vec3(0.5, 0.48, 0.44);
-          vec3 bareC = mix(dirtS, grav, smoothstep(0.35, 0.65, nMid.g + (nFine.r - 0.5) * 0.3));
+        // (only where there is enough of either to show: below that the texel heights never let it through)
+        if (vSoil.x > 0.1 || vSoil.y > 0.05) {
+          vec3 bareC = textureGrad(tDirt, ROT * wp * 0.27 + 0.13, rwx * 0.27, rwy * 0.27).rgb * vec3(0.95, 0.9, 0.84);
+          float gk = smoothstep(0.35, 0.65, nMid.g + (nFine.r - 0.5) * 0.3);
+          if (gk > 0.01) bareC = mix(bareC, textureGrad(tGravel, wp * 0.45, wx * 0.45, wy * 0.45).rgb * vec3(0.5, 0.48, 0.44), gk);
           // (the quarry's ledges and floor: broken stone and grit, grey and dark in the pit's shade)
           if (uPit.z > 0.0) bareC = mix(bareC, dot(bareC, vec3(0.333)) * vec3(0.62, 0.62, 0.64), 1.0 - smoothstep(uPit.z - 3.0, uPit.z + 6.0, distance(wp, uPit.xy)));
           float ks = smoothstep(0.3, 0.7, vSoil.x + (dot(bareC, vec3(0.333)) - 0.32) * 1.2 + (nFine.r - 0.5) * 0.45);
           ground = mix(ground, bareC, ks);
           if (vSoil.y > 0.01) {
             vec4 sc = triRock(tRock, vWPos * 2.1, normalize(vNw), 0.21, dpx * 2.1, dpy * 2.1);
-            vec4 sc2 = triRock(tRock, vWPos * 0.6 + 1.7, normalize(vNw), 0.21, dpx * 0.6, dpy * 0.6);
-            vec3 screeC = sc.rgb * (0.75 + 0.5 * sc2.w) * vec3(0.95, 0.93, 0.9);
+            vec3 screeC = sc.rgb * (0.75 + 0.5 * nMid.r) * vec3(0.95, 0.93, 0.9);
             float kc = smoothstep(0.3, 0.7, vSoil.y + (sc.w - 0.4) * 0.9 + (nMid.b - 0.5) * 0.5);
             ground = mix(ground, screeC, kc);
           }
@@ -662,7 +663,7 @@ export function buildTerrain(world) {
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'terrain-splat-7';
+  mat.customProgramCacheKey = () => 'terrain-splat-8';
   const group = new THREE.Group();
   group.name = 'terrain';
   const mesh = new MultiMesh(geo, mat, runs);

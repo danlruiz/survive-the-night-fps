@@ -19,7 +19,7 @@ const CELL = 32;
 const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
 const FAR_LOD = 24; // m: there, where the trees' near copy gives way to the far one
 const FAR_CAST = 50; // m: there, how far from the eye a tree throws a shadow
-const CRAG_DIST = 420; // m: the cliffs' crags are drawn this far (the haze thins up the mountains: they are seen far)
+const CRAG_DIST = 320; // m: the cliffs' crags are drawn this far (the haze thins up the mountains: they are seen far)
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
 // The view the instance buffers were last filled for, padded: what is outside it is not drawn at all (two thirds of
@@ -535,7 +535,7 @@ export class Foliage {
     this.trees.castDist = sd ? (this.far ? Math.min(sd, FAR_CAST) : sd + 25) : 0;
     this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, 40) : 0;
     this.rocks.castDist = sd && q.foliageShadows ? Math.min(sd, 90) : 0;
-    if (this.crags) this.crags.castDist = sd ? Math.min(sd, 110) : 0;
+    if (this.crags) this.crags.castDist = sd ? Math.min(sd, 60) : 0;
     // (where the near copy - every bough a card of its own, many deep in a crown - gives way to the far one: on the
     // mainland, where the woods stand thick round the eye, at FAR_LOD)
     const mid = this.far ? FAR_LOD : Math.max(35, q.treeDist * 0.25);
