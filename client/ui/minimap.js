@@ -44,8 +44,10 @@ export class Minimap {
     this.size = s;
     this.pinPx = Math.max(14, s * 0.085);
     const n = Math.round(s * Math.min(2, window.devicePixelRatio || 1));
-    if (this.cv.width !== n) this.cv.width = this.cv.height = n;
-    if (this.en.width !== n) this.en.width = this.en.height = n;
+    // (both sides: a canvas starts 300 x 150, so at 150 css px on a 2x screen - a phone's - the width is right already and
+    // a check of it alone left the height at 150, the disc stretched to twice its height)
+    if (this.cv.width !== n || this.cv.height !== n) this.cv.width = this.cv.height = n;
+    if (this.en.width !== n || this.en.height !== n) this.en.width = this.en.height = n;
     this.enN = -1;
     this.drawn = '';
   }
