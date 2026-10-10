@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- (a phone: added to the home screen, the game opens fullscreen - an iPhone has no other fullscreen for a page) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Survive The Night</title>
     <meta name="description" content="Online co-op zombie survival for 1–16 players. Scavenge by day, board up by night, fix the car, and escape together." />
     <meta name="theme-color" content="#050404" />
@@ -33,6 +37,7 @@
     <link rel="stylesheet" href="./ui/ui.css" />
     <link rel="stylesheet" href="./ui/ui2.css" />
     <link rel="stylesheet" href="./ui/cards.css" />
+    <link rel="stylesheet" href="./ui/touch.css" />
     <script defer src="https://umami-production-101d.up.railway.app/script.js" data-website-id="6e6265bb-25ed-4f8b-819b-44a27434ed51"></script>
   </head>
   <body>
