@@ -56,7 +56,7 @@ const memStore = () => {
   const store = memStore();
   B.loadBinds(store);
   check('nothing stored: the defaults, never changed', eq(B.allBinds(), Object.fromEntries(ACTIONS.map((a) => [a.id, [...a.keys]]))) && B.bindsUpdatedAt() === 0);
-  check('lookups: KeyW is forward, Mouse0 is fire, KeyR is reload and next structure', eq(B.actionsOf('KeyW'), ['forward']) && eq(B.actionsOf('Mouse0'), ['fire']) && eq(B.actionsOf('KeyR'), ['reload', 'buildNext']) && eq(B.actionsOf('KeyP'), []));
+  check('lookups: KeyW is forward, Mouse0 is fire, KeyR is reload and next structure', eq(B.actionsOf('KeyW'), ['forward']) && eq(B.actionsOf('Mouse0'), ['fire']) && eq(B.actionsOf('KeyR'), ['reload', 'buildNext']) && eq(B.actionsOf('KeyN'), []));
   check('Dead Hand is on K, a key of the menus (it shuts its own screen), under Interface', eq(B.actionsOf('KeyK'), ['cards']) && ACTION.cards.menu && ACTION.cards.group === 'Interface' && eq(DEFAULT_BINDS.cards, ['KeyK', null]) && B.bindTag('cards') === '[K]');
   check('text: [E], Left Ctrl / C, [B]', B.bindTag('interact') === '[E]' && B.bindPair('crouch') === 'Left Ctrl / C' && B.bindTag('drink') === '[B]' && eq(B.actionsOf('KeyB'), ['drink']) && eq(B.actionsOf('Tab'), ['players']));
 
@@ -132,7 +132,7 @@ const memStore = () => {
   check("a player's own bind on K wins: flashlight stays on K, Dead Hand is left with no key (not two actions on one)", eq(mine.flashlight, ['KeyK', null]) && eq(mine.cards, [null, null]), JSON.stringify([mine.flashlight, mine.cards]));
   const second = fromOverrides({ ping: ['KeyZ', 'KeyK'] });
   check('...on their secondary too; and nothing else of the defaults moves', eq(second.cards, [null, null]) && eq(second.map, ['KeyM', null]) && eq(second.bestiary, ['KeyJ', null]));
-  check('...a default that collides with nothing they chose is kept (K free: Dead Hand on K)', eq(fromOverrides({ flashlight: ['KeyP', null] }).cards, ['KeyK', null]) && eq(fromOverrides(null).cards, ['KeyK', null]));
+  check('...a default that collides with nothing they chose is kept (K free: Dead Hand on K)', eq(fromOverrides({ flashlight: ['KeyN', null] }).cards, ['KeyK', null]) && eq(fromOverrides(null).cards, ['KeyK', null]));
   check('...a hands key with a build key is no collision (Q for interact keeps last weapon / back on Q)', eq(fromOverrides({ interact: ['KeyQ', null] }).buildPrev, ['KeyQ', null]));
   const lone = fromOverrides({ heal: ['Mouse1', null] });
   check('...an action that gives up its primary keeps its secondary as the primary (ping: Z, MMB -> Z)', eq(lone.ping, ['KeyZ', null]) && eq(fromOverrides({ heal: ['KeyZ', null] }).ping, ['Mouse1', null]));

@@ -1,15 +1,42 @@
-// Killfeed (top-right), pickup toasts (right-middle), cinematic titles (centre) and toasts (bottom-centre).
+// One feed down the right edge (kills and pickups, newest at the foot), cinematic titles (centre) and toasts
+// (bottom-centre).
 import { ITEM_DEFS } from '../../shared/defs.js';
 import { el, svgEl } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 
+// ---------------------------------------------------------------- the feed
+// The killfeed and the pickups write into the one list (the first of them to be made makes it), held between the
+// clock and the weapons (ux-hud.css): when the rows outnumber what it keeps, the oldest go
+function feedList(parent) {
+  let list = parent.querySelector(':scope > .hud-feed');
+  if (!list) {
+    list = el('div', 'hud-feed', parent);
+    list.rows = 8;
+  }
+  return list;
+}
+
+function trim(list) {
+  while (list.childElementCount > list.rows) list.firstElementChild.remove();
+}
+
 // ---------------------------------------------------------------- killfeed
 export class Killfeed {
   constructor(parent) {
-    this.root = el('div', 'killfeed', parent);
+    this.root = feedList(parent);
+    this.teamOnly = false;
+  }
+
+  // rows: how many the feed keeps (compact: fewer); teamOnly (the night): only the team's own deaths come in
+  setMode({ rows = 8, teamOnly = false } = {}) {
+    this.root.rows = rows;
+    if (teamOnly && !this.teamOnly) this.root.querySelectorAll('.kf-row:not(.vp)').forEach((r) => r.remove());
+    this.teamOnly = teamOnly;
+    trim(this.root);
   }
 
   add(e) {
+    if (this.teamOnly && !e.victimPlayer) return;
     const row = el('div', 'kf-row');
     if (e.killerZombie) row.classList.add('kz');
     if (e.victimPlayer) row.classList.add('vp');
@@ -20,7 +47,7 @@ export class Killfeed {
     if (e.headshot) svgEl('span', 'kf-hs', row, glyph('headshot'));
     el('span', 'kf-v', row, e.victim || '');
     this.root.appendChild(row);
-    while (this.root.childElementCount > 5) this.root.firstElementChild.remove();
+    trim(this.root);
     setTimeout(() => {
       row.classList.add('out');
       setTimeout(() => row.remove(), 600);
@@ -28,14 +55,14 @@ export class Killfeed {
   }
 
   clear() {
-    this.root.textContent = '';
+    this.root.querySelectorAll('.kf-row').forEach((r) => r.remove());
   }
 }
 
 // ---------------------------------------------------------------- pickups
 export class Pickups {
   constructor(parent) {
-    this.root = el('div', 'pickups', parent);
+    this.root = feedList(parent);
     this.live = new Map(); // itemId -> {row, n, t}
   }
 
@@ -56,7 +83,7 @@ export class Pickups {
       el('span', 'pk-name', row, def.name);
       svgEl('i', 'pk-ico', row, itemIcon(itemId));
       this.root.appendChild(row);
-      while (this.root.childElementCount > 6) this.root.firstElementChild.remove();
+      trim(this.root);
       e = { row, cnt, n: count, t: 0 };
       this.live.set(itemId, e);
     }
@@ -70,7 +97,7 @@ export class Pickups {
   }
 
   clear() {
-    this.root.textContent = '';
+    this.root.querySelectorAll('.pk-row').forEach((r) => r.remove());
     this.live.clear();
   }
 }

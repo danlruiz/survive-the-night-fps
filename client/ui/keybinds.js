@@ -1,4 +1,4 @@
-// Settings > Keybinds: every action and its two keys (game/binds.js), rebound by clicking a key and pressing the new
+// Settings > Keys & controls: every action and its two keys (game/binds.js), rebound by clicking a key and pressing the new
 // one. Esc cancels, Backspace / Delete leaves it without a key, and a mouse button is a key like any other (the click
 // that is pressed while it listens is the bind - so a click elsewhere is no way out: Esc is).
 //
@@ -10,12 +10,19 @@
 // happened to them ("Ping: now on G"). A hands key and a build key may be the same (shared/binds.js sharesOk): no
 // prompt for those.
 import { BIND_GROUPS, ACTIONS, ACTION, isBindCode, mouseCode } from '../../shared/binds.js';
-import { bindsOf, allBinds, keyName, setBind, planBind, resetBind, resetAllBinds, conflictsFor, isDefault, onBindsChange } from '../game/binds.js';
+import { bindsOf, allBinds, keyName, bindLabel, setBind, planBind, resetBind, resetAllBinds, conflictsFor, isDefault, onBindsChange } from '../game/binds.js';
 import { bindsSync, onBindsSync } from '../net/accountbinds.js';
 import { accountState } from '../net/account.js';
 import { el } from './dom.js';
 
 const NOTE = 'Click a key to change it · Esc cancels · Backspace clears';
+// the rows of the old Controls list that are no bind: [what, () => its key caps]
+const FIXED = [
+  ['Menu, and back out of any screen', () => ['Esc']],
+  ['Cycle weapons (hammer out: structures)', () => ['Mouse wheel']],
+  ['Hold: search, revive, start the car', () => [bindLabel('interact')]],
+  ['Hit trees for wood, wrecks for scrap', () => ['Melee', bindLabel('fire')]],
+];
 const SUPPRESS_MS = 700; // after a mouse button is taken: the rest of that click is swallowed too
 
 const SYNC_TEXT = {
@@ -33,25 +40,30 @@ export class KeybindsSection {
     this.noteT = 0;
     this.swallowUntil = 0;
 
+    // Settings > Keys & controls, built for zoom: the title, where the keys are kept and the line that says what a
+    // click or a key will do stay put at the top; only the list under them scrolls, each group's name and the key
+    // columns pinned over its rows. The Controls button on the splash and the pause menu opens this page too.
     const sec = (this.root = el('section', 'set-sec kb-sec', body));
-    const head = el('div', 'kb-head', sec);
-    el('h3', 'set-sec-title', head, 'Keybinds');
+    const top = el('div', 'ux-kb-top', sec);
+    const head = el('div', 'kb-head ux-pane-head', top);
+    el('h3', 'set-sec-title', head, 'Keys & controls');
     this.status = el('span', 'kb-status', head, '');
-    const all = el('button', 'btn btn-ghost kb-btn', head, 'Reset all');
-    all.type = 'button';
-    all.title = 'Every action back on its default keys';
-    all.addEventListener('click', () => {
-      this.cancel();
-      resetAllBinds();
-      this.say('Every key is back on its default');
-      for (const id in this.rows) this.flash(id);
-    });
-    this.note = el('div', 'kb-note', sec, NOTE);
+    this.note = el('div', 'kb-note', top, NOTE);
+    this.note.setAttribute('aria-live', 'polite');
+    const list = (this.list = el('div', 'ux-kb-list', sec));
 
+    // (a box per group: its pinned name leaves with its last row)
     for (const g of BIND_GROUPS) {
-      el('h4', 'kb-group', sec, g);
-      for (const a of ACTIONS.filter((x) => x.group === g)) this._row(sec, a);
+      const box = this._cols(list, g, true);
+      for (const a of ACTIONS.filter((x) => x.group === g)) this._row(box, a);
     }
+    // what the old Controls list said that is no bind: keys that are fixed, and what a key does when it is held
+    const box = this._cols(list, 'Fixed · not rebindable', false);
+    this.fixed = FIXED.map(([label, keys]) => {
+      const r = el('div', 'set-row kb-row ux-kb-fixed', box);
+      el('label', 'set-label', r, label);
+      return { caps: el('div', 'set-ctl kb-ctl', r), keys };
+    });
 
     // the prompt for a key that is taken, moved under whichever row asked
     this.prompt = el('div', 'kb-conflict');
@@ -76,6 +88,27 @@ export class KeybindsSection {
     onBindsChange(() => this.sync());
     onBindsSync(() => this._syncStatus());
     this.sync();
+  }
+
+  // every action back on its default keys (the foot's reset on this tab, and Reset all tabs)
+  resetAll() {
+    this.cancel();
+    resetAllBinds();
+    this.say('Every key is back on its default');
+    for (const id in this.rows) this.flash(id);
+  }
+
+  // a group's box, its name pinned over its rows with the names of the key columns
+  _cols(parent, name, keys) {
+    const box = el('div', 'ux-kb-group', parent);
+    const h = el('div', 'kb-group ux-kb-cols', box);
+    el('span', 'ux-kb-gname', h, name);
+    if (keys) {
+      el('span', 'ux-kb-col', h, 'Key 1');
+      el('span', 'ux-kb-col', h, 'Key 2');
+      el('span', 'ux-kb-col ux-kb-col-r', h, '');
+    }
+    return box;
   }
 
   _row(parent, a) {
@@ -211,6 +244,13 @@ export class KeybindsSection {
       });
       row.reset.classList.toggle('off', isDefault(a.id));
       row.reset.disabled = isDefault(a.id);
+    }
+    for (const f of this.fixed) {
+      f.caps.textContent = '';
+      f.keys().forEach((k, i) => {
+        if (i) el('span', 'ux-kb-plus', f.caps, '+');
+        el('span', 'kbd sm', f.caps, k);
+      });
     }
     this._syncStatus();
   }

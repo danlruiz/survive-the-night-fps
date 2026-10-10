@@ -1,6 +1,6 @@
 // UI sandbox: drives the UI with fake data. ?screen=splash|hud|hud-night|hud-horde|hud-zombie|hud-downed|hud-dawn|
-// hud-finale|hud-live|inventory|players|build|death|gameover|victory|pause|settings|achievements|bestiary|cards|
-// hud-cards|chat|icons|picker|creator|auction
+// hud-finale|hud-live|inventory|players|board|build|death|gameover|victory|pause|settings|achievements|bestiary|
+// cards|hud-cards|chat|icons|picker|creator|auction
 // &bg=night|day|fire
 // &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=
 import { UI } from '../ui/ui.js';
@@ -8,6 +8,9 @@ import { ITEM, ITEM_DEFS, RECIPES, STRUCT, STRUCT_ORDER, ZTYPE, ZOMBIE_DEFS } fr
 import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
 import { itemIcon, structIcon, glyph, GLYPH_NAMES } from '../ui/icons.js';
 import { ACH_BY_ID } from '../../shared/achievements.js';
+import { tonightBrief } from '../ui/hud2.js';
+import { BESTIARY } from '../../shared/bestiary.js';
+import { reloadTracked } from '../ui/books.js';
 import { perkMask, progressView, perkLock, perkDependents, levelOf, xpForLevel } from '../../shared/progress.js';
 import { CardsClient } from '../game/cards.js';
 import { CARDMSG } from '../../shared/protocol.js';
@@ -178,6 +181,8 @@ const ui = new UI(document.getElementById('ui'), {
   onUiSound: () => {},
 });
 window.ui = ui;
+// &run=1: as in a run, where the kit screens (inventory, perks, achievements) have all three tabs (Game.screenRun)
+if (q.get('run')) ui.screenRun = () => true;
 
 // ---------------------------------------------------------------- fake data
 const baseHud = {
@@ -185,7 +190,7 @@ const baseHud = {
   maxHp: 100,
   armor: 42,
   armorMax: 60,
-  stamina: 64,
+  stamina: +(q.get('stamina') ?? 64),
   exhausted: false,
   heals: +(q.get('heals') ?? 3),
   drinks: +(q.get('drinks') ?? 2),
@@ -213,6 +218,15 @@ const baseHud = {
   ping: 42,
   fps: 118,
   players: { alive: 3, total: 4 },
+  // the team over the vitals (Game.hudTeam); &solo=1: nobody else
+  team: q.get('solo')
+    ? []
+    : [
+        { id: 2, name: 'Marlowe', status: 'alive', hp: 0.45, d: 38, talking: true },
+        { id: 4, name: 'Old Hank', status: 'downed', hp: -1, d: 61, talking: false },
+        { id: 3, name: 'deadeye_kat', status: 'zombie', hp: -1, d: 120, talking: false },
+        { id: 5, name: 'Ruth', status: 'dead', hp: -1, d: -1, talking: false },
+      ],
   yaw: 0.6,
   compassMarks: [
     { kind: 'car', bearing: -0.3, icon: glyph('car'), label: '142m' },
@@ -269,12 +283,42 @@ if (inv.backpack) {
 }
 
 const players = [
-  { id: 1, name: 'Survivor417', account: '', status: 'alive', hp: 1, kills: 23, ping: 42, level: 7, perks: perkMask([0, 3, 4, 11]), talking: false, self: true },
-  { id: 2, name: 'Marlowe', account: 'Marlowe', status: 'alive', hp: 0.45, kills: 31, ping: 67, level: 18, perks: perkMask([5, 6, 15, 26, 29, 0, 3]), talking: true, self: false },
+  { id: 1, name: 'Survivor417', account: '', status: 'alive', hp: 1, kills: 23, ping: 42, level: 7, perks: perkMask([0, 3, 4, 11]), talking: false, self: true, dist: 0, dir: null, place: 'by the car' },
+  { id: 2, name: 'Marlowe', account: 'Marlowe', status: 'alive', hp: 0.45, kills: 31, ping: 67, level: 18, perks: perkMask([5, 6, 15, 26, 29, 0, 3]), talking: true, self: false, dist: 38, dir: -0.8, place: '' },
+  { id: 6, name: 'Wren_77', account: 'Wren_77', status: 'alive', hp: 0.82, kills: 17, ping: 51, level: 11, perks: 0, talking: false, radio: true, self: false, dist: 112, dir: 3.0, place: 'Ranger Lookout' },
   { id: 3, name: 'deadeye_kat', account: 'deadeye_kat', status: 'zombie', kills: 12, ping: 88, level: 24, perks: perkMask([5, 6, 21, 18, 14, 16, 27, 4]), talking: false, self: false },
-  { id: 4, name: 'Old Hank', account: '', status: 'downed', kills: 8, ping: 120, level: 3, perks: perkMask([9]), talking: false, self: false },
+  { id: 4, name: 'Old Hank', account: '', status: 'downed', kills: 8, ping: 120, level: 3, perks: perkMask([9]), talking: false, self: false, dist: 64, dir: 0.7, place: 'Pinewood Motel', downFor: 12 },
   { id: 5, name: 'Ruth', account: 'ruthless', status: 'dead', kills: 3, ping: 55, level: 1, perks: 0, talking: false, self: false },
 ];
+
+// a made-up board as the server would send it (shared/protocol.js readBoard): the best 20 in each stat, this game's
+// players and you, with your place in each stat
+function fakeBoard(myKillsPlace) {
+  const names = ['GrimNorth', 'Bonesaw_Bea', 'LanternLu', 'deadeye_kat', 'Mudlark', 'Thornback', 'Kettle', 'pine.box', 'Hollow_Jo', 'ashfall', 'Gravedigger', 'Wickerman', 'SaltLick', 'Ironside', 'Dusty', 'Mags', 'Crowbar', 'Vesper', 'Rook', 'Nettle', 'Tallow', 'Brine'];
+  const rows = names.map((name, i) => ({ name, me: false, here: name === 'deadeye_kat', level: 40 - i, kills: Math.round(18402 * Math.pow(0.86, i)), nights: Math.round(300 * Math.pow(0.9, (i * 7) % 22)), wins: Math.max(0, 30 - ((i * 5) % 31)), revives: Math.round(140 * Math.pow(0.88, (i * 3) % 22)), ranks: null }));
+  rows.push({ name: 'Marlowe', me: false, here: true, level: 18, kills: 4210, nights: 61, wins: 3, revives: 88, ranks: null });
+  const sorted = rows.slice().sort((a, b) => b.kills - a.kills);
+  const kills = myKillsPlace <= 1 ? sorted[0].kills + 500 : myKillsPlace <= 21 ? sorted[myKillsPlace - 2].kills - 7 : 380;
+  rows.push({ name: 'Survivor417', me: true, here: true, level: 7, kills, nights: 7, wins: 0, revives: 12, ranks: [myKillsPlace, 112, 0, 61] });
+  return { total: 1284, rows };
+}
+
+// the side sheet's tabs between the list and the board, as the game does it (Game.sheetGo), without the pointer
+function sandboxSheet() {
+  ui.board.onClose = () => ui.setBoardOpen(false);
+  ui.roster.onClose = () => ui.setRosterOpen(false);
+  ui.sheetGo = (where) => {
+    if (where === 'board') {
+      ui.setRosterOpen(false);
+      ui.setBoardOpen(true);
+      ui.setBoard(fakeBoard(+(q.get('me') || 37)));
+    } else {
+      ui.setBoardOpen(false);
+      ui.setRosterOpen(true);
+      ui.setRosterPinned(true);
+    }
+  };
+}
 
 function feedSome() {
   ui.killfeed({ killer: 'Marlowe', victim: 'Runner', weaponItem: ITEM.SHOTGUN, headshot: false, killerZombie: false, victimPlayer: false });
@@ -370,11 +414,26 @@ if (q.get('minimap')) {
   };
 }
 
+// a guest's achievements, made up: some unlocked, some on their way (the panel reads this browser's record), and
+// &tracked=nights_10,distance_10k the ones tracked on the HUD (default: those two and Regular)
+function fakeAchievements() {
+  const day = 86400_000;
+  const now = Date.now();
+  const unlocked = {};
+  ['kills_10', 'kills_100', 'nights_1', 'escapes_1', 'headshots_25', 'revives_1', 'crafted_10', 'salvaged_10', 'trees_1', 'distance_1k', 'kill_pistol', 'kill_shotgun', 'kill_knife', 'kill_boss', 'mine_enter', 'radio_call', 'flare', 'leaper_off', 'invited', 'walkie', 'cat_lift', 'fall_death'].forEach((id, i) => (unlocked[id] = now - i * day * 0.7 - 3600_000));
+  localStorage.setItem('stn.achievements', JSON.stringify({ v: 1, stats: { kills: 340, nights: 7, escapes: 1, headshots: 61, revives: 3, crafted: 41, salvaged: 12, trees: 4, distance: 6300, days: 2 }, unlocked }));
+  localStorage.setItem('stn.achTracked', JSON.stringify({ v: 1, ids: (q.get('tracked') ?? 'nights_10,distance_10k,days_3').split(',').filter(Boolean) }));
+  reloadTracked();
+}
+// the pause menu's field notes: night &night= (default 3) of seed 1 on the island, by day (&phase=night for the night)
+ui.fieldNotes.ctx = () => ({ seed: 1, act: 1, day: +(q.get('night') || 3), phase: q.get('phase') === 'night' ? PHASE.NIGHT : PHASE.DAY });
+
 // ---------------------------------------------------------------- screens
 let bg = q.get('bg');
 if (q.get('conn')) setTimeout(() => ui.setConnectionStatus('Reconnecting'), 300);
 if (q.get('tx')) setTimeout(() => ui.setVoiceState({ enabled: true, transmitting: true, speakers: ['Marlowe', 'Old Hank'] }), 300);
 if (q.get('fps')) ui._applySettings({ ...ui.getSettings(), showFps: true });
+if (q.get('hudk')) ui._applySettings({ ...ui.getSettings(), hudScale: +q.get('hudk') }); // &hudk=1.3: the HUD size setting
 // &ach=kills_1000,kill_pistol: those achievements' unlock banners, one after another
 if (q.get('ach')) setTimeout(() => ui.achToasts.show(q.get('ach').split(',').map((id) => ACH_BY_ID.get(id)).filter(Boolean)), 300);
 switch (screen) {
@@ -420,6 +479,8 @@ switch (screen) {
       h.tracked = { r, counts: { [ITEM.CLOTH]: 7, [ITEM.LEATHER]: 2 }, near: { fire: false, bench: false }, unlocked: 0 };
       h.prompt = '[E] Pick up Leather ×2 · needed for Backpack (tracked)';
     }
+    // &achtrack=1: three achievements tracked under the objective (&tracked= to choose them)
+    if (q.get('achtrack')) fakeAchievements();
     // &weapon=<item id>&mag=<n>&reserve=<n>&reload=<0..1>: try the ammo block with any primary
     if (q.get('weapon')) Object.assign(h, { weapons: [+q.get('weapon'), ...baseHud.weapons.slice(1)], mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: q.get('reload') == null ? -1 : +q.get('reload') });
     ui.hideSplash();
@@ -448,6 +509,9 @@ switch (screen) {
       flashlight: 12,
       boss: { name: ZOMBIE_DEFS[ZTYPE.BOSS_ABOMINATION].name, hp: 0.64 },
       prompt: '[E] Install Car Battery',
+      wave: 2,
+      waves: 3,
+      objective: { ...baseHud.objective, phase: PHASE.NIGHT, wave: 2, waves: 3 },
     };
     ui.hideSplash();
     feedSome();
@@ -475,6 +539,7 @@ switch (screen) {
       useLabel: 'Bandaging',
       crosshair: { spread: 5, visible: true },
       objective: { ...baseHud.objective, carried: {}, anyCarried: false, timeLeft: 23 },
+      tonight: { key: 'sandbox:3', rows: tonightBrief(1337, 3, 1) }, // the dusk card under the clock (Game.tonight)
     };
     ui.hideSplash();
     feedSome();
@@ -501,7 +566,9 @@ switch (screen) {
     const h = { ...baseHud, hp: 30, phase: PHASE.NIGHT, timeLeft: 88, night: 1, hordeLeft: 21, prompt: null, context: null, crosshair: { spread: 7, visible: false } };
     ui.hideSplash();
     feedSome();
-    loop((t) => ({ ...h, downed: { bleed: Math.max(0, 22 - t), reviving } }));
+    // &alone=1: no teammate in sight
+    const mate = q.get('alone') ? null : { name: 'Marlowe', d: reviving ? 1.2 : 14 };
+    loop((t) => ({ ...h, downed: { bleed: Math.max(0, 22 - t), reviving, mate } }));
     break;
   }
   case 'hud-dawn': {
@@ -511,7 +578,11 @@ switch (screen) {
     ui.updateHud(h);
     ui.notify('Dawn', 'big', 60);
     ui.notify('You made it through the night', 'sub', 60);
-    ui.showSummary({ night: 3, kills: 64, structLost: 5, downs: 2, revives: 1, deaths: 0 }, 'Horde 4: bigger and hungrier. Boomers join the horde: they burst against your walls. Shoot them far off.', null, { name: 'The Bloater', tip: ZOMBIE_DEFS[ZTYPE.BOSS_BLOATER].tip });
+    // (the rows as hud2.js tonightBrief makes them: theme, new kinds, boss)
+    ui.showSummary({ night: 3, kills: 64, structLost: 5, downs: 2, revives: 1, deaths: 0 }, [
+      { kind: 'new', name: ZOMBIE_DEFS[ZTYPE.BOOMER].name + 's' },
+      { kind: 'boss', name: ZOMBIE_DEFS[ZTYPE.BOSS_BLOATER].name },
+    ]);
     break;
   }
   case 'hud-finale': {
@@ -589,6 +660,12 @@ switch (screen) {
     ui.hideSplash();
     ui.updateHud({ ...baseHud });
     ui.setRosterOpen(true);
+    sandboxSheet();
+    // &tab=friends: Friends docked in the sheet
+    if (q.get('tab') === 'friends') {
+      ui.setRosterPinned(true);
+      ui.roster.tabs.go('friends');
+    }
     // &pin=1: pinned with the pointer free; &profile=<player id>: that player's profile over it, with a made-up record
     if (q.get('pin') || q.get('profile')) ui.setRosterPinned(true);
     if (q.get('profile')) {
@@ -598,6 +675,22 @@ switch (screen) {
       };
       ui.roster.pick(players.findIndex((p) => p.id === +q.get('profile')));
     }
+    break;
+  }
+  // the leaderboard: in a game, the side sheet (&lobby=1: the splash's card); &me=<place in kills> (default 37: off
+  // the top 20), &list=here for this game's
+  case 'board': {
+    buildScene(bg || 'night');
+    if (q.get('lobby')) {
+      ui.board.setLobbyMode(true);
+    } else {
+      ui.hideSplash();
+      ui.updateHud({ ...baseHud });
+      sandboxSheet();
+    }
+    ui.setBoardOpen(true);
+    ui.setBoard(fakeBoard(+(q.get('me') || 37)));
+    if (q.get('list')) ui.board._choose(q.get('list'), ui.board.sort);
     break;
   }
   // the Perks panel against a made-up record: &level=<n> (default 16), &perks=0,3,20 (default a few); a point spent
@@ -680,7 +773,7 @@ switch (screen) {
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud({ ...baseHud, hp: 0, phase: PHASE.NIGHT, timeLeft: 88, night: 1, hordeLeft: 21 });
-    ui.showDeath({ killer: 'The Abomination', day: 3 });
+    ui.showDeath({ killer: 'The Abomination', ztype: ZTYPE.BOSS_ABOMINATION, day: 3, night: true, dawn: true, dawnIn: 88 });
     break;
   }
   case 'gameover':
@@ -690,12 +783,14 @@ switch (screen) {
     ui.updateHud(baseHud);
     const stats = {
       days: 6,
-      kills: players.map((p) => ({ name: p.name, kills: p.kills })),
+      kills: players.map((p) => ({ name: p.name, kills: p.kills, me: p.self })),
       restartIn: 12,
       reason: screen === 'gameover' ? 'The last survivor fell on night 6.' : '',
       // &record=1: the personal record panel too, as after a run that counted
       record: q.get('record')
-        ? { run: { secs: 2710, nights: 5, kills: 31 }, news: [{ k: 'kills', label: 'New best', text: '31 kills', was: '24' }], record: { best: { secs: 0, nights: 5, kills: 31 }, total: { runs: 9, escapes: 0, streak: 0 } } }
+        ? q.get('record') === 'late'
+          ? { late: true }
+          : { run: { secs: 2710, nights: 5, kills: 31 }, news: q.get('record') === 'plain' ? [] : [{ k: 'kills', label: 'New best', text: '31 kills', was: '24' }], record: { best: { secs: 0, nights: 5, kills: q.get('record') === 'plain' ? 40 : 31 }, total: { runs: 9, escapes: 0, streak: 0 }, runs: [2, 1, 3, 2, 4, 3, 5, 4, 5].map((nights) => ({ nights, result: 'wiped' })) } }
         : undefined,
       // &xp=1: the experience panel too, a run that levelled the player up
       progress: q.get('xp') ? { xp: 329, run: [70, 24, 150, 0, 100, 0, 0], loaded: true, kept: true } : null,
@@ -707,18 +802,16 @@ switch (screen) {
           setTimeout(() => done({ mine: rating, counts, total: counts.reduce((a, b) => a + b, 0) }), 300);
         }),
     };
+    ui.setRoom({ code: 'J68QMM', name: "Webdevcody's game", inviteOnly: false }, `${location.origin}/?game=J68QMM`); // (Invite on the end screen)
     if (screen === 'gameover') ui.showGameOver(stats);
     else ui.showVictory(stats);
     if (+q.get('vote')) ui.end._vote(+q.get('vote'));
+    // &perk=N: N perk points not spent yet (the server's count, as net/progress.js would have it)
+    if (+q.get('perk')) setTimeout(() => ui.end.setPending(+q.get('perk')), 400);
     break;
   }
   case 'achievements': {
-    // a guest's record, made up: some unlocked, some on their way (the panel reads this browser's record)
-    const day = 86400_000;
-    const now = Date.now();
-    const unlocked = {};
-    ['kills_10', 'kills_100', 'nights_1', 'escapes_1', 'headshots_25', 'revives_1', 'crafted_10', 'salvaged_10', 'trees_1', 'distance_1k', 'kill_pistol', 'kill_shotgun', 'kill_knife', 'kill_boss', 'mine_enter', 'radio_call', 'flare', 'leaper_off', 'invited', 'walkie', 'cat_lift', 'fall_death'].forEach((id, i) => (unlocked[id] = now - i * day * 0.7 - 3600_000));
-    localStorage.setItem('stn.achievements', JSON.stringify({ v: 1, stats: { kills: 340, nights: 7, escapes: 1, headshots: 61, revives: 3, crafted: 41, salvaged: 12, trees: 4, distance: 6300, days: 2 }, unlocked }));
+    fakeAchievements();
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud(baseHud);
@@ -737,9 +830,14 @@ switch (screen) {
     ui.updateHud(baseHud);
     ui.setBestiaryOpen(true);
     if (q.get('scroll')) setTimeout(() => (ui.bestiary.body.scrollTop = +q.get('scroll')), 100);
+    if (q.get('page')) setTimeout(() => ui.bestiary.openPage(+q.get('page')), 100);
+    if (q.get('sort')) {
+      ui.bestiary.sort = q.get('sort');
+      ui.bestiary.render();
+    }
     if (q.get('toast')) {
       ui.setBestiaryOpen(false);
-      setTimeout(() => ui.notify(`New in the bestiary: ${ZOMBIE_DEFS[ZTYPE.SPITTER].name}. Press J to read up on it.`, 'good', 30), 300);
+      setTimeout(() => ui.achToasts.showKinds([BESTIARY.find((e) => e.t === ZTYPE.SPITTER)]), 300);
     }
     break;
   }
@@ -758,11 +856,16 @@ switch (screen) {
   case 'pause':
   case 'invite':
   case 'settings': {
+    if (q.get('ach') !== null || screen === 'pause') fakeAchievements();
+    if (screen === 'pause') localStorage.setItem('stn.bestiary', JSON.stringify({ v: 1, seen: [ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.DOG, ZTYPE.SPITTER].reduce((m, t) => m | (1 << t), 0) }));
     buildScene(bg || 'night');
     ui.hideSplash();
     ui.updateHud({ ...baseHud, phase: PHASE.NIGHT, night: 1, hordeLeft: 30 });
     ui.setRoom({ code: 'J68QMM', name: "Webdevcody's game", inviteOnly: false }, `${location.origin}/?game=J68QMM`);
+    if (q.get('solo')) ui.setPlayers([players[0]]); // pause: &solo=1 alone in the game, &ask=1 Leave pressed, &hit=1 being hit
     ui.showPause(true);
+    if (q.get('ask')) ui.pause.select(ui.pause.rows.indexOf(ui.pause.leave), false), ui.pause._ask(true);
+    if (q.get('hit')) ui.damage(18, 0.5);
     if (screen === 'settings') ui.settingsPanel.show();
     if (screen === 'invite') ui.invitePanel.show();
     break;
@@ -778,6 +881,12 @@ switch (screen) {
       const f = document.querySelector('.chat-field');
       f.value = 'hold the north wall, i have the shotgun';
     }, 50);
+    break;
+  }
+  case 'map': {
+    // the field map [M]: client/sandbox/ui-test-map.js
+    await (await import('./ui-test-map.js')).mapScene(ui, q, buildScene);
+    ui.updateHud(baseHud); // (the clock in the row of tabs)
     break;
   }
   case 'icons': {

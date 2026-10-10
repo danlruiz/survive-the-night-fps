@@ -347,9 +347,14 @@ JSON file (`server/stats.js`).
   `GET /api/achievements` is your own record, `GET /api/achievements/:id` a friend's.
 - **On screen** (`client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
   the tier's colour, a shine, confetti for gold, platinum and secrets; queued, ~4 s each; Settings turn banners and
-  the chime off; reduced motion takes the movement out), and the profile page from the splash, the pause menu, the
-  account panel and a friend's row: counts, the latest, and every achievement by group with its date or progress.
-  `/sandbox/ui-test.html?screen=achievements` and `?screen=hud&ach=kills_1000,kill_pistol` show them with made-up data.
+  the chime off; reduced motion takes the movement out; a lifetime count's banner names the next step on it), and the
+  profile page from the splash, the pause menu, the account panel and a friend's row: the three counters closest to
+  unlocking, each lifetime count as one track with a step a tier, then every other achievement by group; filters,
+  a jump to each group and a sort, in a frame that fits the screen (only the list scrolls). Up to three locked ones can
+  be tracked (`client/ui/books.js`, `localStorage['stn.achTracked']`, this browser's only): they show on the HUD under
+  the objective (`AchTracker`; an account's counts are asked for again every 90 s while one is up, as the server does not
+  send them as they grow) and in the pause menu's field notes. `/sandbox/ui-test.html?screen=achievements`,
+  `?screen=hud&achtrack=1` and `?screen=hud&ach=kills_1000,kill_pistol` show them with made-up data.
 - `scripts/test-achievements.js` holds the rules, the hooks in a running game (decoded off the wire), the browser's
   record, the store and the merge on PGlite, and the API on a real server.
 
@@ -377,8 +382,14 @@ has never seen is a blurred smudge, "???" and a vague line; once seen, its portr
   connection knowing nothing of it, so a kind the browser has may be told again; the browser only toasts what is new to
   it. Signing in does not move a guest's bestiary onto the account.
 - **On screen** (`client/ui/bestiary.js`): the portraits are the game's own models, drawn the first time the book opens by
-  a short-lived WebGL renderer of its own, kept as images; a locked card only ever gets the smudge. A toast says when a
-  kind is added. `/sandbox/ui-test.html?screen=bestiary` (`&seen=0,1,10`, `&scroll=`, `&toast=1`) shows it with a
+  a short-lived WebGL renderer of its own, kept as images; a locked card only ever gets the smudge. Each seen card shows
+  a danger level and "beat it" chips, and opens a page with "watch for" chips and five facts: all worked out from the
+  kind's `ZOMBIE_DEFS` numbers (`client/ui/books.js` `kindFacts`; danger is health times damage a second against a
+  walker's, on a log scale). "Coming for you" lists the unseen kinds by the first night they can come (`minNight`,
+  `BOSS_POOL`). A kind first seen gets a card in the achievement banner's corner (portrait if drawn, chips, its tip,
+  the key). The pause menu's field notes (`FieldNotes`) list tonight's kinds and boss from the seed, "???" until seen.
+  `/sandbox/ui-test.html?screen=bestiary` (`&seen=0,1,10`, `&scroll=`, `&page=<ztype>`, `&sort=danger`, `&toast=1`)
+  and `?screen=pause` (`&night=`, `&phase=night`) show it with a
   made-up record. `scripts/test-bestiary.js` holds the book, the tracker in a running game, the browser's record, the
   store on PGlite, and an account's record surviving a restart of a real server.
 
@@ -500,6 +511,15 @@ does (`perkMods(mask)`: one frozen object per mask; no ordinary stat past `PERK_
   game's kills and state, their perks in force (from the player list), an account's lifetime record
   (`GET /api/players/:name`, `DbStats.profile`: what the board shows and the perks, nothing more) and a friend request
   to send, or theirs to accept or turn down (`client/net/friends.js`). `?screen=players&pin=1` / `&profile=<id>` show it.
+- **The social side sheet** (`client/ui/sheet.js`, styles in `client/ui/ux-players.css`, issue #219): the Tab list and,
+  in a game, the leaderboard open down the right-hand side, sized in rem, with the fight still in view. The list is in
+  triage order (`roster.js`): the downed first with how long since we saw them fall (`downAt`, from the player list),
+  the living most hurt first, the dead and turned on a line; each with which way and how far from where you look and
+  the place they are in if you know it (`Game.rosterWhere`, from the entities and `knowsPlace`: nothing new on the
+  wire). Pinned, tabs on its edge go to the leaderboard and back (`Game.sheetGo`) and dock Friends; a profile docks
+  in the same place (`dock`: a class that comes off when the panel hides). The leaderboard leads with your place,
+  the gap to the next one (known for certain while everyone ahead of you is in the rows sent) and your places in the
+  other stats. `?screen=board` (`&me=<place>`, `&lobby=1`, `&list=here`) and `?screen=players&tab=friends` show them.
 
 ## Deploys: handing the games to the next server
 
@@ -1913,8 +1933,12 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   pointer, else what is selected. The keys are the screen's own listener: the game's input is off while it is open,
   and a key bound to opening a screen (`MENU_KEYS`) is left to the game. The backpack is grouped into sections in
   the order the server's Sort leaves it (`SECTIONS`, `BAG_TIER`), and a drag only swaps within one. Recipes are
-  grouped by what stops them (ready, needs a station, missing materials, locked); the one selected has a quantity
-  that `craftRun` caps.
+  grouped by what stops them (ready, needs a station, missing materials, locked), after "For what you carry" (the
+  ready ones that feed what is held: `carryWhy`, each with a Craft button); the one selected has a quantity that
+  `craftRun` caps. The layout (`ux-inventory.css`, issue #224) is a header with health and stamina (`setVitals`, from
+  `ui.updateHud`), "Your kit" (the loadout strip, Quick use, the ammo reserve, the backpack, the item card, which
+  compares a gun or a vest with the one held) and Crafting; type has a rem floor so browser zoom enlarges it, and
+  below `COMPACT` (1280 x 720 at 125% zoom and smaller) one panel shows at a time under tabs that Q / E switch.
 - **The tracked recipe** (`client/game/tracked.js`): one recipe at a time in `localStorage['stn.tracked']`, client
   only. The HUD checklist under the objective tracker (`Tracked` in `ui/hud2.js`), the "needed for" line on pickup
   prompts and the "may hold" line on containers whose table can roll a missing ingredient (`mayHold` in

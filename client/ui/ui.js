@@ -8,7 +8,7 @@ import { Killfeed, Pickups, Notifier } from './feed.js';
 import { Chat } from './chat.js';
 import { Inventory } from './inventory.js';
 import { BuildMenu } from './build.js';
-import { Splash, Pause, Death, EndScreen, Banner, UpdatingModal, VoiceList, ControlsPanel, InvitePanel, DEFAULT_CONTROLS } from './menus.js';
+import { Splash, Pause, Banner, UpdatingModal, VoiceList, InvitePanel } from './menus.js';
 import { SettingsPanel, loadSettings, saveSettings, sanitizeSettings, DEFAULT_SETTINGS } from './settings.js';
 import { MapScreen } from './mapscreen.js';
 import { Leaderboard } from './leaderboard.js';
@@ -22,11 +22,13 @@ import { ProgressPanel } from './progress.js';
 import { AuctionPanel, LoadoutPanel } from './loadout.js';
 import { ProfilePanel } from './profile.js';
 import { AchievementsPanel, AchievementToasts } from './achievements.js';
+import { AchTracker, FieldNotes } from './books.js';
 import { isFriendName } from '../net/friends.js';
 import { onUnlock } from '../net/achievements.js';
 import { onSeen } from '../net/bestiary.js';
-import { bindLabel } from '../game/binds.js';
-import { Summary } from './hud2.js';
+import { Death, EndScreen, DawnLine } from './endscreens.js';
+import './ux-modals.css'; // (every modal's close cross: one size, in its card's top-right corner)
+import { screenLeft } from './screentabs.js';
 
 const NOOP = () => {};
 const CALLBACKS = [
@@ -106,7 +108,7 @@ export class UI {
     this.banner = new Banner(topL);
     this.notifier = new Notifier(topL);
     this.achToasts = new AchievementToasts(this, topL);
-    this.summary = new Summary(topL);
+    this.summary = new DawnLine(topRight, rootEl); // (the dawn lines, under the clock)
     this.death = new Death(this, ovL);
     this.end = new EndScreen(this, ovL);
     this.pause = new Pause(this, ovL);
@@ -118,7 +120,6 @@ export class UI {
     this.roster = new Roster(this, ovL);
     this.splash = new Splash(this, menuL);
     this.settingsPanel = new SettingsPanel(this, modalL);
-    this.controlsPanel = new ControlsPanel(this, modalL);
     this.invitePanel = new InvitePanel(this, modalL);
     this.friends = new FriendsPanel(this, modalL);
     this.accountPanel = new AccountPanel(this, modalL);
@@ -129,11 +130,11 @@ export class UI {
     this.achPanel = new AchievementsPanel(this, modalL);
     this.updating = new UpdatingModal(modalL);
     onUnlock((list) => this.achToasts.show(list));
-    onSeen((list) => {
-      const key = bindLabel('bestiary');
-      const how = key === 'unbound' ? 'It is in the menu.' : `Press ${key} to read up on it.`;
-      for (const e of list) this.notify(`New in the bestiary: ${e.name}. ${how}`, 'good', 4.5);
-    });
+    onSeen((list) => this.achToasts.showKinds(list)); // (a card in the achievement banner's corner: issue #220)
+    // the tracked achievements under the objective, and the pause menu's field notes (books.js; the game sets
+    // fieldNotes.ctx)
+    this.achTracker = new AchTracker(this, this.hud.objective.root.parentElement, [this.hud.objective.root, this.hud.tracked.root]);
+    this.fieldNotes = new FieldNotes(this, this.pause.root);
 
     this._bindSounds();
     this._voice = { enabled: false, transmitting: false };
@@ -193,7 +194,6 @@ export class UI {
   hideSplash() {
     this.splash.hide();
     if (this.settingsPanel.visible) this.settingsPanel.hide();
-    if (this.controlsPanel.visible) this.controlsPanel.hide();
     if (this.invitePanel.visible) this.invitePanel.hide();
     if (this.friends.visible) this.friends.hide();
     if (this.accountPanel.visible) this.accountPanel.hide();
@@ -225,16 +225,10 @@ export class UI {
     return { ...this.settings };
   }
 
-  // extra: override the controls reference behind the Controls button (splash + pause). list = [[keys, action], ...],
-  // or a function that makes one (menus.js renderControls): it is drawn each time the panel opens
-  setControls(list) {
-    this.controlsPanel.source = typeof list === 'function' || (Array.isArray(list) && list.length) ? list : DEFAULT_CONTROLS;
-    if (this.controlsPanel.visible) this.controlsPanel.show();
-  }
-
   // ------------------------------------------------------------ per-frame
   updateHud(h) {
     if (h) this.hud.update(h);
+    if (h) this.inventory.setVitals(h); // (health and stamina in the inventory's header)
   }
 
   // extra: hide the whole HUD (e.g. photo mode / cutscenes)
@@ -249,10 +243,12 @@ export class UI {
 
   damage(amount, angle) {
     this.hud.damage(amount, angle);
+    if (amount > 0) this.pause.hit(); // (the game never stops for the Esc menu: it says so)
   }
 
-  showSummary(stats, nextText, theme, boss) {
-    this.summary.show(stats, nextText, theme, boss);
+  // the night's tally at dawn; brief: what tonight brings (hud2.js tonightBrief), named under it
+  showSummary(stats, brief) {
+    this.summary.show(stats, brief);
   }
 
   setMapOpen(open) {
@@ -312,7 +308,7 @@ export class UI {
   // drop the title card (and the ones queued behind it), the toasts and the dawn card: the game they belong to is gone
   clearNotices() {
     this.notifier.clear();
-    this.summary.root.hidden = true;
+    this.summary.hide();
   }
 
   pickup(itemId, count) {
@@ -354,6 +350,23 @@ export class UI {
 
   setInventoryOpen(open) {
     this.inventory.setOpen(open);
+  }
+
+  // Going between the kit screens' tabs (screentabs.js). In a run the game has this (Game.screenGo, which takes the
+  // pointer its own way for each); outside one, it is only the perks and the achievements, one for the other (the
+  // sandbox's &run=1 has the inventory and the map here too)
+  screenGo(id) {
+    const shown = { inventory: this.inventoryOpen, map: this.mapOpen, perks: this.progress.visible, achievements: this.achPanel.visible };
+    if (shown[id] || !(id in shown)) return;
+    screenLeft();
+    this.sound('ui_click');
+    if (id === 'inventory') this.setInventoryOpen(true);
+    else if (id === 'map') this.setMapOpen(true);
+    else (id === 'perks' ? this.progress : this.achPanel).show();
+    if (id !== 'inventory' && shown.inventory) this.setInventoryOpen(false);
+    if (id !== 'map' && shown.map) this.setMapOpen(false);
+    if (id !== 'perks' && shown.perks) this.progress.hide();
+    if (id !== 'achievements' && shown.achievements) this.achPanel.hide();
   }
 
   get inventoryOpen() {
@@ -419,10 +432,8 @@ export class UI {
     this._menuState();
   }
 
-  // our XP as the server counts it ({ xp, run, loaded, kept }: Game.onProgress): the inventory's level, and the end
-  // screen if the run is over
+  // our XP as the server counts it ({ xp, run, loaded, kept }: Game.onProgress): the end screen's, if the run is over
   setProgress(p) {
-    this.inventory.setProgress(p);
     if (!this.end.root.hidden) this.end.setXp(p);
   }
 

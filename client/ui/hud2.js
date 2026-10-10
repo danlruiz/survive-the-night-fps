@@ -1,5 +1,5 @@
 // Iteration 2 HUD pieces: compass strip, objective tracker ("field notes"), world markers (teammate
-// nameplates, pings, the car), downed overlay, damage direction arrows and the dawn summary card.
+// nameplates, pings, the car), damage direction arrows and the dusk card. (Downed and the dawn lines: endscreens.js)
 // Same conventions as hud.js: update() is called every frame and only touches the DOM on change.
 import { ITEM_DEFS, ZONE_NAMES, ITEM, ZOMBIE_DEFS, supplyRumours } from '../../shared/defs.js';
 import { SUPPLIES, SUPPLY_NEED, W, ACT_NOW } from '../game/act.js'; // (this act's: the car's supplies, or the plane's parts)
@@ -605,35 +605,6 @@ export class Markers {
   }
 }
 
-// ---------------------------------------------------------------- downed overlay
-export class Downed {
-  constructor(parent) {
-    this.root = el('div', 'dn-overlay', parent);
-    this.root.hidden = true;
-    el('div', 'dn-vig', this.root);
-    const box = el('div', 'dn-box', this.root);
-    svgEl('i', 'dn-ico', box, glyph('downed'));
-    el('div', 'dn-title', box, "You're down");
-    this.sub = el('div', 'dn-sub', box, '');
-    const bar = el('div', 'dn-bar', box);
-    this.fill = el('i', '', bar);
-    this.time = el('div', 'dn-time', box, '');
-    this.key = '';
-  }
-  update(d) {
-    const show = !!d;
-    if (this.root.hidden === show) this.root.hidden = !show;
-    if (!d) return;
-    const key = Math.ceil(d.bleed) + '|' + d.reviving;
-    if (key === this.key) return;
-    this.key = key;
-    this.fill.style.transform = `scaleX(${clamp(d.bleed / 30, 0, 1).toFixed(3)})`;
-    this.time.textContent = d.reviving ? 'Being revived…' : `Bleeding out · ${fmtTime(d.bleed)}`;
-    this.sub.textContent = d.reviving ? 'Hold on. A teammate has you.' : `Crawl to cover. A teammate can revive you with ${bindTag('interact')}`;
-    this.root.classList.toggle('reviving', !!d.reviving);
-  }
-}
-
 // ---------------------------------------------------------------- damage direction
 export class DamageDir {
   constructor(parent) {
@@ -655,56 +626,6 @@ export class DamageDir {
   }
 }
 
-// ---------------------------------------------------------------- dawn summary
-export class Summary {
-  constructor(parent) {
-    this.root = el('div', 'summary scrap', parent);
-    this.root.hidden = true;
-    this.title = el('div', 'sm-title', this.root, '');
-    this.stats = el('div', 'sm-stats', this.root);
-    this.theme = el('div', 'sm-theme', this.root);
-    this.boss = el('div', 'sm-theme sm-boss', this.root);
-    this.next = el('div', 'sm-next', this.root, '');
-  }
-  // theme: the coming night's theme (shared/nights.js), or null for a plain night; boss: its boss (nightBossText)
-  show(s, nextText, theme, boss) {
-    this.title.textContent = `Night ${s.night} survived`;
-    this.stats.textContent = '';
-    const stat = (label, v, cls = '') => {
-      const d = el('div', 'sm-stat ' + cls, this.stats);
-      el('b', '', d, String(v));
-      el('span', '', d, label);
-    };
-    stat('kills', s.kills);
-    stat('walls lost', s.structLost);
-    stat('downed', s.downs, s.downs ? 'warn' : '');
-    stat('revived', s.revives, s.revives ? 'good' : '');
-    stat('lost', s.deaths, s.deaths ? 'bad' : '');
-    // a themed night gets a line of its own: the one thing on the card the team can act on before dark
-    this.theme.textContent = '';
-    if (theme) {
-      el('b', '', this.theme, `Tonight: ${theme.name}`);
-      el('span', '', this.theme, theme.warn);
-    }
-    // ...and so does its boss: knowing which one is coming is what the day is for
-    this.boss.textContent = '';
-    if (boss) {
-      el('b', '', this.boss, `Boss: ${boss.name}`);
-      el('span', '', this.boss, `With the second wave. ${boss.tip}`);
-    }
-    this.next.textContent = nextText || '';
-    this.root.hidden = false;
-    this.root.classList.remove('out');
-    this.root.getAnimations().forEach((a) => a.cancel());
-    this.root.animate([{ opacity: 0, transform: 'translate(-50%, -12px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 450, easing: 'ease-out' });
-    clearTimeout(this._t);
-    this._t = setTimeout(() => {
-      const a = this.root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700 });
-      a.onfinish = () => (this.root.hidden = true);
-    }, 9000);
-  }
-}
-
 // the kinds of the dead that join the horde on night n: those whose minNight comes after last night's rank and by
 // tonight's (shared/acts.js nightRank: on the mainland every night ranks the fourth at the least, so nothing joins
 // there before the fifth)
@@ -712,21 +633,6 @@ function newKinds(night, act) {
   const rank = nightRank(act, night);
   const prev = nightRank(act, night - 1);
   return Object.values(ZOMBIE_DEFS).filter((d) => !d.boss && d.intro && d.minNight > prev && d.minNight <= rank);
-}
-
-// what the next night brings (shown on the dawn card): its one new kind of the dead (ZOMBIE_DEFS minNight). Its boss
-// has a line of its own on the card (nightBossText)
-export function nextNightText(night, act) {
-  const n = night;
-  const more = n <= 1 ? 'The next horde will be bigger.' : `Horde ${n}: bigger and hungrier.`;
-  return [more, ...newKinds(n, act).map((d) => d.intro)].join(' ');
-}
-
-// the boss that comes with night n, named on the dawn card and on the dusk card so the team can get ready for it. The
-// server draws the same one from the seed (shared/nights.js nightBoss): nothing crosses the wire
-export function nightBossText(seed, night, act) {
-  const zd = ZOMBIE_DEFS[nightBoss(seed, night, act)];
-  return { name: (zd.boss ? '' : 'A ') + zd.name, tip: zd.tip || '' };
 }
 
 // ---------------------------------------------------------------- the dusk card

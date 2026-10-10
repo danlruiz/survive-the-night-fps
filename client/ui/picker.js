@@ -164,12 +164,13 @@ export class CharacterCard {
     this.q.hidden = c !== RANDOM;
     this.dice.hidden = c !== STRANGER;
     this.img.hidden = ref === null;
+    this.onChange?.(); // (the splash's "as <name> playing <survivor>" line)
     // a saved survivor of theirs with parts no longer in the game: said once, here
     const note = isCustom(c) ? takeNote(c.slice(2)) : '';
     if (note) {
       this.note.textContent = note;
       this.note.hidden = false;
-    }
+    } else this.note.hidden = true;
     if (ref !== null) {
       const st = await getStage();
       if (storedChoice() === c) this.img.src = st.portrait(ref);

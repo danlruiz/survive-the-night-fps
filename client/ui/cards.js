@@ -131,6 +131,7 @@ export class CardsScreen {
     this.view = 'table';
     this.target = 0; // the chooser's teammate
     this.dirty = true;
+    this.packOnly = false; // opened on a pack's reveal: the last pack taken shuts the screen (back to the game)
 
     this.root = el('div', 'cdscr', parent);
     this.root.hidden = true;
@@ -226,13 +227,14 @@ export class CardsScreen {
       window.addEventListener('keyup', this.onKeyUp);
       this.returnFocus = document.activeElement;
       const to = view || this.pickView();
+      this.packOnly = to === 'reveal';
       // the first time: "New to Dead Hand?" over what it opens on (not with a match under way against somebody:
       // their clock is running, and it is asked the next time)
       if (!guideOffered() && !(this.c?.s.match && !this.c.s.match.local)) {
         this.views.guide.start(true, to);
         this.show('guide', true);
       } else this.show(to, true);
-      this.close.focus({ preventScroll: true });
+      this.close.focus({ preventScroll: true, focusVisible: false }); // (no ring on it: it was opened, not tabbed to)
     } else {
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
@@ -268,6 +270,7 @@ export class CardsScreen {
     if (view === 'trade' && !this.c?.s.trade) view = 'table';
     if (view === this.view && !force && !this.dirty) return this.render('view');
     if (this.view !== view) this.views[this.view]?.leave?.();
+    if (view !== 'reveal' && view !== 'guide') this.packOnly = false; // (the player went on to something else here)
     this.view = view;
     for (const [id, v] of Object.entries(this.views)) v.root.hidden = id !== view;
     this.root.dataset.view = view;

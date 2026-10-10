@@ -1,0 +1,309 @@
+/* =====================================================================================
+   The kit screens (screentabs.js): the inventory, the field map, the perks and the achievements are one full-screen
+   modal. All four are drawn in the inventory's frame (ux-inventory.css .inv.ux-inv / .inv-wrap: the same padding,
+   width, height and gap), with the same row across the top: the tabs, the HUD's clock in a run, the close at the
+   right end.
+   - The perks and the achievements are Panels (games.js): screentabs.js tabbed() puts their card in a frame
+     (.scr-frame) under the row, and the card fills it.
+   - The map (mapscreen.js) has the same frame, its sheet filling it (ux-map.css lays out what is on the sheet).
+   - Type has a floor in rem and grows with the screen past it, so zooming in makes it bigger, never smaller. Narrow
+     (a small window, or one zoomed in) the tabs drop their keys and then, but for the open one, their names.
+   ===================================================================================== */
+
+/* ---------------------------------------------------------------- the row */
+.stn-ui .scr-bar {
+  --scr-h: max(2.25rem, calc(44 * var(--u)));
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: max(0.5rem, calc(14 * var(--u)));
+  min-width: 0;
+  min-height: var(--scr-h);
+}
+
+.stn-ui .scr-tabs {
+  display: flex;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.stn-ui .scr-tabs[hidden] {
+  display: none;
+}
+
+.stn-ui .scr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: max(0.4375rem, calc(9 * var(--u)));
+  height: var(--scr-h);
+  min-width: 0;
+  padding: 0 max(0.75rem, calc(16 * var(--u)));
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(230, 223, 207, 0.16);
+  color: var(--bone-dim);
+  font: 400 max(1.125rem, calc(22 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background 0.12s;
+}
+
+.stn-ui .scr-tab[hidden] {
+  display: none;
+}
+
+.stn-ui .scr-tab:hover {
+  border-color: rgba(230, 223, 207, 0.5);
+  color: var(--bone);
+}
+
+.stn-ui .scr-tab:focus-visible {
+  outline: 1px dashed var(--bone);
+  outline-offset: 2px;
+}
+
+.stn-ui .scr-tab.on {
+  background: linear-gradient(180deg, rgba(230, 223, 207, 0.94), rgba(200, 191, 172, 0.94));
+  border-color: var(--bone);
+  color: #14110e;
+  cursor: default;
+}
+
+.stn-ui .scr-tab-ico {
+  display: inline-flex;
+  flex: none;
+  width: 0.8em;
+  height: 0.8em;
+}
+
+.stn-ui .scr-tab-ico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stn-ui .scr-tab-t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* perk points waiting to be spent */
+.stn-ui .scr-tab-n {
+  min-width: 1.25rem;
+  padding: 0.125rem 0.3125rem;
+  background: var(--amber);
+  color: #14110e;
+  font: 400 max(0.75rem, calc(13 * var(--u))) / 1 var(--f-mono);
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.stn-ui .scr-tab-n:empty {
+  display: none;
+}
+
+.stn-ui .scr-tab.lit:not(.on) {
+  border-color: rgba(232, 163, 61, 0.6);
+  color: var(--bone);
+}
+
+.stn-ui .scr-tab .scr-tab-k {
+  font-size: max(0.75rem, calc(12 * var(--u)));
+  letter-spacing: 0;
+}
+
+.stn-ui .scr-tab.on .scr-tab-k {
+  border-color: rgba(20, 17, 14, 0.45);
+  background: transparent;
+  color: #14110e;
+}
+
+/* a friend's achievements: a title instead of the tabs */
+.stn-ui .scr-title {
+  margin: 0;
+  font: 400 max(1.75rem, calc(34 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.stn-ui .scr-title[hidden] {
+  display: none;
+}
+
+.stn-ui .scr-gap {
+  flex: 1;
+}
+
+.stn-ui .scr-aside {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.stn-ui .scr-aside:empty {
+  display: none;
+}
+
+/* the close: every other modal's cross (ux-modals.css), at the row's right end */
+.stn-ui .btn-icon.scr-close {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--x-size, 2rem);
+  height: var(--x-size, 2rem);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0.45rem;
+  color: var(--bone-dim);
+}
+
+.stn-ui .btn-icon.scr-close:hover {
+  border-color: var(--bone);
+  color: var(--bone);
+}
+
+/* ---------------------------------------------------------------- the perks and the achievements: the inventory's frame */
+.stn-ui .stn-settings.scr-panel {
+  display: flex;
+  justify-content: center;
+  align-items: safe center;
+  padding: max(0.5rem, calc(16 * var(--u))) max(0.75rem, calc(20 * var(--u)));
+  background: radial-gradient(ellipse at 50% 55%, rgba(12, 10, 9, 0.62), rgba(4, 3, 3, 0.86) 80%);
+  -webkit-backdrop-filter: blur(7px) saturate(0.55);
+  backdrop-filter: blur(7px) saturate(0.55);
+}
+
+.stn-ui .stn-settings.scr-panel[hidden] {
+  display: none;
+}
+
+.stn-ui .scr-panel > .scr-frame,
+.stn-ui .mapscr > .scr-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: max(0.5rem, calc(12 * var(--u)));
+  width: min(100%, 110rem);
+  min-width: 0;
+  height: 100%;
+  max-height: 64rem;
+}
+
+.stn-ui .stn-settings.scr-panel > .scr-frame > .set-card {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* it opens as the inventory does: the whole frame, the row with it */
+.stn-ui .stn-settings.scr-panel.in .set-card {
+  animation: none;
+}
+
+.stn-ui .stn-settings.scr-panel.in > .scr-frame {
+  animation: stn-invIn 0.24s ease-out;
+}
+
+.stn-ui .stn-settings.scr-panel.in {
+  animation: stn-fadeIn 0.2s ease-out;
+}
+
+/* the map: its backdrop the others', and it opens as they do */
+.stn-ui .mapscr {
+  align-items: safe center;
+  padding: max(0.5rem, calc(16 * var(--u))) max(0.75rem, calc(20 * var(--u)));
+  animation: none;
+}
+
+.stn-ui .mapscr > .map-bg {
+  background: radial-gradient(ellipse at 50% 55%, rgba(12, 10, 9, 0.62), rgba(4, 3, 3, 0.86) 80%);
+  -webkit-backdrop-filter: blur(7px) saturate(0.55);
+  backdrop-filter: blur(7px) saturate(0.55);
+  animation: stn-fadeIn 0.2s ease-out;
+}
+
+.stn-ui .mapscr > .scr-frame {
+  position: relative; /* (over the backdrop) */
+  animation: stn-invIn 0.24s ease-out;
+}
+
+/* (a title the tab already says) */
+.stn-ui .scr-panel .set-card > .set-head > .set-title {
+  display: none;
+}
+
+/* from another tab: the same modal with other contents, nothing fades or slides in (each rule here outranks the one
+   that animates the opening, above and in ui.css) */
+.stn-ui .stn-settings.scr-panel.scr-still.in,
+.stn-ui .stn-settings.scr-panel.scr-still.in > .scr-frame,
+.stn-ui .stn-settings.scr-panel.scr-still.in .set-card,
+.stn-ui .inv.ux-inv.scr-still.in .inv-bg,
+.stn-ui .inv.ux-inv.scr-still.in .inv-wrap,
+.stn-ui .mapscr.scr-still > .map-bg,
+.stn-ui .mapscr.scr-still > .scr-frame {
+  animation: none;
+}
+
+/* ---------------------------------------------------------------- small or zoomed in (the inventory's COMPACT) */
+@media (max-width: 1099px), (max-height: 619px) {
+  .stn-ui .stn-settings.scr-panel,
+  .stn-ui .mapscr {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .stn-ui .scr-panel > .scr-frame,
+  .stn-ui .mapscr > .scr-frame {
+    gap: 0.375rem;
+    width: 100%;
+  }
+
+  .stn-ui .scr-bar {
+    gap: 0.5rem;
+  }
+
+  .stn-ui .scr-tab {
+    padding: 0 0.625rem;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* narrow: no keys on the tabs, and the clock without its words */
+@media (max-width: 899px) {
+  .stn-ui .scr-tab .scr-tab-k {
+    display: none;
+  }
+
+  .stn-ui .scr-aside .clk-label {
+    display: none;
+  }
+}
+
+/* narrower still: the open tab keeps its name, the others are their icons */
+@media (max-width: 639px) {
+  .stn-ui .scr-tab:not(.on) .scr-tab-t {
+    display: none;
+  }
+
+  .stn-ui .scr-tab {
+    padding: 0 0.5625rem;
+  }
+
+  .stn-ui .scr-tab-ico {
+    width: 0.95em;
+    height: 0.95em;
+  }
+}
+
+/* (a phone held up, or a window zoomed right in: the clock gives way to the tabs) */
+@media (max-width: 459px) {
+  .stn-ui .scr-aside {
+    display: none;
+  }
+}
