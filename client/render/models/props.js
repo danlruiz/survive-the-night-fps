@@ -43,8 +43,7 @@ export const PROP_TYPES = Object.keys(PROPS);
 export function createProp(type, seed = 0) {
   const fn = BUILD[type];
   if (!fn) throw new Error(`createProp: unknown prop '${type}'`);
-  const n = VARIANTS[type] ?? 3;
-  const v = (((seed | 0) % n) + n) % n;
+  const v = propVariant(type, seed);
   const key = `${type}:${v}`;
   let parts = cache.get(key);
   if (!parts) {
@@ -56,6 +55,12 @@ export function createProp(type, seed = 0) {
   const g = partsToGroup(parts, type);
   g.userData.propType = type;
   return g;
+}
+
+// which of its type's models a prop of this seed is drawn as (two props of one variant are the same model)
+export function propVariant(type, seed = 0) {
+  const n = VARIANTS[type] ?? 3;
+  return (((seed | 0) % n) + n) % n;
 }
 
 function hash(s) {

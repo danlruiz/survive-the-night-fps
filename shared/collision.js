@@ -59,6 +59,9 @@ export class ColliderGrid {
     this.cells = new Array(this.n * this.n);
     for (let i = 0; i < this.cells.length; i++) this.cells[i] = [];
     this.count = 0;
+    // where a walk along a ray is (walk)
+    this.wi = this.wj = this.wsx = this.wsz = 0;
+    this.wdx = this.wdz = this.wtx = this.wtz = 0;
   }
   _range(x, z, r) {
     const n = this.n;
@@ -114,7 +117,17 @@ export class ColliderGrid {
   query(x, z, r, out) {
     out.length = 0;
     const stamp = ++stampCounter;
-    const [x0, x1, z0, z1] = this._range(x, z, r);
+    // (_range's, without the array: this is asked thousands of times a tick)
+    const n = this.n;
+    const inv = 1 / this.cell;
+    let x0 = Math.floor((x - r + this.half) * inv);
+    let x1 = Math.floor((x + r + this.half) * inv);
+    let z0 = Math.floor((z - r + this.half) * inv);
+    let z1 = Math.floor((z + r + this.half) * inv);
+    if (x0 < 0) x0 = 0;
+    if (z0 < 0) z0 = 0;
+    if (x1 >= n) x1 = n - 1;
+    if (z1 >= n) z1 = n - 1;
     for (let j = z0; j <= z1; j++) {
       for (let i = x0; i <= x1; i++) {
         const arr = this.cells[j * this.n + i];
@@ -130,6 +143,41 @@ export class ColliderGrid {
       }
     }
     return out;
+  }
+  // A walk along a ray over the cells it crosses, in order (Amanatides & Woo): walk() from its origin along its xz
+  // direction, then step() from cell to cell. A collider is listed in every cell its bounding square touches, so
+  // whatever the ray strikes is in a cell of the walk. Past the edge it goes on over the edge cells, as a query there
+  // does. The cell it is in: here(); the t (along the ray, d of unit length) at which it leaves that cell: leaves().
+  walk(ox, oz, dx, dz) {
+    const inv = 1 / this.cell;
+    const fx = (ox + this.half) * inv;
+    const fz = (oz + this.half) * inv;
+    this.wi = Math.floor(fx);
+    this.wj = Math.floor(fz);
+    this.wsx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    this.wsz = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+    this.wdx = this.wsx ? this.cell / Math.abs(dx) : Infinity;
+    this.wdz = this.wsz ? this.cell / Math.abs(dz) : Infinity;
+    this.wtx = this.wsx > 0 ? (this.wi + 1 - fx) * this.wdx : this.wsx < 0 ? (fx - this.wi) * this.wdx : Infinity;
+    this.wtz = this.wsz > 0 ? (this.wj + 1 - fz) * this.wdz : this.wsz < 0 ? (fz - this.wj) * this.wdz : Infinity;
+  }
+  here() {
+    const n = this.n;
+    const i = this.wi < 0 ? 0 : this.wi >= n ? n - 1 : this.wi;
+    const j = this.wj < 0 ? 0 : this.wj >= n ? n - 1 : this.wj;
+    return this.cells[j * n + i];
+  }
+  leaves() {
+    return this.wtx < this.wtz ? this.wtx : this.wtz;
+  }
+  step() {
+    if (this.wtx < this.wtz) {
+      this.wi += this.wsx;
+      this.wtx += this.wdx;
+    } else {
+      this.wj += this.wsz;
+      this.wtz += this.wdz;
+    }
   }
   cellAt(x, z) {
     const i = Math.floor((x + this.half) / this.cell);
@@ -404,21 +452,19 @@ export function resolveBody(world, pos, r, height, human = true) {
 const ROCK = makeCyl(0, 0, 0, 0, 0);
 
 // Ray against static + structure colliders and terrain. Returns {t, col} with t = -1 if nothing within maxT.
-const _rq = [];
 export function raycastWorld(world, ox, oy, oz, dx, dy, dz, maxT, out = { t: -1, col: null, terrain: false }, skipFlags = COL.NOBULLET | COL.NOBLOCK) {
   let best = maxT;
   let bestCol = null;
   let terrain = false;
-  // colliders: sample along the ray in cell-sized steps and query small circles
+  // colliders: those of the cells the ray crosses, as far as the nearest hit so far
   const grids = world.colliderGrids;
-  const step = 4;
   const stamp = ++stampCounter;
   for (let g = 0; g < grids.length; g++) {
     const grid = grids[g];
-    for (let s = 0; s <= best + step; s += step) {
-      const px = ox + dx * s;
-      const pz = oz + dz * s;
-      const list = grid.query(px, pz, step * 0.75, _rq);
+    if (!grid.count) continue;
+    grid.walk(ox, oz, dx, dz);
+    for (;;) {
+      const list = grid.here();
       for (let i = 0; i < list.length; i++) {
         const c = list[i];
         if (c._rs === stamp) continue;
@@ -430,6 +476,8 @@ export function raycastWorld(world, ox, oy, oz, dx, dy, dz, maxT, out = { t: -1,
           bestCol = c;
         }
       }
+      if (grid.leaves() > best) break;
+      grid.step();
     }
   }
   // terrain march
@@ -448,7 +496,6 @@ export function raycastWorld(world, ox, oy, oz, dx, dy, dz, maxT, out = { t: -1,
 // Can an eye reach an interaction point without going through a wall? Only full-height colliders (top above reachTop)
 // block - sills, furniture and barricades can be reached over, and survivors pass gates/door boards anyway. The
 // target's own collider (one containing the point, e.g. a fridge) and hits within `pad` of the point are ignored.
-const _lq = [];
 export function canReach(world, ox, oy, oz, tx, ty, tz, reachTop, pad = 0.2) {
   let dx = tx - ox;
   let dy = ty - oy;
@@ -460,17 +507,25 @@ export function canReach(world, ox, oy, oz, tx, ty, tz, reachTop, pad = 0.2) {
   dy /= len;
   dz /= len;
   const skip = COL.NOBLOCK | COL.NOBULLET | COL.HUMANPASS;
-  const mx = (ox + tx) / 2;
-  const mz = (oz + tz) / 2;
-  const r = Math.hypot(tx - ox, tz - oz) / 2;
+  // (the colliders of the cells the line crosses)
   const grids = world.colliderGrids;
+  const stamp = ++stampCounter;
   for (let g = 0; g < grids.length; g++) {
-    const list = grids[g].query(mx, mz, r, _lq);
-    for (let i = 0; i < list.length; i++) {
-      const c = list[i];
-      if (c.flags & skip || c.y1 <= reachTop) continue;
-      if (ty >= c.y0 && ty <= c.y1 && footprintContains(c, tx, tz)) continue;
-      if (rayCollider(c, ox, oy, oz, dx, dy, dz, maxT) >= 0) return false;
+    const grid = grids[g];
+    if (!grid.count) continue;
+    grid.walk(ox, oz, dx, dz);
+    for (;;) {
+      const list = grid.here();
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        if (c._rs === stamp) continue;
+        c._rs = stamp;
+        if (c.flags & skip || c.y1 <= reachTop) continue;
+        if (ty >= c.y0 && ty <= c.y1 && footprintContains(c, tx, tz)) continue;
+        if (rayCollider(c, ox, oy, oz, dx, dy, dz, maxT) >= 0) return false;
+      }
+      if (grid.leaves() > maxT) break;
+      grid.step();
     }
   }
   return true;

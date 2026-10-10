@@ -398,6 +398,28 @@ export const STRUCT_ORDER = [STRUCT.BARRICADE, STRUCT.DOOR, STRUCT.WALL, STRUCT.
 // how near its interaction point the view ray has to pass to offer [E] on a structure (PICK_RADIUS in constants.js)
 export const structPickRadius = (stype) => Math.max(0.8, STRUCT_DEFS[stype].sx * 0.5);
 export const REPAIR_COST = { [ITEM.WOOD]: 1, [ITEM.NAILS]: 1 }; // per repair action (+35% hp)
+export const DEMOLISH_UNDO_SECONDS = 15;
+export const DEMOLISH_REFUND_RATE = 0.75;
+// What taking structure e down gives back (Game.demolish). For a short undo window after placement the whole build
+// cost comes back, so a misplaced piece costs nothing. After that, each material with a cost above one refunds 75% of
+// the lowest health share the piece ever reached, rounded down. A torch or campfire is capped by the fuel left from
+// its original build, so a burnt-out light is not traded back for a fresh one. Repairs never raise e.minHealth.
+export function demolishRefund(e, now = Infinity) {
+  const def = STRUCT_DEFS[e.stype];
+  const placedAt = Number.isFinite(e.placedAt) ? e.placedAt : -Infinity;
+  const undo = now - placedAt <= DEMOLISH_UNDO_SECONDS;
+  if (undo) return { ...def.cost };
+  let share = Number.isFinite(e.minHealth) ? e.minHealth : e.maxHp > 0 ? e.hp / e.maxHp : 0;
+  if (def.burn) share = Math.min(share, e.burnLeft / def.burn);
+  share = Math.max(0, Math.min(1, share));
+  const out = {};
+  for (const k in def.cost) {
+    if (def.cost[k] === 1) continue;
+    const n = Math.floor(def.cost[k] * DEMOLISH_REFUND_RATE * share + 1e-9); // keep exact products from falling below their floor
+    if (n > 0) out[k] = n;
+  }
+  return out;
+}
 export const CAMPFIRE_FUEL = { [ITEM.WOOD]: 70, [ITEM.STICK]: 22 }; // seconds of burn per item fed
 export const CAMPFIRE_MAX_FUEL = 600;
 

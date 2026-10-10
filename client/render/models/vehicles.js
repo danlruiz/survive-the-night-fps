@@ -9,6 +9,7 @@
 //   seats      [x, y (the hips), z] of each seat, in the body's frame (VEHICLES[kind].seats)
 // Everything is built once per look and shared: a model is a few groups of the same geometries.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBuilder, partsToGroup, getMaterial, makeRng } from '../materials.js';
 import { VEH, VSTATE, VEHICLES } from '../../../shared/vehicles.js';
 import { sedan, wheel, CAR_COLORS } from './props.js';
@@ -49,6 +50,62 @@ const lamp = (g, mat) => {
   m.castShadow = false;
   return m;
 };
+// Lamp meshes of one material that never move against each other (children of `parent`): one mesh in their place,
+// its geometry made once a key and shared by every vehicle of the kind - a draw call where there were as many as the
+// meshes. (what is lit, shown or turned on its own is never one of them: a needle, a panel that lights)
+function merge(key, parent, meshes) {
+  const g = geo(key, () => mergeGeometries(meshes.map((m) => (m.updateMatrix(), m.geometry.clone().applyMatrix4(m.matrix)))));
+  const one = lamp(g, meshes[0].material);
+  for (const m of meshes) parent.remove(m);
+  parent.add(one);
+  return one;
+}
+// The wheels of one vehicle drawn as one instanced mesh a material of the wheel, not a mesh a material a wheel. slots:
+// the Object3Ds that spin and steer as each wheel's meshes did (somewhere under parent); sync() puts each wheel where
+// its slot is, and none where its slot (or what holds it) is hidden - a flat tyre's turn.
+const _wm = new THREE.Matrix4();
+class WheelSet {
+  constructor(parent, parts, slots) {
+    this.parent = parent;
+    this.slots = slots;
+    this.meshes = parts.map((p) => {
+      const m = new THREE.InstancedMesh(p.geometry, p.material, slots.length);
+      m.name = p.name;
+      m.castShadow = m.receiveShadow = true;
+      m.userData.hull = true; // (outlined as the wheels they are: game/highlight.js)
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      parent.add(m);
+      return m;
+    });
+    this.sync();
+    // (a wheel only turns where it is, and a front one steers: the sphere round them as built, and a margin)
+    for (const m of this.meshes) {
+      m.computeBoundingSphere();
+      m.boundingSphere.radius += 0.6;
+    }
+  }
+  sync() {
+    let n = 0;
+    for (const slot of this.slots) {
+      let on = true;
+      _wm.identity();
+      for (let o = slot; o !== this.parent; o = o.parent) {
+        if (!o.visible) on = false;
+        o.updateMatrix();
+        _wm.premultiply(o.matrix);
+      }
+      if (!on) continue;
+      for (const m of this.meshes) m.setMatrixAt(n, _wm);
+      n++;
+    }
+    // (the wheels shown, first; none: not drawn at all, nor into the shadow maps)
+    for (const m of this.meshes) {
+      m.count = n;
+      m.visible = n > 0;
+      m.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
 // A pool of light on the road: a fan of triangles that fades to nothing at its rim (vertex colours, added to what is
 // under it). rx, rz: its half-widths; it lies in its own XZ plane.
 function poolGeo(key, rx, rz) {
@@ -420,14 +477,15 @@ export class VehicleModel {
     const mk = (parts) => shadows(partsToGroup(parts, 'wheel'));
     const fw = new THREE.Group();
     fw.position.set(0, -D.fork, 0);
-    this.fwOk = mk(P.wheel);
+    this.fwOk = new THREE.Object3D(); // (the wheels are drawn by the WheelSet, where these two are)
     this.fwFlat = mk(P.flat);
     fw.add(this.fwOk, this.fwFlat);
     fork.add(fw);
-    const rw = mk(P.wheel);
+    const rw = new THREE.Object3D();
     rw.position.set(0, D.wr, D.ax);
     this.live.add(rw);
     this.wheels.push(this.fwOk, rw);
+    this.sets = [new WheelSet(this.live, P.wheel, this.wheels)];
     // the grips (the middle of each, on the bars)
     const gx = moped ? 0.298 : 0.268, gy = D.bar, gz = moped ? 0.089 : -0.069;
     this.grips[0].position.set(-gx, gy, gz);
@@ -464,6 +522,7 @@ export class VehicleModel {
       dials.add(face, face2);
       // the marks round each face: every 20 km/h on the one, empty / half / full on the other
       const tick = geo('mtick', () => new THREE.BoxGeometry(0.003, 0.0015, 0.011));
+      const ticks = [];
       for (const [x, y, z, r, n, a0, a1] of [[0, 0.0245, 0, 0.047, 7, 2.1, -2.1], [0.105, 0.0145, 0.008, 0.025, 3, 1.2, -1.2]]) {
         for (let k = 0; k < n; k++) {
           const a = a0 + ((a1 - a0) * k) / (n - 1);
@@ -471,8 +530,11 @@ export class VehicleModel {
           t.position.set(x - Math.sin(a) * r, y, z - Math.cos(a) * r);
           t.rotation.y = a;
           dials.add(t);
+          ticks.push(t);
         }
       }
+      merge('mticks', dials, ticks);
+      merge('mfaces', dials, [face, face2]);
       const ng = geo('mneedle', () => new THREE.BoxGeometry(0.005, 0.002, 0.046).translate(0, 0, -0.02));
       for (const [x, y, z, sc] of [[0, 0.0262, 0, 1], [0.105, 0.0162, 0.008, 0.55]]) {
         const n = lamp(ng, L.needle);
@@ -502,26 +564,28 @@ export class VehicleModel {
     // the feet: under the scuttle in front (the driver's by the pedals), under the front seats behind
     for (const sx of [-1, 1]) this.feet.push([foot(sx * 0.38 - 0.11, 0.25, -0.7), foot(sx * 0.38 + 0.11, 0.25, -0.7)]);
     for (const sx of [-1, 1]) this.feet.push([foot(sx * 0.4 - 0.1, 0.25, 0.275), foot(sx * 0.4 + 0.1, 0.25, 0.275)]);
+    const flats = [];
     CAR.wheels.forEach(([x, z], k) => {
       const pivot = new THREE.Group();
       pivot.position.set(x, CAR.wr, z * CAR_Z);
-      const w = shadows(partsToGroup(P.wheel, 'wheel'));
-      pivot.add(w);
+      // (the wheels and the flat tyres are drawn by two WheelSets, where these are)
+      const w = new THREE.Object3D();
+      const fl = new THREE.Object3D();
+      pivot.add(w, fl);
+      flats.push(fl);
       if (k === 1) {
-        this.fwFlat = shadows(partsToGroup(P.flat, 'wheel_flat'));
-        pivot.add(this.fwFlat);
+        this.fwFlat = fl;
         this.fwOk = w;
       } else {
         // (every tyre of a burnt-out one is down)
-        const fl = shadows(partsToGroup(P.flat, 'wheel_flat'));
         fl.visible = false;
-        pivot.add(fl);
         (this.flats || (this.flats = [])).push([w, fl]);
       }
       this.body.add(pivot);
       this.wheels.push(w);
       if (k < 2) this.front.push(pivot);
     });
+    this.sets = [new WheelSet(this.body, P.wheel, this.wheels), new WheelSet(this.body, P.flat, flats)];
     // the steering wheel on its column, and the driver's hands' places on its rim (ten to two)
     this.body.add(partsToGroup(P.column, 'column'));
     const sw = (this.sw = new THREE.Group());
@@ -546,6 +610,7 @@ export class VehicleModel {
       m.rotation.y = PI;
       this.headOn.add(m);
     }
+    merge('cheads', this.headOn, [...this.headOn.children]);
     const tl = geo('ctail', () => new THREE.PlaneGeometry(0.36, 0.14));
     this.tailOn = new THREE.Group();
     this.brakeOn = new THREE.Group();
@@ -556,6 +621,8 @@ export class VehicleModel {
         grp.add(m);
       }
     }
+    merge('ctails', this.tailOn, [...this.tailOn.children]);
+    merge('cbrakes', this.brakeOn, [...this.brakeOn.children]);
     this.body.add(this.headOn, this.tailOn, this.brakeOn);
     this.glows(1.5, 2.3 * CAR_Z, 2.4, 2.0, 5.5);
     // hazard lamps: the four corners, blinking while a broken-down one's battery lasts (setHazard)
@@ -568,6 +635,7 @@ export class VehicleModel {
       c.position.set(sx * 0.82, 0.68, 2.33 * CAR_Z);
       this.hazard.add(a, c);
     }
+    merge('chazards', this.hazard, [...this.hazard.children]);
     this.hazard.visible = false;
     this.body.add(this.hazard);
     // the clocks in the binnacle behind the wheel: a lit face each, a needle each
@@ -584,6 +652,7 @@ export class VehicleModel {
     const face = geo('cface', () => new THREE.CircleGeometry(0.042, 16));
     const ng = geo('cneedle', () => new THREE.BoxGeometry(0.005, 0.036, 0.002).translate(0, 0.016, 0));
     const tick = geo('ctick', () => new THREE.BoxGeometry(0.003, 0.009, 0.001));
+    const ticks = [], faces = [];
     for (const [x, sc, n, a0, a1] of [[-0.07, 1, 7, 2.1, -2.1], [0.07, 0.8, 3, 1.2, -1.2]]) {
       for (let k = 0; k < n; k++) {
         const a = a0 + ((a1 - a0) * k) / (n - 1);
@@ -591,6 +660,7 @@ export class VehicleModel {
         t.position.set(x - Math.sin(a) * 0.035 * sc, Math.cos(a) * 0.035 * sc, 0.002);
         t.rotation.z = a;
         dials.add(t);
+        ticks.push(t);
       }
     }
     for (const [x, sc] of [[-0.07, 1], [0.07, 0.8]]) {
@@ -601,8 +671,11 @@ export class VehicleModel {
       n.position.set(x, 0, 0.003);
       n.scale.setScalar(sc);
       dials.add(fm, n);
+      faces.push(fm);
       this.needles.push(n);
     }
+    merge('cticks', dials, ticks);
+    merge('cfaces', dials, faces);
   }
 
   // as found (VSTATE.BROKEN), running, broken down, burnt out
@@ -656,6 +729,7 @@ export class VehicleModel {
       this.fwFlat.visible = found || wreck || down;
       this.fwOk.visible = !this.fwFlat.visible;
     }
+    for (const set of this.sets) set.sync(); // (a tyre gone flat, or all four)
     this.setHazard(false);
     this.lit = -1;
     this.setLamps(false, false);
@@ -724,6 +798,7 @@ export class VehicleModel {
       // (a pedal: at the end of its crank, level)
       for (const m of this.pedals) m.position.set(m.userData.sx * 0.14, BIKE.bb[1] + m.userData.sx * BIKE.crank * Math.cos(c), BIKE.bb[2] + m.userData.sx * BIKE.crank * Math.sin(c));
     }
+    for (const set of this.sets) set.sync();
   }
 
   // the needles: speed and fuel as shares of the dial

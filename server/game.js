@@ -87,6 +87,7 @@ import {
   STRUCT_DEFS,
   structPickRadius,
   REPAIR_COST,
+  demolishRefund,
   CAMPFIRE_FUEL,
   CAMPFIRE_MAX_FUEL,
   ZTYPE,
@@ -3710,6 +3711,8 @@ export class Game {
       z,
       hp: def.hp,
       maxHp: def.hp,
+      minHealth: 1,
+      placedAt: this.time,
       state: 1,
       owner: p.id,
       burnLeft: def.burn || 0,
@@ -3735,12 +3738,11 @@ export class Game {
     if (!e || e.kind !== ENT.STRUCTURE) return;
     const s = p.state;
     if (Math.hypot(e.x - s.x, e.z - s.z) > 5) return;
-    const def = STRUCT_DEFS[e.stype];
-    const frac = (e.hp / e.maxHp) * 0.5;
-    for (const k in def.cost) {
-      const n = Math.floor(def.cost[k] * frac);
-      if (n <= 0) continue;
+    const back = demolishRefund(e, this.time); // (undo window, then 75% of lowest health/fuel share)
+    for (const k in back) {
+      const n = back[k];
       const taken = this.giveItem(p, +k, n);
+      if (taken > 0) this.pickupEvent(p, +k, taken);
       if (taken < n) this.dropItem(+k, n - taken, e.x, e.y, e.z); // only what did not fit, not the whole refund again
     }
     this.power.demolished(p, e); // (what is left in a generator's tank comes back)
@@ -3782,8 +3784,15 @@ export class Game {
   damageStructure(e, amount) {
     if (e.removed) return;
     e.hp -= amount;
+    this.noteStructureHealth(e);
     this.sound(STRUCT_DEFS[e.stype].metal ? SOUND.METAL_HIT : SOUND.WOOD_HIT, e.x, e.y + 1, e.z, 40);
     if (e.hp <= 0) this.destroyStructure(e, true);
+  }
+
+  noteStructureHealth(e) {
+    if (!e || e.maxHp <= 0) return;
+    const share = Math.max(0, Math.min(1, e.hp / e.maxHp));
+    e.minHealth = Math.min(Number.isFinite(e.minHealth) ? e.minHealth : 1, share);
   }
 
   destroyStructure(e, broken) {

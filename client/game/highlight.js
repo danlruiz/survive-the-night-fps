@@ -151,12 +151,14 @@ const DEPTH_MAT = hullMaterial(true);
 // what the meshes of a stand-in wear: they are never drawn, only their shells are
 const STAND_IN_MAT = new THREE.MeshBasicMaterial();
 
-// a shell of `src` (a Mesh or SkinnedMesh) in `mat`, drawn where src is: its world matrix (and bind matrices) are
-// taken from src just before it is drawn, when three has brought src's up to date
+// a shell of `src` (a Mesh, SkinnedMesh or InstancedMesh) in `mat`, drawn where src is: its world matrix (and bind
+// matrices, or its instances) are taken from src just before it is drawn, when three has brought src's up to date
 function makeShell(src, mat, order) {
   const geo = hullGeometry(src.geometry);
   const skinned = src.isSkinnedMesh;
-  const s = skinned ? new THREE.SkinnedMesh(geo, mat) : new THREE.Mesh(geo, mat);
+  const inst = src.isInstancedMesh;
+  const s = skinned ? new THREE.SkinnedMesh(geo, mat) : inst ? new THREE.InstancedMesh(geo, mat, src.instanceMatrix.count) : new THREE.Mesh(geo, mat);
+  if (inst) s.instanceMatrix = src.instanceMatrix; // (the very same matrices: one buffer on the card)
   if (skinned) {
     s.bind(src.skeleton, src.bindMatrix);
     s.bindMode = THREE.DetachedBindMode; // (the matrices are src's, copied below)
@@ -168,6 +170,7 @@ function makeShell(src, mat, order) {
   s.raycast = () => {};
   s.onBeforeRender = () => {
     s.matrixWorld.copy(src.matrixWorld);
+    if (inst) s.count = src.count;
     if (skinned) {
       s.bindMatrix.copy(src.bindMatrix);
       s.bindMatrixInverse.copy(src.bindMatrixInverse);
@@ -185,9 +188,10 @@ function shown(o, scene) {
   return false;
 }
 
-// which meshes of a model get a shell: solid ones (not glass, flames, glows, beams or the like)
+// which meshes of a model get a shell: solid ones (not glass, flames, glows, beams or the like). An instanced mesh only
+// when it says its instances are parts of the model (userData.hull: a vehicle's wheels), not a crowd or a forest
 function solid(o) {
-  if (!(o.isMesh || o.isSkinnedMesh) || o.isInstancedMesh || !o.geometry?.attributes.position) return false;
+  if (!(o.isMesh || o.isSkinnedMesh) || (o.isInstancedMesh && !o.userData.hull) || !o.geometry?.attributes.position) return false;
   const m = Array.isArray(o.material) ? o.material[0] : o.material;
   return !!m && m.visible !== false && !m.transparent && m.blending === THREE.NormalBlending && m.depthWrite !== false && m.colorWrite !== false;
 }
@@ -363,12 +367,13 @@ export class Highlight {
     return v;
   }
 
-  // Game.warmViews: the two programs a shell can need (on a mesh, on a skinned mesh) built with everything else
+  // Game.warmViews: the programs a shell can need (on a mesh, an instanced mesh, a skinned mesh) built with everything else
   // before play. skinned: a SkinnedMesh to borrow a skeleton from.
   warm(skinned) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1));
     const mat = hullMaterial(false);
     const out = [new THREE.Mesh(hullGeometry(box.geometry), DEPTH_MAT), new THREE.Mesh(hullGeometry(box.geometry), mat)];
+    for (const m of [DEPTH_MAT, mat]) out.push(new THREE.InstancedMesh(hullGeometry(box.geometry), m, 1)); // (a vehicle's wheels)
     if (skinned) {
       for (const m of [DEPTH_MAT, mat]) {
         const s = new THREE.SkinnedMesh(hullGeometry(skinned.geometry), m);
