@@ -811,8 +811,9 @@ export const EVT = {
   // (private) the bestiary (shared/bestiary.js): u8 flags (BESTF), u16 mask of ZTYPEs - the whole record (BESTF.ALL)
   // or the kinds just seen
   BESTIARY: 37,
-  // a tree blown apart - by a bullet in its trunk, or a blast: its collider's x, y0, z (i16), the way it goes u8 (yaw),
-  // u8 how far up its foot it broke (0.1 m), u8 pieces (1: a shot, snapped there; 2-3: a blast). Out of the world until dawn
+  // a tree broken - by the rounds in its trunk, or a blast: its collider's x, y0, z (i16), the way it goes u8 (yaw),
+  // u8 how far up its foot it broke (0.1 m), u8 pieces (1: a shot, snapped there; 2-3: a blast; 0: none - only how
+  // much of it stands, to whoever joins). What stands below stands until dawn, and can be shot again
   TREE_BREAK: 38,
 };
 

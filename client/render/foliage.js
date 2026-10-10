@@ -12,6 +12,7 @@ import { G } from './globals.js';
 import { groundFields } from './terrain.js';
 import { grassRadius } from './renderer.js';
 import { FallingTrees } from './fallingtrees.js';
+import { CutTrees } from './cuttrees.js';
 import { isShadowFrustum } from './multimesh.js';
 
 const CELL = 32;
@@ -499,11 +500,13 @@ export class Foliage {
     this.rocks = new InstancedSet(scene, world.rocks, getRockVariants(), { radius: quality.treeDist, rebuildDist: 10, receive: true });
     this.grass = new GrassField(scene, world);
     this.falling = new FallingTrees(scene, world, this.trees);
+    this.cut = new CutTrees(scene, this.trees);
     this.setQuality(quality, grassMul);
   }
 
   dispose() {
     this.falling.dispose();
+    this.cut.dispose();
     for (const set of [this.trees, this.bushes, this.rocks]) set.dispose();
     this.grass.dispose();
   }
@@ -514,15 +517,20 @@ export class Foliage {
     if (yaw !== null) this.falling.fell(i, yaw, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
   }
 
-  // Tree i shot or blown apart (Game.breakTree; FallingTrees.breakTree): out of the forest, in pieces. Where it broke
-  breakTree(i, yaw, cut, pieces, r) {
+  // Tree i shot or blown apart (Game.breakTree; FallingTrees.breakTree) cut m up its foot, where `top` m of it stood
+  // (Infinity: the whole of it): what stood above comes down in pieces (none: it was so before we came), and what
+  // stands below is drawn cut off there (CutTrees) instead of in the forest. Where it broke
+  breakTree(i, yaw, cut, top, pieces, r) {
     this.trees.hide(i);
-    return this.falling.breakTree(i, yaw, cut, pieces, r, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
+    this.cut.set(i, cut, r);
+    if (!pieces) return [cut];
+    return this.falling.breakTree(i, yaw, cut, top, pieces, r, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
   }
 
   // dawn: every felled tree stands again
   regrow() {
     this.falling.clear();
+    this.cut.clear();
     this.trees.showAll();
   }
 
@@ -563,5 +571,6 @@ export class Foliage {
     this.rocks.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
     this.grass.update(camPos.x, camPos.z, view);
     this.falling.update(dt);
+    this.cut.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10);
   }
 }

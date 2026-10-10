@@ -292,14 +292,20 @@ const VEG_LOD_DITHER = /* glsl */ `
 `;
 
 // a felled tree going: the same screen-space dither, by its own uVegGone (0 there .. 1 gone). A piece of a tree
-// blown apart (VEG_BAND) is the slice of it between uVegBand.x and .y up its own model (vVegY: before the wind)
+// blown apart (VEG_BAND) is the slice of it between uVegBand.x and .y up its own model (vVegY: before the wind); a
+// tree shot down to what stands of it (VEG_TOP) is cut off at its instance's aVegTop up its model
 const VEG_FELL_PARS = /* glsl */ `
 #ifdef VEG_FELL
   uniform float uVegGone;
 #endif
+#if defined( VEG_BAND ) || defined( VEG_TOP )
+  varying float vVegY;
+#endif
 #ifdef VEG_BAND
   uniform vec2 uVegBand;
-  varying float vVegY;
+#endif
+#ifdef VEG_TOP
+  varying float vVegTop;
 #endif
 `;
 const VEG_FELL_DITHER = /* glsl */ `
@@ -308,6 +314,9 @@ const VEG_FELL_DITHER = /* glsl */ `
 #endif
 #ifdef VEG_BAND
   if (vVegY < uVegBand.x || vVegY > uVegBand.y) discard;
+#endif
+#ifdef VEG_TOP
+  if (vVegY > vVegTop) discard;
 #endif
 `;
 
@@ -350,12 +359,30 @@ const VEG_MIP_ALPHA = /* glsl */ `
 #include <alphatest_fragment>
 `;
 
+const VEG_CUT_VERT_PARS = /* glsl */ `
+#if defined( VEG_BAND ) || defined( VEG_TOP )
+  varying float vVegY;
+#endif
+#ifdef VEG_TOP
+  attribute float aVegTop;
+  varying float vVegTop;
+#endif
+`;
+const VEG_CUT_VERT = /* glsl */ `
+#if defined( VEG_BAND ) || defined( VEG_TOP )
+  vVegY = position.y;
+#endif
+#ifdef VEG_TOP
+  vVegTop = aVegTop;
+#endif
+`;
+
 function vegVertex(sh) {
   Object.assign(sh.uniforms, VEG);
   sh.vertexShader = sh.vertexShader
-    .replace('#include <common>', `#include <common>\n${VEG_VERT_PARS}\n#ifdef VEG_BAND\nvarying float vVegY;\n#endif`)
+    .replace('#include <common>', `#include <common>\n${VEG_VERT_PARS}\n${VEG_CUT_VERT_PARS}`)
     .replace('#include <begin_vertex>', VEG_VERT_MAIN)
-    .replace('#include <project_vertex>', '#include <project_vertex>\nif (vegDrop) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);\n#ifdef VEG_BAND\nvVegY = position.y;\n#endif');
+    .replace('#include <project_vertex>', `#include <project_vertex>\nif (vegDrop) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);\n${VEG_CUT_VERT}`);
   return sh;
 }
 
@@ -383,7 +410,7 @@ function vegDepthMaterial(defines, gone = null, band = null) {
  * near: the grass's near infill (fades out across uGrassNear). gone: a felled tree's { value } (0 .. 1), which
  * dithers it out, shadow and all.
  */
-function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod = -1, gone = null, band = null) {
+function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod = -1, gone = null, band = null, top = false) {
   const opaque = kind === 'trunk';
   const mat = lambert(opaque ? o : { alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: true, ...o });
   const defines = {};
@@ -397,6 +424,7 @@ function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod =
   if (lod === 1) defines.VEG_LOD_IN = '';
   if (gone) defines.VEG_FELL = '';
   if (band) defines.VEG_BAND = '';
+  if (top) defines.VEG_TOP = '';
   defines.VEG_STIFF = stiff.toFixed(3);
   mat.defines = defines;
   if (kind === 'grass') groundNoiseTexture();
@@ -469,6 +497,20 @@ export function vegStaticMaterial(mat) {
 export function vegFellMaterial(mat, gone, band) {
   const m = vegMaterial(...vegDef(mat.name.replace(/_(far|static)$/, '')), -1, gone, band);
   m.name = mat.name + '_fell';
+  return m;
+}
+const vegCut = new Map();
+/**
+ * Twin of a tree material (near LOD) for trees shot down to what stands of them (render/cuttrees.js): drawn at every
+ * distance, and cut off, shadow and all, at the height up its model in each instance's aVegTop.
+ */
+export function vegCutMaterial(mat) {
+  let m = vegCut.get(mat);
+  if (!m) {
+    m = vegMaterial(...vegDef(mat.name.replace(/_(far|static)$/, '')), -1, null, null, true);
+    m.name = mat.name + '_cut';
+    vegCut.set(mat, m);
+  }
   return m;
 }
 const vegFar = new Map();

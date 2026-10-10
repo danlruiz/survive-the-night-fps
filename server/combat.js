@@ -233,7 +233,9 @@ export class Combat {
           if (wallCol && !wallTerrain) {
             if (wallCol.flags & COL.TREE) {
               kind = IMPACT.WOOD;
-              g.shootTree(wallCol, hy, dx, dz); // (the rest of a blast's pellets go on through where it stood)
+              // (the round's own damage, not what the shooter's perks add to it: those are for the flesh. The rest of
+              // a blast's pellets go on into what stands of it, or over it)
+              g.shootTree(wallCol, hy, dx, dz, def.pellets > 1 ? def.damage * pelletFalloff(wallT) : def.damage);
             } else if (wallCol.flags & COL.STRUCT) kind = STRUCT_DEFS[this.g.ents[wallCol.id]?.stype]?.metal ? IMPACT.METAL : IMPACT.WOOD;
             else kind = IMPACT.SPARK;
             if (wallCol.flags & COL_VEHICLE) g.vehicles.shot(wallCol, def.damage); // a vehicle standing empty takes the round

@@ -2,6 +2,8 @@
 // until dawn: its trunk stops nobody and no bullet any more. The server and every client take its collider out of
 // their own static grid by the same rule, and put them all back at dawn (EVT.REGROWN) or when a new game starts
 // on the same valley. world.felled holds the ones that are down.
+// A tree shot or blown apart (EVT.TREE_BREAK) is cut instead: what stands of it stays in the world, its collider
+// only as tall as the trunk left, so it can be shot again and broken lower down. world.cut holds those.
 import { COL } from './collision.js';
 import { qpos, dqpos } from './protocol.js';
 
@@ -23,8 +25,27 @@ export function fellTree(world, col) {
   return true;
 }
 
-// Every felled tree stands again.
+// How much of tree col stands, in m up its foot (the collider reaches a metre into the ground)
+export const treeFoot = (col) => col.y0 + 1;
+export const treeTop = (col) => col.y1 - col.y0 - 1;
+// ...and how tall it was whole
+export const treeHeight = (col) => (col.full ?? col.y1) - col.y0 - 1;
+
+// Tree col broken off `top` m up its foot: only the trunk below stands. False when no more than that stands now.
+export function cutTree(world, col, top) {
+  if (top >= treeTop(col)) return false;
+  col.full ??= col.y1;
+  col.y1 = col.y0 + 1 + top;
+  (world.cut ||= new Set()).add(col);
+  return true;
+}
+
+// Every felled tree stands again, and every cut one is whole.
 export function regrowTrees(world) {
+  if (world.cut) {
+    for (const col of world.cut) col.y1 = col.full;
+    world.cut.clear();
+  }
   const felled = world.felled;
   if (!felled) return;
   for (const col of felled) world.staticGrid.add(col);

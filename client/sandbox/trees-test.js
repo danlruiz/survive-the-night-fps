@@ -64,7 +64,7 @@ const H = variants[V].height * scale;
 const yaw = Math.PI / 2;
 let cuts = [CUT];
 if (HOW === 'fell') falling.fell(0, yaw, 0, 0);
-else cuts = falling.breakTree(0, yaw, CUT, PIECES, 0.35 * scale, 0, 0);
+else cuts = falling.breakTree(0, yaw, CUT, Infinity, PIECES, 0.35 * scale, 0, 0);
 for (let t = 0; t < T; t += 1 / 60) falling.update(Math.min(1 / 60, T - t));
 
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 500);

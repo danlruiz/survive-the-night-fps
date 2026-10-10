@@ -3,8 +3,9 @@
 // and then ever faster, as a toppling pole does, and hits the ground FALL_T after the event - where every take of
 // the recording (SOUND.TREE_FALL) has its crash. A bounce, a few seconds lying there, and it dithers away.
 // A tree shot or blown apart (EVT.TREE_BREAK) comes down in pieces, each a slice of the same model up its height
-// (its materials' band): a stump that stands, and above it what a bullet snapped off - which topples off the stump
-// and down - or what a blast broke it into, thrown tumbling away from the blast. Splintered ends where it broke.
+// (its materials' band): what a bullet snapped off - which topples off what stands and down - or what a blast broke
+// it into, thrown tumbling away from the blast. Splintered ends where it broke. What stands of it is not drawn here
+// but with every other tree cut down to what stands of it (render/cuttrees.js), until dawn.
 import * as THREE from 'three';
 import { vegFellMaterial } from './materials.js';
 
@@ -19,7 +20,6 @@ const BOUNCE = 0.06; // rad it bounces back up off the ground
 const DRAW_DIST = 260; // m: further off a tree just goes (nobody sees it fall through that much forest)
 const GRAV = 9.8;
 const ALL = 1e5; // a band that is the whole of the model
-const STAND = 0;
 const TOPPLE = 1;
 const FLY = 2;
 
@@ -59,7 +59,7 @@ function profileAt(t) {
 // broke). Flat-shaded pale wood, both sides.
 let capGeo = null;
 let capMat = null;
-function capParts() {
+export function capParts() {
   if (capGeo) return [capGeo, capMat];
   const N = 13;
   const p = [];
@@ -88,6 +88,9 @@ function capParts() {
   capMat.name = 'tree_break';
   return [capGeo, capMat];
 }
+
+// a tree's trunk's radius h m up its foot, of a tree H m tall with a trunk r round at the foot (it tapers)
+export const trunkAt = (r, h, H) => r * 0.85 * Math.max(0.3, 1 - (0.75 * h) / H);
 
 const _q = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -222,10 +225,10 @@ export class FallingTrees {
     return true;
   }
 
-  // Instance i shot (pieces 1) or blown apart (2-3), toward yaw, broken cut m up its foot; r: its trunk's radius at
-  // the foot. Where it broke (m up its foot, the lowest first) - a blast breaks it more than once - whether or not
-  // the camera at (cx, cz) is near enough to see it drawn.
-  breakTree(i, yaw, cut, pieces, r, cx, cz) {
+  // Instance i shot (pieces 1) or blown apart (2-3), toward yaw, broken cut m up its foot, where `top` m of it stood
+  // (Infinity: it stood whole); r: its trunk's radius at the foot. Where it broke (m up its foot, the lowest first) -
+  // a blast breaks it more than once - whether or not the camera at (cx, cz) is near enough to see it drawn.
+  breakTree(i, yaw, cut, top, pieces, r, cx, cz) {
     const D = this.trees.data;
     const v = D[i * 6 + 5] | 0;
     const sc = D[i * 6 + 3];
@@ -235,27 +238,26 @@ export class FallingTrees {
     const seg = Math.min(3.2, Math.max(1, 0.16 * H));
     while (cuts.length < pieces) {
       const c = cuts[cuts.length - 1] + seg * rnd(0.75, 1.25);
-      if (c > 0.6 * H) break;
+      if (c > 0.6 * H || c > top - 0.5) break;
       cuts.push(c);
     }
     const t = this._tree(i, cx, cz);
     if (!t) return cuts;
-    const trunk = (h) => r * 0.85 * Math.max(0.3, 1 - (0.75 * h) / t.H); // (it tapers)
+    // (what stood of it: the whole of it, crown and all, or a length of trunk broken off at the top already)
+    const crown = top >= t.H;
+    const end = Math.min(top, t.H);
+    const trunk = (h) => trunkAt(r, h, t.H);
     const dx = -Math.sin(yaw);
     const dz = -Math.cos(yaw);
     const at = (h) => t.pos.clone().addScaledVector(_up, h);
-    // the stump stands
-    const stump = this._piece(t, 0, cuts[0], t.pos, [0, trunk(cuts[0])]);
-    stump.mode = STAND;
-    this._pose(stump);
     if (pieces === 1) {
-      // shot: what is above slips off the stump, its foot kicking back, and topples the way the round went
+      // shot: what is above slips off what stands, its foot kicking back, and topples the way the round went
       const c = cuts[0];
-      const f = this._piece(t, c, t.H, at(c), [trunk(c), 0]);
+      const f = this._piece(t, c, end, at(c), [trunk(c), crown ? 0 : trunk(end)]);
       const bx = t.x - dx * 0.5;
       const bz = t.z - dz * 0.5;
       const G = new THREE.Vector3(bx, this.world.heightAt(bx, bz) + trunk(c), bz);
-      this._topple(f, dx, dz, G, 0.6 * (t.H - c));
+      this._topple(f, dx, dz, G, 0.6 * (end - c));
       this._pose(f);
       return cuts;
     }
@@ -263,15 +265,16 @@ export class FallingTrees {
     const near = pieces > 2 ? 1.25 : 1;
     for (let k = 0; k < cuts.length; k++) {
       const lo = cuts[k];
-      const top = k === cuts.length - 1;
-      const hi = top ? t.H : cuts[k + 1];
-      const mid = top ? lo + 0.35 * (t.H - lo) : (lo + hi) / 2;
-      const f = this._piece(t, lo, hi, at(mid), [trunk(lo), top ? 0 : trunk(hi)]);
+      const last = k === cuts.length - 1;
+      const heave = last && crown; // (the crown: heaved over, not thrown)
+      const hi = last ? end : cuts[k + 1];
+      const mid = heave ? lo + 0.35 * (end - lo) : (lo + hi) / 2;
+      const f = this._piece(t, lo, hi, at(mid), [trunk(lo), heave ? 0 : trunk(hi)]);
       const a = Math.atan2(dz, dx) + rnd(-0.45, 0.45);
-      const sp = (top ? rnd(1.5, 3) : rnd(4, 7.5)) * near;
-      const vy = top ? rnd(1, 2.5) : rnd(3, 6) * near;
-      const turn = top ? Math.PI / 2 - LIFT : (Math.PI / 2 + (Math.random() < 0.6 ? Math.PI : 0)) * (Math.random() < 0.5 ? -1 : 1);
-      this._fly(f, Math.cos(a) * sp, vy, Math.sin(a) * sp, turn, top ? Math.min(2, 0.3 + 0.1 * (t.H - lo)) : trunk(mid));
+      const sp = (heave ? rnd(1.5, 3) : rnd(4, 7.5)) * near;
+      const vy = heave ? rnd(1, 2.5) : rnd(3, 6) * near;
+      const turn = heave ? Math.PI / 2 - LIFT : (Math.PI / 2 + (Math.random() < 0.6 ? Math.PI : 0)) * (Math.random() < 0.5 ? -1 : 1);
+      this._fly(f, Math.cos(a) * sp, vy, Math.sin(a) * sp, turn, heave ? Math.min(2, 0.3 + 0.1 * (end - lo)) : trunk(mid));
       this._pose(f);
     }
     return cuts;
