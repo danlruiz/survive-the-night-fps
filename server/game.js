@@ -128,7 +128,7 @@ import { MineNav } from './minenav.js';
 import { createPlayerState, copyPlayerState, samePlayerState, snapPlayerState, hashPlayerState, simulatePlayer, eyeHeight, currentWeapon, DRAW_TIME, radioKeyed } from '../shared/playersim.js';
 import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, canReach } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
-import { swimming, DROWN_DPS } from '../shared/swim.js';
+import { swimming, inRiver, DROWN_DPS, RIVER_DPS } from '../shared/swim.js';
 import { nightTheme, nightBoss } from '../shared/nights.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
@@ -2088,11 +2088,24 @@ export class Game {
   }
 
   // how many of the dead stand on the runway ahead of the plane (acts.js RUNWAY: the strip it needs for its run)
+  // (the strip runs from the plane's nose the way it faces: -Z turned by its heading, the runway's)
   onRunway() {
     const car = this.world.car;
+    const fx = -Math.sin(car.ry);
+    const fz = -Math.cos(car.ry);
     let n = 0;
-    for (const z of this.zombies) if (!z.dead && !z.def.flying && Math.abs(z.x - car.x) < RUNWAY.LANE && car.z - z.z > 4 && car.z - z.z < RUNWAY.STRIP) n++;
+    for (const z of this.zombies) {
+      if (z.dead || z.def.flying) continue;
+      const ahead = (z.x - car.x) * fx + (z.z - car.z) * fz;
+      const side = (z.x - car.x) * -fz + (z.z - car.z) * fx;
+      if (Math.abs(side) < RUNWAY.LANE && ahead > 4 && ahead < RUNWAY.STRIP) n++;
+    }
     return n;
+  }
+  // the point AHEAD metres down the runway from the plane, where the runway stand's groups come from
+  runwayAhead() {
+    const car = this.world.car;
+    return { x: car.x - Math.sin(car.ry) * RUNWAY.AHEAD, z: car.z - Math.cos(car.ry) * RUNWAY.AHEAD };
   }
 
   // ---------------------------------------------------------------- items / loot
@@ -2482,6 +2495,9 @@ export class Game {
         break;
       case 'veh_crash':
         this.vehicles.crashEvent(p, ev);
+        break;
+      case 'veh_river':
+        this.vehicles.riverEvent(p, ev);
         break;
       case 'veh_off':
         this.vehicles.left(p, ev);
@@ -4767,7 +4783,7 @@ export class Game {
         q.push(type);
       }
       // (the plane's comes down the runway: its groups appear round a point well along it)
-      e.sent += this.spawnHordeGroup(q, plane ? { x: car.x, z: car.z - RUNWAY.AHEAD } : car);
+      e.sent += this.spawnHordeGroup(q, plane ? this.runwayAhead() : car);
       for (const t of q) if (t === ZTYPE.TANK) e.tanks--; // rolled, but the group came out smaller: it was not sent
     }
     if (!e.ready) {
@@ -4782,7 +4798,7 @@ export class Game {
         e.t = RUNWAY.WARM_TIME;
         this.notify(NOTIFY.STAND_STAGE, 1);
         this.sound(SOUND.ENGINE_CRANK, car.x, car.y + 0.8, car.z, 300);
-        this.spawnBosses([this.day % 2 ? ZTYPE.BOSS_HIVEQUEEN : ZTYPE.BOSS_ABOMINATION], { x: car.x, z: car.z - RUNWAY.AHEAD });
+        this.spawnBosses([this.day % 2 ? ZTYPE.BOSS_HIVEQUEEN : ZTYPE.BOSS_ABOMINATION], this.runwayAhead());
         this.globalDirty = true;
       } else if (e.t <= 0) {
         e.t = 0;
@@ -4913,10 +4929,12 @@ export class Game {
         continue;
       }
       // afloat with no stamina left (shared/swim.js): drowning, in gulps, until the feet find the bottom
-      if (s.stamina <= 0 && swimming(this.world, s)) {
+      // ...and in the mainland's river at once, and fast: the current has them (shared/swim.js)
+      const rapids = inRiver(this.world, s);
+      if (rapids || (s.stamina <= 0 && swimming(this.world, s))) {
         if ((p.drownT = (p.drownT || 0) + dt) >= 0.5) {
           p.drownT -= 0.5;
-          this.damagePlayer(p, DROWN_DPS * 0.5, { kind: KILLER.WORLD, drown: true });
+          this.damagePlayer(p, (rapids ? RIVER_DPS : DROWN_DPS) * 0.5, { kind: KILLER.WORLD, drown: true });
           if (!p.alive) continue;
           this.ach.drowning(p);
         }

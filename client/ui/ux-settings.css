@@ -1,0 +1,595 @@
+/* Settings (settings.js, keybinds.js), issue #217: tabs named for what a player looks for, each with a line of what is
+   in it and a count of what was changed there; an amber bar and a reset on every changed row; a reset for this tab in
+   the foot. Built for zoom: no text under 12 px, labels wrap, the tabs, the head and the foot stay put and only the
+   list scrolls - at 854 x 480 (1280 x 720 at 150%) too, where the tabs fold to an icon rail.
+   Everything here is under the panel's own root (.ux-set): the other panels share .set-card / .set-row. */
+
+.stn-ui .stn-settings.ux-set {
+  --ux-amber: var(--amber);
+  --ux-kw: max(96px, calc(112 * var(--u))); /* a key button */
+  --ux-kr: max(58px, calc(62 * var(--u))); /* a key row's reset */
+  --ux-gap: 6px;
+  transition: background 0.2s;
+}
+
+/* Display: the game is not dimmed behind the card, so a change to the view can be seen as it is made */
+.stn-ui .stn-settings.ux-set.ux-live {
+  background: rgba(3, 2, 2, 0.12);
+}
+
+.stn-ui .stn-settings.ux-set .set-card {
+  width: calc(1020 * var(--u));
+  min-width: min(700px, 96vw);
+  max-width: 96vw;
+  height: min(92vh, max(460px, calc(820 * var(--u))));
+}
+
+/* ---------- head */
+.stn-ui .stn-settings.ux-set .set-head {
+  flex: none;
+}
+
+.stn-ui .stn-settings.ux-set .set-sub {
+  font: max(12px, calc(13 * var(--u))) / 1.35 var(--f-type);
+}
+
+.stn-ui .stn-settings.ux-set .ux-bar-key {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  vertical-align: -0.15em;
+  background: var(--ux-amber);
+}
+
+/* ---------- the tabs */
+.stn-ui .stn-settings.ux-set .set-nav {
+  width: calc(250 * var(--u));
+  min-width: 226px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.stn-ui .stn-settings.ux-set .set-tab {
+  height: auto;
+  min-height: max(44px, calc(54 * var(--u)));
+  padding-top: calc(6 * var(--u));
+  padding-bottom: calc(6 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .set-tab-txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stn-ui .stn-settings.ux-set .ux-tab-name {
+  font: 400 max(15px, calc(19 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.12em;
+}
+
+.stn-ui .stn-settings.ux-set .ux-tab-sum {
+  font: max(12px, calc(12 * var(--u))) / 1.2 var(--f-type);
+  letter-spacing: 0;
+  color: var(--bone-dim);
+  overflow-wrap: anywhere;
+}
+
+.stn-ui .stn-settings.ux-set .set-tab.on .ux-tab-sum {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.stn-ui .stn-settings.ux-set .ux-tab-count {
+  flex: none;
+  min-width: 1.4em;
+  font: max(12px, calc(13 * var(--u))) / 1 var(--f-mono);
+  text-align: right;
+  color: var(--ux-amber);
+}
+
+.stn-ui .stn-settings.ux-set .ux-nav-sep {
+  flex: none;
+  height: 1px;
+  margin: calc(10 * var(--u)) calc(18 * var(--u));
+  background: rgba(230, 223, 207, 0.12);
+}
+
+/* ---------- a tab's page */
+.stn-ui .stn-settings.ux-set .ux-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px calc(16 * var(--u));
+  margin: calc(16 * var(--u)) 0 calc(4 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .ux-pane-head .set-sec-title {
+  margin: 0;
+  font: 400 max(20px, calc(30 * var(--u))) / 1 var(--f-head);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.stn-ui .stn-settings.ux-set .ux-pane-desc {
+  flex: 1 1 18em;
+  margin: 0;
+  font: max(12px, calc(13 * var(--u))) / 1.35 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.ux-set .set-group {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+  margin-top: calc(18 * var(--u));
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(230, 223, 207, 0.12);
+  font-size: max(12px, calc(11 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .ux-group-note {
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-type);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bone-dim);
+  opacity: 0.8;
+}
+
+/* ---------- rows */
+.stn-ui .stn-settings.ux-set .set-row {
+  position: relative;
+  min-height: calc(46 * var(--u));
+  padding: calc(6 * var(--u)) 0 calc(6 * var(--u)) calc(12 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .set-label {
+  min-width: 0;
+  font-size: max(14px, calc(17 * var(--u)));
+  overflow-wrap: anywhere;
+}
+
+.stn-ui .stn-settings.ux-set .set-hint {
+  margin-top: 3px;
+  font-size: max(12px, calc(12.5 * var(--u)));
+  line-height: 1.3;
+}
+
+.stn-ui .stn-settings.ux-set .set-val,
+.stn-ui .stn-settings.ux-set .set-toggle-txt {
+  font-size: max(12px, calc(14 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .seg-btn {
+  font-size: max(12px, calc(13 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .set-ctl {
+  gap: calc(10 * var(--u));
+}
+
+/* changed from its default: an amber bar down its left edge */
+.stn-ui .stn-settings.ux-set .set-row.ux-changed-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--ux-amber);
+}
+
+.stn-ui .stn-settings.ux-set .set-row.ux-changed-row .set-val,
+.stn-ui .stn-settings.ux-set .set-row.ux-changed-row .set-toggle-txt {
+  color: var(--ux-amber);
+}
+
+.stn-ui .stn-settings.ux-set .ux-row-reset {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: max(28px, calc(32 * var(--u)));
+  height: max(28px, calc(32 * var(--u)));
+  padding: 0;
+  border: 1px solid rgba(232, 163, 61, 0.55);
+  background: rgba(232, 163, 61, 0.08);
+  color: var(--ux-amber);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.stn-ui .stn-settings.ux-set .ux-row-reset svg {
+  width: 60%;
+  height: 60%;
+}
+
+.stn-ui .stn-settings.ux-set .ux-row-reset:hover,
+.stn-ui .stn-settings.ux-set .ux-row-reset:focus-visible {
+  background: rgba(232, 163, 61, 0.2);
+}
+
+/* (it keeps its room while hidden, so the controls stay in line) */
+.stn-ui .stn-settings.ux-set .ux-row-reset.off {
+  visibility: hidden;
+}
+
+/* ---------- Accessibility presets */
+.stn-ui .stn-settings.ux-set .ux-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: calc(10 * var(--u));
+  margin: calc(10 * var(--u)) 0 calc(4 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .ux-preset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(10 * var(--u)) calc(12 * var(--u));
+  border: 1px solid rgba(230, 223, 207, 0.16);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.stn-ui .stn-settings.ux-set .ux-preset-t {
+  flex: 1;
+  min-width: 0;
+}
+
+.stn-ui .stn-settings.ux-set .ux-preset-t b {
+  display: block;
+  font: 400 max(14px, calc(17 * var(--u))) / 1.15 var(--f-num);
+  letter-spacing: 0.04em;
+}
+
+.stn-ui .stn-settings.ux-set .ux-preset-t small {
+  display: block;
+  margin-top: 3px;
+  font: max(12px, calc(12 * var(--u))) / 1.3 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.ux-set .ux-mini {
+  flex: none;
+  padding: calc(7 * var(--u)) calc(14 * var(--u));
+  font-size: max(12px, calc(12.5 * var(--u)));
+  letter-spacing: 0.14em;
+}
+
+.stn-ui .stn-settings.ux-set .ux-mini:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------- the foot */
+.stn-ui .stn-settings.ux-set .ux-foot {
+  flex: none;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(14 * var(--u));
+  padding: calc(12 * var(--u)) calc(22 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .ux-reset-tab {
+  flex: none;
+  padding: calc(8 * var(--u)) calc(16 * var(--u));
+  font-size: max(12px, calc(13 * var(--u)));
+  letter-spacing: 0.14em;
+  border-color: rgba(232, 163, 61, 0.6);
+  color: #f2d48a;
+}
+
+.stn-ui .stn-settings.ux-set .ux-reset-tab:disabled {
+  border-color: rgba(230, 223, 207, 0.2);
+  color: var(--bone-dim);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.stn-ui .stn-settings.ux-set .ux-all {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font: max(12px, calc(13 * var(--u))) / 1.3 var(--f-type);
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.ux-set .ux-changed.some {
+  color: var(--ux-amber);
+}
+
+.stn-ui .stn-settings.ux-set .ux-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--bone-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.stn-ui .stn-settings.ux-set .ux-link:hover {
+  color: var(--bone);
+}
+
+.stn-ui .stn-settings.ux-set .ux-all-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--bone);
+}
+
+.stn-ui .stn-settings.ux-set .ux-all-ask[hidden],
+.stn-ui .stn-settings.ux-set .ux-all [hidden],
+.stn-ui .stn-settings.ux-set .ux-foot [hidden] {
+  display: none;
+}
+
+/* ---------- Keys & controls: the head and the note stay put, the list scrolls under them */
+.stn-ui .stn-settings.ux-set.ux-keys .set-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.stn-ui .stn-settings.ux-set .kb-sec:not([hidden]) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-top {
+  flex: none;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(230, 223, 207, 0.12);
+}
+
+.stn-ui .stn-settings.ux-set .kb-status {
+  flex: 1 1 12em;
+  font-size: max(12px, calc(12.5 * var(--u)));
+}
+
+/* what a click or a key will do: always in sight, the live one loud */
+.stn-ui .stn-settings.ux-set .kb-note {
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid rgba(230, 223, 207, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  font-size: max(12px, calc(13 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .kb-note.live {
+  border-left-color: var(--blood-lite);
+  background: rgba(157, 17, 23, 0.25);
+}
+
+.stn-ui .stn-settings.ux-set .kb-note.bad {
+  border-left-color: #ff9d90;
+}
+
+.stn-ui .stn-settings.ux-set .kb-note.done {
+  border-left-color: #c9e2b8;
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: calc(14 * var(--u));
+  scrollbar-width: thin;
+}
+
+/* each group's name over its rows, with the key columns named, pinned while its rows scroll by */
+.stn-ui .stn-settings.ux-set .ux-kb-cols {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ux-gap);
+  margin: 0;
+  padding: calc(14 * var(--u)) 0 5px calc(12 * var(--u));
+  background: #15110f;
+  border-bottom: 1px solid rgba(230, 223, 207, 0.12);
+  font-size: max(12px, calc(12 * var(--u)));
+  letter-spacing: 0.2em;
+  color: var(--bone-2);
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-gname {
+  flex: 1;
+  min-width: 0;
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-col {
+  flex: none;
+  width: var(--ux-kw);
+  text-align: center;
+  font-size: max(12px, calc(11 * var(--u)));
+  letter-spacing: 0.18em;
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-col-r {
+  width: var(--ux-kr);
+}
+
+.stn-ui .stn-settings.ux-set .kb-row {
+  min-height: calc(40 * var(--u));
+}
+
+.stn-ui .stn-settings.ux-set .kb-ctl {
+  gap: var(--ux-gap);
+}
+
+.stn-ui .stn-settings.ux-set .kb-key {
+  width: var(--ux-kw);
+  height: max(28px, calc(32 * var(--u)));
+  font-size: max(12px, calc(13 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .kb-reset {
+  width: var(--ux-kr);
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  font-size: max(12px, calc(12 * var(--u)));
+}
+
+/* a changed key row: the same amber bar as a changed setting */
+.stn-ui .stn-settings.ux-set .kb-row:has(.kb-reset:not(.off))::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--ux-amber);
+}
+
+.stn-ui .stn-settings.ux-set .kb-conflict {
+  font-size: max(12px, calc(13 * var(--u)));
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-fixed .set-label {
+  color: var(--bone-2);
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-fixed .kbd.sm {
+  font-size: max(12px, calc(12.5 * var(--u)));
+  padding: 0 0.6em;
+}
+
+.stn-ui .stn-settings.ux-set .ux-kb-plus {
+  font: max(12px, calc(12 * var(--u))) / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+/* ---------- a small window, or a big zoom (854 x 480 is 1280 x 720 at 150%): the tabs fold to an icon rail with
+   their counts, the head and the foot get slimmer, the rows keep their 14 px */
+@media (max-width: 960px), (max-height: 560px) {
+  .stn-ui .stn-settings.ux-set .set-card {
+    width: 98vw;
+    min-width: 0;
+    max-width: 98vw;
+    height: 96vh;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-head {
+    padding: 8px 14px 6px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-title {
+    font-size: 24px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-sub {
+    display: none;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-split {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: none;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-nav {
+    flex-direction: column;
+    width: auto;
+    min-width: 0;
+    padding: 6px 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-right: 1px solid rgba(230, 223, 207, 0.1);
+    border-bottom: 0;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-tab {
+    position: relative;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 12px;
+    border-left: 3px solid transparent;
+    border-bottom: 0;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-tab.on {
+    border-left-color: var(--blood-lite);
+  }
+
+  .stn-ui .stn-settings.ux-set .set-tab-ico {
+    width: 20px;
+    height: 20px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-tab-txt {
+    display: none;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-tab-count {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-nav-sep {
+    margin: 6px 10px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-main {
+    padding: 0 14px 8px;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-pane-head {
+    margin-top: 10px;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-pane-head .set-sec-title {
+    font-size: 20px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-row {
+    min-height: 38px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-range {
+    width: clamp(110px, 24vw, 220px);
+    min-width: 0;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-foot {
+    padding: 8px 14px;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-foot .btn-blood {
+    font-size: 16px;
+    padding: 6px 20px 4px 22px;
+  }
+}
+
+/* narrower still (a phone held upright): a row's control drops under its label */
+@media (max-width: 600px) {
+  .stn-ui .stn-settings.ux-set .set-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .stn-ui .stn-settings.ux-set .set-ctl {
+    justify-content: flex-end;
+  }
+
+  .stn-ui .stn-settings.ux-set .ux-kb-col {
+    display: none;
+  }
+}

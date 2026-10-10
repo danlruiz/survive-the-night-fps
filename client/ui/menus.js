@@ -1,73 +1,24 @@
-// Full-screen menus and overlays: splash/title, pause, death, game over / victory, connection banner.
+// Full-screen menus and overlays: splash/title, pause, connection banner. (Death and the end of a run: endscreens.js)
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
 import { el, svgEl, lsGet, lsSet, fmtTime } from './dom.js';
 import { glyph } from './icons.js';
-import { bindsOf, keyName } from '../game/binds.js';
 import { loadRecord } from './records.js';
 import { GameBrowser, GameCreator, phaseText, seatsText, difficultyText } from './games.js';
 import { linkedCode, gameInfo, listGames, getLeaderboard } from '../net/lobby.js';
 import { accountState, onAccountChange, refreshAccount } from '../net/account.js';
-import { voteDifficulty } from '../net/feedback.js';
 import { playingFriends, unreadCount, onSocialChange, socialState } from '../net/friends.js';
 import { achievementsView, onAchievements, ACH_TOTAL } from '../net/achievements.js';
 import { fetchProgress, lastProgress, onProgress } from '../net/progress.js';
-import { xpBar } from './progress.js';
-import { XP_SRC_NAMES, levelInfo } from '../../shared/progress.js';
-import { CharacterCard, releaseStage } from './picker.js';
+import { CharacterCard, releaseStage, storedChoice, RANDOM } from './picker.js';
+import { bestiaryView, onBestiary } from '../net/bestiary.js';
+import { BESTIARY, seenCount } from '../../shared/bestiary.js';
+import { bindLabel } from '../game/binds.js';
+import './ux-pause.css'; // the Esc menu (Pause)
 
 // the count on a button (unread messages): '' hides it
 function setBadge(b, n) {
   b.hidden = !n;
   b.textContent = n > 99 ? '99+' : n ? String(n) : '';
-}
-
-// The keys of the controls lists, from the player's keybinds (game/binds.js): an action's key caps, each of its binds
-export const keysOf = (action) => bindsOf(action).filter(Boolean).map(keyName);
-// the four movement keys on one cap, 'W A S D' (each one's primary)
-export const moveKeys = () => ['forward', 'left', 'back', 'right'].map((a) => keysOf(a)[0] || '–').join(' ');
-// the weapon slots: '1 – 6' while they are the digits in a row, else each one's key
-export function slotKeys() {
-  const ks = [1, 2, 3, 4, 5, 6].map((i) => keysOf('slot' + i)[0] || '–');
-  return ks.join('') === '123456' ? '1 – 6' : ks.join(' ');
-}
-
-// the short list, behind the Controls button unless main.js gives a fuller one (ui.setControls). A function: the list
-// is drawn afresh each time it is shown, with the keys as they are bound then
-export const DEFAULT_CONTROLS = () => [
-  [moveKeys(), 'Move'],
-  [keysOf('sprint'), 'Sprint'],
-  [keysOf('jump'), 'Jump'],
-  [keysOf('crouch'), 'Crouch'],
-  [keysOf('fire'), 'Attack · place'],
-  [keysOf('aim'), 'Aim · heavy swing'],
-  [keysOf('reload'), 'Reload · nunchucks flourish'],
-  [keysOf('interact'), 'Interact · pick up'],
-  [keysOf('flashlight'), 'Flashlight'],
-  [slotKeys(), 'Weapon slots'],
-  [keysOf('inventory'), 'Inventory & crafting'],
-  [keysOf('players'), 'Player list (hold)'],
-  [keysOf('chat'), 'Chat'],
-  [keysOf('talk'), 'Push to talk'],
-  [keysOf('slot6'), 'Walkie-talkie: hold fire to talk to everyone'],
-  ['Esc', 'Menu'],
-];
-
-// list: [[keys, action], ...], or a function that makes one. keys: a string ('Shift+LMB': a cap each side of the +),
-// or an array of caps, one per bind ([] for an action left without a key)
-export function renderControls(parent, list) {
-  parent.textContent = '';
-  for (const [k, a] of typeof list === 'function' ? list() : list) {
-    const r = el('div', 'ctl-row', parent);
-    const keys = el('span', 'ctl-keys', r);
-    if (Array.isArray(k)) {
-      k.forEach((cap, i) => {
-        if (i) el('span', 'ctl-or', keys, '/');
-        el('span', 'kbd sm', keys, cap);
-      });
-      if (!k.length) el('span', 'kbd sm ctl-none', keys, 'unbound');
-    } else for (const part of String(k).split(/\s*\+\s*/)) el('span', 'kbd sm', keys, part);
-    el('span', 'ctl-act', r, a);
-  }
 }
 
 // what the game asks of the player: on every splash, whichever tagline is drawn under it
@@ -97,9 +48,26 @@ export class Splash {
     el('div', 'grain', root);
     el('div', 'scratches', root);
 
-    // the menu down the left; the scene is drawn off-centre into the open part beside it (sceneX)
-    this.credit = el('div', 'sp-kicker', root, `Co-op survival horror · 1–${MAX_PLAYERS} players`);
-    const main = (this.main = el('div', 'sp-main', root));
+    // Everything that can be clicked sits in one page laid out in the flow (ux-splash.css): a bar across the top, the
+    // menu down the left (the scene is drawn off-centre into the open part beside it: sceneX), and the "You" and
+    // "People" groups along the bottom - or, on a short screen, in a column of their own. Nothing is pinned to a
+    // corner, so nothing can land on anything else at any zoom; when it all cannot fit, the page scrolls down.
+    const page = (this.page = el('div', 'sp-page', root));
+    const top = el('div', 'sp-top', page);
+    this.credit = el('div', 'sp-kicker', top, `Co-op survival horror · 1–${MAX_PLAYERS} players`);
+    const tools = el('div', 'sp-tools', top);
+    const tile = (parent, icon, text, fn, cls = '') => {
+      const b = el('button', 'btn btn-ghost sp-tile' + (cls ? ' ' + cls : ''), parent);
+      b.type = 'button';
+      svgEl('i', 'btn-ico', b, glyph(icon));
+      const t = el('span', 'sp-tile-t', b, text);
+      b.addEventListener('click', fn);
+      b.txt = t;
+      return b;
+    };
+    tile(tools, 'keyboard', 'Keys & controls', () => this.ui.settingsPanel.show('keys'));
+    tile(tools, 'gear', 'Settings', () => this.ui.settingsPanel.show(), 'sp-settings');
+    const main = (this.main = el('div', 'sp-main', page));
     this.sceneX = 0.5;
     window.addEventListener('resize', () => this._measure());
     const logo = el('h1', 'logo', main);
@@ -137,116 +105,115 @@ export class Splash {
     this.invName = el('div', 'sp-inv-name', inv, '');
     this.invMeta = el('div', 'sp-inv-meta', inv, '');
 
-    // who to play as (picker.js): a card over the name and the way in
+    // Who you are, in one card: the survivor (picker.js), the name, and the account. Then the way in under it.
     const form = (this.form = el('form', 'sp-join', main));
-    this.character = new CharacterCard(ui, main, root, form);
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       this._join();
     });
-    const field = el('label', 'sp-field', form);
-    this.nameL = el('span', 'sp-field-l', field, 'Playing as');
-    this.name = el('input', 'sp-name', field);
+    const who = (this.who = el('div', 'sp-who', form));
+    this.nameL = el('span', 'sp-field-l sp-who-l', who, 'Playing as');
+    this.name = el('input', 'sp-name', who);
     this.name.type = 'text';
     this.name.maxLength = 16;
     this.name.autocomplete = 'off';
     this.name.spellcheck = false;
+    this.name.setAttribute('aria-label', 'Your name');
     let saved = lsGet('stn.name', '');
     if (!saved) saved = 'Survivor' + String(100 + ((Math.random() * 900) | 0));
     this.name.value = saved.slice(0, 16);
     // kept as it is typed, not only on Join: a name outlives a tab closed, or a full server, before the first run
-    this.name.addEventListener('input', () => lsSet('stn.name', this._typedName()));
-    this.joinBtn = el('button', 'btn btn-blood sp-joinbtn', form);
-    this.joinBtn.type = 'submit';
-    this.joinTxt = el('span', '', this.joinBtn, 'Quick join');
-    svgEl('i', 'btn-ico sp-go', this.joinBtn, glyph('arrowRight'));
-
-    // the other ways in
-    const alt = el('div', 'sp-alt', main);
-    const altBtn = (icon, text, fn) => {
-      const b = el('button', 'btn btn-ghost', alt);
-      b.type = 'button';
-      svgEl('i', 'btn-ico', b, glyph(icon));
-      el('span', '', b, text);
-      b.addEventListener('click', fn);
-      return b;
-    };
-    this.quickAlt = altBtn('bolt', 'Quick join', () => this.join(''));
-    altBtn('search', 'Browse games', () => this.browser.show());
-    altBtn('plus', 'Create game', () => this.creator.show());
-    altBtn('cards', 'Dead Hand', () => this.ui.cb.onLobbyCards());
-    this.friendsBtn = altBtn('people', 'Friends', () => this.ui.friends.show());
-    this.friendsTxt = this.friendsBtn.lastChild;
-    this.friendsBadge = el('b', 'sp-badge', this.friendsBtn, '');
-    this.friendsBadge.hidden = true;
-    onSocialChange(() => this._syncFriends());
-
-    // the account (account.js), top right: Sign in, or who you are signed in as
-    const acct = (this.acctBtn = el('button', 'btn btn-ghost sp-acct', root));
-    acct.type = 'button';
-    svgEl('i', 'btn-ico', acct, glyph('person'));
-    this.acctTxt = el('span', '', acct, 'Sign in');
-    acct.addEventListener('click', () => this.ui.accountPanel.show());
+    this.name.addEventListener('input', () => {
+      lsSet('stn.name', this._typedName());
+      this._syncAs();
+    });
+    this.character = new CharacterCard(ui, who, root);
+    this.character.onChange = () => this._syncAs();
+    // the account (account.js): a guest is asked to sign in; signed in, the way to the account
+    const acct = el('div', 'sp-acct-line', who);
+    this.acctIco = svgEl('i', 'sp-acct-ico', acct, glyph('person'));
+    this.acctPre = el('span', '', acct, 'Guest. ');
+    this.acctBtn = el('button', 'sp-link', acct, 'Sign in');
+    this.acctBtn.type = 'button';
+    this.acctBtn.addEventListener('click', () => this.ui.accountPanel.show());
+    this.acctPost = el('span', '', acct, ' to keep your name, stats and friends.');
     onAccountChange(() => {
       this._syncAccount();
       this._syncFriends();
+      this._syncAch();
     });
+
+    this.joinBtn = el('button', 'btn btn-blood sp-joinbtn', form);
+    this.joinBtn.type = 'submit';
+    const jt = el('span', 'sp-jb-text', this.joinBtn);
+    this.joinTxt = el('span', 'sp-jb-t', jt, 'Quick join');
+    this.joinSub = el('span', 'sp-jb-sub', jt, '');
+    svgEl('i', 'btn-ico sp-go', this.joinBtn, glyph('arrowRight'));
+    // ...and, under it, who that will be as: the words open what changes them
+    const as = el('p', 'sp-as', form);
+    el('span', '', as, 'as ');
+    this.asName = el('button', 'sp-link sp-as-v', as, '');
+    this.asName.type = 'button';
+    this.asName.addEventListener('click', () => {
+      if (this.name.readOnly) return this.ui.accountPanel.show();
+      this.name.focus();
+      this.name.select();
+    });
+    el('span', '', as, ' playing ');
+    this.asWho = el('button', 'sp-link sp-as-v', as, '');
+    this.asWho.type = 'button';
+    this.asWho.title = 'Choose who to play as';
+    this.asWho.addEventListener('click', () => this.character.panel.show());
+
+    // the other ways in
+    const alt = el('div', 'sp-alt', main);
+    this.quickAlt = tile(alt, 'bolt', 'Quick join', () => this.join(''));
+    this.browseBtn = tile(alt, 'search', 'Browse games', () => this.browser.show());
+    this.browseN = el('b', 'sp-count', this.browseBtn, '');
+    tile(alt, 'plus', 'Create game', () => this.creator.show());
+    tile(alt, 'cards', 'Dead Hand', () => this.ui.cb.onLobbyCards());
 
     this.err = el('div', 'sp-err', main, '');
     this.err.hidden = true;
     const st = (this.status = el('div', 'sp-status', main));
     this.dot = el('i', 'dot', st);
     this.statusTxt = el('span', '', st, 'Contacting server…');
-    // the player's own record (records.js): not there at all until a first run is on it
-    this.record = el('div', 'sp-record', main);
+    // a first visit: the keys the first minute needs, where a returning player's record would be
+    this.keys = el('div', 'sp-keys', page); // (beside the menu on a short screen: ux-splash.css)
+    this.keys.hidden = true;
 
-    const foot = el('div', 'sp-foot', root);
-    const btns = el('div', 'sp-btns', foot);
-    // your level, and the perks to pick (progress.js): lit while one is waiting
-    const pb = (this.perksBtn = el('button', 'btn btn-ghost sp-perks', btns));
-    pb.type = 'button';
-    svgEl('i', 'btn-ico', pb, glyph('arrowUp'));
-    this.perksTxt = el('span', '', pb, 'Perks');
-    this.perksBadge = el('b', 'sp-badge', pb, '');
+    const groups = el('div', 'sp-groups', page);
+    const group = (label) => {
+      const g = el('section', 'sp-grp sp-grp-' + label.toLowerCase(), groups);
+      el('h2', 'sp-grp-l', g, label);
+      return el('div', 'sp-grp-tiles', g);
+    };
+    // You: your level and the perks to pick (progress.js, lit while one is waiting), achievements, your record
+    const you = group('You');
+    this.perksBtn = tile(you, 'arrowUp', 'Perks', () => this.ui.progress.show(), 'sp-perks');
+    this.perksTxt = this.perksBtn.txt;
+    this.perksBadge = el('b', 'sp-badge', this.perksBtn, '');
     this.perksBadge.hidden = true;
-    pb.addEventListener('click', () => this.ui.progress.show());
     onProgress((v) => this._syncPerks(v));
-    const lob = el('button', 'btn btn-ghost', btns);
-    lob.type = 'button';
-    svgEl('i', 'btn-ico', lob, glyph('star'));
-    el('span', '', lob, 'Loadout');
-    lob.addEventListener('click', () => this.ui.loadout.show());
-    const ah = el('button', 'btn btn-ghost', btns);
-    ah.type = 'button';
-    svgEl('i', 'btn-ico', ah, glyph('skull'));
-    el('span', '', ah, 'Auction');
-    ah.addEventListener('click', () => this.ui.auction.show());
-    const ab = el('button', 'btn btn-ghost', btns);
-    ab.type = 'button';
-    svgEl('i', 'btn-ico', ab, glyph('trophy'));
-    el('span', '', ab, 'Achievements');
-    ab.addEventListener('click', () => this.ui.achPanel.show());
-    const lb = el('button', 'btn btn-ghost', btns);
-    lb.type = 'button';
-    svgEl('i', 'btn-ico', lb, glyph('skull'));
-    el('span', '', lb, 'Leaderboard');
-    lb.addEventListener('click', () => this._showLeaderboard());
-    // the whole game's numbers (/stats, client/stats/), in a tab of its own
-    const gs = el('button', 'btn btn-ghost', btns);
-    gs.type = 'button';
-    svgEl('i', 'btn-ico', gs, glyph('signal'));
-    el('span', '', gs, 'Stats');
-    gs.addEventListener('click', () => window.open('/stats', '_blank', 'noopener'));
-    const cb = el('button', 'btn btn-ghost', btns);
-    cb.type = 'button';
-    svgEl('i', 'btn-ico', cb, glyph('keyboard'));
-    el('span', '', cb, 'Controls');
-    cb.addEventListener('click', () => this.ui.controlsPanel.show());
-    const sb = el('button', 'btn btn-ghost sp-settings', btns);
-    sb.type = 'button';
-    svgEl('i', 'btn-ico', sb, glyph('gear'));
-    el('span', '', sb, 'Settings');
-    sb.addEventListener('click', () => this.ui.settingsPanel.show());
+    tile(you, 'star', 'Loadout', () => this.ui.loadout.show());
+    tile(you, 'skull', 'Auction', () => this.ui.auction.show());
+    this.achBtn = tile(you, 'trophy', 'Achievements', () => this.ui.achPanel.show());
+    this.achN = el('b', 'sp-count', this.achBtn, '');
+    onAchievements(() => this._syncAch());
+    // the player's own record (records.js): not there at all until a first run is on it
+    this.record = el('div', 'sp-record', you);
+    // People: friends (how many are playing, unread messages), the leaderboard, the whole game's numbers
+    const people = group('People');
+    this.friendsBtn = tile(people, 'people', 'Friends', () => this.ui.friends.show(), 'sp-friends');
+    this.friendsTxt = this.friendsBtn.txt;
+    this.friendsBadge = el('b', 'sp-badge', this.friendsBtn, '');
+    this.friendsBadge.hidden = true;
+    onSocialChange(() => this._syncFriends());
+    tile(people, 'skull', 'Leaderboard', () => this._showLeaderboard());
+    // (/stats, client/stats/), in a tab of its own
+    const gs = tile(people, 'signal', 'Server stats', () => window.open('/stats', '_blank', 'noopener'));
+    el('span', 'sp-ext', gs, '↗');
+    gs.title = 'Every game on this server, in a new tab';
 
     this.browser = new GameBrowser(ui, root, this);
     this.creator = new GameCreator(ui, root, this);
@@ -293,15 +260,17 @@ export class Splash {
   // takes no typing. Signed out again, the name typed before comes back (it stayed in storage all along).
   _syncAccount() {
     const user = accountState().user;
-    this.acctTxt.textContent = user ? user.username : 'Sign in';
-    this.acctBtn.classList.toggle('on', !!user);
+    this.acctPre.textContent = user ? 'Signed in. ' : 'Guest. ';
+    this.acctBtn.textContent = user ? 'Your account' : 'Sign in';
+    this.acctPost.textContent = user ? ' · stats, last games, signing out' : ' to keep your name, stats and friends.';
+    this.who.classList.toggle('on', !!user);
     this.acctBtn.title = user ? 'Your account: stats, last games, signing out' : 'Sign in or make an account: stats kept on the server, friends';
     if (user) {
       if (!this.name.readOnly) this.guestName = this._typedName(); // (a made-up one is not in storage until a join)
       this.name.value = user.username;
       this.name.readOnly = true;
       this.name.classList.add('locked');
-      this.name.title = "Your account's name. Sign out (top right) to play under another.";
+      this.name.title = "Your account's name. Sign out (Your account, below) to play under another.";
       this.nameL.textContent = 'Signed in as';
     } else if (this.name.readOnly) {
       this.name.readOnly = false;
@@ -310,6 +279,21 @@ export class Splash {
       this.name.value = (lsGet('stn.name', '') || this.guestName || '').slice(0, 16);
       this.nameL.textContent = 'Playing as';
     }
+    this._syncAs();
+  }
+
+  // the line under the big button: "as <name> playing <survivor>"
+  _syncAs() {
+    this.asName.textContent = this._typedName() || 'a made-up name';
+    this.asName.title = this.name.readOnly ? 'Your account' : 'Change your name';
+    const c = storedChoice();
+    this.asWho.textContent = c === RANDOM ? 'a random survivor' : this.character.name.textContent || 'a survivor';
+  }
+
+  // Achievements: how many of them are unlocked (this browser's, or the account's while signed in)
+  _syncAch() {
+    const a = achievementsView();
+    this.achN.textContent = a.loading || a.error ? '' : `${Object.keys(a.unlocked).length}/${ACH_TOTAL}`;
   }
 
   // the name to play under (one is made up if the field is empty)
@@ -318,6 +302,7 @@ export class Splash {
     if (!name) {
       name = 'Survivor' + String(100 + ((Math.random() * 900) | 0));
       this.name.value = name;
+      this._syncAs();
     }
     return name;
   }
@@ -348,6 +333,8 @@ export class Splash {
     const full = this.invited && !!this.game?.full;
     this.joinBtn.disabled = this.joining || full;
     this.joinTxt.textContent = this.joining ? 'Joining…' : !this.invited ? 'Quick join' : full ? 'Game full' : 'Join game';
+    // (what the big button does: Lobby.quick takes the busiest public game with a seat, or makes one)
+    this.joinSub.textContent = this.invited ? (full ? 'Every seat is taken' : this.game ? `Into ${this.game.name}` : 'Into the game you were sent') : 'Busiest game with a free seat, or a new one';
     this.quickAlt.hidden = !this.invited; // (without an invitation, the big button is the quick join)
   }
 
@@ -427,8 +414,13 @@ export class Splash {
       const n = lobby.games;
       this.statusTxt.textContent = n ? `${n} game${n === 1 ? '' : 's'} running · ${lobby.players} survivor${lobby.players === 1 ? '' : 's'} online` : 'No games running · start one';
       this.status.className = 'sp-status online' + (this.invited && this.game?.phase === PHASE.NIGHT ? ' night' : '');
+      // (the public games, the ones Browse lists)
+      const open = Array.isArray(lobby.list) ? lobby.list.length : 0;
+      this.browseN.textContent = open ? String(open) : '';
+      this.browseBtn.title = open ? `${open} public game${open === 1 ? '' : 's'} to pick from` : 'No public games right now';
     } catch {
       if (this.root.hidden) return;
+      this.browseN.textContent = '';
       this.offline = true;
       this.statusTxt.textContent = 'Server offline';
       this.status.className = 'sp-status offline';
@@ -441,19 +433,41 @@ export class Splash {
     const { total: t, best: b } = loadRecord();
     this.record.textContent = '';
     this.record.hidden = !t.runs;
+    this._syncKeys(!t.runs);
     if (!t.runs) return;
-    el('b', 'sp-rec-l', this.record, 'Your record');
-    const stat = (value, label, cls = '') => {
-      const d = el('div', 'sp-stat' + cls, this.record);
-      el('span', 'sp-stat-v', d, String(value));
-      el('span', 'sp-stat-l', d, label);
+    this.record.title = 'Your record, kept in this browser';
+    const stat = (value, label) => {
+      const d = el('span', 'sp-rec', this.record);
+      el('b', 'sp-rec-v', d, String(value));
+      el('span', 'sp-rec-w', d, label);
     };
-    stat(t.runs, t.runs === 1 ? 'Run' : 'Runs');
-    stat(b.nights, 'Most nights');
-    if (t.escapes) {
-      stat(t.escapes, 'Escaped');
-      stat(fmtTime(b.secs), 'Fastest');
-    } else stat('Not yet', 'Escaped', ' none');
+    stat(t.runs, t.runs === 1 ? 'run' : 'runs');
+    stat(t.escapes, 'escaped');
+    stat(b.nights, b.nights === 1 ? 'best night' : 'best nights');
+    if (t.escapes) stat(fmtTime(b.secs), 'fastest');
+  }
+
+  // "First night?": the keys the first minute needs, as they are bound now; shown until a first run is on the record
+  _syncKeys(first) {
+    this.keys.hidden = !first;
+    this.keys.textContent = '';
+    if (!first) return;
+    el('h2', 'sp-keys-l', this.keys, 'First night?');
+    const row = el('div', 'sp-keys-row', this.keys);
+    const key = (caps, what) => {
+      const k = el('span', 'sp-key', row);
+      for (const c of caps) el('span', 'kbd', k, c);
+      el('span', 'sp-key-w', k, what);
+    };
+    const cap = (action) => {
+      const k = bindLabel(action);
+      return k === 'unbound' ? '–' : k;
+    };
+    key(['forward', 'left', 'back', 'right'].map(cap), 'move');
+    key([cap('interact')], 'pick up');
+    key([cap('flashlight')], 'flashlight');
+    key([cap('inventory')], 'inventory');
+    key(['Esc'], 'menu');
   }
 
   // How far across the screen the middle of the open part beside the menu is (where Renderer.setCenter puts the
@@ -463,6 +477,8 @@ export class Splash {
     const w = window.innerWidth;
     const right = this.main.getBoundingClientRect().right;
     this.sceneX = right > 0 && right < w * 0.65 ? (right + w) / 2 / w : 0.5;
+    // (where the menu ends: the lobby's panels open as a sheet beside it, ux-splash.css, the account's included)
+    this.ui.root.style.setProperty('--sp-edge', `${Math.round(Math.max(0, right))}px`);
   }
 
   // the cut between two shots of the walk behind: 0 shows the scene, 1 is black
@@ -488,6 +504,7 @@ export class Splash {
     this._syncAccount();
     this._syncFriends();
     this._syncPerks(lastProgress());
+    this._syncAch();
     fetchProgress().catch(() => {}); // (what the run just played earned: the button says if a pick is waiting)
     this.syncRecord();
     this.character.show();
@@ -523,80 +540,192 @@ export class Splash {
 }
 
 // ---------------------------------------------------------------- pause
-// how long "Leave game" is held before it leaves (a stray click can't end a run)
-const LEAVE_HOLD_MS = 900;
+// how long the "You're taking hits" bar stays up after the last hit
+const HIT_SHOW_MS = 2600;
 
-// The Esc menu: a rail down the left edge, the rest of the screen left almost clear, because the game never stops for
-// it (no "paused" or "resume" anywhere on it). The arrow keys move through the rows and Enter opens one. Esc toggles it
-// away; if the browser refuses to take the mouse back on that Esc, the game asks for a click.
+// the text onto the clipboard: the API, or (none outside https / localhost) the old way, from a field off the screen
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const f = el('textarea', '', document.body);
+    f.value = text;
+    f.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    f.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {}
+    f.remove();
+    return ok;
+  }
+}
+
+// who is down, in a line: "A is down", "A and B are down", "3 teammates are down"
+function downLine(names) {
+  if (names.length === 1) return `${names[0]} is down and needs a hand.`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are down and need a hand.`;
+  return `${names.length} teammates are down and need a hand.`;
+}
+
+// The Esc menu: a rail down the left edge with the world left in view, because the game never stops for it (no
+// "paused" or "resume" anywhere on it). One big "Back to the game", then the rows in three groups (Squad, Progress,
+// Options), and Leave apart at the foot, saying what leaving costs and who is down and needs a hand. Leave asks once
+// - "Stay" picked first, where the pointer already is - instead of being held. A red bar across the top says when you
+// are being hit behind the menu. The arrow keys move through the rows and stop at the ends, → on Invite picks Copy
+// link, and Enter opens one. Esc is not a way back: the browser counts no Esc as a gesture (the mouse can't be taken
+// back on one), and in fullscreen holding Esc leaves fullscreen. A short window (a zoomed-in browser) folds the rail
+// into two columns (ux-pause.css).
 export class Pause {
   constructor(ui, parent) {
     this.ui = ui;
     this.room = null;
+    this.link = '';
     this.sel = 0;
+    this.side = false; // Copy link picked, on the Invite row
+    this.asking = false; // Leave pressed: "Stay / Leave" up in its place
+    this.pick = 0; // ...and which of the two Enter takes: 0 Stay, 1 Leave
     const root = (this.root = el('div', 'pause', parent));
     root.hidden = true;
     el('div', 'pause-shade', root);
-    const rail = el('div', 'pause-rail', root);
-    const live = el('div', 'pause-live', rail);
-    el('i', 'pause-dot', live);
-    el('span', '', live, 'Live · the world keeps moving');
-    this.title = el('div', 'pause-title', rail, 'Menu');
-    this.sub = el('div', 'pause-sub', rail, '');
 
-    const list = el('div', 'pause-list', rail);
-    list.setAttribute('role', 'menu');
+    // hit behind the menu: the bar across the top, for a moment after each hit
+    const hit = (this.hitBar = el('div', 'pm-hit', root));
+    hit.hidden = true;
+    hit.setAttribute('role', 'alert');
+    svgEl('i', 'pm-hit-ico', hit, glyph('hazard'));
+    el('b', 'pm-hit-t', hit, 'You’re taking hits');
+    this.hitHp = el('span', 'pm-hit-hp', hit, '');
+    el('span', 'pm-hit-go', hit, 'Click anywhere to fight');
+
+    const rail = el('div', 'pm-rail', root);
+    const head = el('div', 'pm-head', rail);
+    const live = el('div', 'pm-live', head);
+    el('i', 'pm-dot', live);
+    el('b', 'pm-live-tag', live, 'Live');
+    this.liveTxt = el('span', '', live, '');
+    this.title = el('div', 'pm-title', head, 'Menu');
+    const meta = el('div', 'pm-meta', head);
+    this.code = el('span', 'pm-code', meta, '');
+    this.code.title = 'Game code';
+    this.sub = el('span', 'pm-sub', meta, '');
+
     this.rows = [];
     const row = (into, icon, label, run, cls = '') => {
-      const b = el('button', 'pr-row' + cls, into);
+      const b = el('button', 'pm-row' + cls, into);
       b.type = 'button';
       b.setAttribute('role', 'menuitem');
-      svgEl('i', 'pr-ico', b, glyph(icon));
-      el('span', 'pr-label', b, label);
-      const hint = el('span', 'pr-hint', b);
+      svgEl('i', 'pm-ico', b, glyph(icon));
+      el('span', 'pm-label', b, label);
+      const hint = el('span', 'pm-hint', b);
       const r = { b, hint, run };
       b.addEventListener('pointerenter', () => this.select(this.rows.indexOf(r), false));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!r.run) return;
         this.ui.sound('ui_click');
         r.run();
       });
       this.rows.push(r);
       return r;
     };
-    const back = row(list, 'arrowRight', 'Back to the game', () => this.ui.cb.onResume(), ' pr-back');
-    el('span', 'kbd sm pr-key', back.hint, 'Enter');
-    this.invite = row(list, 'personPlus', 'Invite friends', () => this.ui.invitePanel.show());
-    this.perks = row(list, 'arrowUp', 'Perks', () => this.ui.progress.show());
-    this.ach = row(list, 'trophy', 'Achievements', () => this.ui.achPanel.show());
-    row(list, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
-    row(list, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
-    this.fr = row(list, 'star', 'Friends', () => this.ui.friends.show());
-    row(list, 'gear', 'Settings', () => this.ui.settingsPanel.show());
-    row(list, 'keyboard', 'Controls', () => this.ui.controlsPanel.show());
+    const back = row(rail, 'arrowRight', 'Back to the game', () => this.ui.cb.onResume(), ' pm-back');
+    el('span', 'kbd sm pm-key', back.hint, 'Enter');
 
-    // held, not clicked: the fill runs along the row while it is held, and letting go early cancels
-    el('div', 'pause-sep', rail);
-    const leave = row(rail, 'exit', 'Leave game', null, ' pr-leave');
-    this.leave = leave;
-    this.fill = el('i', 'pr-fill', leave.b);
-    this.fill.style.transitionDuration = `${LEAVE_HOLD_MS}ms`;
-    this.leaveTxt = el('span', '', leave.hint, 'Hold');
-    el('span', 'kbd sm', leave.hint, 'Enter');
-    leave.b.addEventListener('pointerdown', (e) => e.button === 0 && this._hold());
-    for (const t of ['pointerup', 'pointerleave', 'pointercancel']) leave.b.addEventListener(t, () => this._release());
+    // the world is the way back: a hint over it (beside the rail; in the left column of a short window)
+    const play = el('div', 'pm-play', rail);
+    svgEl('i', 'pm-play-ico', play, glyph('arrowRight'));
+    el('span', 'pm-play-t', play, 'Click anywhere here to play');
+    el('span', 'pm-play-t pm-play-esc', play, 'Esc can’t close this: click the world to play');
+    play.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.ui.sound('ui_click');
+      this.ui.cb.onResume();
+    });
 
-    const keys = el('div', 'pause-keys', rail);
-    const key = (caps, what) => {
-      const k = el('span', 'pk', keys);
-      for (const c of caps) el('span', 'kbd sm', k, c);
-      el('span', 'pk-t', k, what);
+    const groups = el('div', 'pm-groups', rail);
+    groups.setAttribute('role', 'menu');
+    const group = (name) => {
+      const g = el('div', 'pm-group', groups);
+      el('div', 'pm-gh', g, name);
+      return g;
     };
-    key(['↑', '↓'], 'Select');
-    key(['Enter'], 'Open');
-    key(['Esc'], 'Back');
-    el('span', 'pk pk-t', keys, 'Click away to go back');
+    let g = group('Squad');
+    // Copy link beside the Invite row (not in it: a button in a button is no button)
+    const wrap = (this.inviteWrap = el('div', 'pm-wrap', g));
+    this.invite = row(wrap, 'personPlus', 'Invite friends', () => this.ui.invitePanel.show());
+    const copy = (this.copyBtn = el('button', 'pm-copy', wrap));
+    copy.type = 'button';
+    copy.title = 'Copy the invite link';
+    svgEl('i', 'pm-copy-ico', copy, glyph('link'));
+    this.copyTxt = el('span', '', copy, 'Copy link');
+    copy.addEventListener('pointerenter', () => {
+      this.select(this.rows.indexOf(this.invite), false);
+      this._side(true, false);
+    });
+    copy.addEventListener('pointerleave', () => this._side(false, false));
+    copy.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.ui.sound('ui_click');
+      this._copy();
+    });
+    this.fr = row(g, 'star', 'Friends', () => this.ui.friends.show());
+    g = group('Progress');
+    this.perks = row(g, 'arrowUp', 'Perks', () => this.ui.progress.show(), ' pm-perks');
+    this.ach = row(g, 'trophy', 'Achievements', () => this.ui.achPanel.show());
+    this.best = row(g, 'skull', 'Bestiary', () => this.ui.cb.onBestiary());
+    this.notes = row(g, 'map', 'Field notes', () => this.ui.fieldNotes.show());
+    this.notes.hint.textContent = 'Tonight · tracked';
+    row(g, 'cards', 'Dead Hand', () => this.ui.cb.onCards());
+    g = group('Options');
+    row(g, 'gear', 'Settings', () => this.ui.settingsPanel.show()).hint.textContent = 'Mouse · sound · video';
+    row(g, 'keyboard', 'Keys & controls', () => this.ui.settingsPanel.show('keys')).hint.textContent = 'Every control';
+
+    // Leave, apart: asks once, Stay first
+    const box = el('div', 'pm-leavebox', rail);
+    const leave = (this.leave = row(box, 'exit', 'Leave game', () => this._ask(true), ' pm-leave'));
+    el('span', 'kbd sm pm-key', leave.hint, 'Enter');
+    const ask = (this.askEl = el('div', 'pm-ask', box));
+    ask.hidden = true;
+    ask.setAttribute('role', 'group');
+    const q = el('div', 'pm-ask-q', ask);
+    svgEl('i', 'pm-ico', q, glyph('exit'));
+    this.askQ = el('span', '', q, 'Leave this game?');
+    const btns = el('div', 'pm-ask-btns', ask);
+    const choice = (cls, label, i, run) => {
+      const b = el('button', cls, btns);
+      b.type = 'button';
+      if (i) svgEl('i', 'pm-ico', b, glyph('exit'));
+      el('span', '', b, label);
+      el('span', 'kbd sm pm-key', b, 'Enter');
+      b.addEventListener('pointerenter', () => this._pick(i));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.ui.sound('ui_click');
+        run();
+      });
+      return b;
+    };
+    this.stayBtn = choice('pm-stay', 'Stay', 0, () => this._ask(false));
+    this.goBtn = choice('pm-go', 'Leave', 1, () => this.ui.cb.onLeave());
+    this.cost = el('p', 'pm-cost', box, '');
+    const warn = (this.warn = el('p', 'pm-warn', box));
+    warn.hidden = true;
+    svgEl('i', 'pm-ico', warn, glyph('downed'));
+    this.warnTxt = el('span', '', warn, '');
+
+    const keys = el('div', 'pm-keys', rail);
+    const key = (into, caps, what) => {
+      const k = el('span', 'pm-k', into);
+      for (const c of caps) el('span', 'kbd sm', k, c);
+      el('span', 'pm-k-t', k, what);
+    };
+    const menuKeys = el('span', 'pm-keyset pm-keys-menu', keys);
+    key(menuKeys, ['↑', '↓'], 'Select (stops at the ends)');
+    key(menuKeys, ['Enter'], 'Open');
+    const askKeys = el('span', 'pm-keyset pm-keys-ask', keys);
+    key(askKeys, ['←', '→'], 'Stay or leave');
+    key(askKeys, ['Enter'], 'Choose');
 
     // the hints on the right of the rows, kept as what they stand for changes
     const sync = () => this._syncHints();
@@ -604,13 +733,25 @@ export class Pause {
     onAchievements(sync);
     onSocialChange(sync);
     onAccountChange(sync);
+    onBestiary(sync);
 
     // captured before input.js, which would otherwise take Enter for the chat
     window.addEventListener('keydown', (e) => this._key(e), true);
-    window.addEventListener('keyup', (e) => (e.code === 'Enter' || e.code === 'NumpadEnter') && this._release(), true);
+    // with the field notes up, a click off them only closes them (like any other modal's backdrop): taken before the
+    // rail's rows or the resume below see it
+    root.addEventListener(
+      'click',
+      (e) => {
+        if (!this.ui.fieldNotes?.visible || e.target.closest('.bkn')) return;
+        e.stopPropagation();
+        e.preventDefault();
+        this.ui.fieldNotes.hide();
+      },
+      true,
+    );
     // clicking anywhere off the rail resumes (keeps the user gesture for pointer lock)
     root.addEventListener('click', (e) => {
-      if (e.target.closest('.pause-rail')) return;
+      if (e.target.closest('.pm-rail')) return;
       this.ui.sound('ui_click');
       this.ui.cb.onResume();
     });
@@ -619,54 +760,155 @@ export class Pause {
   // the game we are in: { code, name, inviteOnly, difficulty } (null: none), and its invite link
   setRoom(room, link) {
     this.room = room;
+    this.link = room ? link || '' : '';
     this.ui.invitePanel.set(room, link);
-    this.invite.b.hidden = !room;
+    this.inviteWrap.hidden = !room;
     this.title.textContent = room ? room.name : 'Menu';
+    this._sync();
+  }
+
+  // what changes while the menu is up: the clock, who is here and who is down
+  _sync() {
+    this._syncLive();
     this._syncSub();
+    this._syncLeave();
     this._syncHints();
+  }
+
+  // "Live · Night 3 · dawn in 2:14 · 30 left": the HUD's clock, as it last drew it (hud.js _clock)
+  _syncLive() {
+    const c = this.ui.hud.c;
+    const parts = [];
+    if (c.clkTitle) parts.push(c.clkTitle);
+    const when = [c.clkLabel, c.clkTime].filter(Boolean).join(' ');
+    if (when) parts.push(when);
+    if (c.remain >= 0) parts.push(`${c.remain} left`);
+    const t = parts.length ? '· ' + parts.join(' · ') : '';
+    if (this.liveTxt.textContent !== t) this.liveTxt.textContent = t;
+  }
+
+  // the players as the player list last had them (game.js pushRoster)
+  get _players() {
+    return this.ui.roster.players || [];
   }
 
   _syncSub() {
     const room = this.room;
+    this.code.hidden = !room;
     if (!room) return void (this.sub.textContent = '');
-    const n = this.ui.cb.onPeers?.()?.players?.length || 0;
-    const parts = [difficultyText(room.difficulty), room.inviteOnly ? 'Invite only' : 'Public', `Code ${room.code}`];
-    if (n) parts.push(`${n} survivor${n === 1 ? '' : 's'}`);
+    this.code.textContent = room.code;
+    const list = this._players;
+    const parts = [difficultyText(room.difficulty), room.inviteOnly ? 'Invite only' : 'Public'];
+    if (list.length) parts.push(`${list.filter((p) => p.status === 'alive' || p.status === 'downed').length} alive of ${list.length}`);
+    else {
+      const n = this.ui.cb.onPeers?.()?.players?.length || 0;
+      if (n) parts.push(`${n} survivor${n === 1 ? '' : 's'}`);
+    }
     this.sub.textContent = parts.join(' · ');
+  }
+
+  // what leaving costs (server/game.js removePlayer: the starting kit goes along, what was found on top of it drops
+  // for the team; the last one out ends the run) and who is down and needs a hand
+  _syncLeave() {
+    const room = this.room;
+    const list = this._players;
+    const me = list.find((p) => p.self);
+    const others = list.filter((p) => !p.self);
+    this.askQ.textContent = room ? `Leave ${room.name}?` : 'Leave this game?';
+    let cost = 'Leaves at once.';
+    if (!me || me.status === 'alive' || me.status === 'downed') cost += ' What you found drops where you stand for the team; your starting kit goes with you.';
+    if (list.length && !others.length) cost += ' You’re the only one here, so the run ends.';
+    else if (room) cost += ` Back in with ${room.code}.`;
+    if (this.cost.textContent !== cost) this.cost.textContent = cost;
+    const down = others.filter((p) => p.status === 'downed').map((p) => p.name || '???');
+    this.warn.hidden = !down.length;
+    this.root.classList.toggle('pm-someone-down', down.length > 0);
+    if (down.length) this.warnTxt.textContent = downLine(down);
   }
 
   _syncHints() {
     const count = (hint, n, text) => {
       hint.textContent = '';
-      if (n) el('b', 'pr-n', hint, n > 99 ? '99+' : String(n));
-      el('span', '', hint, text);
+      if (n) el('b', 'pm-n', hint, n > 99 ? '99+' : String(n));
+      if (text) el('span', '', hint, text);
     };
-    this.invite.hint.textContent = this.room?.code || '';
-    const pending = lastProgress()?.pending || 0;
-    count(this.perks.hint, pending, pending ? 'to spend' : '');
+    const p = lastProgress();
+    const pending = p?.pending || 0;
+    count(this.perks.hint, pending, [pending ? 'to spend' : '', p?.level ? `Lv ${p.level}` : ''].filter(Boolean).join(' · '));
     const a = achievementsView();
     this.ach.hint.textContent = a.loading || a.error ? '' : `${Object.keys(a.unlocked).length} / ${ACH_TOTAL}`;
+    const b = bestiaryView();
+    this.best.hint.textContent = b.loading ? '' : `${seenCount(b.mask)} / ${BESTIARY.length} seen`;
     const s = socialState();
-    const unread = accountState().user ? unreadCount() : 0;
-    if (unread) count(this.fr.hint, unread, 'new');
-    else this.fr.hint.textContent = accountState().user && s.loaded ? `${s.friends.filter((f) => f.status !== 'offline').length} online` : '';
+    const user = !!accountState().user;
+    const unread = user ? unreadCount() : 0;
+    const online = user && s.loaded ? `${s.friends.filter((f) => f.status !== 'offline').length} online` : '';
+    count(this.fr.hint, unread, [unread ? 'new' : '', online].filter(Boolean).join(' · '));
   }
 
   // the row that Enter opens: hovered, or moved to with the arrow keys (hidden rows are stepped over)
   select(i, sound = true) {
-    if (i < 0 || i === this.sel) return;
+    if (i < 0) return;
+    if (this.asking && this.rows[i] !== this.leave) this._ask(false); // (moved off the question: it is put away)
+    if (i === this.sel) return;
     this.rows[this.sel]?.b.classList.remove('on');
+    this._side(false, false);
     this.sel = i;
     this.rows[i].b.classList.add('on');
     if (sound) this.ui.sound('ui_hover');
   }
 
+  // up or down a row; the ends stop it (one ↑ from "Back to the game" is not Leave)
   _step(d) {
-    const n = this.rows.length;
-    for (let k = 1; k < n; k++) {
-      const i = (this.sel + d * k + n * k) % n;
-      if (!this.rows[i].b.hidden) return this.select(i);
+    for (let i = this.sel + d; i >= 0 && i < this.rows.length; i += d) {
+      const b = this.rows[i].b;
+      if (!b.hidden && !b.parentElement.hidden) return this.select(i);
     }
+  }
+
+  // Copy link picked (→ on the Invite row, or pointed at), or not
+  _side(on, sound = true) {
+    on = !!on && this.rows[this.sel] === this.invite;
+    if (on === this.side) return;
+    this.side = on;
+    this.copyBtn.classList.toggle('on', on);
+    this.invite.b.classList.toggle('side', on);
+    if (on && sound) this.ui.sound('ui_hover');
+  }
+
+  async _copy() {
+    if (!this.link) return;
+    const ok = await copyText(this.link);
+    this.copyTxt.textContent = ok ? 'Link copied' : 'Copy it here';
+    this.copyBtn.classList.toggle('done', ok);
+    clearTimeout(this._copyT);
+    this._copyT = setTimeout(() => {
+      this.copyTxt.textContent = 'Copy link';
+      this.copyBtn.classList.remove('done');
+    }, 2200);
+    if (!ok) this.ui.invitePanel.show(); // (no clipboard: the panel's field, to select and copy by hand)
+  }
+
+  // Leave pressed: the question up in its place, Stay picked; or put away again
+  _ask(on) {
+    on = !!on;
+    if (on === this.asking) return;
+    this.asking = on;
+    this.root.classList.toggle('asking', on);
+    this.leave.b.hidden = on;
+    this.askEl.hidden = !on;
+    if (on) {
+      this._syncLeave();
+      this._pick(0, false);
+    }
+  }
+
+  _pick(i, sound = true) {
+    const moved = i !== this.pick;
+    this.pick = i;
+    this.stayBtn.classList.toggle('on', i === 0);
+    this.goBtn.classList.toggle('on', i === 1);
+    if (sound && moved) this.ui.sound('ui_hover');
   }
 
   // a panel opened from here, or the chat, has the keys
@@ -676,41 +918,56 @@ export class Pause {
 
   _key(e) {
     if (this.root.hidden || this._covered) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      this._step(e.key === 'ArrowDown' ? 1 : -1);
-    } else if (e.key === 'Enter') {
-      const r = this.rows[this.sel];
-      if (e.repeat) {
-        // (a repeat only keeps a hold going)
-      } else if (r === this.leave) this._hold();
-      else {
+    const k = e.key;
+    if (this.ui.fieldNotes?.visible) {
+      if (k === 'Escape' || k === 'Backspace') {
+        this.ui.fieldNotes.hide();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+    if (this.asking) {
+      if (k === 'ArrowLeft' || k === 'ArrowRight') this._pick(k === 'ArrowRight' ? 1 : 0);
+      else if (k === 'ArrowUp') {
+        this._ask(false);
+        this._step(-1);
+      } else if (k === 'Enter') {
+        // (a held Enter repeats: never a way out)
+        if (!e.repeat) {
+          this.ui.sound('ui_click');
+          if (this.pick) this.ui.cb.onLeave();
+          else this._ask(false);
+        }
+      } else if (k !== 'ArrowDown') return;
+    } else if (k === 'ArrowDown' || k === 'ArrowUp') this._step(k === 'ArrowDown' ? 1 : -1);
+    else if ((k === 'ArrowRight' || k === 'ArrowLeft') && this.rows[this.sel] === this.invite) this._side(k === 'ArrowRight');
+    else if (k === 'Enter') {
+      if (!e.repeat) {
         this.ui.sound('ui_click');
-        r.run();
+        if (this.side) this._copy();
+        else this.rows[this.sel].run();
       }
     } else return;
     e.preventDefault();
     e.stopPropagation();
   }
 
-  _hold() {
-    if (this._holdT) return;
-    this.leave.b.classList.add('holding');
-    this.leaveTxt.textContent = 'Hold';
-    this._holdT = setTimeout(() => {
-      this._holdT = 0;
-      this.leave.b.classList.remove('holding');
-      this.ui.cb.onLeave();
-    }, LEAVE_HOLD_MS);
+  // a hit while the menu is up (ui.damage): the bar across the top, and the health it left
+  hit() {
+    if (this.root.hidden) return;
+    this.hitBar.hidden = false;
+    this._syncHit();
+    this.hitBar.classList.remove('flash');
+    void this.hitBar.offsetWidth;
+    this.hitBar.classList.add('flash');
+    clearTimeout(this._hitT);
+    this._hitT = setTimeout(() => (this.hitBar.hidden = true), HIT_SHOW_MS);
   }
 
-  _release() {
-    if (!this._holdT) return;
-    clearTimeout(this._holdT);
-    this._holdT = 0;
-    this.leave.b.classList.remove('holding');
-    this.leaveTxt.textContent = 'Keep holding';
-    clearTimeout(this._nudgeT);
-    this._nudgeT = setTimeout(() => (this.leaveTxt.textContent = 'Hold'), 1800);
+  _syncHit() {
+    const hp = this.ui.hud.c.hp;
+    this.hitHp.textContent = hp >= 0 ? `${hp} health` : '';
   }
 
   show(on) {
@@ -719,21 +976,29 @@ export class Pause {
     this.root.hidden = !on;
     this.ui.root.classList.toggle('paused', on);
     clearInterval(this._iv);
+    clearTimeout(this._hitT);
+    this.hitBar.hidden = true;
+    this._ask(false);
+    this.ui.fieldNotes?.hide();
     if (on) {
       this.sel = -1;
       this.rows.forEach((r) => r.b.classList.remove('on'));
       this.select(0, false);
-      this._syncSub();
-      this._syncHints();
-      this._iv = setInterval(() => this._syncSub(), 1000); // (survivors joining and leaving while it is up)
+      this._sync();
+      // (the clock, survivors joining, leaving and going down while it is up)
+      this._iv = setInterval(() => {
+        this._syncLive();
+        this._syncSub();
+        this._syncLeave();
+        if (!this.hitBar.hidden) this._syncHit();
+      }, 250);
       this.root.classList.remove('in');
       void this.root.offsetWidth;
       this.root.classList.add('in');
     } else {
-      this._release();
+      this._side(false, false);
       if (this.ui.splash.root.hidden) {
         if (this.ui.settingsPanel.visible) this.ui.settingsPanel.hide();
-        if (this.ui.controlsPanel.visible) this.ui.controlsPanel.hide();
         if (this.ui.invitePanel.visible) this.ui.invitePanel.hide();
         if (this.ui.friends.visible) this.ui.friends.hide();
         if (this.ui.accountPanel.visible) this.ui.accountPanel.hide();
@@ -835,338 +1100,6 @@ export class InvitePanel {
 
   get visible() {
     return !this.root.hidden;
-  }
-}
-
-// ---------------------------------------------------------------- controls reference
-// The key list, opened from the Controls button on the splash and the pause menu. It borrows the settings
-// panel's card (settings.js) and closes the same ways: the cross, Done, Esc, or a click outside the card.
-export class ControlsPanel {
-  constructor(ui, parent) {
-    this.ui = ui;
-    this.root = el('div', 'stn-settings stn-controls', parent);
-    this.root.setAttribute('role', 'dialog');
-    this.root.hidden = true;
-    const card = el('div', 'set-card paper', this.root);
-    const head = el('div', 'set-head', card);
-    el('h2', 'set-title', head, 'Controls');
-    el('span', 'set-sub', head, 'field notes · rebind in Settings');
-    const close = svgEl('button', 'set-close btn-icon', head, glyph('xmark'));
-    close.title = 'Close';
-    close.addEventListener('click', () => this.hide());
-    this.list = el('div', 'ctl-grid', el('div', 'set-body', card));
-    this.source = DEFAULT_CONTROLS; // (ui.setControls) drawn as it is shown, with the keys bound then
-    const done = el('button', 'btn btn-blood', el('div', 'set-foot', card), 'Done');
-    done.addEventListener('click', () => this.hide());
-
-    this.root.addEventListener('pointerdown', (e) => {
-      if (e.target === this.root) this.hide();
-    });
-    document.addEventListener(
-      'keydown',
-      (e) => {
-        if (this.root.hidden || e.key !== 'Escape') return;
-        e.preventDefault();
-        e.stopPropagation();
-        this.hide();
-      },
-      true
-    );
-  }
-
-  show() {
-    renderControls(this.list, this.source);
-    this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
-  }
-
-  hide() {
-    this.root.hidden = true;
-  }
-
-  get visible() {
-    return !this.root.hidden;
-  }
-}
-
-// ---------------------------------------------------------------- death
-export class Death {
-  constructor(ui, parent) {
-    this.ui = ui;
-    const root = (this.root = el('div', 'death', parent));
-    root.hidden = true;
-    el('div', 'death-bg', root);
-    el('div', 'grain', root);
-    const m = el('div', 'death-main', root);
-    this.title = el('div', 'death-title', m, 'You died');
-    this.by = el('div', 'death-by', m, '');
-    this.rise = el('div', 'death-rise', m, '');
-    svgEl('i', 'death-claw', this.rise, glyph('claw'));
-    this.riseText = el('span', '', this.rise, '');
-  }
-
-  show(info = {}) {
-    clearTimeout(this._t1);
-    clearTimeout(this._t2);
-    clearTimeout(this._t3);
-    const parts = [];
-    if (info.killer) parts.push('Killed by ' + info.killer);
-    if (info.day) parts.push((info.night ? 'Night ' : 'Day ') + info.day);
-    this.by.textContent = parts.join(' · ');
-    // info.dawn: this death lasts until sunrise (DAWN_RETURN), not for the rest of the run
-    this.riseText.textContent = info.dawn ? 'You rise as one of them. Hunt the survivors until dawn: the sun brings you back.' : 'You have risen as one of them. Hunt the survivors.';
-    this.root.hidden = false;
-    this.root.className = 'death';
-    this.ui.root.classList.add('death-on');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
-    this._t1 = setTimeout(() => this.root.classList.add('rise'), 2600);
-    this._t2 = setTimeout(() => this.root.classList.add('out'), 8200);
-    this._t3 = setTimeout(() => this.hide(), 9400);
-  }
-
-  hide() {
-    clearTimeout(this._t1);
-    clearTimeout(this._t2);
-    clearTimeout(this._t3);
-    this.root.hidden = true;
-    this.root.className = 'death';
-    this.ui.root.classList.remove('death-on');
-  }
-}
-
-// ---------------------------------------------------------------- game over / victory
-// the answers to "how hard was it?", 1..5 as the server counts them (server/feedback.js)
-const DIFFICULTY = ['Too easy', 'Easy', 'Just right', 'Hard', 'Too hard'];
-
-// whole percents of counts that add up to 100 (the largest remainders get the leftover points)
-function percents(counts) {
-  const total = counts.reduce((a, b) => a + b, 0);
-  if (!total) return counts.map(() => 0);
-  const exact = counts.map((n) => (n * 100) / total);
-  const out = exact.map(Math.floor);
-  let left = 100 - out.reduce((a, b) => a + b, 0);
-  const order = exact.map((v, i) => [v - out[i], i]).sort((a, b) => b[0] - a[0]);
-  for (let k = 0; left > 0; k++, left--) out[order[k % order.length][1]]++;
-  return out;
-}
-
-export class EndScreen {
-  constructor(ui, parent) {
-    this.ui = ui;
-    const root = (this.root = el('div', 'end', parent));
-    root.hidden = true;
-    el('div', 'end-bg', root);
-    el('div', 'grain', root);
-    el('div', 'scratches', root);
-    const m = el('div', 'end-main', root);
-    this.kicker = el('div', 'end-kicker', m, '');
-    this.title = el('h1', 'end-title', m, '');
-    this.reason = el('p', 'end-reason', m, '');
-    const st = el('div', 'end-stat', m);
-    this.nights = el('b', '', st, '0');
-    this.nightsL = el('span', '', st, 'nights survived');
-    // the panels' row and the poll under it, the poll as wide as the row
-    const body = el('div', 'end-body', m);
-    // the team's board and the player's own record sit side by side, so the record costs the screen no height
-    const panels = el('div', 'end-panels', body);
-    this.board = el('div', 'end-board paper', panels);
-    this.record = el('div', 'end-board end-record paper', panels);
-    // what the run earned (S2C.PROGRESS, the server's own tally): the bar to the next level, and where the XP came from
-    this.xp = el('div', 'end-board end-xp paper', panels);
-    el('h3', 'panel-h', this.xp, 'Experience');
-    this.xpBar = xpBar(this.xp, 'end-xpb');
-    this.xpUp = el('div', 'ex-up', this.xp, '');
-    this.xpList = el('ul', 'ex-list', this.xp);
-    this.xpFoot = el('div', 'er-foot', this.xp, '');
-    this.xp.hidden = true;
-    // how hard the run was: a scale of five, and then how everyone has voted, as columns filling the same answers
-    this.poll = el('div', 'end-board end-poll paper', body);
-    const pollHead = el('h3', 'panel-h ep-head', this.poll, 'How hard was it?');
-    this.pollFoot = el('span', 'ep-foot', pollHead, '');
-    const opts = el('div', 'ep-opts', this.poll);
-    this.pollOpts = DIFFICULTY.map((label, i) => {
-      const b = el('button', 'ep-opt', opts);
-      b.type = 'button';
-      const fill = el('i', '', el('span', 'ep-bar', b));
-      const row = el('span', 'ep-row', b);
-      el('span', 'ep-key', row, String(i + 1));
-      el('span', 'ep-label', row, label);
-      const pct = el('b', 'ep-pct', b, '');
-      b.addEventListener('click', () => this._vote(i + 1));
-      return { b, pct, fill };
-    });
-    // 1-5 vote as well as a click (the keys of the answers)
-    window.addEventListener('keydown', (e) => {
-      if (this.root.hidden || !this.vote || e.repeat || e.ctrlKey || e.metaKey || e.altKey || this.ui.isTyping()) return;
-      const n = /^(?:Digit|Numpad)([1-5])$/.exec(e.code);
-      if (n) this._vote(+n[1]);
-    });
-    this.vote = null;
-    this.voteSeq = 0;
-    this.count = el('div', 'end-count', m);
-  }
-
-  // A fresh poll for this run. vote: rating 1..5 -> a promise of { mine, counts, total } (net/feedback.js), or
-  // nothing for no poll
-  _poll(vote) {
-    this.vote = vote || null;
-    this.voteSeq++; // (an answer still on its way is for the run before)
-    this.poll.hidden = !this.vote;
-    this.poll.className = 'end-board end-poll paper';
-    for (const o of this.pollOpts) {
-      o.b.classList.remove('mine');
-      o.pct.textContent = '';
-      o.fill.style.height = '0%';
-    }
-    this.pollFoot.className = 'ep-foot';
-    this.pollFoot.textContent = 'Press 1-5 or click · helps us tune the game';
-  }
-
-  async _vote(rating) {
-    if (!this.vote) return;
-    const seq = ++this.voteSeq;
-    this.poll.classList.add('sending');
-    this.pollOpts.forEach((o, i) => o.b.classList.toggle('mine', i === rating - 1));
-    this.pollFoot.className = 'ep-foot';
-    if (!this.poll.classList.contains('voted')) this.pollFoot.textContent = 'Counting your vote...';
-    let res;
-    try {
-      res = await this.vote(rating);
-    } catch (err) {
-      if (seq !== this.voteSeq) return;
-      this.poll.classList.remove('sending');
-      this.pollFoot.className = 'ep-foot bad';
-      this.pollFoot.textContent = err?.message || 'Your vote did not get through';
-      return;
-    }
-    if (seq !== this.voteSeq) return;
-    // everyone's votes, this one counted: each answer's share as a column (the most picked one full), ours lit
-    const counts = DIFFICULTY.map((_, i) => Math.max(0, (res?.counts?.[i] | 0)));
-    const total = counts.reduce((a, b) => a + b, 0);
-    const most = Math.max(...counts);
-    const pcts = percents(counts);
-    this.poll.classList.remove('sending');
-    this.poll.classList.add('voted');
-    this.pollOpts.forEach((o, i) => {
-      o.pct.textContent = pcts[i] + '%';
-      o.fill.style.height = (most ? (counts[i] * 100) / most : 0) + '%';
-    });
-    this.pollFoot.textContent = `${total} vote${total === 1 ? '' : 's'} so far · click another to change yours`;
-  }
-
-  // What this run did to the player's own record. rep: recordRun's report (records.js), { late: true } for a
-  // run joined too late to count, or nothing when the run was not followed at all.
-  _record(rep) {
-    const box = this.record;
-    box.textContent = '';
-    box.hidden = !rep;
-    if (!rep) return;
-    el('h3', 'panel-h', box, 'Your record');
-    if (rep.late) {
-      el('p', 'er-note', box, 'You joined this run after its first minute, so it is not on your record.');
-      return;
-    }
-    const { run, news, record: rec } = rep;
-    const tiles = el('div', 'er-tiles', box);
-    // this run's figure over the best that stands after it, lit when this run set it
-    const tile = (k, label, value, best) => {
-      const t = el('div', 'er-tile' + (news.some((n) => n.k === k) ? ' new' : ''), tiles);
-      el('span', '', t, label);
-      el('b', '', t, value);
-      el('small', '', t, best);
-    };
-    tile('secs', 'Time', fmtTime(run.secs), rec.best.secs ? 'fastest escape ' + fmtTime(rec.best.secs) : 'no escape yet');
-    tile('nights', 'Nights', String(run.nights), 'best ' + rec.best.nights);
-    tile('kills', 'Kills', String(run.kills), 'best ' + rec.best.kills);
-    for (const n of news) {
-      const row = el('div', 'er-new', box);
-      el('b', '', row, n.label);
-      el('span', '', row, n.text);
-      if (n.was) el('small', '', row, 'was ' + n.was);
-    }
-    const t = rec.total;
-    el('div', 'er-foot', box, `Run ${t.runs} · ${t.escapes} escape${t.escapes === 1 ? '' : 's'}` + (t.streak > 1 ? ` · ${t.streak} in a row` : ''));
-  }
-
-  // p: { xp (on record, this run's in it), run: [XP by source, as XP_SRC], loaded, kept } or null (not heard yet).
-  // Called again while the screen is up when the server's last word on the run comes after it
-  setXp(p) {
-    this.xp.hidden = !p;
-    if (!p) return;
-    const got = p.run.reduce((a, b) => a + b, 0);
-    const now = this.xpBar.set(p.xp);
-    const was = levelInfo(p.xp - got).level;
-    this.xpUp.hidden = !(p.loaded && now.level > was);
-    this.xpUp.textContent = now.level > was ? `Level up · level ${now.level}` : '';
-    this.xpList.textContent = '';
-    p.run.forEach((v, i) => {
-      if (!v) return;
-      const li = el('li', '', this.xpList);
-      el('span', '', li, XP_SRC_NAMES[i]);
-      el('b', '', li, `+${v.toLocaleString('en-US')}`);
-    });
-    if (!got) el('li', 'none', this.xpList, 'Nothing this run');
-    this.xpFoot.textContent = !p.kept ? 'Not kept: this player has no record' : !p.loaded ? `+${got} XP this run · your record could not be read, so the level counts this run only` : `+${got.toLocaleString('en-US')} XP this run · pick perks from Perks on the menu`;
-  }
-
-  show(kind, stats = {}) {
-    const victory = kind === 'victory';
-    this.root.hidden = false;
-    this.root.className = 'end ' + (victory ? 'victory' : 'gameover');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
-    this.kicker.textContent = victory ? (stats.plane ? 'Wheels up' : 'The engine turns over') : 'Game over';
-    this.title.textContent = stats.title || (victory ? 'You escaped' : 'Everyone died');
-    this.reason.textContent =
-      stats.reason || (victory ? 'Headlights cut through the trees. The valley shrinks in the mirror.' : 'The valley is quiet again. The car never started.');
-    // stats.days is the day the run ended on. Night N closes day N, so a run that ends on day N - in its
-    // daylight or in its night - got through N - 1 nights (a wipe during the first night survived none)
-    const n = Math.max(0, (stats.days | 0) - 1);
-    this.nights.textContent = String(n);
-    this.nightsL.textContent = n === 1 ? 'night survived' : 'nights survived';
-
-    this.board.textContent = '';
-    const kills = Array.isArray(stats.kills) ? [...stats.kills].sort((a, b) => (b.kills | 0) - (a.kills | 0)) : [];
-    if (kills.length) {
-      el('h3', 'panel-h', this.board, 'Body count');
-      const list = el('ol', 'end-list', this.board);
-      kills.slice(0, 8).forEach((k, i) => {
-        const li = el('li', i === 0 && (k.kills | 0) > 0 ? 'top' : '', list);
-        el('span', 'el-rank', li, String(i + 1));
-        el('span', 'el-name', li, k.name || '???');
-        const kc = el('span', 'el-kills', li);
-        svgEl('i', '', kc, glyph('skull'));
-        el('b', '', kc, String(k.kills | 0));
-      });
-    }
-    this.board.hidden = !kills.length;
-    this._record(stats.record);
-    this.setXp(stats.progress || null);
-    // (no poll on a server that keeps no votes: one without a database has no accounts either)
-    this._poll(stats.vote || (accountState().accounts ? voteDifficulty : null));
-
-    clearInterval(this._iv);
-    this.count.textContent = '';
-    if (stats.restartIn > 0) {
-      const end = performance.now() + stats.restartIn * 1000;
-      const tick = () => {
-        const s = Math.max(0, Math.ceil((end - performance.now()) / 1000));
-        this.count.textContent = '';
-        el('span', '', this.count, s > 0 ? 'New game in ' : 'Starting new game');
-        if (s > 0) el('b', '', this.count, String(s));
-        if (s <= 0) clearInterval(this._iv);
-      };
-      tick();
-      this._iv = setInterval(tick, 250);
-    }
-  }
-
-  hide() {
-    clearInterval(this._iv);
-    this.root.hidden = true;
   }
 }
 

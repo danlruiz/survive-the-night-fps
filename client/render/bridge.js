@@ -261,6 +261,10 @@ export class BridgeView {
       p.rotation.y = w.ry;
       root.add(p);
     }
+    // (the spans, the piers and the wrecks on them, each left out of the frame past the drawing distance: from the far
+    // side of the mainland the frustum held all of them - a hundred and more draws a frame, in the haze where nothing
+    // shows. The island's dark shape stays: it is what is seen from far)
+    this.parts = [...root.children];
     root.add(buildIsland(br.x0, br.z));
     root.traverse((o) => {
       if (!o.isMesh) return;
@@ -271,6 +275,11 @@ export class BridgeView {
     this.fall = -1;
     this.setFall(1); // as the team finds it once they are over: the last span in the water
     scene.add(root);
+  }
+
+  // cam: the eye; viewDist: how far anything is drawn this frame (game.js viewDist)
+  update(cam, viewDist) {
+    for (const o of this.parts) o.visible = Math.hypot(o.position.x - cam.x, o.position.z - cam.z) < viewDist + 100; // (a span runs 64 m on from its origin)
   }
 
   // how far the span nearest the mainland has come down, 0 standing .. 1 in the water (the cutscene drops it)

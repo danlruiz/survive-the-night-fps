@@ -5,6 +5,7 @@
 // with the sun's).
 // Pooled lights are assigned to the nearest / brightest sources each frame.
 import * as THREE from 'three';
+import { comfort } from './comfort.js';
 
 export class Lights {
   constructor(scene, camera, quality) {
@@ -70,7 +71,7 @@ export class Lights {
 
   flashMuzzle(pos, power = 1, time = 0.05) {
     this.muzzle.position.copy(pos);
-    this.muzzle.intensity = 22 * power;
+    this.muzzle.intensity = 22 * power * comfort.flash; // (Settings > Accessibility: Reduce flashes)
     this.muzzleT = time;
   }
 
@@ -108,7 +109,7 @@ export class Lights {
 
   flashFx(x, y, z, power, duration) {
     this.fx.position.set(x, y + 1, z);
-    this.fxPower = power;
+    this.fxPower = power * comfort.flash;
     this.fxT = duration;
     this.fxMax = duration;
   }
@@ -136,7 +137,7 @@ export class Lights {
       const L = this.fires[i];
       const s = tmp[i];
       if (s && s.d < 100 * 100) {
-        const f = 0.82 + Math.sin(time * 11 + i * 3) * 0.07 + Math.sin(time * 23.7 + i) * 0.06 + Math.sin(time * 5.3 + i * 2) * 0.06;
+        const f = s.steady ? 0.95 : 0.82 + Math.sin(time * 11 + i * 3) * 0.07 + Math.sin(time * 23.7 + i) * 0.06 + Math.sin(time * 5.3 + i * 2) * 0.06;
         L.position.set(s.x, s.y + (s.big ? 0.9 : 1.2), s.z);
         L.intensity = (s.big ? 42 : 18) * s.intensity * f;
         L.distance = s.big ? 14 + 14 * s.intensity : 10 + 8 * s.intensity;

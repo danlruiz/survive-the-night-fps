@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { WATER_LEVEL } from '../../shared/constants.js';
 import { hash2 } from '../../shared/rng.js';
-import { getTreeVariants, getBushVariants, getRockVariants, getGrassPatch } from './models/vegetation.js';
+import { getTreeVariants, getBushVariants, getRockVariants, getCragVariants, getGrassPatch } from './models/vegetation.js';
 import { VEG } from './materials.js';
 import { G } from './globals.js';
 import { groundFields } from './terrain.js';
@@ -14,8 +14,13 @@ import { grassRadius } from './renderer.js';
 import { FallingTrees } from './fallingtrees.js';
 import { CutTrees } from './cuttrees.js';
 import { isShadowFrustum } from './multimesh.js';
+import { FarForest } from './farforest.js';
 
 const CELL = 32;
+const FAR_TREES = 170; // m: the trees' drawing distance at the most where the far forest's cards take over (farforest.js)
+const FAR_LOD = 24; // m: there, where the trees' near copy gives way to the far one
+const FAR_CAST = 50; // m: there, how far from the eye a tree throws a shadow
+const CRAG_DIST = 240; // m: the cliffs' crags are drawn this far (the haze thins up the mountains: they are seen far)
 const CELL_OFF = 1024; // added to a coordinate before it is put in a cell, so that none is negative (the mainland reaches +-640 m)
 
 // The view the instance buffers were last filled for, padded: what is outside it is not drawn at all (two thirds of
@@ -365,10 +370,13 @@ class GrassField {
     const rd = w.roadDistAt(x, z);
     if (rd < 2.5) return 0;
     const f = this.fields.sample(x, z, this._f);
+    if (f.road > 0.7) return 0; // (a paved yard)
     let d = f.grass * 0.95 + f.forest * 0.1 + f.mud * 0.25;
     // road verges: a band of rank grass along every road
     d = Math.max(d, 0.9 * (1 - Math.abs(rd - 4) / 2.2));
     d *= 1 - f.rock;
+    // (little of it on bare ground - gravel, trodden dirt - and less on the scree at a mountain's foot: terrain.js)
+    d *= (1 - 0.75 * f.soil) * (1 - 0.85 * f.scree);
     // patchiness: clumped meadows with thinner gaps
     const n = Math.sin(x * 0.11 + Math.sin(z * 0.07) * 2.3) * Math.cos(z * 0.097 - x * 0.03 + Math.sin(x * 0.05));
     const n2 = Math.sin(x * 0.41 + Math.cos(z * 0.33) * 1.7) * Math.sin(z * 0.37 + x * 0.12);
@@ -498,16 +506,21 @@ export class Foliage {
     this.trees = new InstancedSet(scene, world.trees, getTreeVariants(), { radius: quality.treeDist, rebuildDist: 8, stretch: true, lod: true, receive: true });
     this.bushes = new InstancedSet(scene, world.bushes, getBushVariants(), { radius: 85, rebuildDist: 6, receive: true });
     this.rocks = new InstancedSet(scene, world.rocks, getRockVariants(), { radius: quality.treeDist, rebuildDist: 10, receive: true });
+    // (the mainland's cliffs: their crags, drawn only - shared/mainland.js)
+    this.crags = world.crags?.length ? new InstancedSet(scene, world.crags, getCragVariants(), { radius: CRAG_DIST, rebuildDist: 16, receive: true }) : null;
     this.grass = new GrassField(scene, world);
     this.falling = new FallingTrees(scene, world, this.trees);
     this.cut = new CutTrees(scene, this.trees);
+    // (a world as big as the mainland: its woods past the trees' drawing distance, as cards - farforest.js)
+    this.far = world.size > 1000 ? new FarForest(scene, world.trees) : null;
     this.setQuality(quality, grassMul);
   }
 
   dispose() {
     this.falling.dispose();
     this.cut.dispose();
-    for (const set of [this.trees, this.bushes, this.rocks]) set.dispose();
+    this.far?.dispose();
+    for (const set of [this.trees, this.bushes, this.rocks, this.crags]) set?.dispose();
     this.grass.dispose();
   }
 
@@ -536,16 +549,27 @@ export class Foliage {
 
   setQuality(q, grassMul = 1) {
     this.quality = q;
+    // (on a world with the far forest the trees hand over to its cards at FAR_TREES at the most: past that a tree's far
+    // copy and its card look the same from the eye, and in the mainland's woods that ring held thousands of them)
+    this.treeDist = this.far ? Math.min(q.treeDist, FAR_TREES) : q.treeDist;
     const sd = q.shadows ? q.shadowDist : 0;
-    // tall trees just outside the shadow range still throw shadows into it
-    this.trees.castDist = sd ? sd + 25 : 0;
-    this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, 40) : 0;
+    // tall trees just outside the shadow range still throw shadows into it. In the mainland's thick woods a tree every
+    // few metres casts: there only those within FAR_CAST do (past that the ground under the woods is in their shade
+    // whichever tree throws it)
+    this.trees.castDist = sd ? (this.far ? Math.min(sd, FAR_CAST) : sd + 25) : 0;
+    // (on the mainland the bushes to 50 m and their shadows to 20: in its woods they are under the trees, where little
+    // past that reads, and they cost the woods' frame more than they showed)
+    this.bushes.castDist = sd && q.foliageShadows ? Math.min(sd, this.far ? 20 : 40) : 0;
     this.rocks.castDist = sd && q.foliageShadows ? Math.min(sd, 90) : 0;
-    const mid = Math.max(35, q.treeDist * 0.25);
+    if (this.crags) this.crags.castDist = sd ? Math.min(sd, 40) : 0;
+    // (where the near copy - every bough a card of its own, many deep in a crown - gives way to the far one: on the
+    // mainland, where the woods stand thick round the eye, at FAR_LOD)
+    const mid = this.far ? FAR_LOD : Math.max(35, q.treeDist * 0.25);
     this.trees.lodBand = [mid - 7, mid + 7];
     VEG.uTreeLod.value.set(mid - 7, mid + 7);
     this.grass.setQuality(q, grassMul);
     this.trees.lastX = this.bushes.lastX = this.rocks.lastX = 1e9;
+    if (this.crags) this.crags.lastX = 1e9;
   }
 
   // weather: { wind, windX, windZ } (optional). Drives the global wind: 0.3 is the everyday breeze, ~1.2 a gale
@@ -565,10 +589,12 @@ export class Foliage {
       W.z = weather.windX;
       W.w = weather.windZ;
     }
-    const treeR = Math.min(this.quality.treeDist, fogVisibility + 30);
+    const treeR = Math.min(this.treeDist, fogVisibility + 30);
     this.trees.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
-    this.bushes.update(camPos.x, camPos.z, Math.min(85, fogVisibility + 10), view);
+    this.far?.update(Math.round(treeR / 10) * 10, camPos.x, camPos.z);
+    this.bushes.update(camPos.x, camPos.z, Math.min(this.far ? 50 : 85, fogVisibility + 10), view);
     this.rocks.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10, view);
+    this.crags?.update(camPos.x, camPos.z, CRAG_DIST, view);
     this.grass.update(camPos.x, camPos.z, view);
     this.falling.update(dt);
     this.cut.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10);

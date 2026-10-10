@@ -7,6 +7,7 @@
 // time within each phase. An event may run past the end of its cycle into the next morning.
 import { PHASE, dayLength, NIGHT_LENGTH } from '../../shared/constants.js';
 import { mulberry32, hash2 } from '../../shared/rng.js';
+import { comfort } from '../render/comfort.js';
 
 // fog: fog density multiplier, wind: 0 calm .. ~1.2 gale, rain: 0..1, bolts: lightning (1 = a strike every
 // ~5 s), cloud: overcast 0..1
@@ -322,7 +323,7 @@ export class Weather {
       }
       f = Math.max(f, str * pulseEnvelope(pulses, age));
     }
-    s.flash = f;
+    s.flash = f * comfort.flash; // (Settings > Accessibility: Reduce flashes)
   }
 
   // is (x,y,z) under a building roof or shelter, or down in the mine?

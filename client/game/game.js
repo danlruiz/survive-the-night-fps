@@ -112,6 +112,7 @@ import { Voice } from './voice.js';
 import { Environment } from '../render/environment.js';
 import { buildTerrain, buildWater } from '../render/terrain.js';
 import { buildMine } from '../render/mine.js';
+import { buildShips } from '../render/ships.js';
 import { buildClinic, disposeClinic } from '../render/clinic.js';
 import { Graves } from '../render/cemetery.js';
 import { buildRailway } from '../render/railway.js';
@@ -142,10 +143,19 @@ import { itemIcon, glyph } from '../ui/icons.js';
 import { recordRun } from '../ui/records.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
+import { screenLeft } from '../ui/screentabs.js';
 import { MenuTour } from './menutour.js';
 import { KeyGuard } from './keyguard.js';
 import { CardsClient } from './cards.js';
-import { bearing, nextNightText, nightBossText, tonightBrief, PING_LABEL } from '../ui/hud2.js';
+import { G } from '../render/globals.js';
+// A world with mountains (the mainland) is seen far: the distance haze is whole up to HAZE_BASE m and thins over that
+// by e every HAZE_THIN m of the height the eye's ray runs at (globals.js uHaze), so a range stands up out of the haze
+// from across the map while the plain at its foot is lost in it; the camera's far plane goes out to FAR_BIG for it.
+const HAZE_BASE = 28;
+const HAZE_THIN = 22;
+const FAR_SMALL = 520;
+const FAR_BIG = 1700;
+import { bearing, tonightBrief, PING_LABEL } from '../ui/hud2.js';
 
 const WEATHER_TOAST = {
   fog: 'Fog is rolling in',
@@ -246,6 +256,8 @@ export class Game {
     this.frame = 0;
     this.time = 0;
     this.myId = 0;
+    this.perksUp = false; // the Perks panel opened with [P] mid-run (togglePerks)
+    this.achUp = false; // the Achievements panel opened with [U] mid-run (toggleAchievements)
     this.admin = false; // the server lets us run the admin commands (WELCOMEF.ADMIN): the spawn menu [`] is ours
     this.global = { phase: PHASE.WAITING, day: 0, timeLeft: 0, hordeLeft: -1, bossId: 0, supplies: [0, 0, 0, 0, 0], hints: [255, 255, 255, 255, 255, 255, 255], found: 0, unlocked: 0, schemHints: [255, 255, 255, 255, 255], wave: 0, waves: 3, escapeT: 0, flags: 0, finale: false, suppliesDone: false, escapeReady: false, humansAlive: 0, playersTotal: 0, restartT: 0, benches: [], parts: [] };
     this.self = { alive: 1, hp: 100, maxHp: 100, armor: 0, armorMax: 0, battery: 100, weapons: [0, 0, 0, 0, 0], mags: [0, 0], ammo: AMMO_ITEMS.map(() => 0) };
@@ -325,9 +337,18 @@ export class Game {
     ui.board.onClose = () => this.toggleBoard(false);
     ui.bestiary.onClose = () => this.toggleBestiary(false);
     ui.cards.onClose = () => this.toggleCards(false);
+    ui.progress.onHide = () => this.togglePerks(false);
+    // the kit screens' tabs (ui/screentabs.js): in a run they are the game's; outside one, the UI swaps the two it has
+    const tabGo = ui.screenGo.bind(ui);
+    ui.screenGo = (id) => (this.screenRun() ? this.screenGo(id) : tabGo(id));
+    ui.screenRun = () => this.screenRun();
+    // (after the click that hid it is done: its Sign in hides it and opens the account panel in the same handler)
+    ui.achPanel.onHide = () => queueMicrotask(() => this.toggleAchievements(false));
+    ui.fieldNotes.ctx = () => (this.state === 'playing' && this.global && !this.global.finale ? { seed: this.seed, act: this.act, day: this.global.day, phase: this.global.phase } : null);
     ui.spawn.onClose = () => this.toggleSpawn(false);
     ui.spawn.onSpawn = (cmd) => this.conn.chat(cmd);
     ui.roster.onClose = () => this.pinRoster(false);
+    ui.sheetGo = (where) => this.sheetGo(where); // (the side sheet's tabs: ui/sheet.js)
     this.boardT = 0; // when the leaderboard is next asked for, while it is open (performance.now)
     this.discovered = new Set([ZONE.CAMP]);
     this.stripped = new Set(); // the trees and wrecks with nothing left to give today (harvest.js strippedKey)
@@ -531,6 +552,11 @@ export class Game {
     usePos(this.world); // (what a metre is in a position on the wire: protocol.js)
     this.prediction.setWorld(this.world);
     const t1 = performance.now();
+    // (a world with mountains in it - the mainland - is seen far: the haze thins with height, so the ranges stand up
+    // out of it from across the map, and the camera's far plane is taken out to them)
+    G.uHaze.value.set(this.world.size > 1000 ? HAZE_BASE : 0, this.world.size > 1000 ? 1 / HAZE_THIN : 0);
+    this.renderer.camera.far = this.world.size > 1000 ? FAR_BIG : FAR_SMALL;
+    this.renderer.camera.updateProjectionMatrix();
     this.terrain = buildTerrain(this.world);
     this.terrain.userData.setShadows(!!this.renderer.q.shadows); // hills shade the valleys at low sun
     this.scene.add(this.terrain);
@@ -547,6 +573,7 @@ export class Game {
     if (this.railway) this.scene.add(this.railway);
     this.bridge = this.world.bridge ? new BridgeView(this.scene, this.world) : null; // (the mainland: the bridge the car came over)
     this.live = liveProps(this.scene, this.world); // (...the car they came in and the plane: the props a cutscene moves)
+    this.ships = buildShips(this.scene, this.world); // (the mainland's: the freighter at the docks' quay, drawn only)
     this.under = 0;
     const t2 = performance.now();
     this.staticWorld = new StaticWorld(this.scene, this.world);
@@ -572,6 +599,10 @@ export class Game {
         // burning barrels / smouldering wrecks
         this.staticEmitters.push(this.effects.createEmitter('barrel', l.x, l.y, l.z));
         this.staticFires.push({ x: l.x, y: l.y - 0.4, z: l.z, intensity: 0.75 });
+      } else if (l.kind === 'lamp') {
+        // a lamp still burning down a mine (the mainland's passage): a steady glow, no flame
+        // (a lamp: warm white and steady - an electric bulb, not a flame - hung where it is, not over it)
+        this.staticFires.push({ x: l.x, y: l.y - 1.3, z: l.z, intensity: 1.0, color: 0xffdcae, steady: true });
       } else if (l.kind === 'smoke') {
         // a column of smoke standing over a ruin (the mainland's city: it is what shows where it is from the bridge)
         this.staticEmitters.push(this.effects.createEmitter('column', l.x, l.y, l.z, { radius: l.r || 1 }));
@@ -599,6 +630,8 @@ export class Game {
     this.bridge = null;
     this.live?.dispose();
     this.live = null;
+    for (const g of this.ships || []) this.scene.remove(g); // (their models are the props' kit's, cached: nothing to free)
+    this.ships = [];
     if (this.mine) {
       this.scene.remove(this.mine);
       for (const mesh of this.mine.children) {
@@ -977,6 +1010,8 @@ export class Game {
     this.moving = false;
     this.ui.setConnectionStatus('');
     this.state = 'menu';
+    this.perksUp = false; // (the panel itself may stay up over the splash: it is the splash's too)
+    this.achUp = false;
     this.input.enabled = false;
     this.input.exitLock();
     this.keyGuard.release();
@@ -1225,7 +1260,9 @@ export class Game {
       }
       seen.add(id);
       const prev = this.players.get(id);
-      this.players.set(id, { name, status, onAir, kills, ping, level, way });
+      // when we saw them go down (the player list [Tab] says for how long; 0: down before we heard of them)
+      const downAt = status !== 3 ? 0 : prev?.status === 3 ? prev.downAt : prev ? performance.now() : 0;
+      this.players.set(id, { name, status, onAir, kills, ping, level, way, downAt });
       // a teammate's new waypoint (not one they already had when we first heard of them, nor one being cleared)
       if (way && prev && id !== this.myId && !(prev.way && prev.way.x === way.x && prev.way.z === way.z)) this.waypointSet(id, way);
     }
@@ -1252,9 +1289,26 @@ export class Game {
       const self = id === this.myId;
       const e = self || turned ? null : this.entities.ents.get(id);
       const hp = self ? (this.self.maxHp ? this.self.hp / this.self.maxHp : 1) : e ? e.q[7] / 255 : -1; // -1: nothing to show
-      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: ST[p.status] || 'alive', hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self });
+      const where = this.rosterWhere(self ? this.renderPos : e && { x: e.rx, z: e.rz }, self);
+      const downFor = p.downAt ? (performance.now() - p.downAt) / 1000 : null;
+      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: ST[p.status] || 'alive', hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self, ...where, downFor });
     }
     this.ui.setPlayers(list);
+  }
+
+  // where someone is, for the player list: how far, which way from where you look (radians, clockwise from straight
+  // ahead) and the place they are in - by the car, or a place you know (discovered or rumoured, as the map names it)
+  rosterWhere(at, self) {
+    if (!at || !this.world) return { dist: null, dir: null, place: '' };
+    const rp = this.renderPos;
+    const dx = at.x - rp.x;
+    const dz = at.z - rp.z;
+    const dist = self ? 0 : Math.hypot(dx, dz);
+    const dir = dist > 2 ? bearing(dx, dz) + this.input.yaw : null;
+    const car = this.world.car;
+    let place = car && Math.hypot(at.x - car.x, at.z - car.z) < 14 ? 'by the car' : '';
+    if (!place) for (const z of this.world.zones) if (this.knowsPlace(z.id) && Math.hypot(at.x - z.x, at.z - z.z) < z.flat + 6) place = ZONE_NAMES[z.id];
+    return { dist, dir, place };
   }
 
   // S2C.PROGRESS: our XP as the server counts it (shared/progress.js), this run's by source. A level gained during
@@ -1270,11 +1324,28 @@ export class Game {
       const now = levelOf(xp);
       if (now > before) {
         this.ui.notify(`LEVEL ${now}`, 'big', 3.5);
-        this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks, in the inventory (${bindLabel('inventory')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
+        this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks (${bindLabel('perks')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
         this.audio.stinger?.('car_part');
       }
     }
     this.ui.setProgress(p);
+  }
+
+  // The team over the HUD's vitals (ui/hud.js): everyone else in the game, how they are and how far off. Health as the
+  // player list has it (pushRoster): it rides in a teammate's entity record, and the dead get no report on the living
+  hudTeam(rp) {
+    const ST = ['alive', 'zombie', 'dead', 'downed'];
+    const turned = !this.self.alive || !!this.prediction.state.zombie;
+    const out = [];
+    for (const [id, p] of this.players) {
+      if (id === this.myId) continue;
+      const status = ST[p.status] || 'alive';
+      const e = turned ? null : this.entities.ents.get(id);
+      const hp = e && status === 'alive' ? e.q[7] / 255 : -1;
+      const d = e && status !== 'dead' ? Math.hypot(e.rx - rp.x, e.rz - rp.z) : -1;
+      out.push({ id, name: p.name, status, hp, d: d < 0 ? -1 : Math.round(d), talking: this.talkPeers.includes(id) });
+    }
+    return out;
   }
 
   // the peers you can hear talking right now (for the HUD)
@@ -1413,8 +1484,9 @@ export class Game {
         g.conn.pong(held);
       },
       summary(s) {
-        // after the "DAY N" title card has faded
-        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, nextNightText(s.night + 1, g.act), nightTheme(g.seed, s.night + 1, g.act), nightBossText(g.seed, s.night + 1, g.act)), 4300);
+        // under the clock once the "DAWN" title card has faded (on a small screen the two would meet): the night's
+        // tally, and the names of what the next one brings
+        setTimeout(() => g.state === 'playing' && g.ui.showSummary(s, tonightBrief(g.seed, s.night + 1, g.act)), 4300);
       },
     };
     return this._eh;
@@ -1530,7 +1602,7 @@ export class Game {
         ui.notify(arg === this.myId ? "You're back on your feet." : `${this.name(arg)} is back up.`, 'good', 3);
         break;
       case NOTIFY.YOU_DIED:
-        this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead() };
+        this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', ztype: arg < 254 ? arg : -1, day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead(), dawnIn: this.global.phase === PHASE.NIGHT ? this.global.timeLeft : 0 };
         ui.showDeath(this.deathInfo);
         a.stinger?.('death');
         this.deathShown = true;
@@ -2131,10 +2203,15 @@ export class Game {
       else if (ui.mapOpen) this.toggleMap(false);
       else if (ui.boardOpen) this.toggleBoard(false);
       else if (ui.bestiaryOpen) this.toggleBestiary(false);
+      else if (this.perksUp) this.togglePerks(false);
+      else if (this.achUp) this.toggleAchievements(false);
       else if (ui.cardsOpen) {
         if (!ui.cards.back()) this.toggleCards(false); // (a view inside it first: a card picked, the chooser, a deck)
       } else if (ui.spawnOpen) this.toggleSpawn(false);
-      else if (ui.pauseOpen) this.resumeFromPause();
+      else if (ui.pauseOpen) {
+        if (ui.fieldNotes.visible) ui.fieldNotes.hide(); // (its own keys missed it: the focus was elsewhere, or a panel was up)
+        else this.resumeFromPause();
+      }
       // (Esc only gets here with the mouse still taken under fullscreen's keyboard lock, keyguard.js: it shuts the ring,
       // then puts the piece down, and only then lets go of the mouse for the menu - whatever the input is doing: the
       // browser no longer lets go of the mouse on Esc itself, so this is the only way out short of leaving fullscreen)
@@ -2150,8 +2227,9 @@ export class Game {
       return;
     }
     if (has('players')) {
-      if (ui.cardsOpen) return; // (Tab is no key of the card table: the list would only sit under it)
-      if (ui.rosterPinned) this.pinRoster(false);
+      if (ui.cardsOpen || this.perksUp || this.achUp) return; // (Tab is no key of the card table or the perks: the list would only sit under it)
+      if (ui.boardOpen) this.sheetGo('players');
+      else if (ui.rosterPinned) this.pinRoster(false);
       else this.showRoster(true);
       return;
     }
@@ -2161,16 +2239,29 @@ export class Game {
       return;
     }
     // (whatever else takes the screen or the keys lets go of a pinned list first)
-    if (ui.rosterPinned && ['inventory', 'map', 'board', 'bestiary', 'cards', 'chat'].some(has)) this.pinRoster(false, false);
-    if (has('inventory')) {
-      this.toggleInventory(!ui.inventoryOpen);
+    if (ui.rosterPinned && ['inventory', 'map', 'board', 'bestiary', 'cards', 'perks', 'achievements', 'chat'].some(has)) this.pinRoster(false, false);
+    // The kit screens, [I] [M] [P] [U] (ui/screentabs.js): one modal with a tab each. The open tab's key shuts it,
+    // another's goes to its tab. Over the pause menu (the map, its Perks or its Achievements up) they only go between
+    // those three
+    const kit = ['inventory', 'map', 'perks', 'achievements'].find(has);
+    if (kit) {
+      if (kit !== 'inventory' && ui.isTyping()) return;
+      const panel = kit === 'perks' ? ui.progress : kit === 'achievements' ? ui.achPanel : null;
+      if (ui.pauseOpen && (ui.mapOpen || ui.progress.visible || ui.achPanel.visible)) {
+        if (kit === 'inventory') return;
+        if (kit === 'map' && ui.mapOpen) this.toggleMap(false);
+        else if (panel?.visible) panel.hide();
+        else this.screenGo(kit);
+      } else if (kit === 'inventory' || kit === 'map') {
+        if (kit === 'inventory' ? ui.inventoryOpen : ui.mapOpen) kit === 'inventory' ? this.toggleInventory(false) : this.toggleMap(false);
+        else this.screenGo(kit);
+      } else if (ui.pauseOpen) return;
+      else if (kit === 'perks' ? this.perksUp : this.achUp) panel.hide(); // (its onHide hands the pointer back)
+      else this.screenGo(kit);
       return;
     }
-    if (has('map')) {
-      if (ui.inventoryOpen || ui.isTyping()) return;
-      this.toggleMap(!ui.mapOpen);
-      return;
-    }
+    if (this.achUp && ['board', 'bestiary', 'cards'].some(has)) this.toggleAchievements(false, false);
+    if (this.perksUp && ['board', 'bestiary', 'cards'].some(has)) this.togglePerks(false, false);
     if (has('board')) {
       if (ui.inventoryOpen || ui.isTyping()) return;
       this.toggleBoard(!ui.boardOpen);
@@ -2324,7 +2415,7 @@ export class Game {
   // the pinned player list): the pointer is free for it, and the game's keys and buttons are off
   screenUp() {
     const ui = this.ui;
-    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned;
+    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned || this.perksUp || this.achUp;
   }
 
   resumeFromPause() {
@@ -2339,19 +2430,56 @@ export class Game {
     });
   }
 
-  toggleInventory(open) {
+  // relock: false when something else that needs the cursor is taking over (another of the kit screens' tabs)
+  toggleInventory(open, relock = true) {
     const ui = this.ui;
     if (open === ui.inventoryOpen) return;
     if (ui.mapOpen) this.toggleMap(false, false); // the inventory wants the pointer free as well
     if (ui.boardOpen) this.toggleBoard(false, false);
     if (ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (ui.cardsOpen) this.toggleCards(false, false);
+    if (open && this.perksUp) this.togglePerks(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.achUp) this.toggleAchievements(false, false);
     ui.setCraftContext(this.craftContext());
     ui.setInventoryOpen(open);
-    this.input.enabled = !open;
+    this.input.enabled = !open && !this.screenUp();
     if (open) this.input.exitLock();
-    else this.input.requestLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // whether the kit screens are the game's to go between (Game.screenGo): in a run, not over its end screen
+  screenRun() {
+    return this.state === 'playing' && !this.overlay;
+  }
+
+  // The kit screens' tabs (ui/screentabs.js): the inventory, the map, the perks and the achievements are one modal, and
+  // a tab (or another tab's key) goes from one to the next with the pointer free all the while, nothing sliding in
+  // again. Opened over the pause menu, the map, the perks and the achievements swap over it; the inventory puts it away.
+  screenGo(id) {
+    const ui = this.ui;
+    const up = { inventory: ui.inventoryOpen, map: ui.mapOpen, perks: ui.progress.visible, achievements: ui.achPanel.visible };
+    if (up[id] || !(id in up)) return;
+    screenLeft();
+    if (ui.pauseOpen && (up.map || up.perks || up.achievements)) {
+      if (id !== 'inventory') {
+        // (the one coming first, then the one going: there is never a frame of the bare menu between them)
+        if (id === 'map') this.toggleMap(true);
+        else (id === 'perks' ? ui.progress : ui.achPanel).show();
+        if (id !== 'map' && up.map) this.toggleMap(false, false);
+        if (id !== 'perks' && up.perks) ui.progress.hide();
+        if (id !== 'achievements' && up.achievements) ui.achPanel.hide();
+        return;
+      }
+      if (up.map) this.toggleMap(false, false);
+      if (up.perks) ui.progress.hide();
+      if (up.achievements) ui.achPanel.hide();
+      ui.showPause(false);
+    }
+    if (id === 'inventory') this.toggleInventory(true);
+    else if (id === 'map') this.toggleMap(true);
+    else if (id === 'perks') this.togglePerks(true);
+    else this.toggleAchievements(true);
   }
 
   // The player list, up for as long as [Tab] is held, with the pointer still locked and the game going on under it...
@@ -2386,21 +2514,38 @@ export class Game {
     this.audio.playLocal('ui_click', { volume: 0.4 });
   }
 
-  // relock: false when something else that needs the cursor is taking over
+  // The side sheet's tabs (ui/sheet.js): from the pinned player list to the leaderboard and back, the pointer free all
+  // the while
+  sheetGo(where) {
+    if (where === 'board' && !this.ui.boardOpen) {
+      if (this.ui.rosterPinned) this.pinRoster(false, false);
+      this.toggleBoard(true);
+    } else if (where === 'players' && !this.ui.rosterPinned) {
+      if (this.ui.boardOpen) this.toggleBoard(false, false);
+      this.pinRoster(true);
+    }
+  }
+
+  // relock: false when something else that needs the cursor is taking over. Shut with the Esc menu still up under it
+  // (the map, the leaderboard, the bestiary, Dead Hand opened from the menu), it is the menu again, not the game: the
+  // mouse is not taken back (that would be the menu's "Back to the game") and the input stays off.
   toggleMap(open, relock = true) {
     const ui = this.ui;
     if (open === ui.mapOpen) return;
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.perksUp) this.togglePerks(false, false);
+    if (open && this.achUp) this.toggleAchievements(false, false);
     if (open && ui.boardOpen) this.toggleBoard(false, false);
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setMapOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     // the map takes clicks (your waypoint), so it frees the pointer the way the inventory does. Clicks made
     // while it is free never reach the weapon: Input only counts a mouse button pressed under the lock.
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2413,13 +2558,13 @@ export class Game {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBoardOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     if (open) {
       this.boardT = 0; // ask the server at once (update)
       this.input.exitLock();
-    } else if (relock) this.input.requestLock();
+    } else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2434,11 +2579,72 @@ export class Game {
     if (open && ui.spawnOpen) this.toggleSpawn(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBestiaryOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // The Perks panel [P] (ui/progress.js: the kit screens' Perks tab; the pause menu and the splash open it too): a
+  // point spent mid-run without the pause menu. It takes clicks, so it frees the pointer as the bestiary does, and its
+  // own close, Esc or a click outside it hands the pointer back (progress.onHide). perksUp: open from here, not over a
+  // menu.
+  // relock: false when something else that needs the cursor is taking over
+  togglePerks(open, relock = true) {
+    const ui = this.ui;
+    if (open === !!this.perksUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
+    if (open && ui.mapOpen) this.toggleMap(false, false);
+    if (open && ui.boardOpen) this.toggleBoard(false, false);
+    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
+    if (open && ui.rosterPinned) this.pinRoster(false, false);
+    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.achUp) this.toggleAchievements(false, false);
+    this.perksUp = open;
+    if (open) ui.progress.show();
+    else if (ui.progress.visible) ui.progress.hide(); // (calls back here, and finds it shut already)
+    // (shut over the end screen, after a leave: the input stays as they left it)
+    if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // The Achievements panel [U] (ui/achievements.js: the kit screens' third tab; the pause menu and the splash open it
+  // too), as the Perks panel: it frees the pointer, and its own close, Esc or a click outside it hands the pointer back
+  // (achPanel.onHide). achUp: open from here, not over a menu. relock: false when something else that needs the cursor
+  // is taking over
+  toggleAchievements(open, relock = true) {
+    const ui = this.ui;
+    if (open === !!this.achUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
+    if (open && ui.mapOpen) this.toggleMap(false, false);
+    if (open && ui.boardOpen) this.toggleBoard(false, false);
+    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
+    if (open && ui.rosterPinned) this.pinRoster(false, false);
+    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open && this.perksUp) this.togglePerks(false, false);
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    this.achUp = open;
+    if (open) ui.achPanel.show();
+    else if (ui.achPanel.visible) ui.achPanel.hide(); // (calls back here, and finds it shut already)
+    // (shut over the end screen, after a leave: the input stays as they left it)
+    if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
+    // (its Sign in took them to the account panel: the pause menu under it, as when it was opened from there)
+    if (!open && ui.accountPanel.visible) return ui.showPause(true);
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2454,12 +2660,12 @@ export class Game {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setSpawnOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.inputBuffer.clear();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2484,12 +2690,12 @@ export class Game {
     if (open && ui.rosterPinned) this.pinRoster(false, false);
     if (open && ui.spawnOpen) this.toggleSpawn(false, false);
     ui.setCardsOpen(open, view);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.inputBuffer.clear();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock && !this.overlay) this.input.requestLock();
+    else if (relock && !this.overlay && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal(open ? 'card_shuffle' : 'ui_click', { volume: open ? 0.35 : 0.5 });
   }
 
@@ -2992,7 +3198,10 @@ export class Game {
     // a heavy footfall drops the view and rattles it, then dies away in ~0.4 s however faint it was: far off it is a
     // tremor that lasts as long as the jolt of one landing beside you
     this.quake *= Math.exp(-dt * 6);
-    const bobY = Math.sin(this.camBob * 2) * (s.downed ? 0.06 : 0.035) * Math.min(1, hspeed / 5) - this.landDip - stepLag - this.quake * 0.03 + this.swimK * (Math.sin(time * 1.7) * 0.035 + Math.sin(time * 0.63) * 0.02);
+    // Settings > Accessibility: camera shake (x the shake and the quake's drop, 0 holds the view still) and view bob
+    const shakeK = this.settings.cameraShake ?? 1;
+    const bobK = this.settings.viewBob === false ? 0 : 1;
+    const bobY = (Math.sin(this.camBob * 2) * (s.downed ? 0.06 : 0.035) * Math.min(1, hspeed / 5) + this.swimK * (Math.sin(time * 1.7) * 0.035 + Math.sin(time * 0.63) * 0.02)) * bobK - this.landDip - stepLag - this.quake * 0.03 * shakeK;
     // the gun's climb and the last round's punch (aimview.js): the view is lifted by both, so the sights or the
     // crosshair are where the next round goes
     const gdef = self.alive && !s.zombie && !this.gun.manning ? WEAPONS[currentWeapon(s)] : null;
@@ -3000,7 +3209,7 @@ export class Game {
     this.punchT += dt;
     const viewKick = this.viewClimb + this.punch * punchAt(this.punchT / this.punchLen);
     this.camShake = Math.max(0, (this.camShake || 0) - dt * 2.5);
-    const shake = this.camShake * 0.02 + this.effects.shake * 0.03 + this.quake * 0.02;
+    const shake = (this.camShake * 0.02 + this.effects.shake * 0.03 + this.quake * 0.02) * shakeK;
     const cam = this.camera;
     if (cine) {
       cine.update(dt, cam); // (a cutscene: the shot's camera, and its own field of view)
@@ -3010,9 +3219,9 @@ export class Game {
       cam.position.set(d.x, d.y, d.z);
       cam.rotation.set(d.pitch, d.yaw, 0);
     } else if (self.alive) {
-      if (inVeh) cam.position.set(this.vehicles.eye.x, this.vehicles.eye.y - this.quake * 0.03, this.vehicles.eye.z); // (carried: the seat's eye)
+      if (inVeh) cam.position.set(this.vehicles.eye.x, this.vehicles.eye.y - this.quake * 0.03 * shakeK, this.vehicles.eye.z); // (carried: the seat's eye)
       else cam.position.set(rp.x, rp.y + this.eyeH + bobY, rp.z);
-      const roll = (inVeh ? this.vehicles.eye.roll : 0) + (s.downed ? 0.18 + Math.sin(time * 1.3) * 0.03 : 0) + this.swimK * Math.sin(time * 1.1) * 0.025;
+      const roll = (inVeh ? this.vehicles.eye.roll : 0) + (s.downed ? 0.18 + Math.sin(time * 1.3) * 0.03 : 0) + this.swimK * Math.sin(time * 1.1) * 0.025 * bobK;
       cam.rotation.set(inp.pitch + viewKick + (Math.random() - 0.5) * shake, inp.yaw + (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake * 0.5 + roll);
       // nunchucks: the view goes with the strikes - a sprung nod, turn and roll from the moves and from what they hit
       // (ViewModel's rig, as of last frame). "Weapon look sway" off leaves the view still
@@ -3056,6 +3265,7 @@ export class Game {
     const weaponNow = s.zombie ? -2 : self.alive ? currentWeapon(s) : 0;
     if (weaponNow !== this.vmItem) {
       this.vmItem = weaponNow;
+      this.input.clearToggle('aim'); // (an aim on toggle is let go with the weapon it was on)
       if (weaponNow === -2) this.vm.setItem(0, { claws: true });
       else this.vm.setItem(s.slot === SLOT_BUILD && !weaponNow ? 0 : weaponNow, { tuck: self.alive }); // (tuck: nunchucks are folded away first)
     }
@@ -3205,11 +3415,15 @@ export class Game {
     const dark = Math.max(deep, this.world.darkAt(rp.x, rp.y + 1, rp.z));
     this.under += (dark - this.under) * Math.min(1, dt * 4);
     if (this.under < 0.002) this.under = 0;
-    this._envOver.under = this.under;
+    // (the mainland's passage was kept lit to the end - its lamps every few metres: down it a little of the light stays,
+    // so its timbers, rails and tubs read; the island's mine is as dark as it was)
+    this._envOver.under = this.world.size > 1000 && deep > 0 ? this.under * 0.8 : this.under;
     this._envOver.fogMul = this.debugFog ?? (cine ? cine.fogMul : 0); // (a cutscene's long shots see further than the day's haze lets a survivor; debugFog: a look-dev camera's)
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it
     this.staticWorld.update(cam.position, this.viewDist);
+    this.terrain?.userData.update?.(cam.position, this.viewDist);
+    this.bridge?.update(cam.position, this.viewDist);
     this.foliage.update(cam.position, this.env.fogVisibility, time, weather, cam);
     if (this.water) {
       const u = this.water.material.uniforms;
@@ -3390,6 +3604,8 @@ export class Game {
     const weather = this.weather.update(dt, null, this.time, cam.position);
     this.env.update(dt, 0.49, cam.position, this.time, weather);
     this.staticWorld.update(cam.position, this.env.fogVisibility + 40);
+    this.terrain?.userData.update?.(cam.position, this.env.fogVisibility + 40);
+    this.bridge?.update(cam.position, this.env.fogVisibility + 40);
     this.foliage.update(cam.position, this.env.fogVisibility, this.time, weather, cam);
     this.lights.update(dt, this.time, cam.position, false, this.staticFires, [], this.env.night);
     this.power.update(dt, this.time, cam.position, this.env.night); // (no floodlight is left lit from the game before)
@@ -3434,7 +3650,7 @@ export class Game {
       this.ui.setBestiaryOpen(false);
       this.ui.setCardsOpen(false);
       this.ui.setSpawnOpen(false);
-      const kills = [...this.players.values()].map((p) => ({ name: p.name, kills: p.kills }));
+      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
       // (on the mainland a wipe is the end of the whole run: the next one begins on the island)
       const reason = this.world.car.plane ? 'Every survivor has fallen on the mainland. The run starts over on the island.' : 'Every survivor has fallen.';
       this.ui.showGameOver({ days: g.day, kills, reason, restartIn: Math.ceil(g.restartT), record: this.runReport, progress: this.progress });
@@ -3446,14 +3662,14 @@ export class Game {
       this.ui.setBestiaryOpen(false);
       this.ui.setCardsOpen(false);
       this.ui.setSpawnOpen(false);
-      const kills = [...this.players.values()].map((p) => ({ name: p.name, kills: p.kills }));
+      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
       // The run is won for everyone, but the car took whoever was at it: a survivor further off than ESCAPE_RADIUS
       // when it left stayed in the valley, and so did the players who had already turned.
       const car = this.world.car;
       let title = 'You escaped';
       let reason = 'The engine roars. You tear down Route 9 and leave the valley behind.';
       const plane = !!car.plane; // (the mainland: the run ends in the air)
-      if (plane) reason = 'The wheels leave the runway. Port Calder, the bridge and the island fall away behind you.';
+      if (plane) reason = 'The wheels leave the runway. The town, the bridge and the island fall away behind you.';
       if (!this.self.alive || this.prediction.state.zombie) {
         title = 'They escaped';
         reason = plane ? 'The plane is a speck over the hills. You stay on the mainland with the rest of the dead.' : 'The engine roars and the car is gone down Route 9. You stay in the valley with the rest of the dead.';
@@ -3846,6 +4062,7 @@ export class Game {
     h.stalled = performance.now() - (this.snapAt || 0) > 1000; // nothing from the server for a second
     h.fps = this.fps || 0;
     h.players = { alive: g.humansAlive, total: g.playersTotal };
+    if (!h.team || this.frame % 10 === 3) h.team = this.hudTeam(rp); // (the team over the vitals, a few times a second)
     // objective tracker
     const carried = {};
     let anyCarried = false;
@@ -3859,17 +4076,30 @@ export class Game {
     for (const p of this.looseParts()) loose[p.item] = (loose[p.item] || 0) + 1;
     h.objective = { supplies: g.supplies, hints: g.hints, found: g.found, carried, loose, anyCarried, phase: g.phase, timeLeft: Math.ceil(g.timeLeft), finale: g.finale, escapeT: Math.ceil(g.escapeT), escapeReady: g.escapeReady, escapeStalled: g.escapeStalled, escapeLeaving: g.escapeLeaving, standWarm: g.standWarm, runwayBlocked: g.runwayBlocked, suppliesDone: g.suppliesDone, wave: g.wave, waves: g.waves };
     // downed overlay
-    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived } : null;
+    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived, mate: this.closestMate(rp) } : null;
     // compass + world markers
     h.yaw = this.input.yaw;
     this.buildMarkers(h, rp);
-    // the minimap: only while it is on screen
-    h.minimap = !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !this.ui.boardOpen && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
+    // the minimap: only while it is on screen (the leaderboard, and Friends docked over it, are a side sheet in a
+    // game, with the minimap still in view beside them)
+    h.minimap = !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
     h.cards = this.cards.hud(); // (Dead Hand under way with its screen shut, or a teammate's ask)
     this.ui.updateHud(h);
     this.pushInventoryToUI(false);
     if (this.ui.inventoryOpen && this.frame % 20 === 0) this.ui.setCraftContext(this.craftContext());
     if (this.ui.rosterOpen && this.frame % 20 === 10) this.pushRoster(); // health moves between player lists
+  }
+
+  // the closest teammate on their feet that we can see (in the entity list): { name, d (m) }, or null. The downed card
+  // names them: only a teammate can get us up
+  closestMate(rp) {
+    let best = null;
+    for (const e of this.entities.ents.values()) {
+      if (e.kind !== ENT.PLAYER || e.id === this.myId || e.downed || e.q[5] & (PFLAG.ZOMBIE | PFLAG.DEAD)) continue;
+      const d = Math.hypot(e.rx - rp.x, e.rz - rp.z);
+      if (!best || d < best.d) best = { name: this.name(e.id), d };
+    }
+    return best;
   }
 
   buildMarkers(h, rp) {

@@ -44,7 +44,7 @@ import { mulberry32 } from './rng.js';
 import { rideStep, rideCarry } from './fair.js';
 import { cartStep, cartCarry, CART_PUMP, LEVER_HANDS } from './handcar.js';
 import { driveStep, DRIVE_HANDS } from './vehicles.js';
-import { swimming, waterFloor, wadeDepth, SWIM_HANDS, SWIM_SPEED, SWIM_FAST, SWIM_DOWNED, SWIM_ACCEL, SWIM_DRAG, SWIM_TREAD, SWIM_DRAIN, WADE_FROM, WADE_SLOW, CROUCH_WADE, SWIM_DEPTH } from './swim.js';
+import { swimming, waterFloor, wadeDepth, riverCurrent, SWIM_HANDS, SWIM_SPEED, SWIM_FAST, SWIM_DOWNED, SWIM_ACCEL, SWIM_DRAG, SWIM_TREAD, SWIM_DRAIN, WADE_FROM, WADE_SLOW, CROUCH_WADE, SWIM_DEPTH } from './swim.js';
 import { perkMods } from './progress.js';
 import { simNunchaku } from './nunchaku.js';
 
@@ -606,6 +606,14 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   _pos.x = s.x + s.vx * dt;
   _pos.y = s.y;
   _pos.z = s.z + s.vz * dt;
+  // afloat in the mainland's river the current carries them on top of their own stroke (swim.js)
+  if (swim) {
+    const cur = riverCurrent(world, s.x, s.z);
+    if (cur) {
+      _pos.x += cur[0] * dt;
+      _pos.z += cur[1] * dt;
+    }
+  }
   const human = !s.zombie;
   const hit = resolveBody(world, _pos, PLAYER_RADIUS, height, human);
   // a survivor swims where the water is deep (below); a turned one, like the rest of the dead, stops at its edge, and

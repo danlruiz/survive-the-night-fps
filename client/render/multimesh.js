@@ -105,13 +105,15 @@ export class MultiMesh extends THREE.Mesh {
     this.whole = whole;
   }
 
-  pick(runs, frustum, out) {
+  // (viewOnlyDistance: the distance rule is the view's alone; the shadow maps take every run in their frustum)
+  pick(runs, frustum, out, shadow = false) {
     const planes = frustum.planes;
+    const anyDist = shadow && this.viewOnlyDistance;
     let n = 0, total = 0, end = -1;
     for (let i = 0; i < runs.length; i++) {
       const run = runs[i];
       const c = run.chunk;
-      if (!c.on || c.near >= run.maxDist) continue;
+      if (!c.on || (!anyDist && c.near >= run.maxDist)) continue;
       let inside = true;
       for (let p = 0; p < 6; p++) {
         const pl = planes[p];
@@ -136,7 +138,7 @@ export class MultiMesh extends THREE.Mesh {
   }
 
   intersectsFrustum(frustum) {
-    if (isShadowFrustum(this, frustum)) return this.pick(this.castRuns, frustum, this.shadow);
+    if (isShadowFrustum(this, frustum)) return this.pick(this.castRuns, frustum, this.shadow, true);
     return !this.shadowOnly && this.pick(this.runs, frustum, this.view);
   }
 

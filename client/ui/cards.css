@@ -387,7 +387,9 @@
   }
 }
 
-.stn-ui .cd-head {
+/* (.cd-head, .cd-body, .cd-name, .cd-empty and .cd-go are the crafting detail panel's names too, ui.css: scoped to the
+   card screen, or the table's "nothing on the table" cover lies over the whole crafting column and takes its clicks) */
+.stn-ui .cdscr .cd-head {
   align-items: center;
   gap: calc(14 * var(--u));
   flex-wrap: wrap;
@@ -426,7 +428,7 @@
   background: var(--blood);
 }
 
-.stn-ui .cd-body {
+.stn-ui .cdscr .cd-body {
   position: relative;
   flex: 1;
   min-height: 0;
@@ -659,7 +661,7 @@
   min-width: 0;
 }
 
-.stn-ui .cd-name {
+.stn-ui .cdscr .cd-name {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1250,7 +1252,7 @@
 }
 
 /* ---- nothing on the table */
-.stn-ui .cd-empty {
+.stn-ui .cdscr .cd-empty {
   position: absolute;
   inset: 0;
   display: grid;
@@ -1290,7 +1292,7 @@
   margin-top: calc(10 * var(--u));
 }
 
-.stn-ui .cd-go {
+.stn-ui .cdscr .cd-go {
   font-size: max(16px, calc(24 * var(--u)));
   padding: calc(10 * var(--u)) calc(30 * var(--u));
 }
@@ -2312,7 +2314,7 @@
     padding: 6px 8px;
   }
 
-  .stn-ui .cd-head {
+  .stn-ui .cdscr .cd-head {
     gap: 6px;
   }
 

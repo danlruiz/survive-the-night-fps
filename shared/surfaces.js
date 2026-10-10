@@ -24,11 +24,11 @@ export const blowForce = (blow, heavy = false) => Math.min(1, FORCE[blow] * (hea
 const MAT_SURF = {
   planks: SURF.WOOD, barn: SURF.WOOD, clapboard: SURF.WOOD, logwall: SURF.WOOD, dockwood: SURF.WOOD, trim: SURF.WOOD, sash: SURF.WOOD,
   door: SURF.WOOD, wood: SURF.WOOD, floorboards: SURF.WOOD, shingles: SURF.WOOD, charred: SURF.WOOD, bark: SURF.WOOD, hay: SURF.EARTH,
-  concrete: SURF.STONE, brick: SURF.STONE, stone: SURF.STONE, plaster: SURF.STONE, gravestone: SURF.STONE, stone_rough: SURF.STONE,
+  concrete: SURF.STONE, concrete_pale: SURF.STONE, brick: SURF.STONE, stone: SURF.STONE, plaster: SURF.STONE, gravestone: SURF.STONE, stone_rough: SURF.STONE,
   rock: SURF.STONE, roadpaint: SURF.STONE, gravel: SURF.STONE, lino: SURF.STONE, ceiling: SURF.STONE, roofing: SURF.STONE,
   tin: SURF.METAL, tin_rust: SURF.METAL, rust: SURF.METAL, metal: SURF.METAL, iron: SURF.METAL, steel: SURF.METAL, chrome: SURF.METAL,
   olive: SURF.METAL, paint: SURF.METAL, dark: SURF.METAL, taillight: SURF.METAL, emissive_red: SURF.METAL,
-  glass: SURF.GLASS, carglass: SURF.GLASS, canopy: SURF.GLASS, cabin: SURF.CLOTH, cabin_fine: SURF.CLOTH,
+  glass: SURF.GLASS, carglass: SURF.GLASS, canopy: SURF.GLASS, lampglow: SURF.GLASS, cabin: SURF.CLOTH, cabin_fine: SURF.CLOTH,
   canvas: SURF.CLOTH, canvas_mil: SURF.CLOTH, cloth: SURF.CLOTH, burlap: SURF.CLOTH, rope: SURF.CLOTH,
   earth: SURF.EARTH, dirt: SURF.EARTH, ash: SURF.EARTH,
   // what a prop's own model is made of (a blow on a prop is judged by the triangle it struck: render/wrecks.js)

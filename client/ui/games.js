@@ -6,6 +6,7 @@ import { DIFFICULTIES, NIGHTFALL, difficultyLabel } from '../../shared/difficult
 import { el, svgEl } from './dom.js';
 import { glyph } from './icons.js';
 import { listGames, createGame } from '../net/lobby.js';
+import './ux-splash.css'; // (the splash's layout and these panels as sheets beside it)
 
 export function phaseText(phase, day) {
   if (phase === PHASE.DAY) return `Day ${day}`;

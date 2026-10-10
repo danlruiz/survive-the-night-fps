@@ -1,0 +1,893 @@
+/* =====================================================================================
+   Players, friends & leaderboard as one side sheet (issue #219): sheet.js, roster.js, leaderboard.js.
+   Sized in rem, so the browser's zoom makes the sheet bigger instead of squeezing what is in it; nothing under
+   0.75rem (12 px at 100%); only the lists scroll. Every rule is scoped to the sheet's own roots.
+   ===================================================================================== */
+
+.stn-ui .pls-scr,
+.stn-ui .lbscr.lb-sheet,
+.stn-ui .stn-settings.pls-docked {
+  --pls-gap: 0.75rem;
+  --pls-w: min(clamp(21rem, 32vw, 27rem), calc(100% - 4.25rem));
+  --pls-line: rgba(230, 223, 207, 0.12);
+}
+
+/* ------------------------------------------------------------------ the sheet */
+/* up while [Tab] is held, over a game that goes on: no backdrop, no clicks (until pinned) */
+.stn-ui .pls-scr {
+  position: absolute;
+  inset: 0;
+  animation: pls-in 0.14s ease-out;
+}
+
+.stn-ui .pls-scr.pinned {
+  pointer-events: auto;
+}
+
+/* come up as the other went (a tab, Tab, L): the same sheet with other contents, so it does not slide in again */
+.stn-ui .pls-scr.pls-still,
+.stn-ui .lbscr.lb-sheet.pls-still {
+  animation: none;
+}
+
+.stn-ui .pls-frame,
+.stn-ui .lbscr.lb-sheet .lb-frame,
+.stn-ui .stn-settings.pls-docked .set-card {
+  position: absolute;
+  top: var(--pls-gap);
+  right: var(--pls-gap);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--pls-w);
+  min-width: 0;
+  max-width: none;
+  max-height: calc(100% - 2 * var(--pls-gap));
+  /* (opaque: the prompt and the markers of the HUD under it would read through the paper) */
+  background: linear-gradient(175deg, #1e1a17, #0d0b0a);
+  border: 1px solid rgba(230, 223, 207, 0.1);
+  box-shadow: -0.75rem 0 2.5rem rgba(0, 0, 0, 0.55);
+  font-size: 1rem;
+}
+
+.stn-ui .pls-scr.pinned .pls-frame,
+.stn-ui .lbscr.lb-sheet .lb-frame,
+.stn-ui .stn-settings.pls-docked .set-card {
+  bottom: var(--pls-gap);
+  height: auto;
+}
+
+.stn-ui .pls-frame {
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.stn-ui .pls-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stn-ui .pls-title {
+  flex: 1;
+  margin: 0;
+  font: 400 1.75rem / 1 var(--f-head);
+  letter-spacing: 0.2em;
+  color: var(--bone);
+}
+
+.stn-ui .pls-scr [hidden] {
+  display: none !important;
+}
+
+.stn-ui .pls-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.55rem 0 0.35rem;
+}
+
+.stn-ui .pls-count {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid rgba(230, 223, 207, 0.3);
+  font: 0.75rem / 1.2 var(--f-mono);
+  letter-spacing: 0.08em;
+  color: var(--bone-2);
+}
+
+.stn-ui .pls-count.down {
+  border-color: var(--blood-hi);
+  background: var(--blood-hi);
+  color: #fff;
+}
+
+.stn-ui .pls-count.out {
+  color: var(--bone-dim);
+}
+
+/* only the list scrolls */
+.stn-ui .pls-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  margin: 0 -0.35rem;
+  padding: 0 0.35rem;
+}
+
+.stn-ui .pls-sec {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0.35rem;
+  font: 0.75rem / 1.2 var(--f-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.stn-ui .pls-sec::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--pls-line);
+}
+
+.stn-ui .pls-sec.help {
+  color: var(--blood-lite);
+}
+
+.stn-ui .pls-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* a player: what state, the name over where they are, then the number that matters with the rest faint under it */
+.stn-ui .pls-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem 0.6rem;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--bone);
+}
+
+.stn-ui .pls-row.self {
+  box-shadow: inset 2px 0 0 var(--amber);
+}
+
+/* down: the one row somebody has to act on */
+.stn-ui .pls-row.st-downed {
+  background: rgba(157, 17, 23, 0.4);
+  box-shadow: inset 3px 0 0 var(--blood-hi);
+}
+
+.stn-ui .pls-st svg {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--bone-2);
+}
+
+.stn-ui .pls-row.st-downed .pls-st svg {
+  color: var(--blood-lite);
+  animation: stn-warnpulse 0.7s ease-in-out infinite;
+}
+
+.stn-ui .pls-main {
+  min-width: 0;
+}
+
+.stn-ui .pls-top {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.stn-ui .pls-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 1.05rem / 1.2 var(--f-num);
+}
+
+.stn-ui .pls-you {
+  flex: none;
+  padding: 0 0.3rem;
+  border: 1px solid var(--amber);
+  font: 0.75rem / 1.3 var(--f-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.stn-ui .pls-ico {
+  flex: none;
+  display: inline-flex;
+}
+
+.stn-ui .pls-ico svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.stn-ui .pls-friend {
+  color: var(--amber);
+}
+
+.stn-ui .pls-radio,
+.stn-ui .pls-mic {
+  color: var(--good);
+}
+
+.stn-ui .pls-row.talking .pls-mic {
+  animation: stn-talk 0.7s ease-in-out infinite alternate;
+}
+
+.stn-ui .pls-where {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-top: 0.2rem;
+  font: 0.8rem / 1.25 var(--f-type);
+  color: var(--bone-2);
+}
+
+/* which way they are from where you look: up is straight ahead */
+.stn-ui .pls-dir {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid rgba(230, 223, 207, 0.4);
+  border-radius: 50%;
+  transition: transform 0.25s ease-out;
+}
+
+.stn-ui .pls-dir svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.stn-ui .pls-row.st-downed .pls-dir {
+  border-color: var(--blood-lite);
+  color: #fff;
+}
+
+.stn-ui .pls-dist {
+  flex: none;
+  font: 500 0.85rem / 1.25 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .pls-place {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bone-dim);
+}
+
+.stn-ui .pls-side {
+  min-width: 2.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  text-align: right;
+}
+
+.stn-ui .pls-hpn {
+  font: 500 1.3rem / 1 var(--f-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+}
+
+.stn-ui .pls-hpn.hurt {
+  color: var(--amber);
+}
+
+.stn-ui .pls-hpn.crit {
+  color: var(--blood-lite);
+}
+
+.stn-ui .pls-tag {
+  padding: 0.05rem 0.35rem;
+  background: var(--blood-hi);
+  font: 0.75rem / 1.3 var(--f-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.stn-ui .pls-downt {
+  font: 500 1.05rem / 1 var(--f-num);
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.stn-ui .pls-downt:empty {
+  display: none;
+}
+
+/* level, kills, ping: faint, at the edge */
+.stn-ui .pls-meta {
+  flex: none;
+  margin-left: auto;
+  padding-left: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+  font: 0.75rem / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .pls-kills {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.stn-ui .pls-kills b {
+  font-weight: 400;
+}
+
+.stn-ui .pls-kills svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.stn-ui .pls-lv {
+  color: rgba(232, 163, 61, 0.8);
+}
+
+/* health: a bar along the foot of the row, coloured at the same marks as the nameplates */
+.stn-ui .pls-hp {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.2rem;
+  background: var(--bone-faint);
+}
+
+.stn-ui .pls-hp i {
+  display: block;
+  height: 100%;
+  background: var(--bone-2);
+  transform-origin: left;
+}
+
+.stn-ui .pls-hp.hurt i {
+  background: var(--amber);
+}
+
+.stn-ui .pls-hp.crit i {
+  background: var(--blood-lite);
+}
+
+/* out of the run: the dead and the turned, on a line */
+.stn-ui .pls-out {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.stn-ui .pls-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.3rem 0.55rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 2px solid var(--bone-faint);
+  color: var(--bone-dim);
+}
+
+.stn-ui .pls-chip .pls-name {
+  font-size: 0.95rem;
+}
+
+.stn-ui .pls-chip.st-zombie {
+  border-left-color: var(--sick);
+  color: var(--sick);
+}
+
+.stn-ui .pls-chip.st-dead .pls-name {
+  text-decoration: line-through;
+  text-decoration-color: rgba(212, 42, 42, 0.8);
+}
+
+.stn-ui .pls-chip-st,
+.stn-ui .pls-chip-k {
+  flex: none;
+  font: 0.75rem / 1 var(--f-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stn-ui .pls-chip-k {
+  letter-spacing: 0;
+  opacity: 0.75;
+}
+
+.stn-ui .pls-none {
+  padding: 1rem 0;
+  font: 0.85rem / 1.4 var(--f-type);
+  color: var(--bone-dim);
+}
+
+/* pinned: a row or a chip opens that player's profile */
+.stn-ui .pls-scr .pick {
+  cursor: pointer;
+}
+
+.stn-ui .pls-scr .pick:hover,
+.stn-ui .pls-scr .pick:focus-visible {
+  outline: none;
+  background: rgba(232, 163, 61, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(232, 163, 61, 0.5);
+}
+
+.stn-ui .pls-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--pls-line);
+  font: 0.75rem / 1.2 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .pls-keyset {
+  display: contents;
+}
+
+.stn-ui .pls-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.stn-ui .pls-keys .kbd.sm,
+.stn-ui .lbscr.lb-sheet .map-keys .kbd.sm {
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ the tabs down the sheet's edge */
+.stn-ui .pls-tabs {
+  position: absolute;
+  top: 3.5rem;
+  right: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  pointer-events: auto;
+}
+
+.stn-ui .pls-tabs[hidden] {
+  display: none;
+}
+
+.stn-ui .pls-tab {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  background: #15120f;
+  border: 1px solid rgba(230, 223, 207, 0.16);
+  border-right: 0;
+  color: var(--bone-dim);
+  cursor: pointer;
+}
+
+.stn-ui .pls-tab svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.stn-ui .pls-tab:hover,
+.stn-ui .pls-tab:focus-visible {
+  outline: none;
+  color: var(--bone);
+  background: #221d19;
+}
+
+.stn-ui .pls-tab.on {
+  background: #1e1a17;
+  color: var(--bone);
+  box-shadow: inset 3px 0 0 var(--blood-hi);
+}
+
+.stn-ui .pls-tab-badge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  min-width: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 0.5rem;
+  background: var(--blood-hi);
+  font: 0.75rem / 1rem var(--f-mono);
+  color: #fff;
+}
+
+.stn-ui .pls-tab-badge[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ a panel docked into the sheet */
+/* a profile off the list, Friends off its tab: the same place as the sheet, the game still in view beside it */
+.stn-ui .stn-settings.pls-docked {
+  display: block;
+  background: none;
+  pointer-events: none;
+}
+
+.stn-ui .stn-settings.pls-docked .set-card {
+  pointer-events: auto;
+}
+
+/* it lies exactly over the sheet that is up already, so it is that sheet with other contents: no slide in, and no
+   shadow of its own (the sheet under it casts the one shadow; a second fell on the tabs and set it apart) */
+.stn-ui .stn-settings.pls-docked .set-card,
+.stn-ui .stn-settings.pls-docked.in .set-card {
+  animation: none;
+  box-shadow: none;
+}
+
+.stn-ui .stn-settings.pls-docked .set-head {
+  padding: 0.85rem 1rem 0.35rem;
+  gap: 0.6rem;
+  /* (no rule under it: the list's and the leaderboard's heads have none) */
+  border-bottom: 0;
+}
+
+.stn-ui .stn-settings.pls-docked .set-title {
+  font-size: 1.75rem;
+  letter-spacing: 0.2em;
+}
+
+.stn-ui .stn-settings.pls-docked .set-sub {
+  min-width: 0;
+  text-align: right;
+  font: 0.75rem / 1.2 var(--f-mono);
+}
+
+.stn-ui .stn-settings.pls-docked .set-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.5rem 1rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.stn-ui .stn-settings.pls-docked .set-foot {
+  flex-wrap: wrap;
+  align-items: center;
+  /* the rule over it inset to the text, as over the list's and the leaderboard's keys */
+  margin: 0 1rem;
+  padding: 0.6rem 0 0.75rem;
+  border-top-color: var(--pls-line);
+}
+
+/* Friends docked: its headings are the list's (a small caps line, ruled off to the edge) */
+.stn-ui .stn-settings.pls-docked .fr-h {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0.35rem;
+  letter-spacing: 0.16em;
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.pls-docked .fr-h::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--pls-line);
+}
+
+/* ...and signed out, what an account is for reads as the sheet's text, from the top left, not a card's empty middle */
+.stn-ui .stn-settings.pls-docked .fr-signin {
+  padding: 0.35rem 0 0;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin-ico {
+  display: none;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin .gb-empty-sub {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin-btns {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.stn-ui .stn-settings.pls-docked .ac-tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stn-ui .stn-settings.pls-docked .pf-perks {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stn-ui .stn-settings.pls-docked .pf-name {
+  font-size: 1.6rem;
+}
+
+.stn-ui .stn-settings.pls-docked .pf-tag,
+.stn-ui .stn-settings.pls-docked .fr-h,
+.stn-ui .stn-settings.pls-docked .ac-bit,
+.stn-ui .stn-settings.pls-docked .ac-tile-l,
+.stn-ui .stn-settings.pls-docked .ac-tile small,
+.stn-ui .stn-settings.pls-docked .pf-perk-t small {
+  font-size: 0.75rem;
+}
+
+.stn-ui .stn-settings.pls-docked .pf-perk-t b {
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------------ the leaderboard as the sheet (in a game) */
+.stn-ui .lbscr.lb-sheet {
+  display: block;
+  animation: pls-in 0.14s ease-out;
+}
+
+.stn-ui .lbscr.lb-sheet .map-bg {
+  display: none;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-frame {
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.stn-ui .lbscr.lb-sheet .map-head .map-title {
+  font: 400 1.75rem / 1 var(--f-head);
+  letter-spacing: 0.14em;
+}
+
+.stn-ui .lbscr.lb-sheet .map-head {
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stn-ui .lbscr.lb-sheet .map-head .map-coords {
+  min-width: 0;
+  text-align: right;
+  font: 0.75rem / 1.2 var(--f-mono);
+}
+
+.stn-ui .lbscr.lb-sheet .lb-lists {
+  align-self: stretch;
+  margin: 0.6rem 0 0.5rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-lists .seg-btn {
+  flex: 1;
+  padding: 0.5rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+/* the column heads become the four stats to pick from, and a row shows only the one picked */
+.stn-ui .lbscr.lb-sheet .lb-table {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-row {
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.95rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-hd {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-hd .lb-rank,
+.stn-ui .lbscr.lb-sheet .lb-hd .lb-name {
+  display: none;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-col {
+  justify-self: stretch;
+  justify-content: center;
+  padding: 0.45rem 0.2rem;
+  border: 1px solid rgba(230, 223, 207, 0.2);
+  font-size: 0.75rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-col.on {
+  border-color: var(--blood-hi);
+  background: rgba(157, 17, 23, 0.35);
+  color: var(--bone);
+}
+
+.stn-ui .lbscr.lb-sheet .lb-val {
+  display: none;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-val.on {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-tag {
+  font-size: 0.75rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-lv {
+  font-size: 0.75rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-note {
+  font-size: 0.85rem;
+}
+
+.stn-ui .lbscr.lb-sheet .lb-frame .map-keys {
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--pls-line);
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ the leaderboard's "you" block */
+/* (the card on the splash: over the column heads; the sheet: under the stats to pick from) */
+.stn-ui .lbscr:not(.lb-sheet) .lb-you {
+  order: -1;
+}
+
+/* your place in the stat picked, how far the next place is, and your places in the others (the server sends them) */
+.stn-ui .lb-you {
+  margin: 0 0 0.6rem;
+  padding: 0.65rem 0.8rem 0.6rem;
+  background: rgba(157, 17, 23, 0.32);
+  box-shadow: inset 3px 0 0 var(--blood-hi);
+  font-size: 1rem;
+}
+
+.stn-ui .lb-you[hidden] {
+  display: none;
+}
+
+.stn-ui .lb-you-top {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.stn-ui .lb-you-rank {
+  font: 400 2.3rem / 1 var(--f-head);
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.stn-ui .lb-you-what {
+  flex: 1;
+  min-width: 0;
+  font: 0.8rem / 1.25 var(--f-type);
+  color: var(--bone-2);
+}
+
+.stn-ui .lb-you-val {
+  font: 500 1.5rem / 1 var(--f-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+}
+
+.stn-ui .lb-you-gap {
+  display: grid;
+  grid-template-columns: auto minmax(3rem, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+  font: 0.8rem / 1.3 var(--f-type);
+  color: var(--bone);
+}
+
+.stn-ui .lb-you-gap[hidden],
+.stn-ui .lb-you-bar[hidden] {
+  display: none;
+}
+
+.stn-ui .lb-you-gap.solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stn-ui .lb-you-bar {
+  height: 0.3rem;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.stn-ui .lb-you-bar i {
+  display: block;
+  height: 100%;
+  background: var(--blood-lite);
+  transform-origin: left;
+}
+
+.stn-ui .lb-you-next {
+  font: 0.75rem / 1 var(--f-mono);
+  color: var(--bone-dim);
+}
+
+.stn-ui .lb-you-others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.stn-ui .lb-you-other {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: 0.75rem / 1.3 var(--f-mono);
+  letter-spacing: 0.06em;
+  color: var(--bone-dim);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.stn-ui .lb-you-other b {
+  font: 500 0.85rem / 1 var(--f-num);
+  color: var(--bone);
+}
+
+.stn-ui .lb-you-other:hover b,
+.stn-ui .lb-you-other:focus-visible b {
+  color: var(--amber);
+}
+
+@keyframes pls-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stn-ui .pls-scr,
+  .stn-ui .lbscr.lb-sheet {
+    animation: none;
+  }
+
+  .stn-ui .pls-dir {
+    transition: none;
+  }
+}
