@@ -3,7 +3,8 @@ import './render/globals.js'; // must run before any material is created (global
 import { GameRenderer } from './render/renderer.js';
 import { comfort, REDUCED_FLASH } from './render/comfort.js';
 import { UI } from './ui/ui.js';
-import { DEFAULT_SETTINGS } from './ui/settings.js';
+import { DEFAULT_SETTINGS, loadSettings } from './ui/settings.js';
+import { applyTouchSetting, installTouchGestures } from './game/touchmode.js';
 import { AudioEngine } from './audio/audio.js';
 import { Game } from './game/game.js';
 import { loadBinds, askLayout } from './game/binds.js';
@@ -23,6 +24,8 @@ import { setMaxAnisotropy as setCharAnisotropy } from './render/models/charTextu
 let game = null;
 let lobbyCards = null;
 let joining = false;
+applyTouchSetting(loadSettings().touchControls); // a phone or a tablet: on-screen controls, and buttons named for keys (game/touchmode.js)
+installTouchGestures(); // ...and a finger's long press and double tap, a right click and a double-click on the screens
 loadBinds(); // the player's keybinds, as this browser keeps them (game/binds.js): before anything names a key
 askLayout(); // (and what this keyboard prints on its keys, when the browser says)
 startBindsSync(); // ...and kept on their account while they are signed in (net/accountbinds.js)
@@ -341,6 +344,8 @@ function applyAudioSettings(s) {
 
 function applySettings(s) {
   game.settings = s;
+  applyTouchSetting(s.touchControls);
+  document.documentElement.style.setProperty('--tsize', s.touchSize || 1); // (the touch buttons' size: ui/touch.css)
   renderer.setQuality(s.quality || 'medium');
   renderer.setRenderScale(s.renderScale ?? 1);
   renderer.setPs1(s.ps1, s.ps1Strength);

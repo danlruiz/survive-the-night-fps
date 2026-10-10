@@ -105,6 +105,7 @@ import { HandcarClient } from './handcar.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
+import { TouchPad } from '../ui/touchpad.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { DropHold } from './drophold.js';
 import { SkyFlares } from './skyflares.js';
@@ -414,6 +415,7 @@ export class Game {
     this.prediction = new Prediction(null);
     this.inputBuffer = new InputBuffer(); // holds a fire / reload / jump pressed a moment early until it can act
     this.setupInputHandlers();
+    this.touchpad = new TouchPad(this); // a phone's stick and buttons (touch mode: game/touchmode.js)
     // a click on the canvas takes the pointer back when the lock was lost or refused
     renderer.canvas.addEventListener('click', () => {
       if (this.state === 'playing' && !this.input.locked && !this.ui.inventoryOpen && !this.ui.isTyping()) this.input.requestLock();
@@ -3067,6 +3069,7 @@ export class Game {
     // a warm-up ends here, ahead of this frame's draw: when its programs are built, or now if play has begun
     if (this.warm && (this.warm.ready || this.state === 'playing')) this.finishPrewarm();
     const menu = this.state === 'menu' || !this.world;
+    this.touchpad.update();
     this.renderer.setCenter(menu ? this.ui.splash.sceneX : 0.5); // (beside the splash's menu, the scene is off-centre)
     if (menu) {
       this.endCine();

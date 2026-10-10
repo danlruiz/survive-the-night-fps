@@ -4,6 +4,7 @@
 import { BTN } from '../../shared/constants.js';
 import { mouseCode } from '../../shared/binds.js';
 import { actionsOf, isBound } from './binds.js';
+import { touchMode } from './touchmode.js';
 
 // the held actions and the button each one holds down in a command
 const HOLD_BTN = {
@@ -57,16 +58,11 @@ export class Input {
     this.buildMode = false;
     this.cursor = null; // { x, y, r }: a menu has the mouse (the build ring), its moves point there and the view stays put
 
+    this.touchWant = false; // touch mode: the lock asked for (touchLock)
+    this.touchQueued = false;
     document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === canvas;
-      // the first delta after locking can carry the cursor's jump to the lock point
-      this.skipMove = this.locked;
-      if (!this.locked) {
-        // (the mouse buttons, and fire / aim on whatever keys: nothing is fired or aimed with the pointer free)
-        for (const [code, acts] of [...this.down]) if (code.startsWith('Mouse') || acts.includes('fire') || acts.includes('aim')) this.release(code, true);
-        this.clearToggle('aim');
-      }
-      this.handlers.onLockChange?.(this.locked);
+      if (touchMode() && !document.pointerLockElement && !this.locked) return;
+      this.lockChanged(document.pointerLockElement === canvas);
     });
     document.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
@@ -147,6 +143,72 @@ export class Input {
     });
   }
 
+  // The pointer was taken or let go (by the browser, or touch mode's stand-in for it)
+  lockChanged(locked) {
+    this.locked = locked;
+    // the first delta after locking can carry the cursor's jump to the lock point
+    this.skipMove = locked;
+    if (!locked) {
+      // (the mouse buttons, and fire / aim on whatever keys: nothing is fired or aimed with the pointer free)
+      for (const [code, acts] of [...this.down]) if (code.startsWith('Mouse') || code.startsWith('Touch') || acts.includes('fire') || acts.includes('aim')) this.release(code, true);
+      this.clearToggle('aim');
+    }
+    this.handlers.onLockChange?.(locked);
+  }
+
+  // Touch mode has no mouse to lock: "locked" is play with the touch controls up, and a screen that takes the fingers
+  // (the inventory, the map, the pause menu) frees it. It lands a moment after it is asked for, as a browser's lock does
+  // (after the code that asked has done), and only the last of several asks in a row counts.
+  touchLock(want) {
+    this.touchWant = want;
+    if (!this.touchQueued) {
+      this.touchQueued = true;
+      queueMicrotask(() => {
+        this.touchQueued = false;
+        if (this.touchWant !== this.locked) this.lockChanged(this.touchWant);
+      });
+    }
+    return Promise.resolve(true);
+  }
+
+  // A touch control: the action held down (pressAction) and let go (releaseAction), as a key bound to it would be.
+  // Its code is 'Touch:<action>', which no bind can be (binds.js), so the button is the action whatever the binds.
+  pressAction(action) {
+    const code = 'Touch:' + action;
+    if (!this.down.has(code)) {
+      this.down.set(code, [action]);
+      this.recompute();
+    }
+    this.latched |= HOLD_BTN[action] || 0;
+    this.handlers.onKey?.(code, [action]);
+  }
+  releaseAction(action, cancelled = false) {
+    this.release('Touch:' + action, cancelled);
+  }
+  // a look by a finger on the screen: dx, dy in screen pixels (touchpad.js scales them)
+  look(dx, dy) {
+    if (!this.locked) return;
+    const c = this.cursor;
+    if (c) {
+      // (the build ring: the finger points at a piece, as the mouse does)
+      c.x += dx;
+      c.y += dy;
+      const l = Math.hypot(c.x, c.y);
+      if (l > c.r) {
+        c.x *= c.r / l;
+        c.y *= c.r / l;
+      }
+      return;
+    }
+    const k = 0.0022 * this.sensitivity;
+    this.yaw -= dx * k;
+    this.pitch -= dy * k * (this.invertY ? -1 : 1);
+    if (this.pitch > 1.54) this.pitch = 1.54;
+    if (this.pitch < -1.54) this.pitch = -1.54;
+    this.lookDX += dx;
+    this.lookDY += dy;
+  }
+
   // A code goes down: the actions it is bound to now are the ones it holds until it comes up. A key's auto-repeat
   // presses nothing again; it only keeps its held buttons latched (and picks a key up again after releaseAll, so a
   // key still held when the map shuts moves you again).
@@ -223,6 +285,10 @@ export class Input {
   }
 
   requestLock() {
+    if (touchMode()) {
+      this.onRequestLock?.(); // (fullscreen, on its side: keyguard.js)
+      return this.touchLock(true);
+    }
     if (this.locked) return Promise.resolve(true);
     this.rawActive = false;
     const lock = this.lockPointer();
@@ -266,6 +332,7 @@ export class Input {
     return p.then((ok) => (ok === false ? false : ok));
   }
   exitLock() {
+    if (touchMode()) return void this.touchLock(false);
     if (document.pointerLockElement) document.exitPointerLock();
   }
 

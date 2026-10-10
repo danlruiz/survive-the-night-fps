@@ -13,6 +13,7 @@ import { CharacterCard, releaseStage, storedChoice, RANDOM } from './picker.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
 import { BESTIARY, seenCount } from '../../shared/bestiary.js';
 import { bindLabel } from '../game/binds.js';
+import { touchMode } from '../game/touchmode.js';
 import './ux-pause.css'; // the Esc menu (Pause)
 
 // the count on a button (unread messages): '' hides it
@@ -463,11 +464,11 @@ export class Splash {
       const k = bindLabel(action);
       return k === 'unbound' ? '–' : k;
     };
-    key(['forward', 'left', 'back', 'right'].map(cap), 'move');
+    key([...new Set(['forward', 'left', 'back', 'right'].map(cap))], 'move'); // (one cap where they share one: a phone's STICK)
     key([cap('interact')], 'pick up');
     key([cap('flashlight')], 'flashlight');
     key([cap('inventory')], 'inventory');
-    key(['Esc'], 'menu');
+    key([touchMode() ? 'MENU' : 'Esc'], 'menu');
   }
 
   // How far across the screen the middle of the open part beside the menu is (where Renderer.setCenter puts the

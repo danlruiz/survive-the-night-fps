@@ -43,6 +43,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   aimMode: 'hold', // 'toggle': a press of the key latches the button on, the next lets go (game/input.js)
   sprintMode: 'hold',
   crouchMode: 'hold',
+  touchControls: 'auto', // on-screen controls (game/touchmode.js): auto = on a phone or a tablet
+  touchLook: 1, // how far a finger's drag turns the view
+  touchSize: 1, // the touch buttons' size
 });
 
 const NUM_RANGES = {
@@ -58,6 +61,8 @@ const NUM_RANGES = {
   ps1Strength: [0.1, 1],
   cameraShake: [0, 1],
   hudScale: [0.75, 1.5],
+  touchLook: [0.2, 3],
+  touchSize: [0.75, 1.4],
 };
 const ENUMS = {
   quality: ['low', 'medium', 'high', 'ultra'],
@@ -65,6 +70,7 @@ const ENUMS = {
   aimMode: ['hold', 'toggle'],
   sprintMode: ['hold', 'toggle'],
   crouchMode: ['hold', 'toggle'],
+  touchControls: ['auto', 'on', 'off'],
 };
 
 export function sanitizeSettings(s) {
@@ -162,14 +168,18 @@ const TABS = [
     id: 'mouse',
     label: 'Mouse & aim',
     icon: 'headshot',
-    sum: 'Sensitivity, invert',
-    desc: 'How the view turns with the mouse.',
+    sum: 'Sensitivity, invert, touch',
+    desc: 'How the view turns with the mouse, or with a finger on a phone.',
     rows: [
       { head: 'Mouse' },
-      { k: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.1, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×' },
+      { k: 'sensitivity', label: 'Mouse sensitivity', type: 'range', min: 0.1, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', mouse: true },
       { k: 'aimSensitivity', label: 'Aim sensitivity', type: 'range', min: 0.25, max: 2, step: 0.05, fmt: (v) => v.toFixed(2) + '×', hint: 'While aiming, on top of the zoom' },
       { k: 'invertY', label: 'Invert mouse Y', type: 'toggle' },
-      { k: 'rawMouse', label: 'Raw mouse input', type: 'toggle', hint: 'Off = OS mouse acceleration applies' },
+      { k: 'rawMouse', label: 'Raw mouse input', type: 'toggle', hint: 'Off = OS mouse acceleration applies', mouse: true },
+      { head: 'Touch' },
+      { k: 'touchControls', label: 'Touch controls', type: 'seg', options: ['auto', 'on', 'off'], hint: 'A stick, buttons and drag to look. Auto = on a phone or a tablet' },
+      { k: 'touchLook', label: 'Touch look speed', type: 'range', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×' },
+      { k: 'touchSize', label: 'Button size', type: 'range', min: 0.75, max: 1.4, step: 0.05, fmt: pct },
     ],
   },
   { id: 'keys', label: 'Keys & controls', icon: 'keyboard', sum: `${ACTIONS.length} actions, 2 keys each` },
@@ -414,7 +424,8 @@ export class SettingsPanel {
   }
 
   _row(parent, row) {
-    const r = el('div', 'set-row sr-' + row.type, parent);
+    // (mouse: only for a mouse - hidden in touch mode, touch.css)
+    const r = el('div', 'set-row sr-' + row.type + (row.mouse ? ' set-mouse' : ''), parent);
     const lab = el('label', 'set-label', r, row.label);
     if (row.hint) el('small', 'set-hint', lab, row.hint);
     const ctl = el('div', 'set-ctl', r);
