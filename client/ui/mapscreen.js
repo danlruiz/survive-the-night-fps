@@ -15,6 +15,7 @@ const TEAM_BESIDE = 14; // m: a teammate's waypoint on your own waypoint's spot 
 const MAX_ZOOM = 4; // the baked map is 2 px a metre: past this it is a blur
 const DRAG_PX = 5; // a press that moves this far is a pan, not a click for the waypoint
 const START_ZOOM = 2.5; // the first opening starts this close in on you (about 256 m across), the wheel zooms out to all of it
+const CITY_NAMES_ZOOM = 2.2; // what is named inside a city is written from this zoom in (the mainland's Town Center)
 const HEADING_KEY = 'stn.mapHeadingUp';
 const ZOOM_KEY = 'stn.mapZoom';
 
@@ -245,6 +246,7 @@ export class MapScreen {
     this.cy = Math.max(m, Math.min(1 - m, this.fy));
     const st = this.pane.style;
     st.width = st.height = this.zoom * 100 + '%';
+    this.pane.classList.toggle('far', this.zoom < CITY_NAMES_ZOOM);
     st.left = (0.5 - this.cx * this.zoom) * 100 + '%';
     st.top = (0.5 - this.cy * this.zoom) * 100 + '%';
     st.transformOrigin = `${this.cx * 100}% ${this.cy * 100}%`;
@@ -299,20 +301,30 @@ export class MapScreen {
     this.canvasWrap.textContent = '';
     this.canvas = null;
     this.labels.textContent = '';
+    // (a place's name is written where the world asks for it - z.label, its middle: the mainland's, clear of each other
+    // and of the roads, as the picture writes them - or under the place's spot; the lesser places smaller; a name near
+    // an edge of the map kept on it)
+    const at = (l, x, z, centred) => {
+      const u = (x + world.half) / world.size;
+      l.style.left = u * 100 + '%';
+      l.style.top = ((z + world.half) / world.size) * 100 + '%';
+      if (centred) l.classList.add('at');
+      if (u > 0.86) l.classList.add('edge-r');
+      else if (u < 0.1) l.classList.add('edge-l');
+    };
     this.labelEls = world.zones.map((z) => {
-      const l = el('div', 'map-lab', this.labels);
-      l.style.left = ((z.x + this.world.half) / this.world.size) * 100 + '%';
-      l.style.top = ((z.z + this.world.half) / this.world.size) * 100 + '%';
+      const l = el('div', 'map-lab' + (z.minor ? ' sub' : world.kind === 2 ? ' big' : ''), this.labels);
+      at(l, ...(z.label || [z.x, z.z]), !!z.label);
       l.dataset.zone = z.id;
       return l;
     });
     // St. Agnes Cemetery is part of the chapel's place: a name of its own on the map, in smaller letters (a click
     // on it is a click in the chapel's yard)
     // ...and so are a city's landmarks (the mainland: world.landmarks), each where it stands
+    // (what is named inside the city is written only zoomed in: at the whole map it was a pile of names on its blocks)
     this.markLabs = (world.landmarks || []).map((m) => {
-      const l = el('div', 'map-lab sub', this.labels);
-      l.style.left = ((m.x + world.half) / world.size) * 100 + '%';
-      l.style.top = ((m.z + world.half) / world.size) * 100 + '%';
+      const l = el('div', 'map-lab ' + (m.big || m.pass ? 'big' : 'sub') + (m.city ? ' city' : ''), this.labels);
+      at(l, ...(m.label || [m.x, m.z]), !!(m.label || m.big || m.pass));
       return l;
     });
     this.cemLab = null;

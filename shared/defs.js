@@ -189,10 +189,10 @@ export const ITEM_DEFS = {
   [ITEM.FUEL_CAN]: { name: 'Jerry Can', cat: 'part', stack: 3, color: 0xb71c1c, desc: 'Fuel for the car. The tank needs three cans.' },
   [ITEM.FAN_BELT]: { name: 'Fan Belt', cat: 'part', stack: 1, color: 0x212121, desc: 'Car supply. Bring it to your broken-down car on Route 9.' },
 
-  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at Calder Field.' },
-  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at Calder Field.' },
-  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at Calder Field.' },
-  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at Calder Field.' },
+  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at the airport.' },
+  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at the airport.' },
+  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at the airport.' },
+  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at the airport.' },
   [ITEM.AVGAS]: { name: 'Avgas Drum', cat: 'part', stack: 3, color: 0x2f6fb0, desc: 'Aviation fuel for the plane. The tanks need three drums.' },
 
   [ITEM.SCHEM_SHOTGUN]: { name: 'Shotgun Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Shotgun and the Double-Barrel at the workbench for the whole team.' },
@@ -963,9 +963,15 @@ export const ZONE = {
   NURSERY: 61,
   MOTORPOOL: 62, // the Guard's trucks
   HELIPAD: 63,
-  AGGREGATES: 64, // a gravel works
+  AGGREGATES: 64, // a gravel works: on Layout 12 (issue #232), the quarry
+  // ...and the places of Layout 12 that none of those is (issue #232)
+  NORTH_COAST: 65, // the village on the north coast: a church, houses, a pier
+  OUTPOST: 66, // North Ridge Outpost: the radio tower, past North Pass
+  SOUTH_FOREST: 67, // the campsites of South Forest
+  PASSAGE: 68, // the South Passage Mines: the workings under the river, and their yard
+  LIGHTHOUSE: 69, // on its islet off the south-west coast
 };
-export const MAINLAND_ZONES = [27, 64]; // the first and the last of the mainland's places
+export const MAINLAND_ZONES = [27, 69]; // the first and the last of the mainland's places
 // NOTIFY.CACHE: what the bridgehead cache handed a survivor (acts.js BRIDGEHEAD)
 export const CACHE_GAVE = { PISTOL: 1, AMMO: 2, BANDAGE: 4, MELEE: 8, BUILD: 16 };
 
@@ -998,18 +1004,18 @@ export const ZONE_NAMES = [
   'Mercy Clinic',
   'Tri-County Fair',
   'The Bridgehead',
-  'Port Calder',
-  'Kessler Ironworks',
-  'Calder Field Terminal',
-  'Calder Field Hangars',
-  'Calder Fuel Depot',
-  'Eastgate',
-  'Mile 9 Truck Stop',
+  'Town Center',
+  'Industrial Docks',
+  'Airport Terminal',
+  'Airport Hangars',
+  'Airport Fuel Depot',
+  'North Suburbs',
+  'Gas Station',
   'Camp Hollis Quarantine',
   'Route 9 Checkpoint',
   'Calder Substation',
   'Calder Waterworks',
-  'Lake Morrow Marina',
+  'Pine Lake Marina',
   'Sunset Acres',
   "Benny's Auto Salvage",
   'Gateway Plaza',
@@ -1019,7 +1025,7 @@ export const ZONE_NAMES = [
   'Hillside Cemetery',
   'Dunmore Logging Camp',
   'Flight 212',
-  'Westgate',
+  'East Suburbs',
   'Calder Freight Yard',
   'Hale Farm',
   'Pruitt Farm',
@@ -1034,7 +1040,12 @@ export const ZONE_NAMES = [
   'Greenacre Nursery',
   'Guard Motor Pool',
   'Landing Zone Kilo',
-  'Calder Aggregates',
+  'Quarry',
+  'North Coast Village',
+  'North Ridge Outpost',
+  'South Forest',
+  'South Passage Mines',
+  'Lighthouse',
 ];
 
 // weighted loot tables per zone: [item, weight, min, max]
@@ -1112,6 +1123,12 @@ LOOT_TABLES[ZONE.NURSERY] = LOOT_TABLES[ZONE.BARN];
 LOOT_TABLES[ZONE.MOTORPOOL] = LOOT_TABLES[ZONE.HELIPAD] = LOOT_TABLES[ZONE.ROADBLOCK];
 LOOT_TABLES[ZONE.AGGREGATES] = LOOT_TABLES[ZONE.INDUSTRIAL];
 LOOT_TABLES[ZONE.FARM_A] = LOOT_TABLES[ZONE.FARM_B] = LOOT_TABLES[ZONE.BARN];
+// (Layout 12's own places, issue #232)
+LOOT_TABLES[ZONE.NORTH_COAST] = LOOT_TABLES[ZONE.SUBURB];
+LOOT_TABLES[ZONE.OUTPOST] = LOOT_TABLES[ZONE.ROADBLOCK];
+LOOT_TABLES[ZONE.SOUTH_FOREST] = LOOT_TABLES[ZONE.CAMPGROUND];
+LOOT_TABLES[ZONE.PASSAGE] = LOOT_TABLES[ZONE.MINE];
+LOOT_TABLES[ZONE.LIGHTHOUSE] = LOOT_TABLES[ZONE.MARINA];
 
 // ---------------------------------------------------------------- searchable containers
 // Every place (and many roadside / woodland sites) has containers: hold [E] to search.

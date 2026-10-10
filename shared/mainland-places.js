@@ -29,8 +29,10 @@ function fenced(b, hx, hz, gate = 4, boom = true) {
   if (boom) b.prop('boom_gate', -0.4, -hz, 0);
 }
 
-// a house: two rooms, a bed, a kitchen corner. k: which of its variants (walls, what the kitchen keeps, what is outside)
-export function house(b, hx, hz, front, k, K) {
+// a house: two rooms, a bed, a kitchen corner. k: which of its variants (walls, what the kitchen keeps, what is outside);
+// car: false leaves out the car at its front (where the ground under it is not level); bins: false, the dumpster at its
+// side (where a neighbour's house will stand)
+export function house(b, hx, hz, front, k, K, car = true, bins = true) {
   const { door, win, hole } = K;
   const s = b.sub(hx, hz, front);
   const w = (at, wd = 1.2) => (k % 3 === 1 ? hole(at, wd) : win(at, wd));
@@ -41,8 +43,21 @@ export function house(b, hx, hz, front, k, K) {
   s.prop('table', 2, -1.6, 0.1);
   s.loot(2, -1.6, 0.82);
   s.loot(-2.4, 2);
-  if (k % 3 === 0) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
-  if (k % 2 === 0) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k });
+  if (k % 3 === 0 && car && (!K.fits || K.fits(s, k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1))) s.wreck(k % 2 ? 'car_burnt' : 'car_wreck', 7.6, -7.5, 0.1, { seed: k, trunk: k % 2 === 0 });
+  // its plot: the house on its pad (the foundation, down into the ground where the plot falls away), the mailbox at the lane, a woodpile
+  // or a bin by a side wall - where nothing else stands and no road runs
+  // (no pad of its own: its floor is its foundation)
+  const yard = (type, lx, lz, ry, o = {}, keep = 4.2) => {
+    if (K.fits && !K.fits(s, type, lx, lz, ry)) return;
+    if (K.roadDistAt && K.roadDistAt(s.wx(lx, lz), s.wz(lx, lz)) < keep) return;
+    if (K.heightAt && type === 'fence_chain') { const [dx, dz] = [Math.cos(s.ry + ry) * 1.5, -Math.sin(s.ry + ry) * 1.5]; const [x, z] = [s.wx(lx, lz), s.wz(lx, lz)]; if (Math.abs(K.heightAt(x + dx, z + dz) - K.heightAt(x - dx, z - dz)) > 0.3) return; }
+    s.prop(type, lx, lz, ry, { ground: true, ...o });
+  };
+  // (no fence round the plot: its rails gave the hitbox sweep standing room over the eaves)
+  yard('mailbox', -2.2, -10.4, 0, {}, 2.4);
+
+  if (k % 3 === 2) yard('trash_bin', -7.6, -5.6, 0.2); // (clear of the window a barricade may go across)
+  if (k % 2 === 0 && bins && (!K.fits || K.fits(s, 'dumpster', -7.2, 2, PI / 2))) s.cont(CONT.DUMPSTER, -7.2, 2, { prop: 'dumpster', ry: PI / 2, seed: k }); // (where a neighbour's wall is not)
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)
   return s;
@@ -665,6 +680,15 @@ export const OUTLYING = {
       b.prop('corpse', 3, -4, 1.4, { nocollide: true });
       b.loot(4, 1);
       b.loot(-2, -8);
+      // the sawmill by the road in: a long open shed over the saw's bed and the belt that fed it, the log deck it was fed
+      // from
+      b.shelter(-9, -20, 12, 6, 4.2, 'tin_rust', 'planks');
+      b.box(-9, 0, -20, 10, 0.9, 1.2, 'rust'); // the saw's bed
+      b.box(-9, 0.9, -20, 10.6, 0.12, 0.7, 'metal', { collide: false }); // (its carriage rails)
+      b.box(-4.2, 0.9, -20, 0.2, 1.4, 1.6, 'metal'); // the blade's housing
+      b.prop('saw_table', -13, -18.2, 0.1, { seed: 1 });
+      b.prop('log_pile', -9, -26.5, PI / 2 + 0.04, { seed: 2 });
+      b.prop('pallet', -2.6, -17.6, 0.2, { seed: 1 });
     },
   },
 

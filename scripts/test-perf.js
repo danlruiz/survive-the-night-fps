@@ -57,6 +57,14 @@ const frustumOf = (c) => new THREE.Frustum().setFromProjectionMatrix(new THREE.M
 const sphere = new THREE.Sphere();
 
 // ---------------------------------------------------------------- the static world, on both maps
+// What each map may cost at the most, so that it cannot creep up unseen (the numbers of the build that set them, a
+// few per cent over): the static world's triangles in all, and in an average view from the eyes below; the pieces of
+// it that are see-through, each a draw call of its own when in sight; the terrain's vertices. Mainland Layout 12
+// (issue #232) set the mainland's: 6.73 M triangles, 0.79 M a view, 216 see-through pieces, 1025 x 1025 vertices.
+const BUDGET = {
+  island: { tris: 0.61e6, view: 0.11e6, single: 42, grid: 321 },
+  mainland: { tris: 7.0e6, view: 0.84e6, single: 230, grid: 1025 },
+};
 for (const [name, act, eyes] of [['island', WORLD.ISLAND, 60], ['mainland', WORLD.MAINLAND, 40]]) {
   const world = worldFor(seed, act);
   const scene = new THREE.Scene();
@@ -82,6 +90,8 @@ for (const [name, act, eyes] of [['island', WORLD.ISLAND, 60], ['mainland', WORL
     }
   }
   check(`${name}: every vertex of every material is in exactly one run of its mesh (${multi.length} materials, ${(verts / 3e6).toFixed(2)} M triangles, ${sw.single.length} see-through pieces on their own)`, whole && multi.length > 20);
+  const B = BUDGET[name];
+  check(`${name}: within its budget - ${(B.tris / 1e6).toFixed(2)} M triangles in all, ${B.single} see-through pieces, a heightfield of ${B.grid} x ${B.grid}`, verts / 3 <= B.tris && sw.single.length <= B.single && world.gridN <= B.grid, `${(verts / 3e6).toFixed(2)} M triangles, ${sw.single.length} pieces, ${world.gridN}`);
   // the casters stand in for exactly the runs that cast without a texture of their own
   const castVerts = casters.reduce((a, c) => a + c.runs.reduce((b, r) => b + r.count, 0), 0);
   const wantCast = multi.reduce((a, m) => a + m.runs.filter((r) => r.side < 3).reduce((b, r) => b + r.count, 0), 0);
@@ -124,6 +134,7 @@ for (const [name, act, eyes] of [['island', WORLD.ISLAND, 60], ['mainland', WORL
     }
   }
   check(`${name}: from ${eyes} eyes, nothing in sight is left out and nothing out of sight is drawn (${(drawn / 3e6 / eyes).toFixed(2)} M triangles a view on average)`, missed === 0 && extra === 0 && drawn === wantN && drawn > 0, `${missed} vertices missing, ${extra} too many`);
+  check(`${name}: ...and an average view within its budget, ${(B.view / 1e6).toFixed(2)} M triangles`, drawn / 3 / eyes <= B.view, `${(drawn / 3e6 / eyes).toFixed(2)} M`);
   // the terrain
   if (act === WORLD.ISLAND || process.argv.includes('--all')) {
     const terrain = buildTerrain(world);

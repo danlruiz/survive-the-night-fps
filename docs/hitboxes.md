@@ -127,6 +127,10 @@ wrong for a wall.
 - **The quest plane** (`plane_wreck`): the ground under its wings and round its engines stays shut, and its
   tailplane's box still hangs at 1.98 m - a jump under it does push the jumper out. It was so before; moving it
   changes where the plane can be worked on, which wants playing.
+- **The mainland's mountains are walled at the foot of their cliffs** (`shared/mainland.js`, Layout 12, issue #232):
+  a line of colliders 4 m thick, with nothing drawn but the cliff the terrain rises into behind them. Nothing climbs,
+  drives or is shot over a mountain, and the dead's nav grid is shut there. The sweep counts them apart ("by design",
+  `wall:cliff`): it does not draw the terrain.
 - **The fallen lengths of tower in Port Calder** are tilted and collide as upright blocks (about a hundred faults
   by the cubic metre at their ends on seed 1337).
 

@@ -8,9 +8,10 @@ import { ITEM } from './defs.js';
 // Which map a world is (world.kind), which is also the number of the act played on it
 export const WORLD = { ISLAND: 1, MAINLAND: 2 };
 
-// The mainland is twice the island across, so four times its area (constants.js MAP_SIZE is the island's 640 m).
-// Positions on it go over the wire at 1/32 m: protocol.js usePos.
-export const MAINLAND_SIZE = 1280;
+// The mainland is 2048 m across: Mainland Layout 12 (issue #232) at the scale its places come out at the size the
+// game's builders make them (the island is 640 m: constants.js MAP_SIZE). Positions on it go over the wire at 1/32 m,
+// which reaches +-1024 m: just the map (protocol.js usePos).
+export const MAINLAND_SIZE = 2048;
 
 // The nights carry on across the bridge, and the mainland is where the late ones are met: whatever night the team
 // arrives on, the horde there is made up as on night MAINLAND_NIGHT at the least (which kinds have joined it, the

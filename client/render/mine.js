@@ -15,6 +15,8 @@ const REACH = 0.8; // the floor and the roof run this far into the rock, behind 
 // what is left to see by with no light at all (irradiance): about what Environment leaves of the sky's light for
 // everything else down there (UNDER.hemi), so the rock is no darker than what stands in front of it
 const DARK = [0.085, 0.09, 0.11];
+// what a lamp down the drift gives at its foot (irradiance, warm white: an electric bulb), times the baked aLamp
+const LAMP = [13, 9.2, 5.4];
 // tint of the timbering by kind (world.mine.frames): timber, rail, sleeper
 const FRAME_TINT = [[0.5, 0.42, 0.34], [0.4, 0.2, 0.13], [0.62, 0.54, 0.44]];
 
@@ -49,28 +51,57 @@ export function material(texture, key) {
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   const mat = new THREE.MeshLambertMaterial({ map, vertexColors: true });
   mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSky;\nvarying float vSky;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvSky = aSky;');
+    // (aLamp: the light of the lamps that still burn down the drift, baked - mesh() below - a warm pool round each)
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSky;\nattribute float aLamp;\nvarying float vSky;\nvarying float vLamp;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvSky = aSky;\nvLamp = aLamp;');
     const SUN = 'getSunLightInfo( sunLight, directLight );';
     const HAZE = 'stnFogColor(fogColor, fogDir)';
     const lights = THREE.ShaderChunk.lights_fragment_begin;
     const fog = THREE.ShaderChunk.fog_fragment;
     if (!lights.includes(SUN) || !fog.includes(HAZE)) console.warn('[mine] the light or fog chunk changed: daylight is not shut out of the mine');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vSky;')
+      .replace('#include <common>', '#include <common>\nvarying float vSky;\nvarying float vLamp;')
       .replace('#include <lights_fragment_begin>', lights.replace(SUN, `${SUN}\n\t\tdirectLight.color *= vSky;`))
-      .replace('#include <lights_fragment_maps>', `irradiance = irradiance * vSky + vec3(${DARK.join(', ')});\n#include <lights_fragment_maps>`)
+      .replace('#include <lights_fragment_maps>', `irradiance = irradiance * vSky + vec3(${DARK.join(', ')}) + vec3(${LAMP.join(', ')}) * vLamp;\n#include <lights_fragment_maps>`)
       .replace('#include <fog_fragment>', fog.replace(HAZE, `(${HAZE} * vSky)`));
   };
-  mat.customProgramCacheKey = () => `mine-${key}-2`;
+  mat.customProgramCacheKey = () => `mine-${key}-3`;
   return mat;
 }
 
+// The lamps' light at a point with a normal: a warm pool round each, falling off over a few metres, brightest on what
+// faces the lamp (lamps: [x, y, z] in 8 m cells, a Map). Nothing is shadowed; a lamp on another level of the workings
+// (more than a storey up or down) lights nothing here.
+const LAMP_R = 2.4; // m: the light is half its strength this far from a lamp...
+const LAMP_REACH = 9.5; // ...and nothing past this
+function lampAt(lamps, x, y, z, nx, ny, nz) {
+  if (!lamps) return 0;
+  let s = 0;
+  const ci = Math.floor(x / 8);
+  const cj = Math.floor(z / 8);
+  for (let i = ci - 2; i <= ci + 2; i++) {
+    for (let j = cj - 2; j <= cj + 2; j++) {
+      for (const l of lamps.get(i * 65536 + j) || []) {
+        const dx = l[0] - x;
+        const dy = l[1] - y;
+        const dz = l[2] - z;
+        if (Math.abs(dy) > 3.5) continue;
+        const d = Math.hypot(dx, dy, dz);
+        if (d > LAMP_REACH) continue;
+        const face = 0.35 + 0.65 * Math.max(0, (dx * nx + dy * ny + dz * nz) / (d || 1));
+        s += (face / (1 + (d / LAMP_R) ** 2)) * (1 - smoothstep(LAMP_REACH * 0.6, LAMP_REACH, d));
+      }
+    }
+  }
+  return Math.min(1.2, s);
+}
+
 // vertex soup -> a mesh with flat normals, the texture laid along whichever way each face mostly is
-export function mesh(name, soup, texture) {
+export function mesh(name, soup, texture, lamps = null) {
   const n = soup.pos.length / 3;
   const P = new Float32Array(soup.pos);
   const N = new Float32Array(n * 3);
   const UV = new Float32Array(n * 2);
+  const LA = new Float32Array(n);
   const tile = 1 / (TEXTURE_WORLD_SIZE[texture] || 2);
   for (let t = 0; t < n; t += 3) {
     const a = t * 3;
@@ -95,6 +126,7 @@ export function mesh(name, soup, texture) {
       const flat = Math.abs(fy) > 0.7;
       UV[v * 2] = (flat ? P[v * 3] : Math.abs(fx) > Math.abs(fz) ? P[v * 3 + 2] : P[v * 3]) * tile;
       UV[v * 2 + 1] = (flat ? P[v * 3 + 2] : P[v * 3 + 1]) * tile;
+      LA[v] = lampAt(lamps, P[v * 3], P[v * 3 + 1], P[v * 3 + 2], fx, fy, fz);
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -103,6 +135,7 @@ export function mesh(name, soup, texture) {
   geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(soup.col), 3));
   geo.setAttribute('aSky', new THREE.BufferAttribute(new Float32Array(soup.sky), 1));
+  geo.setAttribute('aLamp', new THREE.BufferAttribute(LA, 1));
   geo.computeBoundingSphere();
   const m = new THREE.Mesh(geo, material(texture, name));
   m.name = `mine-${name}`;
@@ -275,9 +308,18 @@ export function buildMine(world) {
     }
   }
 
+  // the lamps that still burn down here (the mainland's passage: world.lights 'lamp' over a drift), by 8 m cells
+  let lamps = null;
+  for (const l of world.lights || []) {
+    if (l.kind !== 'lamp' || mine.sdf(l.x, l.z) > MINE_R + 1 || Math.abs(mine.floorOf(l.x, l.z) + 1.75 - l.y) > 1.5) continue;
+    lamps ||= new Map();
+    const key = Math.floor(l.x / 8) * 65536 + Math.floor(l.z / 8);
+    if (!lamps.has(key)) lamps.set(key, []);
+    lamps.get(key).push([l.x, l.y, l.z]);
+  }
   const group = new THREE.Group();
   group.name = 'mine';
-  group.add(mesh('rock', rock, 'rock'), mesh('floor', floor, 'ground_dirt'), mesh('timber', wood, 'wood'));
+  group.add(mesh('rock', rock, 'rock', lamps), mesh('floor', floor, 'ground_dirt', lamps), mesh('timber', wood, 'wood', lamps));
   group.matrixAutoUpdate = false;
   return group;
 }

@@ -108,84 +108,11 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
     const ea = elbow(P1, A);
     const eb = elbow(Q1, B);
     const ctrl = [[A.x, A.z], P1, ...(ea ? [ea] : []), J, ...(eb ? [eb] : []), Q1, [B.x, B.z]];
-    // corners: a quadratic curve between the points a tangent length either side of each
-    const dense = [ctrl[0]];
-    for (let i = 1; i < ctrl.length - 1; i++) {
-      const [px, pz] = ctrl[i - 1];
-      const [cx, cz] = ctrl[i];
-      const [nx, nz] = ctrl[i + 1];
-      const la = Math.hypot(cx - px, cz - pz) || 1;
-      const lb = Math.hypot(nx - cx, nz - cz) || 1;
-      const ux = (cx - px) / la;
-      const uz = (cz - pz) / la;
-      const wx = (nx - cx) / lb;
-      const wz = (nz - cz) / lb;
-      const turn = Math.acos(clamp(ux * wx + uz * wz, -1, 1));
-      if (turn < 0.05) {
-        dense.push(ctrl[i]);
-        continue;
-      }
-      const tl = Math.min(9 * Math.tan(turn / 2), la * 0.45, lb * 0.45);
-      const steps = Math.ceil(turn * 8) + 2;
-      for (let k = 0; k <= steps; k++) {
-        const u = k / steps;
-        const a = (1 - u) * (1 - u);
-        const b = 2 * u * (1 - u);
-        const c = u * u;
-        dense.push([a * (cx - ux * tl) + b * cx + c * (cx + wx * tl), a * (cz - uz * tl) + b * cz + c * (cz + wz * tl)]);
-      }
-    }
-    dense.push(ctrl[ctrl.length - 1]);
-    const line = resample(dense);
+    const line = resample(rounded(ctrl));
     let jx = 0;
     for (let i = 1; i < line.n; i++) if (Math.hypot(line.x[i] - J[0], line.z[i] - J[1]) < Math.hypot(line.x[jx] - J[0], line.z[jx] - J[1])) jx = i;
     line.jx = jx;
     return line;
-  };
-
-  // lowest ground over the drift at point i of a line (its full width and a little more)
-  const groundOver = (line, i) => {
-    const a = Math.max(0, i - 1);
-    const b = Math.min(line.n - 1, i + 1);
-    const tx = line.x[b] - line.x[a];
-    const tz = line.z[b] - line.z[a];
-    const tl = Math.hypot(tx, tz) || 1;
-    let lo = Infinity;
-    for (const lat of [-5, -2.5, 0, 2.5, 5]) lo = Math.min(lo, heightAt(line.x[i] - (tz / tl) * lat, line.z[i] + (tx / tl) * lat));
-    return lo;
-  };
-
-  // The floor along the main drift: down each decline at DECLINE, then as near under the ground as COVER allows,
-  // never steeper than GRADE, dropping to a sump around the junction. `flat` marks the stretches (the junction,
-  // the bays the galleries leave from) that are level: tau is the distance along the drift with those left out.
-  // -> null where the drift would come too near the surface away from its portals
-  const profile = (line, B, bays) => {
-    const n = line.n;
-    const tau = new Float64Array(n);
-    const flat = (i) => bays.some(([c, w]) => Math.abs(i - c) <= w && Math.abs(i - 1 - c) <= w);
-    for (let i = 1; i < n; i++) tau[i] = tau[i - 1] + (flat(i) ? 0 : Math.hypot(line.x[i] - line.x[i - 1], line.z[i] - line.z[i - 1]));
-    const over = new Float64Array(n);
-    for (let i = 0; i < n; i++) over[i] = groundOver(line, i);
-    const sump = rng.range(3, 6);
-    const y = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      let lo = Infinity;
-      for (let k = Math.max(0, i - 6); k <= Math.min(n - 1, i + 6); k++) lo = Math.min(lo, over[k]);
-      y[i] = lo - MINE_H - COVER - sump * (1 - smoothstep(8, 40, Math.abs(i - line.jx)));
-    }
-    y[0] = A.y;
-    y[n - 1] = B.y;
-    for (let i = 1; i < n; i++) y[i] = Math.min(y[i], y[i - 1] + GRADE * (tau[i] - tau[i - 1]));
-    for (let i = n - 2; i >= 0; i--) y[i] = Math.min(y[i], y[i + 1] + GRADE * (tau[i + 1] - tau[i]));
-    const T = tau[n - 1];
-    for (let i = 0; i < n; i++) y[i] = Math.max(y[i], A.y - DECLINE * tau[i], B.y - DECLINE * (T - tau[i]));
-    for (let i = 0; i < n; i++) {
-      const cover = over[i] - y[i] - MINE_H;
-      const end = Math.min(i, n - 1 - i);
-      // (over a decline the mound makes up what is missing, but it is no embankment)
-      if (end >= 30 ? cover < 2 : end >= PORTAL.LEN && cover < COVER_MIN - 3.5) return null;
-    }
-    return y;
   };
 
   // the best way up: every other place in turn, at a handful of spots round the side of it that faces the mine
@@ -219,7 +146,7 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
       const score = Math.abs(line.len - 150) + Math.abs(da) * 12;
       if (best && score >= best.score) continue;
       const bays = bayPlan(line, rng);
-      const y = profile(line, B, bays);
+      const y = profile(line, A, B, bays, rng, heightAt);
       if (!y) continue;
       line.y = y;
       best = { B, line, bays, score };
@@ -228,6 +155,13 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
   }
   if (!best) return null;
   const { B, line: main, bays } = best;
+  return workings({ rng, A, B, main, bays, heights, heightAt, roadDistAt, dry, inMap, half: MAP_HALF, n: GRID_N, step: GRID_STEP });
+}
+
+// Everything about a mine once its main drift is laid out (portals A and B, the line between them with its floor, the
+// level bays): the galleries off the bays and the rooms at their ends, the baked fields, the ground at the portals,
+// and the queries. half / n / step: the heightfield's (the island's, or the mainland's for the South Passage Mines).
+function workings({ rng, A, B, main, bays, heights, heightAt, roadDistAt, dry, inMap, half, n: N, step }) {
   const portals = [A, B];
   for (const p of portals) p.ry = Math.atan2(p.dx, p.dz); // (a Builder at the mouth with this yaw has the drift along its +Z)
 
@@ -324,13 +258,12 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
   for (const p of portals) stamp(p.x - p.dx * STUB, p.z - p.dz * STUB, p.y, p.x, p.z, p.y, MINE_R);
 
   // ---------------------------------------------------------------- the ground at the portals
-  const N = GRID_N;
   const eachVertex = (cx, cz, r, fn) => {
-    const i0 = Math.max(0, Math.floor((cx - r + MAP_HALF) / GRID_STEP));
-    const i1 = Math.min(N - 1, Math.ceil((cx + r + MAP_HALF) / GRID_STEP));
-    const j0 = Math.max(0, Math.floor((cz - r + MAP_HALF) / GRID_STEP));
-    const j1 = Math.min(N - 1, Math.ceil((cz + r + MAP_HALF) / GRID_STEP));
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fn(j * N + i, -MAP_HALF + i * GRID_STEP, -MAP_HALF + j * GRID_STEP);
+    const i0 = Math.max(0, Math.floor((cx - r + half) / step));
+    const i1 = Math.min(N - 1, Math.ceil((cx + r + half) / step));
+    const j0 = Math.max(0, Math.floor((cz - r + half) / step));
+    const j1 = Math.min(N - 1, Math.ceil((cz + r + half) / step));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fn(j * N + i, -half + i * step, -half + j * step);
   };
   for (const p of portals) {
     // the apron, level with the mouth
@@ -463,6 +396,109 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
     depth,
     under: (x, y, z) => floorFor(x, z, y) === floorFor(x, z, y),
   };
+}
+
+// a polyline with every corner rounded: a quadratic curve between the points a tangent length either side of each
+function rounded(ctrl) {
+  const dense = [ctrl[0]];
+  for (let i = 1; i < ctrl.length - 1; i++) {
+    const [px, pz] = ctrl[i - 1];
+    const [cx, cz] = ctrl[i];
+    const [nx, nz] = ctrl[i + 1];
+    const la = Math.hypot(cx - px, cz - pz) || 1;
+    const lb = Math.hypot(nx - cx, nz - cz) || 1;
+    const ux = (cx - px) / la;
+    const uz = (cz - pz) / la;
+    const wx = (nx - cx) / lb;
+    const wz = (nz - cz) / lb;
+    const turn = Math.acos(clamp(ux * wx + uz * wz, -1, 1));
+    if (turn < 0.05) {
+      dense.push(ctrl[i]);
+      continue;
+    }
+    const tl = Math.min(9 * Math.tan(turn / 2), la * 0.45, lb * 0.45);
+    const steps = Math.ceil(turn * 8) + 2;
+    for (let k = 0; k <= steps; k++) {
+      const u = k / steps;
+      const a = (1 - u) * (1 - u);
+      const b = 2 * u * (1 - u);
+      const c = u * u;
+      dense.push([a * (cx - ux * tl) + b * cx + c * (cx + wx * tl), a * (cz - uz * tl) + b * cz + c * (cz + wz * tl)]);
+    }
+  }
+  dense.push(ctrl[ctrl.length - 1]);
+  return dense;
+}
+
+// The South Passage Mines (the mainland, issue #232): a drift from portal `a` to portal `b` by way of the points
+// `via` - under the river, where its junction (and its sump) is - laid out and cut as Blackrock Mine's is, on the
+// mainland's heightfield (half / n / step). a, b: { x, z, zone }; each faces along the drift. -> as planMine, or null
+// where there is not ground enough over the drift.
+export function planPassage({ seed, a, b, via, heights, heightAt, roadDistAt, half, n, step }) {
+  const rng = mulberry32((seed ^ 0x5a55a9) >>> 0);
+  const dry = (x, z) => heightAt(x, z) > WATER_LEVEL + 0.8;
+  const inMap = (x, z, pad) => Math.max(Math.abs(x), Math.abs(z)) < half - pad;
+  const portal = (p, to) => {
+    const l = Math.hypot(to[0] - p.x, to[1] - p.z) || 1;
+    return { x: p.x, z: p.z, y: heightAt(p.x, p.z), dx: (to[0] - p.x) / l, dz: (to[1] - p.z) / l, zone: p.zone };
+  };
+  const A = portal(a, via[0]);
+  const B = portal(b, via[via.length - 1]);
+  const ctrl = [[A.x, A.z], [A.x + A.dx * RUN, A.z + A.dz * RUN], ...via, [B.x + B.dx * RUN, B.z + B.dz * RUN], [B.x, B.z]];
+  const main = resample(rounded(ctrl));
+  let jx = 0;
+  for (let i = 1; i < main.n; i++) if (Math.hypot(main.x[i] - via[0][0], main.z[i] - via[0][1]) < Math.hypot(main.x[jx] - via[0][0], main.z[jx] - via[0][1])) jx = i;
+  main.jx = jx;
+  const bays = bayPlan(main, rng);
+  const y = profile(main, A, B, bays, rng, heightAt);
+  if (!y) return null;
+  main.y = y;
+  return workings({ rng, A, B, main, bays, heights, heightAt, roadDistAt, dry, inMap, half, n, step });
+}
+
+// lowest ground over the drift at point i of a line (its full width and a little more)
+function groundOver(line, i, heightAt) {
+  const a = Math.max(0, i - 1);
+  const b = Math.min(line.n - 1, i + 1);
+  const tx = line.x[b] - line.x[a];
+  const tz = line.z[b] - line.z[a];
+  const tl = Math.hypot(tx, tz) || 1;
+  let lo = Infinity;
+  for (const lat of [-5, -2.5, 0, 2.5, 5]) lo = Math.min(lo, heightAt(line.x[i] - (tz / tl) * lat, line.z[i] + (tx / tl) * lat));
+  return lo;
+}
+
+// The floor along the main drift from portal A to portal B: down each decline at DECLINE, then as near under the
+// ground as COVER allows, never steeper than GRADE, dropping to a sump around the junction. `flat` marks the
+// stretches (the junction, the bays the galleries leave from) that are level: tau is the distance along the drift
+// with those left out. -> null where the drift would come too near the surface away from its portals
+function profile(line, A, B, bays, rng, heightAt) {
+  const n = line.n;
+  const tau = new Float64Array(n);
+  const flat = (i) => bays.some(([c, w]) => Math.abs(i - c) <= w && Math.abs(i - 1 - c) <= w);
+  for (let i = 1; i < n; i++) tau[i] = tau[i - 1] + (flat(i) ? 0 : Math.hypot(line.x[i] - line.x[i - 1], line.z[i] - line.z[i - 1]));
+  const over = new Float64Array(n);
+  for (let i = 0; i < n; i++) over[i] = groundOver(line, i, heightAt);
+  const sump = rng.range(3, 6);
+  const y = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let lo = Infinity;
+    for (let k = Math.max(0, i - 6); k <= Math.min(n - 1, i + 6); k++) lo = Math.min(lo, over[k]);
+    y[i] = lo - MINE_H - COVER - sump * (1 - smoothstep(8, 40, Math.abs(i - line.jx)));
+  }
+  y[0] = A.y;
+  y[n - 1] = B.y;
+  for (let i = 1; i < n; i++) y[i] = Math.min(y[i], y[i - 1] + GRADE * (tau[i] - tau[i - 1]));
+  for (let i = n - 2; i >= 0; i--) y[i] = Math.min(y[i], y[i + 1] + GRADE * (tau[i + 1] - tau[i]));
+  const T = tau[n - 1];
+  for (let i = 0; i < n; i++) y[i] = Math.max(y[i], A.y - DECLINE * tau[i], B.y - DECLINE * (T - tau[i]));
+  for (let i = 0; i < n; i++) {
+    const cover = over[i] - y[i] - MINE_H;
+    const end = Math.min(i, n - 1 - i);
+    // (over a decline the mound makes up what is missing, but it is no embankment)
+    if (end >= 30 ? cover < 2 : end >= PORTAL.LEN && cover < COVER_MIN - 3.5) return null;
+  }
+  return y;
 }
 
 // the level stretches of the main drift, [point, half width]: the junction first, then a bay either side of it

@@ -16,7 +16,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, VACT, SNAP, ENT, HOLD, VFLAG, PROTOCOL_VERSION, Writer, Reader, qpos } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, SPRINT_SPEED, WATER_LEVEL, PHASE, CMD_DT } from '../shared/constants.js';
-import { ITEM, ZTYPE, AMMO, NOTIFY, RECIPES, SCHEMATICS, SCHEM_BIT } from '../shared/defs.js';
+import { ITEM, ZTYPE, AMMO, NOTIFY, RECIPES, SCHEMATICS, SCHEM_BIT, ZONE } from '../shared/defs.js';
 import { countItem } from '../server/inventory.js';
 import { WORLD } from '../shared/acts.js';
 import { VEH, VSTATE, VEHICLES, FIX, REPAIR, STARTERS, STARTER_REACH, stepVehicle, vehicleSpots, starterSpots, questCar, vehicleGrid, parkedCollider, siphonOf, seatAt, surfaceKind, SURF_KIND } from '../shared/vehicles.js';
@@ -65,23 +65,34 @@ function bodySunk(world, v, P = VEHICLES[v.vk]) {
   for (const [o, r] of P.circles) worst = Math.max(worst, sunk(world, v.x - fx * o, v.y, v.z - fz * o, r, P.step, P.h, v.id));
   return worst;
 }
-// An open, level stretch of the mainland to drive on: the runway of Calder Field, the longest run of it with nothing
-// solid on or beside it. -> [x, z] of its end, from where 150 m and more lie clear ahead facing yaw 0 (towards -z);
-// lane: -1 / 0 / 1 across it (3.5 m apart).
+// An open, level stretch of the mainland to drive on: on the airfield (levelled, and with nothing on most of it), the
+// longest run due north (yaw 0, towards -z) with nothing solid on or beside it and the ground at the runway's level.
+// (Layout 12's runway is turned off north, issue #232: the run is found across the field, not down the runway.)
+// -> [x, z] of its end, from where 150 m and more lie clear ahead facing yaw 0; lane: -1 / 0 / 1 across it (3.5 m apart).
 function openGround(world, lane = 0) {
+  // the runway, turned as the picture has it: the longest clear run of its middle line, from the plane's end on
   const r = world.runway;
+  HEAD = r.ry;
+  const c = Math.cos(r.ry), s = Math.sin(r.ry);
+  const at = (lx, lz) => [r.x + c * lx + s * lz, r.z - s * lx + c * lz];
   let best = null, run = 0, from = 0;
-  for (let z = r.z1 - 8; z >= r.z0 + 8; z -= 4) {
-    const clear = !world.staticGrid.query(r.x, z, 8, []).some((c) => !(c.flags & COL.NOBLOCK) && c.y1 > world.heightAt(c.x, c.z) + 0.3);
+  for (let lz = r.z1 - 8; lz >= r.z0 + 8; lz -= 4) {
+    const [x, z] = at(0, lz);
+    const clear = !world.staticGrid.query(x, z, 8, []).some((q) => !(q.flags & COL.NOBLOCK) && q.y1 > world.heightAt(q.x, q.z) + 0.3);
     if (clear) {
-      if (!run) from = z;
+      if (!run) from = lz;
       run += 4;
       if (!best || run > best[1]) best = [from, run];
     } else run = 0;
   }
   if (!best || best[1] < 150) throw new Error(`the runway has only ${best ? best[1] : 0} m clear`);
-  return [r.x + lane * 3.5, best[0] - 6];
+  return [...at(lane * 3.5, best[0] - 6), r.ry];
 }
+// the way along the runway the tests drive (yaw 0 is due north, on a map whose runway runs north), and a point `d`
+// metres ahead of (x, z) that way, `side` metres to its right
+let HEAD = 0;
+const ahead = (x, z, d, side = 0, yaw = HEAD) => [x - Math.sin(yaw) * d + Math.cos(yaw) * side, z - Math.cos(yaw) * d - Math.sin(yaw) * side];
+const alongOf = (x, z, x0, z0, yaw = HEAD) => -(x - x0) * Math.sin(yaw) - (z - z0) * Math.cos(yaw);
 // a straight run of `len` metres over grass with nothing solid within 3 m of it and no great rise: [x, z, dx, dz]
 function grassRun(world, len) {
   for (let x = -world.half + 80; x < world.half - 80; x += 14) {
@@ -312,15 +323,30 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   }
   // ---- the ground: faster on the road than off it, a hill costs speed, it stays where it is parked
   {
-    const hw = w.highway.pts;
-    // a clear stretch of Route 9: 120 m of it with nothing solid near
+    // a clear stretch of a main road: 120 m of it with nothing solid near, all but level (or, where every main road has
+    // a pile-up on it too often for that, the runway's clear run: paved, flat and straight)
+    let hw = null;
     let on = null;
-    for (let i = 20; i < hw.length / 2 - 140 && !on; i += 6) {
-      let ok = true;
-      for (let k = 0; ok && k < 130; k += 4) ok = !w.staticGrid.query(hw[(i + k) * 2], hw[(i + k) * 2 + 1], 4.5, []).some((c) => !(c.flags & COL.NOBLOCK)) && Math.abs(w.heightAt(hw[(i + k) * 2], hw[(i + k) * 2 + 1]) - w.heightAt(hw[i * 2], hw[i * 2 + 1])) < 1.5;
-      if (ok) on = i;
+    for (const rd of w.roads.filter((q) => q.kind === 2 && q.width >= 3.6 && q.width < 6)) {
+      const p = rd.pts;
+      for (let i = 20; i < p.length / 2 - 140 && on === null; i += 6) {
+        let ok = true;
+        for (let k = 0; ok && k < 130; k += 4) ok = !w.staticGrid.query(p[(i + k) * 2], p[(i + k) * 2 + 1], 4.5, []).some((c) => !(c.flags & COL.NOBLOCK)) && Math.abs(w.heightAt(p[(i + k) * 2], p[(i + k) * 2 + 1]) - w.heightAt(p[i * 2], p[i * 2 + 1])) < 1.5;
+        if (ok) {
+          on = i;
+          hw = p;
+        }
+      }
+      if (on !== null) break;
     }
     const [gx, gz] = openGround(w);
+    let roadSecs = 9;
+    if (on === null) {
+      hw = [];
+      for (let k = 0; k < 400; k++) hw.push(...ahead(gx, gz, k - 20));
+      on = 20;
+      roadSecs = 12; // (on dead flat ground a car is at 77% of its top after 9 s)
+    }
     const gr = grassRun(w, 120);
     const tops = {};
     for (const vk of [VEH.CAR, VEH.MOPED, VEH.BIKE]) {
@@ -328,7 +354,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
       // down the road, steering along it
       const v = newV(w, vk, hw[on * 2], hw[on * 2 + 1], yawAlong(hw[on * 2 + 20] - hw[on * 2], hw[on * 2 + 21] - hw[on * 2 + 1]));
       let road = 0, k = on;
-      for (let i = 0; i < 9 * 60; i++) {
+      for (let i = 0; i < roadSecs * 60; i++) {
         while (Math.hypot(hw[k * 2] - v.x, hw[k * 2 + 1] - v.z) < 8) k++;
         let err = yawAlong(hw[k * 2] - v.x, hw[k * 2 + 1] - v.z) - v.yaw;
         while (err > Math.PI) err -= 6.283;
@@ -355,7 +381,10 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
           const rise = w.heightAt(x + dx * 30, z + dz * 30) - w.heightAt(x, z);
           if (Math.abs(rise) < best || Math.abs(rise) > 9 || w.heightAt(x, z) < WATER_LEVEL + 1 || w.heightAt(x + dx * 30, z + dz * 30) < WATER_LEVEL + 1) continue;
           let clear = true;
-          for (let k = -3; clear && k <= 33; k += 3) clear = surfaceKind(w, x + dx * k, z + dz * k, 50) === SURF_KIND.GRASS && !w.staticGrid.query(x + dx * k, z + dz * k, 3, []).some((c) => !(c.flags & COL.NOBLOCK));
+          // (open ground a survivor can get to - not up in the mountains behind their cliffs - and one slope, not a bump)
+          const h = [0, 10, 20, 30].map((k) => w.heightAt(x + dx * k, z + dz * k));
+          clear = h.every((y, k) => !k || (y - h[k - 1]) * rise > 0);
+          for (let k = -3; clear && k <= 33; k += 3) clear = surfaceKind(w, x + dx * k, z + dz * k, 50) === SURF_KIND.GRASS && !(w.cliffAt && w.cliffAt(x + dx * k, z + dz * k) > -2) && !w.staticGrid.query(x + dx * k, z + dz * k, 3, []).some((c) => !(c.flags & COL.NOBLOCK));
           if (!clear) continue;
           best = Math.abs(rise);
           hill = rise > 0 ? [x, z, dx, dz] : [x + dx * 30, z + dz * 30, -dx, -dz];
@@ -376,24 +405,24 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     for (let i = 0; i < 10 * 60; i++) stepVehicle(parked, 0, 0, true, false, w, CMD_DT, null);
     check('left with its brake on, it stays where it is on that hill', Math.hypot(parked.x - px, parked.z - pz) < 0.05, `${f1(Math.hypot(parked.x - px, parked.z - pz) * 100)} cm in 10 s`);
     // steering: less lock at speed; the handbrake brings the tail round
-    const a = newV(w, VEH.CAR, gx, gz, 0), b = newV(w, VEH.CAR, gx, gz, 0);
+    const a = newV(w, VEH.CAR, gx, gz, HEAD), b = newV(w, VEH.CAR, gx, gz, HEAD);
     for (let i = 0; i < 60; i++) stepVehicle(a, 1, 1, false, false, w, CMD_DT, null);
     const slowTurn = Math.abs(a.steer);
     for (let i = 0; i < 6 * 60; i++) stepVehicle(b, 1, 0, false, false, w, CMD_DT, null);
     for (let i = 0; i < 60; i++) stepVehicle(b, 1, 1, false, false, w, CMD_DT, null);
     const ev = [];
-    const c = newV(w, VEH.CAR, gx, gz, 0);
+    const c = newV(w, VEH.CAR, gx, gz, HEAD);
     for (let i = 0; i < 5 * 60; i++) stepVehicle(c, 1, 0, false, false, w, CMD_DT, null);
     const y0 = c.yaw;
     for (let i = 0; i < 90; i++) stepVehicle(c, 0, 1, true, false, w, CMD_DT, ev);
     // ...and held, with the wheel over, it turns the car right round
-    const h = newV(w, VEH.CAR, gx, gz, 0);
+    const h = newV(w, VEH.CAR, gx, gz, HEAD);
     for (let i = 0; i < 4.5 * 60; i++) stepVehicle(h, 1, 0, false, false, w, CMD_DT, null);
     const hv = speedOf(h);
     let hm = 0;
     for (let i = 0; i < 2.3 * 60; i++) {
       stepVehicle(h, 0, i < 9 ? 0 : -1, i >= 9, false, w, CMD_DT, null);
-      let d = h.yaw;
+      let d = h.yaw - HEAD;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       hm = Math.max(hm, Math.abs(d));
@@ -534,7 +563,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const [ox, oz] = openGround(w);
   mop.x = ox;
   mop.z = oz;
-  mop.yaw = 0;
+  mop.yaw = HEAD;
   V.unpark(mop);
   V.rest(mop);
   beside(game, a, mop);
@@ -633,7 +662,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const [cx, cz] = openGround(w, 1);
   car.x = cx;
   car.z = cz;
-  car.yaw = 0;
+  car.yaw = HEAD;
   V.unpark(car);
   V.rest(car);
   const Cs = [A, B, client(game, 'Cy'), client(game, 'Di'), client(game, 'Ed')];
@@ -677,9 +706,8 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const bike = V.list.find((e) => e.vk === VEH.BIKE);
   bike.state = VSTATE.OK;
   bike.need = 0;
-  bike.x = ox - 3.5;
-  bike.z = oz;
-  bike.yaw = 0;
+  [bike.x, bike.z] = ahead(ox, oz, 0, -3.5);
+  bike.yaw = HEAD;
   V.unpark(bike);
   V.rest(bike);
   beside(game, a, bike);
@@ -729,7 +757,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
       game.update();
     }
   };
-  const fresh = (vk, x = ox, z = oz, yaw = 0) => {
+  const fresh = (vk, x = ox, z = oz, yaw = HEAD) => {
     for (const p of [a, b]) V.drop(p);
     for (const z2 of [...game.zombies]) game.removeEntity(z2);
     game.zombies.length = 0;
@@ -758,7 +786,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   {
     const e = fresh(VEH.CAR);
     run1(6 * SEC, () => [BTN.FWD, 0]);
-    const z = spawnAt(ZTYPE.WALKER, a.state.x, a.state.z - 22);
+    const z = spawnAt(ZTYPE.WALKER, ...ahead(a.state.x, a.state.z, 22));
     const hp0 = z.hp, v0 = speedOf(a.state), c0 = e.hp;
     let hit = -1;
     for (let i = 0; i < 4 * SEC && hit < 0; i++) {
@@ -771,7 +799,10 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     // ...a row of them is not mown down for nothing
     const hpA = e.hp;
     const row = [];
-    for (let k = 0; k < 8; k++) row.push([spawnAt(ZTYPE.WALKER, a.state.x + (k % 2 ? 0.5 : -0.5), a.state.z - 16 - k * 3.2), a.state.x + (k % 2 ? 0.5 : -0.5), a.state.z - 16 - k * 3.2]);
+    for (let k = 0; k < 8; k++) {
+      const at = ahead(a.state.x, a.state.z, 16 + k * 3.2, k % 2 ? 0.5 : -0.5);
+      row.push([spawnAt(ZTYPE.WALKER, ...at), ...at]);
+    }
     let slowest = 99;
     for (let i = 0; i < 4 * SEC; i++) {
       // (they stand in its way until it has struck them: left alone a crowd fans out round what comes at it)
@@ -785,7 +816,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     game.zombies.length = 0;
     e.hp = VEHICLES[VEH.CAR].hp;
     run1(5 * SEC, () => [BTN.FWD, 0]);
-    const t = spawnAt(ZTYPE.TANK, a.state.x, a.state.z - 20);
+    const t = spawnAt(ZTYPE.TANK, ...ahead(a.state.x, a.state.z, 20));
     const hpB = e.hp;
     let stopped = false;
     for (let i = 0; i < 3 * SEC && !stopped; i++) {
@@ -820,7 +851,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     e.state = VSTATE.OK;
     e.hp = P.hp;
     a.state.ddead = 0;
-    for (const z of game.zombies) (z.x = e.x + (Math.random() - 0.5) * 1.6), (z.z = e.z - P.half - 0.6 - Math.random());
+    for (const z of game.zombies) [z.x, z.z] = ahead(e.x, e.z, P.half + 0.6 + Math.random(), (Math.random() - 0.5) * 1.6, e.yaw);
     let best = 0;
     for (let i = 0; i < 3 * SEC; i++) {
       run1(1, () => [BTN.FWD, 0]);
@@ -862,7 +893,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     const e = fresh(VEH.MOPED);
     run1(7 * SEC, () => [BTN.FWD, 0]);
     const v0 = speedOf(a.state);
-    spawnAt(ZTYPE.WALKER, a.state.x, a.state.z - 16);
+    spawnAt(ZTYPE.WALKER, ...ahead(a.state.x, a.state.z, 16));
     let thrown = false;
     for (let i = 0; i < 3 * SEC && !thrown; i++) {
       run1(1, () => [BTN.FWD, 0]);
@@ -876,7 +907,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     game.removeEntity(e);
     const e2 = fresh(VEH.MOPED);
     run1(SEC, () => [BTN.FWD, 0]);
-    for (let k = 0; k < 4; k++) spawnAt(ZTYPE.WALKER, a.state.x + (k - 1.5) * 0.9, a.state.z - 2.6);
+    for (let k = 0; k < 4; k++) spawnAt(ZTYPE.WALKER, ...ahead(a.state.x, a.state.z, 2.6, (k - 1.5) * 0.9));
     let pulled = -1;
     for (let i = 0; i < 12 * SEC && pulled < 0; i++) {
       run1(1, () => [0, 0]);
@@ -895,7 +926,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     for (const vk of [VEH.CAR, VEH.MOPED, VEH.BIKE]) {
       const e = fresh(vk);
       const zs = [];
-      for (const d of [36, 58, 100]) zs.push(spawnAt(ZTYPE.WALKER, e.x + d, e.z - 6));
+      for (const d of [36, 58, 100]) zs.push(spawnAt(ZTYPE.WALKER, ...ahead(e.x, e.z, 6, d)));
       for (const z of zs) (z.horde = false), (z.target = 0), (z.alertT = 0);
       // (round in a tight ring, the throttle open, far from their sight by day: 26 m)
       run1(4 * SEC, () => [BTN.FWD | BTN.LEFT, 0]);
@@ -954,7 +985,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   {
     const e = fresh(VEH.CAR);
     const P = VEHICLES[VEH.CAR];
-    const m = V.make(VEH.MOPED, e.x, e.z - 70, Math.PI, { state: VSTATE.OK, need: 0, fuel: 60, hp: VEHICLES[VEH.MOPED].hp });
+    const m = V.make(VEH.MOPED, ...ahead(e.x, e.z, 70), HEAD + Math.PI, { state: VSTATE.OK, need: 0, fuel: 60, hp: VEHICLES[VEH.MOPED].hp });
     beside(game, b, m);
     run1(2);
     B.act(ACT.VEHICLE, VACT.ENTER, m.id);
@@ -963,14 +994,14 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     let nearest = 1e9, closing = 0, hit = -1;
     const hp0 = [e.hp, m.hp], bhp0 = b.hp;
     for (let i = 0; i < 12 * SEC; i++) {
-      const d0 = Math.abs(e.z - m.z);
+      const d0 = Math.hypot(e.x - m.x, e.z - m.z);
       const c0 = speedOf(a.state) + (b.state.drive ? speedOf(b.state) : 0);
       run1(1, () => [hit < 0 ? BTN.FWD : 0, 0], () => [hit < 0 ? BTN.FWD : 0, Math.PI]);
       if (hit < 0 && (e.hp < hp0[0] || m.hp < hp0[1])) {
         hit = i;
         closing = c0;
       }
-      if (hit < 0 || i - hit < SEC) nearest = Math.min(nearest, Math.abs(e.z - m.z), d0);
+      if (hit < 0 || i - hit < SEC) nearest = Math.min(nearest, Math.hypot(e.x - m.x, e.z - m.z), d0);
       if (hit >= 0 && i - hit > 2 * SEC) break;
     }
     const carMoved = speedOf(a.state);
@@ -990,11 +1021,11 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   {
     // (a wall to hit: something of the team's own, built square across the way)
     const wall = (x, z) => {
-      const c = { type: 0, x, z, y0: groundAt(w, x, z, 200) - 1, y1: groundAt(w, x, z, 200) + 3, hx: 6, hz: 0.3, c: 1, s: 0, yaw: 0, r: 6.1, flags: COL.STATIC, id: 0, stamp: 0, cells: null, tag: null };
+      const c = { type: 0, x, z, y0: groundAt(w, x, z, 200) - 1, y1: groundAt(w, x, z, 200) + 3, hx: 6, hz: 0.3, c: Math.cos(HEAD), s: Math.sin(HEAD), yaw: HEAD, r: 6.1, flags: COL.STATIC, id: 0, stamp: 0, cells: null, tag: null };
       w.staticGrid.add(c);
       return c;
     };
-    const wl = wall(ox, oz - 46);
+    const wl = wall(...ahead(ox, oz, 46));
     const e = fresh(VEH.CAR);
     const P = VEHICLES[VEH.CAR];
     let v0 = 0;
@@ -1062,7 +1093,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
     V.unpark(e);
     game.removeEntity(e);
     // a moped into the same wall
-    const wl2 = wall(ox, oz - 40);
+    const wl2 = wall(...ahead(ox, oz, 40));
     const m = fresh(VEH.MOPED);
     let thrown = false, vm = 0;
     for (let i = 0; i < 8 * SEC && !thrown; i++) {
@@ -1071,7 +1102,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
       if (!a.state.drive) thrown = true;
     }
     run1(2 * SEC);
-    check('a moped into a wall at speed throws its rider over the bars, hurt, and the moped stays at the wall, damaged', thrown && a.hp < a.maxHp - 10 && m.hp < VEHICLES[VEH.MOPED].hp - 50 && Math.abs(m.z - (oz - 40)) < 2.5 && m.seats[0] === 0 && a.state.z > oz - 40, `at ${f1(vm)} m/s: -${Math.round(a.maxHp - a.hp)} hp, the moped -${Math.round(VEHICLES[VEH.MOPED].hp - m.hp)}`);
+    check('a moped into a wall at speed throws its rider over the bars, hurt, and the moped stays at the wall, damaged', thrown && a.hp < a.maxHp - 10 && m.hp < VEHICLES[VEH.MOPED].hp - 50 && Math.abs(alongOf(m.x, m.z, ox, oz) - 40) < 2.5 && m.seats[0] === 0 && alongOf(a.state.x, a.state.z, ox, oz) < 40, `at ${f1(vm)} m/s: -${Math.round(a.maxHp - a.hp)} hp, the moped -${Math.round(VEHICLES[VEH.MOPED].hp - m.hp)}`);
     w.staticGrid.remove(wl2);
   }
 }
@@ -1088,7 +1119,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const w = game.world;
   const [ox, oz] = openGround(w);
   const P = VEHICLES[VEH.CAR];
-  const car = V.make(VEH.CAR, ox, oz, 0, { state: VSTATE.OK, need: 0, fuel: P.tank, hp: P.hp });
+  const car = V.make(VEH.CAR, ox, oz, HEAD, { state: VSTATE.OK, need: 0, fuel: P.tank, hp: P.hp });
   const run1 = (ticks, fa) => {
     for (let i = 0; i < ticks; i++) {
       const [ba, ya] = fa ? fa(i) : [0, a.state.yaw];
@@ -1258,7 +1289,8 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const car = flood(w, cl, w.start.x, w.start.z, 1.1, VEH.CAR);
   const mop = flood(w, cl, w.start.x, w.start.z, 0.75, VEH.MOPED);
   const foot = flood(w, cl, w.start.x, w.start.z, 0.75, 0);
-  const far = w.zones.filter((z) => Math.hypot(z.x - w.start.x, z.z - w.start.z) > 60);
+  // (all but the lighthouse, out on its islet, and the South Passage Mines' yard, beyond the mines: on foot, issue #232)
+  const far = w.zones.filter((z) => Math.hypot(z.x - w.start.x, z.z - w.start.z) > 60 && z.id !== ZONE.LIGHTHOUSE && z.id !== ZONE.PASSAGE);
   const short = (fl, z) => {
     const p = fl.path(z.x, z.z);
     return p ? Math.hypot(p[p.length - 1][0] - z.x, p[p.length - 1][1] - z.z) : Infinity;
@@ -1385,8 +1417,11 @@ function laggy(LAG, JIT, vk) {
     if (tick === WHEN.map) {
       game.debugCommand(p, ['map2']);
       quiet(game);
-      spot = openGround(game.world);
-      veh = game.vehicles.make(vk, spot[0], spot[1], 0, { state: VSTATE.OK, need: 0, fuel: P.tank, hp: P.hp });
+      // (mid-runway, facing its plane: the figure's right-handers swing out west of it, where the airfield is open -
+      // the apron's side is cluttered)
+      const r = game.world.runway;
+      spot = [r.x - Math.sin(r.ry) * 4, r.z - Math.cos(r.ry) * 4, r.ry + Math.PI];
+      veh = game.vehicles.make(vk, spot[0], spot[1], spot[2], { state: VSTATE.OK, need: 0, fuel: P.tank, hp: P.hp });
       beside(game, p, veh);
     }
     if (tick === WHEN.board) conn.action(ACT.VEHICLE, VACT.ENTER, veh.id);
