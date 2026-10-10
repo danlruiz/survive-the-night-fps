@@ -45,6 +45,12 @@ export function makeCyl(x, z, y0, y1, r, flags = COL.STATIC, id = 0) {
   return { type: CYL, x, z, y0, y1, hx: r, hz: r, c: 1, s: 0, yaw: 0, r, flags, id, stamp: 0, cells: null, tag: null, main: null };
 }
 
+// a tree's trunk: a cylinder that knows its variant (tv) and its index in world.trees (ti), both in it from the start
+// (added to a cylinder afterwards they took a second store of properties: a hundred bytes a tree)
+export function makeTree(x, z, y0, y1, r, tv, ti) {
+  return { type: CYL, x, z, y0, y1, hx: r, hz: r, c: 1, s: 0, yaw: 0, r, flags: COL.STATIC | COL.TREE, id: 0, stamp: 0, cells: null, tag: null, main: null, tv, ti };
+}
+
 export class ColliderGrid {
   constructor(half, cellSize = 8) {
     this.half = half;
@@ -70,8 +76,17 @@ export class ColliderGrid {
     if (z1 >= n) z1 = n - 1;
     return [x0, x1, z0, z1];
   }
+  // c.cells: the cells it is in - a list, or for one in a single cell (most of them: every tree, every small prop)
+  // that cell as -(index + 1), a number and no list (the mainland has tens of thousands of trees; truthy either way)
   add(c) {
     const [x0, x1, z0, z1] = this._range(c.x, c.z, c.r);
+    if (x0 === x1 && z0 === z1) {
+      const idx = z0 * this.n + x0;
+      this.cells[idx].push(c);
+      c.cells = -(idx + 1);
+      this.count++;
+      return c;
+    }
     c.cells = [];
     for (let j = z0; j <= z1; j++) {
       for (let i = x0; i <= x1; i++) {
@@ -85,14 +100,16 @@ export class ColliderGrid {
   }
   remove(c) {
     if (!c.cells) return;
-    for (const idx of c.cells) {
+    const take = (idx) => {
       const arr = this.cells[idx];
       const k = arr.indexOf(c);
       if (k >= 0) {
         arr[k] = arr[arr.length - 1];
         arr.pop();
       }
-    }
+    };
+    if (typeof c.cells === 'number') take(-c.cells - 1);
+    else for (const idx of c.cells) take(idx);
     c.cells = null;
     this.count--;
   }

@@ -23,6 +23,8 @@ import { resolveBody, groundAt, deepWaterAt } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
 import { DEER, DANIM, DEER_LOOT, DEER_UNDEAD, UNDEAD, UNDEAD_LOOT } from '../shared/deer.js';
 
+const _body = { x: 0, y: 0, z: 0 };
+
 const GRAV = 16;
 const TAU = Math.PI * 2;
 const EDGE = 10; // as near the edge of the map as a deer goes (m): this.lim
@@ -106,6 +108,9 @@ export class Deer {
     if (!this.open(x, z) || w.zoneAt(x, z) !== ZONE.FOREST || w.roadDistAt(x, z) < ROAD_CLEAR) return false;
     if (w.heightAt(x, z) < WATER_LEVEL + 0.5) return false;
     for (let k = 0; k < 4; k++) if (!this.open(x + (k & 1 ? 2.5 : -2.5), z + (k & 2 ? 2.5 : -2.5))) return false;
+    // (the mainland's woods stand a trunk every few metres where they are thick: a group grazes only where there is
+    // room round it - a clearing, the edge of the woods, open woods - or it is strung out among the trunks)
+    if (w.size > 1000) for (let k = 0; k < 8; k++) if (!this.open(x + Math.sin((k * Math.PI) / 4) * 5.5, z + Math.cos((k * Math.PI) / 4) * 5.5)) return false;
     for (const s of w.sites) if (Math.hypot(s.x - x, s.z - z) < SITE_CLEAR) return false;
     for (const p of w.mine?.portals || []) if (Math.hypot(p.x - x, p.z - z) < PORTAL_CLEAR) return false;
     return true;
@@ -191,12 +196,19 @@ export class Deer {
       const sx = gr.cx + (from ? ox * 0.6 : ox);
       const sz = gr.cz + (from ? oz * 0.6 : oz);
       if (!this.open(sx, sz)) continue;
+      // (nor on a trunk or a post the nav grid is too coarse to see: a body put down there would stand in it)
+      const sy = groundAt(g.world, sx, sz, g.world.heightAt(sx, sz) + 0.5, 0.2, false);
+      _body.x = sx;
+      _body.y = sy;
+      _body.z = sz;
+      resolveBody(g.world, _body, N.radius * 0.75, 0.9, false);
+      if (Math.hypot(_body.x - sx, _body.z - sz) > 0.05) continue;
       const e = {
         kind: ENT.DEER,
         // bit 0: a buck (antlers); bit 7 (DEER_UNDEAD): undead; the rest: its coat and build
         variant: ((Math.floor(rng() * 128) << 1) & 0x7f) | ((gr.members.length ? buck2 && gr.members.length === 1 : buck) ? 1 : 0) | (undead ? DEER_UNDEAD : 0),
         x: sx,
-        y: groundAt(g.world, sx, sz, g.world.heightAt(sx, sz) + 0.5, 0.2, false), // (the ground, not a roof over it)
+        y: sy, // (the ground, not a roof over it)
         z: sz,
         yaw: rng() * TAU,
         vx: 0,
@@ -429,6 +441,9 @@ export class Deer {
       m.stuckT = 0;
       m.stucks = 0;
       m.detourT = 0;
+      // (on the mainland each sets out now: one still standing out a pause of its grazing - up to half a minute - was
+      // left that far behind the pack on the way, strung out across open ground. The island's deer are as they were)
+      if (this.g.world.size > 1000) m.pause = 0;
     }
   }
 
@@ -923,6 +938,7 @@ export class Deer {
     this.integrate(m, dt, dx * speed, dz * speed, humans);
 
     // held up by something (a fence, a wall somebody built, a rock): never push at it
+    const big = this.g.world.size > 1000;
     const sp = Math.hypot(m.vx, m.vz);
     if (speed > 0) {
       if (sp < speed * 0.25) m.stuckT += dt;
@@ -944,11 +960,12 @@ export class Deer {
           // (grazing) that tuft is not worth it
           m.moving = false;
           m.pause = 1 + rng() * 3;
-        } else if (++m.stucks > 3) m.arrived = true; // no way on: it stops where it is
+        } else if (++m.stucks > (big ? 8 : 3)) m.arrived = true; // no way on: it stops where it is
         else {
-          // a few strides to one side, then the flow field again
+          // a few strides to one side, then the flow field again (in the mainland's thick woods more tries and longer
+          // strides round the trunks: a pack left one of its own stopped among them)
           const side = rng() < 0.5 ? 1 : -1;
-          m.detourT = 0.5 + rng() * 0.5;
+          m.detourT = big ? 0.8 + rng() * 0.8 : 0.5 + rng() * 0.5;
           m.detourX = -dz * side + dx * 0.2;
           m.detourZ = dx * side + dz * 0.2;
           m.direct = false;
@@ -985,6 +1002,22 @@ export class Deer {
       const k = Math.min(1, 10 / d);
       const x = m.x + (gr.x - m.x) * k;
       const z = m.z + (gr.z - m.z) * k;
+      // (in the mainland's thick woods the straight way back is trunk after trunk: when it is not clear, round what
+      // stands in it - a few headings either side of the straight one, the first with a clear walk 5 m, then 3 m, out)
+      if (this.g.world.size > 1000 && (!this.open(x, z) || !this.clearWay(m.x, m.z, x, z, d * k))) {
+        const a0 = Math.atan2(gr.x - m.x, gr.z - m.z);
+        for (const r of [5, 3]) {
+          for (const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5]) {
+            const x2 = m.x + Math.sin(a0 + da) * r;
+            const z2 = m.z + Math.cos(a0 + da) * r;
+            if (!this.open(x2, z2) || !this.clearWay(m.x, m.z, x2, z2, r)) continue;
+            m.tx = x2;
+            m.tz = z2;
+            m.moving = true;
+            return;
+          }
+        }
+      }
       if (this.open(x, z)) {
         m.tx = x;
         m.tz = z;

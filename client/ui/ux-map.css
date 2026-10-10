@@ -231,6 +231,10 @@
 .stn-ui .mapscr .map-lab.sub {
   font-size: max(12px, calc(11 * var(--u)));
 }
+/* (the mainland's places, a size up: ui2.css .map-lab.big) */
+.stn-ui .mapscr .map-lab.big {
+  font-size: max(13px, calc(15 * var(--u)));
+}
 
 /* a rumour: a dashed ring round the place, a tab on it with what is rumoured there */
 .stn-ui .mapscr .mx-ring {

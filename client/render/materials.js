@@ -536,6 +536,8 @@ const DEFS = {
   clapboard: () => surface('clapboard'),
   logwall: () => surface('logwall'),
   concrete: () => surface('concrete'),
+  // fresh concrete, pale: a tunnel's portal and the inside of its gallery (in a cutting's shade the plain one is black)
+  concrete_pale: () => surface('concrete_pale', { color: new THREE.Color(3.8, 3.7, 3.5) }, 'concrete'),
   brick: () => surface('brick'),
   shingles: () => surface('shingles'),
   tin: () => surface('tin'),
@@ -581,17 +583,26 @@ const DEFS = {
   chrome: () => surface('chrome'),
   bone: () => lambert({ map: tileTex('bone'), color: 0xa8a090 }),
   blood: () => lambert({ color: 0x3c0605 }),
-  blood_decal: () =>
-    lambert({ map: getTexture('decal_blood'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  // (unsorted, as a vehicle's glass: a stain lies flat on what is under it and two of them come out the same whichever
+  // is drawn first - so all of them are one mesh in the static world, not a draw of their own in every piece of it)
+  blood_decal: () => {
+    const m = lambert({ map: getTexture('decal_blood'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    m.userData.unsorted = true;
+    return m;
+  },
   flesh: () => lambert({ map: tileTex('skin') }),
   charred: () => surface('charred'),
   ash: () => lambert({ map: tileTex('ash') }),
   ember: () => new THREE.MeshBasicMaterial({ color: 0xb4400e }),
+  // a lamp's lit fitting (a tunnel's roof): it shines whatever light falls on it
+  lampglow: () => new THREE.MeshBasicMaterial({ color: 0xfff0d2 }),
   emissive_red: () => new THREE.MeshBasicMaterial({ color: 0x6a0a06 }),
   acid: () => new THREE.MeshBasicMaterial({ color: 0x9cff3c }),
   acid_glow: () => new THREE.MeshBasicMaterial({ color: 0x3aa010, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }),
   flare: () => new THREE.MeshBasicMaterial({ color: 0xff5a30 }),
   water_dark: () => lambert({ color: 0x0a0f10 }),
+  // standing water on bare ground (the quarry's floor): the overcast sky in it, dull
+  puddle: () => lambert({ color: 0x353d42 }),
   labels: () => lambert({ map: getTexture('atlas') }),
   stencil: () => lambert({ map: getTexture('atlas'), alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   mattress: () => lambert({ map: tileTex('mattress') }),
@@ -696,6 +707,7 @@ const SURF = {
   clapboard: { tone: 0.12, streak: 0.14, stain: [0.72, 0.76, 0.62, 0.5], layer: { kind: 'paint', col: 0xcfccc0, col2: 0xf0e8d4, cover: 0.42, detail: 2.0, macro: 1.9, soft: 0.03, ground: -0.5, run: -0.25, shade: [3.6, 0.42], fx: 0.4, tint: true } },
   logwall: { tone: 0.2, streak: 0.2, stain: [0.7, 0.74, 0.58, 0.5] },
   concrete: { tone: 0.16, streak: 0.3, stain: [0.66, 0.68, 0.6, 0.6] },
+  concrete_pale: { tone: 0.12, streak: 0.22, stain: [0.78, 0.79, 0.74, 0.45] },
   brick: { tone: 0.16, streak: 0.14, stain: [0.62, 0.6, 0.58, 0.55] },
   shingles: { tone: 0.2, streak: 0, stain: [0.8, 0.84, 0.72, 0.4], layer: { kind: 'moss', col: 0x4a5a26, col2: 0x7e7c5c, cover: -0.42, detail: 1.3, macro: 3.2, soft: 0.16, ground: 0, run: 0, up: 0, shade: [5, 0.5], fx: 0.85 } },
   tin: { tone: 0.14, streak: 0.14, gloss: 0.3, stain: [0.8, 0.78, 0.72, 0.4], layer: { ...RUST, cover: -0.42, detail: 1.2, macro: 2.6, soft: 0.05, ground: 0.45, run: 0.3, shade: [3.2, 0.8], fx: 0.6 } },

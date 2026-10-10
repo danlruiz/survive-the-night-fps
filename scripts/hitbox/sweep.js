@@ -243,6 +243,8 @@ export async function drawnWorld(world, log = () => {}) {
   };
   if (world.bridge) await tryView('bridge', async () => new (await import('../../client/render/bridge.js')).BridgeView(scene, world));
   await tryView('clinic', async () => (await import('../../client/render/clinic.js')).buildClinic(world));
+  // (a ship at a quay is drawn by a model of its own over the place's hidden boxes)
+  if (world.ships?.length) await tryView('ships', async () => (await import('../../client/render/ships.js')).buildShips(scene, world));
   log(`  + the bridge, the clinic: ${soup.n}`);
   const fixed = soup.finish(2);
   // the props: one set of triangles a model, a place and a turn each
@@ -608,6 +610,7 @@ export function designOf(kind, mode, owner) {
   if (kind === 'hole' && owner === 'boom_gate') return 'the arm of a boom gate stops nobody';
   if (kind === 'hole' && /^(wall|city):/.test(owner)) return 'drawn without a collider: a roof slope, a tilted slab, a fire escape, a cornice';
   if (kind === 'hole' && owner === 'bridge') return 'the bridge is stood on by its own floor (shared/bridge.js), its trusses are not colliders';
+  if (kind === 'air' && owner === 'wall:cliff') return 'the wall at the foot of a mainland mountain\'s cliff (shared/mainland.js): the cliff is the terrain, which this sweep does not draw';
   return null;
 }
 export function summary(run) {

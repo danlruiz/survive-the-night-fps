@@ -1,6 +1,6 @@
 // Binary wire protocol. Everything is little-endian, tightly packed.
 // Positions are quantized in int16: to 1/64 m on the island (range +-512 m) and to 1/32 m on the mainland, which is
-// twice as far across (range +-1024 m). See usePos below.
+// 2048 m across (range +-1024 m: its edge). See usePos below.
 
 export const PROTOCOL_VERSION = 44; // 26: the frag grenade and the noisemaker (items 33-34, PROJ 7-8); 28: salvage, ammo reserve, unequip, RPG (PROJ 9); 29: carrying the mounted gun (ACT.GUN_PUT, HOLD.GUN_LIFT, ENT.GUN fields 6-7, s.hmg); 30: the flare gun (items 56, 79; ammo 9; PROJ 10); 31: the walkie-talkie in weapon slot 6 (SLOT_RADIO), PLF.ON_AIR; 32: achievements (EVT.ACHIEVE); 33: XP, levels and perks (S2C.PROGRESS, s.perks in SELF.RIDE, a level in S2C.PLAYERS and S2C.BOARD rows); 34: IN_PING carries u16 last measured RTT (ms) for the player list; 35: the bestiary (EVT.BESTIARY); 36: schematic rumours (a zone per schematic in the global state); 37: car supplies lying loose (item, x, z) in the global state; 38: the leaper shove meter (s.shove in the self state's fifth chunk); 39: a torch's or a campfire's burn-out tick (SF.BURN); 40: the mainland's undead deer (DEER_UNDEAD in a deer's variant, DANIM.ATTACK / CHARGE, SOUND.DEER_SCREAM, killfeed flag 8 and YOU_DIED 254 for a death by one); 41: the stray cat in a survivor's arms (ACT.CAT_PUT, ENT.CAT field HOLDER, CANIM.HELD / PET, s.pet in SELF.RIDE); 42: Dead Hand, the card game (C2S.CARDS, S2C.CARDS, card packs: items 98-99); 43: lobby Dead Hand tables; 44: Dead Hand loadout item wagers
 
@@ -170,8 +170,8 @@ export const ENT = {
 
 // ---------------------------------------------------------------- quantization
 // A position on the wire is an int16 of 1 / scale metres. The scale is the world's (world.posScale): POS_SCALE on the
-// 640 m island, whose +-512 m that covers, and POS_SCALE_WIDE on the 1280 m mainland (shared/mainland.js), where
-// 1/64 m would run out at +-512 m, 128 m short of the edge. Both ends know the world from its seed and act, so nothing
+// 640 m island, whose +-512 m that covers, and POS_SCALE_WIDE on the 2048 m mainland (shared/mainland.js), where
+// 1/64 m would run out at +-512 m, half way to the edge (1/32 m reaches +-1024 m, the edge itself). Both ends know the world from its seed and act, so nothing
 // says the scale on the wire. usePos(world) sets it: the server as it starts a tick, takes a message or changes world
 // (each game is a worker of its own, and a test that runs two games in one process is covered by those calls), the
 // client as it loads a world.

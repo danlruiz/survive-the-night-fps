@@ -189,10 +189,10 @@ export const ITEM_DEFS = {
   [ITEM.FUEL_CAN]: { name: 'Jerry Can', cat: 'part', stack: 3, color: 0xb71c1c, desc: 'Fuel for the car. The tank needs three cans.' },
   [ITEM.FAN_BELT]: { name: 'Fan Belt', cat: 'part', stack: 1, color: 0x212121, desc: 'Car supply. Bring it to your broken-down car on Route 9.' },
 
-  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at Calder Field.' },
-  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at Calder Field.' },
-  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at Calder Field.' },
-  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at Calder Field.' },
+  [ITEM.PROPELLER]: { name: 'Propeller', cat: 'part', stack: 1, color: 0x8a8f94, desc: 'Plane part: a two-blade propeller off a hangar rack. Bring it to the plane at the airport.' },
+  [ITEM.MAGNETO]: { name: 'Magneto', cat: 'part', stack: 1, color: 0x30343a, desc: 'Plane part: the engine fires off it. Bring it to the plane at the airport.' },
+  [ITEM.HYDRAULIC_PUMP]: { name: 'Hydraulic Pump', cat: 'part', stack: 1, color: 0xa33a22, desc: 'Plane part: without it the flaps and the brakes are dead. Bring it to the plane at the airport.' },
+  [ITEM.FLIGHT_RADIO]: { name: 'Flight Radio', cat: 'part', stack: 1, color: 0x3a4a3c, desc: 'Plane part: the set out of a control tower. Bring it to the plane at the airport.' },
   [ITEM.AVGAS]: { name: 'Avgas Drum', cat: 'part', stack: 3, color: 0x2f6fb0, desc: 'Aviation fuel for the plane. The tanks need three drums.' },
 
   [ITEM.SCHEM_SHOTGUN]: { name: 'Shotgun Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Shotgun and the Double-Barrel at the workbench for the whole team.' },
@@ -398,19 +398,24 @@ export const STRUCT_ORDER = [STRUCT.BARRICADE, STRUCT.DOOR, STRUCT.WALL, STRUCT.
 // how near its interaction point the view ray has to pass to offer [E] on a structure (PICK_RADIUS in constants.js)
 export const structPickRadius = (stype) => Math.max(0.8, STRUCT_DEFS[stype].sx * 0.5);
 export const REPAIR_COST = { [ITEM.WOOD]: 1, [ITEM.NAILS]: 1 }; // per repair action (+35% hp)
-// What taking structure e down gives back (Game.demolish): each material of its cost in the share of it that is left,
-// rounded down - all of it whole and at full health, 3 of 5 Planks at 60%, and a cost of one item only whole. A torch
-// or a campfire is worth as much as is left of the fuel it was built with too, so a burnt-out one is not traded back
-// for a fresh one. Repairs bring the share back up, but never past the cost: nothing comes out of it beyond what was
-// paid to build it.
-export function demolishRefund(e) {
+export const DEMOLISH_UNDO_SECONDS = 15;
+export const DEMOLISH_REFUND_RATE = 0.75;
+// What taking structure e down gives back (Game.demolish). For a short undo window after placement the whole build
+// cost comes back, so a misplaced piece costs nothing. After that, each material with a cost above one refunds 75% of
+// the lowest health share the piece ever reached, rounded down. A torch or campfire is capped by the fuel left from
+// its original build, so a burnt-out light is not traded back for a fresh one. Repairs never raise e.minHealth.
+export function demolishRefund(e, now = Infinity) {
   const def = STRUCT_DEFS[e.stype];
-  let share = e.maxHp > 0 ? e.hp / e.maxHp : 0;
+  const placedAt = Number.isFinite(e.placedAt) ? e.placedAt : -Infinity;
+  const undo = now - placedAt <= DEMOLISH_UNDO_SECONDS;
+  if (undo) return { ...def.cost };
+  let share = Number.isFinite(e.minHealth) ? e.minHealth : e.maxHp > 0 ? e.hp / e.maxHp : 0;
   if (def.burn) share = Math.min(share, e.burnLeft / def.burn);
   share = Math.max(0, Math.min(1, share));
   const out = {};
   for (const k in def.cost) {
-    const n = Math.floor(def.cost[k] * share + 1e-9); // (60% of 5 is 3, not 2.9999)
+    if (def.cost[k] === 1) continue;
+    const n = Math.floor(def.cost[k] * DEMOLISH_REFUND_RATE * share + 1e-9); // keep exact products from falling below their floor
     if (n > 0) out[k] = n;
   }
   return out;
@@ -958,9 +963,15 @@ export const ZONE = {
   NURSERY: 61,
   MOTORPOOL: 62, // the Guard's trucks
   HELIPAD: 63,
-  AGGREGATES: 64, // a gravel works
+  AGGREGATES: 64, // a gravel works: on Layout 12 (issue #232), the quarry
+  // ...and the places of Layout 12 that none of those is (issue #232)
+  NORTH_COAST: 65, // the village on the north coast: a church, houses, a pier
+  OUTPOST: 66, // North Ridge Outpost: the radio tower, past North Pass
+  SOUTH_FOREST: 67, // the campsites of South Forest
+  PASSAGE: 68, // the South Passage Mines: the workings under the river, and their yard
+  LIGHTHOUSE: 69, // on its islet off the south-west coast
 };
-export const MAINLAND_ZONES = [27, 64]; // the first and the last of the mainland's places
+export const MAINLAND_ZONES = [27, 69]; // the first and the last of the mainland's places
 // NOTIFY.CACHE: what the bridgehead cache handed a survivor (acts.js BRIDGEHEAD)
 export const CACHE_GAVE = { PISTOL: 1, AMMO: 2, BANDAGE: 4, MELEE: 8, BUILD: 16 };
 
@@ -993,18 +1004,18 @@ export const ZONE_NAMES = [
   'Mercy Clinic',
   'Tri-County Fair',
   'The Bridgehead',
-  'Port Calder',
-  'Kessler Ironworks',
-  'Calder Field Terminal',
-  'Calder Field Hangars',
-  'Calder Fuel Depot',
-  'Eastgate',
-  'Mile 9 Truck Stop',
+  'Town Center',
+  'Industrial Docks',
+  'Airport Terminal',
+  'Airport Hangars',
+  'Airport Fuel Depot',
+  'North Suburbs',
+  'Gas Station',
   'Camp Hollis Quarantine',
   'Route 9 Checkpoint',
   'Calder Substation',
   'Calder Waterworks',
-  'Lake Morrow Marina',
+  'Pine Lake Marina',
   'Sunset Acres',
   "Benny's Auto Salvage",
   'Gateway Plaza',
@@ -1014,7 +1025,7 @@ export const ZONE_NAMES = [
   'Hillside Cemetery',
   'Dunmore Logging Camp',
   'Flight 212',
-  'Westgate',
+  'East Suburbs',
   'Calder Freight Yard',
   'Hale Farm',
   'Pruitt Farm',
@@ -1029,7 +1040,12 @@ export const ZONE_NAMES = [
   'Greenacre Nursery',
   'Guard Motor Pool',
   'Landing Zone Kilo',
-  'Calder Aggregates',
+  'Quarry',
+  'North Coast Village',
+  'North Ridge Outpost',
+  'South Forest',
+  'South Passage Mines',
+  'Lighthouse',
 ];
 
 // weighted loot tables per zone: [item, weight, min, max]
@@ -1107,6 +1123,12 @@ LOOT_TABLES[ZONE.NURSERY] = LOOT_TABLES[ZONE.BARN];
 LOOT_TABLES[ZONE.MOTORPOOL] = LOOT_TABLES[ZONE.HELIPAD] = LOOT_TABLES[ZONE.ROADBLOCK];
 LOOT_TABLES[ZONE.AGGREGATES] = LOOT_TABLES[ZONE.INDUSTRIAL];
 LOOT_TABLES[ZONE.FARM_A] = LOOT_TABLES[ZONE.FARM_B] = LOOT_TABLES[ZONE.BARN];
+// (Layout 12's own places, issue #232)
+LOOT_TABLES[ZONE.NORTH_COAST] = LOOT_TABLES[ZONE.SUBURB];
+LOOT_TABLES[ZONE.OUTPOST] = LOOT_TABLES[ZONE.ROADBLOCK];
+LOOT_TABLES[ZONE.SOUTH_FOREST] = LOOT_TABLES[ZONE.CAMPGROUND];
+LOOT_TABLES[ZONE.PASSAGE] = LOOT_TABLES[ZONE.MINE];
+LOOT_TABLES[ZONE.LIGHTHOUSE] = LOOT_TABLES[ZONE.MARINA];
 
 // ---------------------------------------------------------------- searchable containers
 // Every place (and many roadside / woodland sites) has containers: hold [E] to search.

@@ -694,32 +694,93 @@ act 2, where the same loop is played with a plane and flying out wins.
   the day's roaming dead, the dog packs and their top-ups come that many times over, and the herds (`Herds.want`)
   its square root, so the mainland is not a thinner island. A city (`world.city`) has its streets stocked on top of
   its guards (`CITY_STREET_DEAD`, `spawnStreet`), and a share of the day's top-ups go back there.
-- **The mainland** (`shared/mainland.js`) is 1280 m across, built with the island's kit (`shared/worldkit.js`: the
-  Builder, the collider grids, the lists a world hands on): the Bridgehead, Port Calder, Kessler Ironworks,
-  Eastgate, a truck stop, Calder Field, and twenty-eight places out on the plain (`shared/mainland-places.js`: one
-  entry each in `OUTLYING` - how much ground it levels, what road it gets, and a `build`; its loot table is its
-  zone's in defs.js; `MAINLAND_ZONES` is the first and the last of them). `world.car` is the plane there (`plane: true`), so everything that asks for "the car" - the reach, the
-  supplies, the final stand - asks for it. What the island has and it lacks (mine, railway, fair, clinic,
-  cemetery) is `null`.
-  - *The plan.* The bridge, the city, the airfield and what hangs off them are set first; the lake is dug where
-    there is most room, the marina put on its shore; the rest are put down one at a time on the roomiest of a
-    handful of spots (`room()`: `PLACE_GAP` of open country from every other, clear of the city, the airfield,
-    Route 9, the lake and the farms' tracks), each weighted by what it wants (the mast high ground, the loggers the
-    rim). A farm that no straight track reaches the highway from is left to the county roads. The third pass's
-    places go in last, where there is room between those, and a place that finds none takes less open country.
-  - *The river.* A line through a few points the seed moves: down out of the rim's hills on the bay's side, along
-    the city's edge there and into the bay, which is its mouth (`riverPts`, and `riverD`: how far every vertex of
-    the heightfield is from it). The terrain lets a valley down to the water and cuts a bed `RIVER_DEPTH` under it
-    (deep water: swum, or crossed). Two of the city's streets run on over it (`Ferry Street`, `Eastgate Road`), and
-    a county road may cross it squarely; a road's stretch over it is a `span`: level, `BRIDGE_UP` over the water,
-    not written into the heightfield, and carried on a thin deck (thin: server/nav.js walks the dead over a deck)
-    with girders and what is left of its railings. `world.river` is `{ pts, hw, bridges }`.
-  - *The roads.* Route 9 runs bridge - checkpoint - Main Street - truck stop - airfield. Every other place is joined
-    to the nearest road already there by a line that crosses no place and no water (round a corner if no straight
-    one does), nearest place first, and turns its front to that road a quarter turn at a time (so its walls lie
-    along the nav grid). A road that ends on another comes to that road's height over its last 30 m. A road's
-    spline holds each leg's tangents to the leg's own length (no doubling back after a long leg).
-  - *Port Calder* is `GRID` x `GRID` blocks of lots. What the run needs and the landmarks (hospital, church,
+- **The mainland** (`shared/mainland.js`) is Mainland Layout 12 (issue #232), 2048 m across, built with the island's
+  kit (`shared/worldkit.js`: the Builder, the collider grids, the lists a world hands on). The bridge lands at the
+  Industrial Docks; Town Center, the North and East Suburbs, North Coast Village, Pine Lake and the Gas Station are the
+  city side; The Ridge (mountains) and the river wall off the far side, where the airport is, reached only by the north
+  road (North Pass, a tunnel; North Ridge Outpost; East Pass) or under the ground (South Forest, the Quarry, the South
+  Passage Mines under the river). `world.car` is the plane there (`plane: true`), so everything that asks for "the
+  car" - the reach, the supplies, the final stand - asks for it. What the island has and it lacks (railway, fair,
+  clinic, cemetery) is `null`; its `mine` is the passage.
+  - *The layout* (`shared/mainland-layout.js`) is the picture, traced: the sea and its islands and Pine Lake as
+    outlines (even-odd), the river's middle line with its width, the creek, the mountains' outlines, the tunnels, every
+    road with its class (main, secondary, dirt, trail; the suburbs' and the village's lanes), the areas of houses, the
+    places' points, and the forest as a coded grid - all as fractions of the map square, so `FX` scales them to any
+    size. The mountains' outlines are the picture's grey (rock) traced by colour and cleaned by hand, the forest's grid
+    the share of its tree symbols in every 16 m cell, the suburbs' streets as drawn (curving, not a grid). Nothing the seed draws moves a place, a road, the coast, the lake, the river or a mountain; it changes what
+    stands in a place, on a lot, along a lane, and what is scattered. `scripts/clip/map-layout.js` lays the picture
+    over the baked field map; `scripts/test-layout12.js` holds the layout's rules.
+  - *The ground* (`shared/mainland-ground.js`): the outlines are filled onto the heightfield's vertices and measured
+    (an exact distance transform: how far every vertex is from the shore, from the lake, inside a mountain). Lowland
+    rises inland into hills where the forest is, and into foothills toward a mountain's foot (`FOOTHILL`). A mountain is
+    a range as the picture draws one: a cliff `CLIFF` high within `CLIFF_IN` of its outline, then rows of pyramids
+    (`PEAK_GAP` apart, each of four faces turned its own way, aretes and saddles between them, the higher the further in)
+    held under an envelope that rises with the distance from the foot, gullies and crags over them: 150-250 m, the highest
+    near 300. An outline is cut into 6 m lengths and each point moved in or out by up to `WOB` m, so no foot is a straight
+    line. The coast is rock for long stretches (a low cliff into deep water) with coves and beaches between; an islet
+    (land the mainland's own does not join) is a mound of rock, Pine Lake's islets wooded mounds. The quarry's pit is six
+    benches down into a rise of its own. Along the foot of every cliff stands a wall nobody sees (colliders `WALL_T`
+    thick, tagged `cliff`, from `maskEdges`): nothing walks, drives, climbs or is shot over a mountain, and the dead's
+    nav grid is shut there. `world.cliffAt`, `world.walls`. Where the Ridge meets the river below North Pass its wall
+    stands in the water: no strip of bank leads past it.
+  - *The tunnels* are corridors cut through a mountain's mask along the road's line (`TUNNELS`): the ground at the
+    road's level, the cuttings walled as the cliffs are, and a concrete gallery over the stretch inside the mountain
+    with a portal over either mouth - a concrete face with its opening arched, voussoirs, cornice and plaque, wing
+    walls along the cutting where no road or fence runs, the gallery's lamps lit (`world.tunnels`). The heightfield is one level - the road's, inside - so the mountain
+    over a gallery is its cap (`world.tunnels[i].cap`: the heights as they were before the cut, coming down to the top
+    of the face at either mouth), which the client draws as more of the terrain: the mountain is whole over the tunnel.
+  - *The river* is fast water (`world.river`: `at`, `flow`, `speed`): afloat in it a survivor is carried downstream
+    and toward the middle of the channel (`shared/swim.js riverCurrent`, in the player simulation, so the client
+    predicts it) and drowns in seconds (`RIVER_DPS`, the server); a vehicle that goes into it is lost
+    (`veh_river`: its people are put out on the bank). Its one bridge is the dirt road's below North Pass, both ends
+    on the far side. The dead keep out of its deep water as they keep out of the lake.
+  - *The South Passage Mines* (`shared/mine.js planPassage`, dressed by `shared/minedress.js` as Blackrock Mine is):
+    a drift from the portal on the river's west bank under the river to the one on its east bank, its junction and
+    sump under the water (the hydraulic pump is down there). It was kept up till the end: lamps along the drift that
+    still burn (`world.lights` kind `lamp`: a glow and no flame) and tubs on its rails. No vehicle goes into a mine's mouth. The adits by the
+    quarry and in the yard are sealed.
+  - *The places*: the docks (a quay where the picture has it, `QUAY_LX`: the ground level to its edge and its wall
+    down into water dredged deep along the whole front - H1 - gantry cranes on rails with their booms over the water,
+    the picture's two piers with their fingers, a freighter moored, the apron paved, `world.paved`, with container
+    stacks and a rail spur; the ironworks' yard and the warehouses behind), Town Center (`GRID` x `GRID` blocks, the four
+    in the middle a square - the town hall on its north side, the market, the evacuation point - and avenues on the
+    diagonals from its corners to the ring, the blocks they cut keeping a lot in each of their other corners,
+    where the picture's ring road is: a road of the picture that comes to the ring comes to the city's edge street,
+    and what stands just outside the ring is pushed out with the city's grid, `W`), houses along the lanes of the
+    picture's areas of houses (each turned to its lane a quarter turn at a time, its yard levelled), North Coast
+    Village's church and pier, North Ridge Outpost (the radio tower, the flight radio in its comms room), the airport in
+    the frame of its runway (`AIR`, turned as the picture's runway is: `runway.ry`), South Forest's camps, the quarry's
+    pit and yard, the lighthouse on its islet, and of `shared/mainland-places.js` only what the picture shows: the
+    marina, the logging camp, the firehouse, the gravel works (the quarry's yard).
+  - *The parts* (issue #232's deal): the propeller and the fuel at the airport, the magneto in Town Center, the
+    hydraulic pump in the passage, the flight radio at North Ridge Outpost: neither way to the airport passes both.
+  - *The woods* are the picture's: a tree at the most to every 3.2 m square of a jittered grid, with the forest's
+    density for its chance (a tree every 3-4 m where the picture's woods are dense: off the roads they are a wall), up
+    a mountain thinning with the height to the tree line (150 m) and none on a face too steep. A tree past a mountain's
+    wall is out of everybody's reach and is drawn only, with no collider (`pushTree(..., solid = false)`). A trunk is
+    `makeTree` (collision.js), which has its variant and its index in it from the start, and a collider in one cell of
+    a grid keeps that cell as a number, not a list: sixty thousand trees.
+  - *What the field map draws* that is no part of the ground: `zone.label` (where a place's name is written, its
+    middle), `zone.minor` (a lesser place: smaller letters), `landmark.city` (named inside the city: written only
+    zoomed in), and `world.marks` (the picture's marks: the town, the church, the industry, the gas station, the
+    airport, the camps, the mouths of the tunnels and the mines, the quarry and its pit, the lighthouse, the radio tower,
+    the water tower). `client/ui/mapmainland.js` draws the mainland's field map from them: paper, the water in blue with
+    its shallows and a light rim round every islet, the mountains in lit and shaded faces with their crests inked and no
+    outline, a stamp for every tree as the picture draws them, the roads by its legend, the city's ring road, its marks
+    and its legend in the corner of the sea.
+  - *Seen from afar.* The haze lies in the valleys: on a world with mountains (`Game`: `HAZE_BASE`, `HAZE_THIN`;
+    `G.uHaze` in globals.js) the distance haze is whole up to 28 m and thins by e every 22 m of the height the eye's ray
+    runs at, so a range stands up out of it from across the map while the plain at its foot is lost in it, and the
+    camera's far plane goes out to 1700 m. What is drawn past the drawing distance: the far mountains (terrain.js: the
+    mountains and their foothills, a vertex every 8 m, coloured by height and slope, drawn only past the line where the
+    terrain's own pieces stop - a circle about the eye at the drawing distance) and the far forest (`render/farforest.js`:
+    every tree past the trees' own distance as a card turned to the eye, one instanced draw, cross-faded by a dither).
+    Nothing of the island changes (its haze is as thick at every height, its far plane 520 m).
+  - *The land a body walks to* (`world.reachAt`): every 4 m cell of dry ground outside the mountains reached from the
+    bridgehead over the ground; what is scattered goes only there.
+  - *The dead* come as they did on the 1280 m mainland it replaced: `ZombieManager.spread` is held at `MAP_SPREAD_MAX`
+    (4), so a tick costs what it did; the far side has its own (its places, its horde spawns, the passage's dens).
+  - *Town Center* (the city: `world.city`, Port Calder's kit) is `GRID` x `GRID` blocks of lots. What the run needs and the landmarks (hospital, church,
     cinema, station, filling station, police, bus depot, a collapsed block, three towers) are dealt onto lots
     first; the seed deals the rest. No lot is empty. The upper floors of a walk-in building are solid and shut
     (`block`: a box for every run of storeys on one footprint; `stairBlock`: the stairs under rubble). The streets
@@ -1416,6 +1477,11 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   doorways recorded by world generation (`world.openings`); campfires and workbenches are crafting stations
   (`STRUCT_DEFS[t].station`), recipes name the station they need (`RECIPES[i].station`) and optionally a
   schematic (`schem`, team-wide unlock bitmask in the global state).
+- **Demolishing structures** (`ACT.DEMOLISH`) has a 15 s undo window from `placedAt`: the whole build cost comes back,
+  including one-off parts, so a misplaced piece is free to pick back up. After that, `demolishRefund` returns 75% of
+  each material, rounded down and scaled by the structure's lowest health fraction (`minHealth`, lowered by damage and
+  never raised by repairs); costs of exactly one item do not come back. Torches and campfires are also capped by the
+  fuel left from their original build. `test-demolish` holds the refund, repair, loop and handoff cases.
 - **Crafting in bulk** (the crafting panel's quantity and Craft ×N, or Shift / Ctrl+click a recipe) is not in the
   protocol: it is `ACT.CRAFT` sent n times. The
   server refuses each craft it cannot do with a toast, so the client counts first: `craftRun` in

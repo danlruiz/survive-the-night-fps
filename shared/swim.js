@@ -6,7 +6,13 @@
 // (the server, Game.updatePlayers) until their feet touch the bottom again - the lake is a way across and a way out
 // of a tight spot, never somewhere to sit out a night. The dead don't swim (zombies.js keeps them out of deep water,
 // and a turned survivor too: playersim.js).
+//
+// The mainland's river is not the lake (issue #232): it is fast water. Afloat in it the current carries a survivor
+// downstream at RIVER_FLOW and draws them back toward the middle of the channel (riverCurrent: the simulation adds it
+// to their own stroke, so the client predicts it), and they drown in seconds (RIVER_DPS, the server) - nobody swims
+// across it, and nothing is carried over it but the one bridge.
 import { WATER_LEVEL, EYE_HEIGHT, EYE_HEIGHT_CROUCH, EYE_HEIGHT_DOWNED, BTN } from './constants.js';
+import { smoothstep } from './rng.js';
 
 export const SWIM_CLEAR = 0.26; // eyes this far above the surface, afloat
 export const SWIM_SPEED = 2.4; // m/s (walking 4.6)
@@ -19,6 +25,8 @@ export const SWIM_DRAIN = 2; // ...and swimming (~50 s, 120 m: the lake is ~80 m
 export const WADE_FROM = 0.3; // feet this deep and a survivor wades: slower the deeper they go...
 export const WADE_SLOW = 0.45; // ...down to this much off their speed just before they float
 export const DROWN_DPS = 12; // hp a second out of stamina afloat
+export const RIVER_DPS = 34; // hp a second afloat in the river: three seconds from full health
+export const RIVER_PULL = 1.1; // m/s toward the middle of the channel: a stroke for the bank barely makes way
 export const SWIM_HANDS = BTN.ATTACK | BTN.ALT | BTN.RELOAD; // what the hands do, and can't while they swim
 
 // the height a survivor's feet float at: eyes SWIM_CLEAR above the surface (downed, they float on their face with the
@@ -56,3 +64,24 @@ export const CROUCH_WADE = EYE_HEIGHT_CROUCH - SWIM_CLEAR;
 export function afloatAt(world, x, y, z) {
   return y < WATER_LEVEL - 0.5 && wadeDepth(world, x, y, z) > 0 && world.heightAt(x, z) < y - 0.05;
 }
+
+// The river's current where (x, z) is: [vx, vz] in m/s - downstream at the river's speed, and toward its middle -
+// full in the channel and nothing at its banks; null where there is no river (the island, the lake, the land).
+const _cur = [0, 0];
+export function riverCurrent(world, x, z) {
+  const r = world.river;
+  if (!r || !r.flow || r.at(x, z) > r.hw + 1.5) return null;
+  const f = r.flow(x, z);
+  const k = 1 - smoothstep(r.hw * 0.55, r.hw + 1.5, f.d);
+  if (k <= 0) return null;
+  const mx = f.cx - x;
+  const mz = f.cz - z;
+  const ml = Math.hypot(mx, mz);
+  const pull = ml > 0.5 ? RIVER_PULL / ml : 0;
+  _cur[0] = (f.dx * r.speed + mx * pull) * k;
+  _cur[1] = (f.dz * r.speed + mz * pull) * k;
+  return _cur;
+}
+
+// afloat in the river's fast water (a survivor, not down in a drift under it)
+export const inRiver = (world, s) => swimming(world, s) && riverCurrent(world, s.x, s.z) !== null;

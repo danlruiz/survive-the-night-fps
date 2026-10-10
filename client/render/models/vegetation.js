@@ -672,6 +672,33 @@ export function getRockVariants() {
   return _rocks;
 }
 
+// The crags of the mainland's cliffs (shared/mainland.js CRAG_R, world.crags), at their real size: rocks stacked into a
+// rib, a buttress with a lip hanging out over its front (-Z), a spire and a shelf. Faceted - each face of the rock its
+// own plane, as broken rock is - not the boulders' rounded stone.
+let _crags = null;
+export function getCragVariants() {
+  if (_crags) return _crags;
+  const mk = (name, rocks) => {
+    const b = new MeshBuilder(1, { ao: false });
+    for (const [sc, p, seed, jag = 0.48, sink = 0.9] of rocks) b.rock('rock', 1, { detail: 1, seed, scale: sc, jag, sink, p });
+    const parts = b.build();
+    for (const part of parts) {
+      const g = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry;
+      g.computeVertexNormals();
+      g.computeBoundingSphere();
+      part.geometry = g;
+    }
+    return { name, parts };
+  };
+  _crags = [
+    mk('rib', [[[2.1, 6.5, 1.7], [0, 5.2, 0], 101], [[1.5, 3.2, 1.3], [0.5, 11.0, 0.3], 102], [[1.3, 2.4, 1.2], [-1.4, 3.0, -0.4], 103]]),
+    mk('buttress', [[[3.4, 4.6, 2.4], [0, 4.0, 0.3], 111, 0.45], [[3.2, 1.5, 2.6], [0.3, 8.6, -0.9], 112], [[2.0, 2.4, 1.8], [-2.2, 2.0, -0.6], 113]]),
+    mk('spire', [[[1.3, 7.2, 1.2], [0, 6.2, 0], 121, 0.5], [[0.9, 2.6, 0.8], [0.2, 13.4, 0.1], 122], [[1.1, 2.0, 1.0], [0.9, 1.6, -0.5], 123]]),
+    mk('shelf', [[[3.0, 1.1, 2.0], [0, 0.9, 0], 131, 0.35, 0.6], [[2.2, 0.9, 1.5], [0.6, 2.2, 0.6], 132, 0.4], [[1.0, 0.6, 0.8], [-1.8, 1.8, -0.8], 133]]),
+  ];
+  return _crags;
+}
+
 // ------------------------------------------------------------------ grass
 /**
  * One grass clump (~1 m across): curved blade cards around the centre plus two low "thatch" cards of

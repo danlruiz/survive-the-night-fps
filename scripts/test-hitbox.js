@@ -211,6 +211,7 @@ check('the props that give scrap are the ones they were', SALVAGE_PROPS.length >
 // found, before it: island 704 / 859, mainland 3123 / 5014 (shots / bodies stopped in the open).
 const SWEPT = {
   island: { airShot: 130, airWalk: 180, holeShot: 265, holeWalk: 172 },
+
   mainland: { airShot: 1085, airWalk: 1115, holeShot: 550, holeWalk: 380 },
 };
 if (!only && !argv.includes('--no-sweep')) {
