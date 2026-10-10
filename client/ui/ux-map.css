@@ -139,11 +139,14 @@
 }
 
 /* ------------------------------------------------------------------ the frame */
+/* The map's sheet fills the kit screens' frame under the row of tabs (ux-screens.css), as the inventory does. The map
+   is square, as big as the sheet's body lets it be beside the panel at its narrowest (--side); the panel takes what
+   width is left. (100cqh / 100cqw: the body's height and width, .mx-body) */
 .stn-ui .mapscr .map-frame.mx {
   --side: clamp(270px, 25vw, 360px);
-  --mv: min(calc(100vh - 7.5rem), calc(100vw - var(--side) - 5rem));
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
+  --mv: min(100cqh, calc(100cqw - var(--side) - 0.9rem));
+  min-width: 0;
+  min-height: 0;
   padding: 0.7rem 0.9rem 0.75rem;
   box-sizing: border-box;
 }
@@ -160,28 +163,6 @@
 }
 .stn-ui .mapscr .mx-grow {
   flex: 1;
-}
-.stn-ui .mapscr .mx-clock {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.22rem 0.55rem;
-  font: max(12px, calc(13 * var(--u))) / 1 var(--f-mono);
-  color: var(--amber);
-  border: 1px solid rgba(232, 163, 61, 0.45);
-  white-space: nowrap;
-}
-.stn-ui .mapscr .mx-clock.night {
-  color: #9fb6e0;
-  border-color: rgba(159, 182, 224, 0.45);
-}
-.stn-ui .mapscr .mx-clock[hidden] {
-  display: none;
-}
-.stn-ui .mapscr .mx-clock-ico svg {
-  display: block;
-  width: max(13px, calc(15 * var(--u)));
-  height: max(13px, calc(15 * var(--u)));
 }
 .stn-ui .mapscr .mx-you {
   display: inline-flex;
@@ -214,17 +195,17 @@
   font-size: max(12px, calc(12 * var(--u)));
   white-space: nowrap;
 }
-.stn-ui .mapscr .mx-head .map-close {
-  margin-left: 0;
-}
 
 .stn-ui .mapscr .mx-body {
+  flex: 1;
   display: flex;
   gap: 0.9rem;
   min-height: 0;
+  container-type: size;
 }
 .stn-ui .mapscr .mx .map-view {
   flex: none;
+  align-self: center;
   width: var(--mv);
   height: var(--mv);
   background: #6f8a92; /* (the sea, under the chart: shows only while a turned map's corners are in view) */
@@ -581,15 +562,42 @@
 }
 
 /* ------------------------------------------------------------------ the panel */
+/* the rest of the width, the body's height; one column, or (wide enough) the car and the team beside the schematics
+   and the key */
 .stn-ui .mapscr .mx-side {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  width: var(--side);
-  height: var(--mv);
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  container-type: inline-size;
+}
+.stn-ui .mapscr .mx-cols,
+.stn-ui .mapscr .mx-col {
+  display: contents;
+}
+.stn-ui .mapscr .mx-col + .mx-col > .mx-h:first-child {
+  margin-top: 0.35rem;
+}
+@container (min-width: 600px) {
+  .stn-ui .mapscr .mx-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 0 1.1rem;
+  }
+  .stn-ui .mapscr .mx-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .stn-ui .mapscr .mx-col + .mx-col > .mx-h:first-child {
+    margin-top: 0;
+  }
 }
 .stn-ui .mapscr .mx-h {
   display: flex;
@@ -815,11 +823,11 @@
 /* ------------------------------------------------------------------ small windows: chips */
 .stn-ui .mapscr .mx-chips {
   position: relative;
+  flex: 1;
   display: none;
   flex-direction: column;
   gap: 6px;
-  width: var(--chips);
-  max-height: var(--mv);
+  min-width: 0;
   min-height: 0;
 }
 .stn-ui .mapscr .mx-chiplist {
@@ -911,7 +919,7 @@
 @media (max-height: 640px), (max-width: 1000px) {
   .stn-ui .mapscr .map-frame.mx {
     --chips: clamp(150px, 30vw, 300px);
-    --mv: min(calc(100vh - 4.6rem), calc(100vw - var(--chips) - 3.4rem));
+    --mv: min(100cqh, calc(100cqw - var(--chips) - 0.6rem));
     padding: 0.5rem 0.6rem 0.6rem;
   }
   .stn-ui .mapscr .mx-head {
@@ -921,7 +929,6 @@
   .stn-ui .mapscr .mx-head .map-title {
     font-size: max(16px, calc(22 * var(--u)));
   }
-  .stn-ui .mapscr .mx-tpre,
   .stn-ui .mapscr .mx-xy {
     display: none;
   }
@@ -936,11 +943,28 @@
     display: flex;
   }
 }
+/* a short window (a phone on its side, or zoomed right in): the row of tabs has taken the top, so the sheet's head
+   (where you are, north up) sits over the chips, the map the whole height of the sheet */
+@media (max-height: 480px) {
+  .stn-ui .mapscr .mx-head {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.6rem;
+    z-index: 1;
+    margin: 0;
+  }
+  .stn-ui .mapscr .mx-head .map-title,
+  .stn-ui .mapscr .mx-grow {
+    display: none;
+  }
+  .stn-ui .mapscr .mx-chips {
+    padding-top: 2.1rem;
+  }
+}
 /* a tall, narrow window: the chips go under the map */
 @media (max-width: 700px) and (min-height: 641px) {
   .stn-ui .mapscr .map-frame.mx {
-    --chips: 100%;
-    --mv: min(calc(100vw - 2rem), calc(100vh - 14rem));
+    --mv: min(100cqw, calc(100cqh - 7rem));
   }
   .stn-ui .mapscr .mx-body {
     flex-direction: column;

@@ -1,6 +1,7 @@
 // A card pack opened (a view of ui/cards.js): the three cards it held, face down, turned over one after another, the
 // rare and legendary ones lit up, "new" on a card the player did not have before. One pack at a time, in the order they
-// were picked up (game/cards.js keeps them waiting); Take them (or Enter, Space) goes on to the next, then back.
+// were picked up (game/cards.js keeps them waiting); Take them (or Enter, Space) goes on to the next, then back (to the
+// game, when the screen was opened for them).
 import { cardDef, RAR, STARTER } from '../../shared/cards.js';
 import { ITEM, ITEM_DEFS } from '../../shared/defs.js';
 import { el } from './dom.js';
@@ -74,12 +75,13 @@ export class RevealView {
     });
   }
 
-  // the next pack, or back to where the player was
+  // the next pack, or back to where the player was: the game, when the screen was opened for the packs
   next() {
     const s = this.c.s;
     if (s.reveals.length) s.reveals.shift();
     this.shown = null;
     if (s.reveals.length) this.render();
+    else if (this.sc.packOnly && !s.match && !s.trade) this.sc.onClose?.();
     else this.sc.show(s.match ? 'table' : s.trade ? 'trade' : 'table');
   }
 }

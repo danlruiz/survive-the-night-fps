@@ -301,10 +301,6 @@
   color: var(--ux-amber);
 }
 
-.stn-ui .stn-settings.ux-set .set-close {
-  margin-left: auto;
-}
-
 .stn-ui .stn-settings.ux-set .ux-link {
   padding: 0;
   border: 0;

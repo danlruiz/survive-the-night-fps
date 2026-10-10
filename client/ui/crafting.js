@@ -4,8 +4,9 @@
 // many), needs a station (the materials are there), missing materials, locked (a schematic nobody has found). On the
 // All tab a group's head folds it away; those after the ready ones start folded.
 // The one selected has a detail panel: what it makes, the have / need list with where to get what is short, a quantity
-// and Craft, and Track on HUD (game/tracked.js). Search covers every tab, Q / E step through the tabs, Space crafts,
-// and Shift / Ctrl (Cmd) + click on a recipe still crafts CRAFT_FEW / up to CRAFT_MAX at once.
+// and Craft, and Track on HUD (game/tracked.js). Q / E step through the tabs, Space crafts, and Shift / Ctrl (Cmd) +
+// click on a recipe still crafts CRAFT_FEW / up to CRAFT_MAX at once. (No search and no "Ready only" switch: players
+// never used them.)
 import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, STATION_NAMES, SCHEM_BIT, CONSUMABLES, isFirearm } from '../../shared/defs.js';
 import { CRAFT_FEW, CRAFT_MAX, craftRun, copyInv, planFor } from '../game/bulkcraft.js';
 import { planCost } from '../../shared/autocraft.js';
@@ -13,7 +14,6 @@ import { trackedId, setTracked, onTracked } from '../game/tracked.js';
 import { foundIn, sourcesOf } from '../game/itemguide.js';
 import { el, svgEl, clamp, lsGet, lsSet } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
-import { norm, termScore, itemScore } from './search.js';
 import { CAT_LABEL, statLines, costLine } from './iteminfo.js';
 
 // left to right (Q / E step through them); 'all' lists every recipe
@@ -27,7 +27,6 @@ const CRAFT_TABS = [
   { id: 'util', label: 'Utility' },
 ];
 const TAB_KEY = 'stn.craftTab';
-const READY_KEY = 'stn.craftReady';
 const FOLD_KEY = 'stn.craftFold'; // the groups folded away: their ids, comma-separated
 const FOLD_START = 'station,missing,locked';
 const CARRY_MAX = 6; // "For what you carry" lists this many at the most
@@ -63,57 +62,6 @@ function craftTab(item) {
 // order inside a tab: tools, then consumables, then materials (stable, so recipe order breaks ties)
 const CAT_RANK = { weapon: 0, cons: 1 };
 const craftRank = (r) => CAT_RANK[ITEM_DEFS[r.out]?.cat] ?? 2;
-
-// Recipes relevant to a search across every tab, as titled sections: recipes whose output matches by name (ranked
-// above tab-label / station matches), the recipes for their craftable ingredients all the way down, ammo for matching
-// guns, then recipes that consume (or are unlocked by) a matching item. recs = the column's entries ({ r, tab }) in
-// 'All' order; sections hold those same entries.
-function searchRecipes(query, recs) {
-  const q = norm(query);
-  if (!q) return [];
-  const items = new Map(); // matching item id -> score
-  for (const id of Object.keys(ITEM_DEFS)) {
-    const s = itemScore(+id, q);
-    if (s) items.set(+id, s);
-  }
-  const score = new Map();
-  for (const rec of recs) {
-    const { r } = rec;
-    const n = items.get(r.out) || 0;
-    const s = n ? 5 + n : Math.max(termScore(rec.tab.label, q), r.station ? termScore(STATION_NAMES[r.station], q) : 0);
-    if (s) score.set(rec, s);
-  }
-  const results = recs.filter((rec) => score.has(rec)).sort((a, b) => score.get(b) - score.get(a));
-  const shown = new Set(results);
-  const take = (pred) => recs.filter((rec) => !shown.has(rec) && pred(rec.r)).map((rec) => (shown.add(rec), rec));
-
-  const parts = [];
-  const queue = results.filter((rec) => items.has(rec.r.out));
-  while (queue.length) {
-    const need = Object.keys(queue.shift().r.cost).map(Number);
-    const more = take((r) => need.includes(r.out));
-    parts.push(...more);
-    queue.push(...more);
-  }
-
-  const calibers = new Set([...items.keys()].map((id) => WEAPONS[id]).filter((w) => w && !w.melee && w.ammo != null).map((w) => w.ammo));
-  const ammo = take((r) => calibers.has(ITEM_DEFS[r.out].ammo));
-
-  const via = new Set();
-  const uses = take((r) => {
-    const hit = [...Object.keys(r.cost).map(Number), r.schem].filter((id) => items.has(id));
-    hit.forEach((id) => via.add(id));
-    return hit.length > 0;
-  });
-  const names = [...via].map((id) => ITEM_DEFS[id].name);
-
-  return [
-    { title: 'Results', recs: results },
-    { title: 'Ingredients', recs: parts },
-    { title: 'Ammunition', recs: ammo },
-    { title: names.length <= 2 ? 'Uses ' + names.join(' & ') : 'Uses matching items', recs: uses },
-  ].filter((s) => s.recs.length);
-}
 
 // How much of an item an inventory ({ slots, weapons, ammo }) holds, wherever it is kept: the backpack, a weapon slot,
 // or the ammunition reserve
@@ -179,35 +127,12 @@ export class Crafting {
     this.picked = false; // ...chosen by the player (else the first one ready, which marks nothing in the backpack)
     this.qty = 1;
     this.focusItem = 0; // the item selected in the backpack: the recipes that use it are marked
-    this.readyOnly = lsGet(READY_KEY, '0') === '1';
     this.fold = new Set(lsGet(FOLD_KEY, FOLD_START).split(',').filter(Boolean));
 
     const ch = inv._h(col, 'Crafting');
     this.stationEl = el('span', 'station', ch);
     this.stationIco = svgEl('i', 'st-ico', this.stationEl, glyph('campfire'));
     this.stationTxt = el('span', '', this.stationEl, '');
-
-    // search, and the Ready only switch beside it. While the search holds a query it covers every tab
-    const bar = el('div', 'craft-bar', col);
-    const find = (this.findEl = el('label', 'craft-find', bar));
-    svgEl('i', 'cf-ico', find, glyph('search'));
-    const field = (this.findInput = el('input', 'cf-field', find));
-    field.type = 'text';
-    field.maxLength = 40;
-    field.autocomplete = 'off';
-    field.spellcheck = false;
-    field.placeholder = 'Search recipes';
-    field.setAttribute('aria-label', 'Search recipes');
-    const clr = (this.findClear = svgEl('button', 'cf-clear', find, glyph('xmark')));
-    clr.type = 'button';
-    clr.hidden = true;
-    clr.title = 'Clear search (Esc)';
-    clr.setAttribute('aria-label', 'Clear search');
-    const ro = (this.readyEl = el('button', 'craft-ready', bar));
-    ro.type = 'button';
-    ro.title = 'Only list what can be crafted here, now';
-    el('i', 'cr-sw', ro);
-    el('span', '', ro, 'Ready only');
 
     const tabBar = (this.tabBar = el('div', 'craft-tabs', col));
     this.tabs = [];
@@ -235,8 +160,6 @@ export class Crafting {
       const box = el('div', 'craft-rows', list);
       return { ...g, head, t, a, box, n: -1 };
     });
-    this.findView = el('div', 'craft-found', list);
-    this.findView.hidden = true;
     this.noneEl = el('div', 'craft-none', list);
     this.noneEl.hidden = true;
 
@@ -303,42 +226,13 @@ export class Crafting {
   _bind() {
     this.tabBar.addEventListener('click', (e) => {
       const b = e.target.closest('.ct');
-      if (!b || (b.dataset.tab === this.tab && !this.searching)) return;
+      if (!b || b.dataset.tab === this.tab) return;
       this.ui.sound('ui_click');
       this._setTab(b.dataset.tab);
     });
-    // Keydown is consumed so the game (and the screen's keys) never see keys typed here - except Tab, which drops
-    // focus (so that I closes the inventory again) and falls through to the player list.
-    const field = this.findInput;
-    field.addEventListener('input', () => this._layout(true));
-    field.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        return field.blur();
-      }
-      e.stopPropagation();
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (field.value) this.clearSearch();
-        else field.blur();
-      }
-    });
-    this.findClear.addEventListener('click', () => {
-      this.ui.sound('ui_click');
-      this.clearSearch();
-      field.focus({ preventScroll: true });
-    });
-    this.readyEl.addEventListener('click', () => {
-      this.ui.sound('ui_click');
-      this.readyOnly = !this.readyOnly;
-      lsSet(READY_KEY, this.readyOnly ? '1' : '0');
-      this._layout(true);
-    });
-
     // A click selects a recipe; a double-click on one that can be made crafts one. With a bulk key held a click is that
     // many crafts at once, as many of them as the server will take.
     this.list.addEventListener('click', (e) => {
-      if (e.target.closest('.cf-reset')) return this.clearSearch();
       const gh = e.target.closest('.craft-group[data-g]');
       if (gh && gh.classList.contains('can-fold')) {
         this.ui.sound('ui_click');
@@ -366,8 +260,7 @@ export class Crafting {
       if (IS_MAC && e.button === 0 && e.ctrlKey) e.target.closest('.rr')?.click();
     });
     // The bulk keys. They are also sprint and crouch, and may still be down from the game when the screen opens: only a
-    // press made while it is open counts, so a click with a leftover key stays a selection. Captured, or the search
-    // fields would keep their keydowns to themselves.
+    // press made while it is open counts, so a click with a leftover key stays a selection. (Captured.)
     this._bulkKey = (e) => {
       const k = e.key === 'Shift' ? 'few' : e.key === 'Control' || (IS_MAC && e.key === 'Meta') ? 'max' : '';
       if (!k || e.repeat || (e.type === 'keydown' && !this.o.open)) return;
@@ -545,13 +438,6 @@ export class Crafting {
     this.tab = tab.id;
     lsSet(TAB_KEY, tab.id);
     for (const t of this.tabs) t.b.classList.toggle('on', t === tab);
-    this.findInput.value = '';
-    this._layout(true);
-  }
-
-  clearSearch() {
-    if (!this.findInput.value) return;
-    this.findInput.value = '';
     this._layout(true);
   }
 
@@ -645,39 +531,21 @@ export class Crafting {
     if (this.bulk) this._renderBulk();
   }
 
-  // Lay out the list: the tab's recipes in their groups, or - while the search holds a query - every recipe relevant to
-  // it in relevance sections, the tabs dimmed. The same row elements move between the two. Only when what is shown
-  // changed (reset: the tab, the search or the filter did: back to the top)
+  // Lay out the list: the tab's recipes in their groups. Only when what is shown changed (reset: the tab did: back to
+  // the top)
   _layout(reset) {
-    const text = this.findInput.value;
-    const on = (this.searching = !!norm(text));
-    this.findClear.hidden = !text;
-    this.findEl.classList.toggle('on', on);
-    this.tabBar.classList.toggle('searching', on);
-    this.readyEl.classList.toggle('on', this.readyOnly);
-    const keep = (rec) => !this.readyOnly || rec.group === 'ready';
-    let sections;
-    if (on)
-      sections = searchRecipes(text, this.recs)
-        .map((s) => ({ ...s, recs: s.recs.filter(keep) }))
-        .filter((s) => s.recs.length);
-    else {
-      const shown = this.recs.filter((rec) => (this.tab === 'all' || rec.tab.id === this.tab) && keep(rec));
-      // (the ones for what is carried in their order, ahead of the rest)
-      const carry = shown.filter((rec) => rec.carry).sort((a, b) => a.carry.rank - b.carry.rank);
-      sections = this.groups.map((g) => ({ g, recs: g.id === 'carry' ? carry : shown.filter((rec) => rec.group === g.id && !rec.carry) }));
-    }
-    // folding: on the All tab only (a category tab is short, and shows all it has), and not while searching or listing
-    // only what is ready
-    const folds = !on && !this.readyOnly && this.tab === 'all';
-    const key = (on ? 's:' + norm(text) : 'g') + '|' + (folds ? [...this.fold].join(',') : '') + '|' + sections.map((s) => s.recs.map((r) => r.r.id).join(',')).join('/');
+    const shown = this.recs.filter((rec) => this.tab === 'all' || rec.tab.id === this.tab);
+    // (the ones for what is carried in their order, ahead of the rest)
+    const carry = shown.filter((rec) => rec.carry).sort((a, b) => a.carry.rank - b.carry.rank);
+    const sections = this.groups.map((g) => ({ g, recs: g.id === 'carry' ? carry : shown.filter((rec) => rec.group === g.id && !rec.carry) }));
+    // folding: on the All tab only (a category tab is short, and shows all it has)
+    const folds = this.tab === 'all';
+    const key = (folds ? [...this.fold].join(',') : '') + '|' + sections.map((s) => s.recs.map((r) => r.r.id).join(',')).join('/');
     if (key !== this.layoutKey) {
       this.layoutKey = key;
-      this.findView.hidden = !on;
-      this.findView.textContent = '';
-      const anyCarry = !on && sections.some((x) => x.g?.id === 'carry' && x.recs.length);
+      const anyCarry = sections.some((x) => x.g.id === 'carry' && x.recs.length);
       for (const g of this.groups) {
-        const s = !on && sections.find((x) => x.g === g);
+        const s = sections.find((x) => x.g === g);
         const n = s ? s.recs.length : 0;
         const canFold = folds && g.id !== 'carry';
         const folded = canFold && this.fold.has(g.id);
@@ -697,22 +565,11 @@ export class Crafting {
         // folded: what is in it, in a line (missing: what it is mostly short of)
         g.a.textContent = folded ? this._foldLine(g.id, s.recs) : g.aside;
       }
-      if (on) {
-        for (const s of sections) {
-          el('div', 'craft-group', this.findView).append(el('span', 'cg-t', null, s.title));
-          const box = el('div', 'craft-rows', this.findView);
-          for (const rec of s.recs) box.appendChild(rec.b);
-        }
-      }
       const none = !sections.some((s) => s.recs.length);
       this.noneEl.hidden = !none;
-      if (none) {
-        this.noneEl.textContent = '';
-        el('span', '', this.noneEl, on ? `Nothing ${this.readyOnly ? 'ready ' : ''}matches "${text.trim()}"` : this.readyOnly ? 'Nothing here can be crafted right now' : 'No recipes');
-        if (on) el('button', 'btn cf-reset', this.noneEl, 'Clear search').type = 'button';
-      }
+      if (none) this.noneEl.textContent = 'No recipes';
       // the detail panel keeps a recipe the player picked; one it showed by itself follows the list
-      const visible = sections.flatMap((s) => (folds && s.g && s.g.id !== 'carry' && this.fold.has(s.g.id) ? [] : s.recs));
+      const visible = sections.flatMap((s) => (folds && s.g.id !== 'carry' && this.fold.has(s.g.id) ? [] : s.recs));
       if (!this.picked || !this.sel) {
         const t = this.byId.get(trackedId());
         const next = (t && visible.includes(t) ? t : null) || visible.find((r) => r.group === 'ready') || visible[0] || null;

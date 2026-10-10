@@ -43,6 +43,19 @@ export function syncTabs() {
   for (const r of rails) r.sync();
 }
 
+// A sheet that comes up as another goes (a tab, or Tab / L with the other one up) is the same sheet with other
+// contents: it does not slide in again. The switch is all one handler, so the one going away went this same task.
+let swapping = false;
+export function sheetLeft() {
+  if (swapping) return;
+  swapping = true;
+  queueMicrotask(() => (swapping = false));
+}
+
+export function sheetCame(root) {
+  root.classList.toggle('pls-still', swapping);
+}
+
 onSocialChange(syncTabs);
 
 // The tabs down the sheet's left edge. own: which of them the sheet they hang off is ('players' | 'board')

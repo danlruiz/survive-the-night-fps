@@ -579,13 +579,13 @@ body {
   display: none;
 }
 
-/* the compact clock steps left of the inventory's close button */
-.stn-ui.inv-open .top-right {
-  right: max(132px, calc(160 * var(--u)));
-}
-
+/* over the inventory the clock is one line in the screen's header, left of Close (Inventory._holdClock) */
 .stn-ui.inv-open .clock {
-  padding: calc(14 * var(--u)) calc(4 * var(--u)) 0 0;
+  width: auto;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0;
+  text-align: right;
 }
 
 .stn-ui.inv-open .clock::before {
@@ -3492,7 +3492,7 @@ body {
   padding: calc(14 * var(--u)) calc(16 * var(--u)) calc(12 * var(--u));
 }
 
-/* search and the category chips */
+/* search */
 .stn-ui .bp-find {
   flex: none;
   margin-bottom: calc(7 * var(--u));
@@ -3517,77 +3517,6 @@ body {
 .stn-ui .bp-find.on .bp-slash,
 .stn-ui .bp-find:focus-within .bp-slash {
   display: none;
-}
-
-.stn-ui .bp-chips {
-  flex: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(5 * var(--u));
-  margin-bottom: calc(8 * var(--u));
-}
-
-.stn-ui .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(5 * var(--u));
-  padding: calc(4 * var(--u)) calc(7 * var(--u));
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(230, 223, 207, 0.14);
-  font: max(9px, calc(10 * var(--u))) / 1 var(--f-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--bone-2);
-  cursor: pointer;
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
-}
-
-.stn-ui .chip:hover {
-  border-color: rgba(230, 223, 207, 0.45);
-  color: var(--bone);
-}
-
-.stn-ui .chip.on {
-  border-color: var(--bone);
-  background: rgba(230, 223, 207, 0.1);
-  color: var(--bone);
-}
-
-.stn-ui .chip.zero {
-  opacity: 0.38;
-  cursor: default;
-}
-
-.stn-ui .chip-dot {
-  width: calc(6 * var(--u));
-  height: calc(6 * var(--u));
-  min-width: 5px;
-  min-height: 5px;
-  background: var(--cat, var(--bone-2));
-}
-
-.stn-ui .chip-n {
-  font-weight: 400;
-  color: var(--bone-dim);
-}
-
-.stn-ui .chip.c-all {
-  --cat: var(--bone-2);
-}
-.stn-ui .chip.c-gear {
-  --cat: #9fb0bb;
-}
-.stn-ui .chip.c-cons {
-  --cat: #c8392e;
-}
-.stn-ui .chip.c-throw {
-  --cat: #df7a2b;
-}
-.stn-ui .chip.c-res {
-  --cat: #8f7f63;
-}
-.stn-ui .chip.c-part {
-  --cat: #e8b640;
 }
 
 .stn-ui .grid-scroll {

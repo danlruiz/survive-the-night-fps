@@ -337,8 +337,10 @@ export class FieldNotes {
     const h = el('div', 'bkn-h', this.root);
     this.title = el('span', 'bkn-title', h, 'Out tonight');
     this.night = el('span', 'bkn-night', h, '');
-    const back = el('button', 'bkn-back', h, 'Back');
+    const back = svgEl('button', 'set-close btn-icon', h, glyph('xmark'));
     back.type = 'button';
+    back.title = 'Close (Esc)';
+    back.setAttribute('aria-label', 'Close field notes');
     back.addEventListener('click', () => this.hide());
     this.root.addEventListener(
       'keydown',
@@ -373,7 +375,7 @@ export class FieldNotes {
   show() {
     this.open = true;
     this.render();
-    if (!this.root.hidden) this.root.focus({ preventScroll: true });
+    if (!this.root.hidden) this.root.focus({ preventScroll: true, focusVisible: false });
   }
 
   hide() {

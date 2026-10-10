@@ -10,7 +10,7 @@ import { BOARD_STATS, BOARD_TOP } from '../../shared/protocol.js';
 import { el, svgEl, lsGet, lsSet } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
-import { SheetTabs, undock } from './sheet.js';
+import { SheetTabs, undock, sheetLeft, sheetCame } from './sheet.js';
 
 const STORE = 'stn.board'; // 'all:kills': the list and the column last looked at
 // per stat: column head, its glyph, what it counts
@@ -60,6 +60,7 @@ export class Leaderboard {
     this.root.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation(); // (and no further: past here it would be the Esc menu's under it, back to the game)
         this.onClose?.();
       } else if (e.key === 'Tab') {
         const focusable = [...this.root.querySelectorAll('button:not(:disabled):not([hidden])')].filter((b) => b.offsetParent !== null);
@@ -138,13 +139,15 @@ export class Leaderboard {
     open = !!open;
     if (open === this.open) return;
     this.open = open;
+    if (open) sheetCame(this.root);
+    else sheetLeft();
     this.root.hidden = !open;
     // (the card in the middle hides the HUD behind it; the side sheet leaves the fight in view)
     this.ui.root.classList.toggle('board-open', open && this.lobbyMode);
     if (!open) undock(this.ui);
     if (open) {
       this.returnFocus = document.activeElement;
-      this.close.focus({ preventScroll: true });
+      this.close.focus({ preventScroll: true, focusVisible: false }); // (no ring on it: it was opened, not tabbed to)
     } else if (this.returnFocus?.isConnected && !this.returnFocus.closest?.('[hidden]')) {
       this.returnFocus.focus({ preventScroll: true });
       this.returnFocus = null;

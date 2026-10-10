@@ -1,5 +1,5 @@
-// Your level and perks (shared/progress.js, client/net/progress.js): the Perks panel, opened from the splash, the pause
-// menu and the inventory screen - your level and how far to the next, how many of your perk points are spent, and the
+// Your level and perks (shared/progress.js, client/net/progress.js): the Perks panel, opened with [P], from the splash
+// and the pause menu, and as the Perks tab of the kit screens (screentabs.js: beside the inventory) - your level and how far to the next, how many of your perk points are spent, and the
 // whole perk tree (perktree.js) to spend them on, take one back, or start over. Opened with a point waiting it shows
 // the quick pick first (perkpick.js): only what the point can buy now. A perk taken while a night is on comes into
 // force at dawn (the server sees to it, Game.setProgress).
@@ -9,6 +9,7 @@ import { el } from './dom.js';
 import { Panel } from './games.js';
 import { PerkTree } from './perktree.js';
 import { PerkPick } from './perkpick.js';
+import { tabbed } from './screentabs.js';
 import { PERK_BY_ID, LEVEL_CAP, levelInfo } from '../../shared/progress.js';
 import './ux-perks.css';
 import { fetchProgress, pickPerk, unpickPerk, respecPerks, onProgress, lastProgress } from '../net/progress.js';
@@ -61,6 +62,7 @@ export class ProgressPanel extends Panel {
     this.mode = 'tree'; // 'quick' (a point waiting: what it can buy now) or 'tree'
     this.fresh = false; // just opened: the first view of the record picks the mode
     this.root.classList.add('prk-panel');
+    this.tabs = tabbed(this, 'perks'); // (the row of the kit screens' tabs over it, the close in it)
     // in the head, beside the title: the level and the bar to the next, and the points (a button to the quick pick)
     const head = this.card.querySelector('.set-head');
     const top = (this.top = el('div', 'pg-top'));
@@ -101,8 +103,16 @@ export class ProgressPanel extends Panel {
     });
   }
 
+  // (onHide: the game, when [P] opened it mid-run, takes the pointer back however it shuts)
+  hide() {
+    super.hide();
+    this.tabs.hidden();
+    this.onHide?.();
+  }
+
   show() {
     super.show();
+    this.tabs.shown();
     this.fresh = true;
     this.view = lastProgress();
     this.render();

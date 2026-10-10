@@ -26,6 +26,11 @@
   mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%);
 }
 
+/* (not over the inventory: the view can't turn while the pointer is free) */
+.stn-ui.inv-open .compass {
+  display: none;
+}
+
 .stn-ui .compass::before {
   content: '';
   position: absolute;
@@ -289,8 +294,8 @@
   transition: opacity 0.4s;
 }
 
-/* (the slim one, under the minimap, stays up over the inventory as a strip: see below) */
-.stn-ui.inv-open .obj:not(.slim),
+/* (and over the inventory: what the car needs is on the car's hover there) */
+.stn-ui.inv-open .obj,
 .stn-ui.map-open .obj {
   display: none;
 }
@@ -819,32 +824,6 @@
 
 .stn-ui .obj.slim .obj-row.carried .obj-ico {
   animation: stn-warnpulse 1.4s ease-in-out infinite;
-}
-
-/* over the inventory: one strip along the top-left corner, the directive left out (its words are on the car's hover) */
-.stn-ui.inv-open .obj.slim {
-  display: flex;
-  align-items: center;
-  gap: calc(14 * var(--u));
-  top: calc(14 * var(--u));
-  width: auto;
-  padding: calc(6 * var(--u)) calc(12 * var(--u)) calc(6 * var(--u) + 6px);
-}
-
-.stn-ui.inv-open .obj.slim .obj-title {
-  display: inline;
-}
-
-.stn-ui.inv-open .obj.slim .obj-pips {
-  flex: none;
-}
-
-.stn-ui.inv-open .obj.slim .obj-dir {
-  display: none;
-}
-
-.stn-ui.inv-open .obj.slim .obj-list {
-  margin-top: 0;
 }
 
 .stn-ui .obj-tip {
@@ -1419,13 +1398,6 @@
 }
 
 .stn-ui .map-close {
-  align-self: center;
-  margin-left: calc(14 * var(--u));
-  width: calc(28 * var(--u));
-  height: calc(28 * var(--u));
-  min-width: 24px;
-  min-height: 24px;
-  padding: calc(6 * var(--u));
   color: var(--bone-dim);
 }
 
@@ -3213,12 +3185,6 @@
   color: var(--blood-lite);
 }
 
-.stn-ui .inv-perks-ico svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 /* the icons of a player's perks on their profile (profile.js) */
 .stn-ui .pf-perk-ico svg,
 .stn-ui .pf-perk-br svg,
@@ -3373,56 +3339,6 @@
 
 .stn-ui .pf-said[hidden] {
   display: none;
-}
-
-/* the inventory: your level over the equipment */
-.stn-ui .inv-lvl {
-  display: flex;
-  flex-direction: column;
-  gap: calc(8 * var(--u));
-  margin-bottom: calc(14 * var(--u));
-}
-
-.stn-ui .inv-xpb .xpb-lv {
-  min-width: calc(38 * var(--u));
-  padding: calc(3 * var(--u)) calc(5 * var(--u));
-}
-
-.stn-ui .inv-xpb .xpb-lv b {
-  font-size: max(16px, calc(22 * var(--u)));
-}
-
-.stn-ui .inv-perks {
-  display: flex;
-  align-items: center;
-  gap: calc(7 * var(--u));
-  align-self: flex-start;
-  padding: calc(4 * var(--u)) calc(10 * var(--u));
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(230, 223, 207, 0.2);
-  color: var(--bone-dim);
-  font: max(9.5px, calc(11 * var(--u))) / 1 var(--f-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.stn-ui .inv-perks:hover,
-.stn-ui .inv-perks:focus-visible {
-  border-color: var(--bone);
-  color: var(--bone);
-}
-
-.stn-ui .inv-perks.lit {
-  border-color: var(--amber);
-  color: var(--amber);
-}
-
-.stn-ui .inv-perks-ico {
-  width: calc(12 * var(--u));
-  height: calc(12 * var(--u));
-  min-width: 9px;
-  min-height: 9px;
 }
 
 /* the splash's Perks button, while a pick is waiting */

@@ -10,15 +10,19 @@
 // rings the place it names. What is off the view waits on its edge with its distance; the edges carry the survey's grid
 // letters, for callouts ("Hank is down in D6"). The island is drawn as one, with the sea and the Route 9 bridge (#173).
 // In a small window the panel folds into a column of chips and the key into a popover, so the map is never cut off.
+//
+// It is one of the kit screens (screentabs.js): the Map tab, in the same frame as the inventory, the perks and the
+// achievements, under the same row of tabs (the HUD's clock in it, and the close). The map is square, as big as the
+// frame lets it be, and the panel takes the rest of the width (in two columns, when there is room for them).
 import './ux-map.css';
 import { ZONE, ZONE_NAMES, ITEM, ITEM_DEFS, SCHEMATICS, SCHEM_BIT, supplyRumours, schematicRumours } from '../../shared/defs.js';
-import { PHASE } from '../../shared/constants.js';
 const VEH_LABEL = { 1: 'moped', 2: 'car', 3: 'bicycle' }; // (shared/vehicles.js VEH)
 import { SUPPLIES, SUPPLY_NEED, W } from '../game/act.js'; // (this act's)
-import { el, svgEl, lsGet, lsSet, fmtTime } from './dom.js';
+import { el, svgEl, lsGet, lsSet } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { renderMapCanvas, renderSeaCanvas, MAP_PX } from './mapcanvas.js';
 import { bindLabel, liveText } from '../game/binds.js';
+import { ScreenTabs, screenCame } from './screentabs.js';
 import { badge, setBadge, initial, fmtDist, dirOf, gridRef, gridLetter, placeAt, GRID, PING_WORD } from './mapmarks.js';
 
 const TEAM_BESIDE = 14; // m: a teammate's waypoint on your own waypoint's spot is drawn this far east of it
@@ -38,16 +42,13 @@ export class MapScreen {
     this.root = el('div', 'mapscr', parent);
     this.root.hidden = true;
     const bg = el('div', 'map-bg', this.root);
-    const frame = (this.frame = el('div', 'map-frame paper mx', this.root));
+    // the kit screens' frame: the row of tabs (the close at its end), the map's sheet under it
+    const box = el('div', 'scr-frame', this.root);
+    const frame = (this.frame = el('div', 'map-frame paper mx', box));
+    this.tabs = new ScreenTabs(ui, box, 'map', () => this.onClose?.(), frame);
     const head = el('div', 'map-head mx-head', frame);
-    this.title = el('span', 'map-title', head);
-    el('span', 'mx-tpre', this.title, 'Field map · '); // (a small window drops it)
-    this.titleName = el('span', '', this.title, 'Harlan Valley');
-    // the day's clock: how long the light lasts
-    this.clock = el('span', 'mx-clock', head);
-    this.clockIco = svgEl('i', 'mx-clock-ico', this.clock, glyph('sun'));
-    this.clockTxt = el('span', '', this.clock);
-    this.clock.hidden = true;
+    // (which map: the tab says it is the map)
+    this.titleName = el('span', 'map-title', head, 'Harlan Valley');
     el('span', 'mx-grow', head);
     // where you are; a click brings the map back to you
     this.youBtn = el('button', 'mx-you', head);
@@ -65,10 +66,6 @@ export class MapScreen {
     svgEl('i', 'map-rot-ico', this.rotBtn, glyph('compass'));
     this.rotTxt = el('span', '', this.rotBtn);
     this.rotBtn.addEventListener('click', () => this.setHeadingUp(!this.headingUp));
-    const close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark'));
-    close.type = 'button';
-    close.title = 'Close (M)';
-    close.addEventListener('click', () => this.onClose?.());
     const body = el('div', 'map-body mx-body', frame);
     this.view = el('div', 'map-view', body);
     // the map itself, zoomed and panned inside the view: the names and markers are placed in % of it, so a zoom
@@ -96,24 +93,29 @@ export class MapScreen {
     this.card = el('div', 'mx-card', this.view);
     this.card.hidden = true;
 
-    // ---- the panel: the car, the team, the schematics, the key
+    // ---- the panel: the car, the team, the schematics, the key (the car and the team in one column, the rest in a
+    // second, when the panel is wide enough to have two: ux-map.css)
     const side = (this.side = el('div', 'mx-side', body));
+    const cols = el('div', 'mx-cols', side);
+    let col = null;
     const sec = (title) => {
-      const h = el('div', 'mx-h', side);
+      const h = el('div', 'mx-h', col);
       const t = el('span', 'mx-h-t', h, title);
       const n = el('span', 'mx-h-n', h, '');
       return { t, n };
     };
+    col = el('div', 'mx-col', cols);
     this.carH = sec('The car');
-    this.carBar = el('div', 'mx-bar', side);
-    this.carRows = el('div', 'mx-rows', side);
-    this.carDone = el('div', 'mx-done', side);
+    this.carBar = el('div', 'mx-bar', col);
+    this.carRows = el('div', 'mx-rows', col);
+    this.carDone = el('div', 'mx-done', col);
     this.teamH = sec('Team');
-    this.teamRows = el('div', 'mx-rows', side);
+    this.teamRows = el('div', 'mx-rows', col);
+    col = el('div', 'mx-col', cols);
     this.schemH = sec('Schematics');
-    this.schemRow = el('div', 'mx-schems', side);
+    this.schemRow = el('div', 'mx-schems', col);
     this.keyH = sec('Key');
-    this.keyGrid = el('div', 'mx-key', side);
+    this.keyGrid = el('div', 'mx-key', col);
     this._buildKey(this.keyGrid);
 
     // ---- small windows: the panel as chips, the key behind a button
@@ -170,10 +172,10 @@ export class MapScreen {
     // waypoint: the game sets onWaypoint and gets { x, z, zone } (zone: id of the place it snapped to, or -1),
     // or null to clear it
     this.onWaypoint = null;
-    // the cross, or a left press outside the map's frame, closes it: the game sets onClose
+    // the row's close, or a left press outside the map's sheet and the row, closes it: the game sets onClose
     this.onClose = null;
     this.root.addEventListener('pointerdown', (e) => {
-      if (e.button === 0 && (e.target === bg || e.target === this.root)) this.onClose?.();
+      if (e.button === 0 && (e.target === bg || e.target === this.root || e.target === box)) this.onClose?.();
       // (a press anywhere but the key's button puts the key popover away)
       if (!this.pop.hidden && !e.target.closest('.mx-pop, .mx-keysbtn')) this.pop.hidden = true;
     });
@@ -574,6 +576,11 @@ export class MapScreen {
       this.card.hidden = true;
       this.pop.hidden = true;
     }
+    if (open) {
+      screenCame(this.root); // (from another tab: nothing fades in)
+      this.tabs.sync();
+      if (this.ui.screenRun?.()) this.tabs.holdClock(true);
+    } else this.tabs.holdClock(false);
     this.root.hidden = !open;
     this.ui.root.classList.toggle('map-open', open);
   }
@@ -605,7 +612,7 @@ export class MapScreen {
   //      benches:[{x,z}], discovered:Set, hints:[zone...], found:bits (a hint whose supply has been taken),
   //      schemHints:[zone per schematic], unlocked:bits (the schematics the team has),
   //      supplies:[n...], carried:{item:n}, parts:[{item,x,z}] (car supplies lying loose), waypoint:{x,z,zone} | null,
-  //      teamWays:[{x,z,zone,names:[...],mine (on the spot of your own)}], clock:{phase,day,timeLeft} }
+  //      teamWays:[{x,z,zone,names:[...],mine (on the spot of your own)}] }
   update(d) {
     if (!this.open || !this.world) return;
     this.last = d;
@@ -711,30 +718,12 @@ export class MapScreen {
     const xy = ` · ${Math.round(d.self.x)} E ${Math.round(-d.self.z)} N`;
     if (this.youXY.textContent !== xy) this.youXY.textContent = xy;
     this.youBtn.classList.toggle('away', !this.follow);
-    this._clock(d.clock);
 
     // ---- the panel (and its chips)
     const leads = this._leads(d, rumoured);
     const team = this._team(d);
     this._panel(d, leads, team);
     this._pins(d, leads, team);
-  }
-
-  _clock(c) {
-    let txt = '';
-    let night = false;
-    if (c && c.phase === PHASE.DAY) txt = `Day ${c.day} · nightfall in ${fmtTime(c.timeLeft)}`;
-    else if (c && c.phase === PHASE.NIGHT) {
-      txt = `Night ${c.day} · dawn in ${fmtTime(c.timeLeft)}`;
-      night = true;
-    }
-    this.clock.hidden = !txt;
-    if (this.clockTxt.textContent !== txt) this.clockTxt.textContent = txt;
-    if (this._night !== night) {
-      this._night = night;
-      this.clockIco.innerHTML = glyph(night ? 'moon' : 'sun');
-      this.clock.classList.toggle('night', night);
-    }
   }
 
   // the places something is rumoured to be in: zone -> { sup: [item...], schem: [item...] }

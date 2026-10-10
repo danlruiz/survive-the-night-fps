@@ -13,6 +13,7 @@
 import { el, svgEl } from './dom.js';
 import { glyph, achIcon } from './icons.js';
 import { Panel } from './games.js';
+import { tabbed } from './screentabs.js';
 import { ago } from './account.js';
 import { ACHIEVEMENTS, ACH_GROUPS, ACH_TIERS, ACH_STATS, achProgress } from '../../shared/achievements.js';
 import { ZOMBIE_DEFS } from '../../shared/defs.js';
@@ -253,6 +254,7 @@ export class AchievementsPanel extends Panel {
 
     this.wait = el('div', 'gb-empty fr-empty ach-wait', this.body, '');
     this.list = el('div', 'bk-list', this.body);
+    this.tabs = tabbed(this, 'achievements'); // (the row of the kit screens' tabs over it, the close in it)
 
     onAchievements(() => {
       if (this.visible && !this.friend) this.render();
@@ -260,10 +262,19 @@ export class AchievementsPanel extends Panel {
     onTracked(() => this.visible && this.render());
   }
 
-  // opts: { friend: { id, name } } for a friend's
+  // (onHide: the game, when [U] opened it mid-run, takes the pointer back however it shuts)
+  hide() {
+    super.hide();
+    this.tabs.hidden();
+    this.onHide?.();
+  }
+
+  // opts: { friend: { id, name } } for a friend's (a title over it then, not the tabs: they are not theirs)
   show(opts = {}) {
     super.show();
     this.friend = opts.friend || null;
+    this.tabs.setTitle(this.friend ? 'Achievements' : '');
+    this.tabs.shown();
     this.friendRec = null;
     this.friendErr = '';
     this.filter = 'all';

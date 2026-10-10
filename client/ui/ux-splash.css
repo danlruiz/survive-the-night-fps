@@ -743,15 +743,6 @@
   font: 0.8em / 1.3 var(--f-type);
 }
 
-.stn-ui .layer-menu .splash > .stn-settings.gb-panel .set-close,
-.stn-ui .layer-menu .splash > .stn-settings.gc-panel .set-close,
-.stn-ui.splash-on .layer-modal > .stn-settings.ac-panel .set-close {
-  width: 2.5em;
-  height: 2.5em;
-  margin-left: auto;
-  padding: 0.65em;
-}
-
 .stn-ui .layer-menu .splash > .stn-settings.gb-panel .set-body,
 .stn-ui .layer-menu .splash > .stn-settings.gc-panel .set-body,
 .stn-ui.splash-on .layer-modal > .stn-settings.ac-panel .set-body {

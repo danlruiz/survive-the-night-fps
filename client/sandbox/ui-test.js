@@ -181,6 +181,8 @@ const ui = new UI(document.getElementById('ui'), {
   onUiSound: () => {},
 });
 window.ui = ui;
+// &run=1: as in a run, where the kit screens (inventory, perks, achievements) have all three tabs (Game.screenRun)
+if (q.get('run')) ui.screenRun = () => true;
 
 // ---------------------------------------------------------------- fake data
 const baseHud = {
@@ -884,6 +886,7 @@ switch (screen) {
   case 'map': {
     // the field map [M]: client/sandbox/ui-test-map.js
     await (await import('./ui-test-map.js')).mapScene(ui, q, buildScene);
+    ui.updateHud(baseHud); // (the clock in the row of tabs)
     break;
   }
   case 'icons': {

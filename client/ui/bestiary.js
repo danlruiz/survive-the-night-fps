@@ -75,10 +75,9 @@ export class Bestiary {
     this.root.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
-      if (this.pageT >= 0) {
-        e.stopPropagation(); // (back to the cards, and no further)
-        this.closePage();
-      } else this.onClose?.();
+      e.stopPropagation(); // (and no further: past here it would be the Esc menu's under it, back to the game)
+      if (this.pageT >= 0) this.closePage(); // (back to the cards)
+      else this.onClose?.();
     });
     this.root.addEventListener('pointerdown', (e) => {
       if (e.button === 0 && (e.target === bg || e.target === this.root)) this.onClose?.();
@@ -178,7 +177,7 @@ export class Bestiary {
       this.render();
       this.body.scrollTop = 0;
       this.returnFocus = document.activeElement;
-      this.close.focus({ preventScroll: true });
+      this.close.focus({ preventScroll: true, focusVisible: false }); // (no ring on it: it was opened, not tabbed to)
       this.warm();
     } else {
       this.fresh.clear(); // (looked at: no longer new)

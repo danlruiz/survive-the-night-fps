@@ -11,7 +11,7 @@ import { el, svgEl, clamp } from './dom.js';
 import { glyph } from './icons.js';
 import { healthTier } from './hud2.js';
 import { bindLabel, liveText } from '../game/binds.js';
-import { SheetTabs, dock, undock } from './sheet.js';
+import { SheetTabs, dock, undock, sheetLeft, sheetCame } from './sheet.js';
 
 const IN_RUN = (st) => st === 'alive' || st === 'downed';
 const elapsed = (s) => {
@@ -85,6 +85,8 @@ export class Roster {
     if (!open) this.setPinned(false);
     if (open === this.open) return;
     this.open = open;
+    if (open) sheetCame(this.root);
+    else sheetLeft();
     this.root.hidden = !open;
   }
 

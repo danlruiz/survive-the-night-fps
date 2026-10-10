@@ -142,6 +142,7 @@ import { itemIcon, glyph } from '../ui/icons.js';
 import { recordRun } from '../ui/records.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
+import { screenLeft } from '../ui/screentabs.js';
 import { MenuTour } from './menutour.js';
 import { KeyGuard } from './keyguard.js';
 import { CardsClient } from './cards.js';
@@ -246,6 +247,8 @@ export class Game {
     this.frame = 0;
     this.time = 0;
     this.myId = 0;
+    this.perksUp = false; // the Perks panel opened with [P] mid-run (togglePerks)
+    this.achUp = false; // the Achievements panel opened with [U] mid-run (toggleAchievements)
     this.admin = false; // the server lets us run the admin commands (WELCOMEF.ADMIN): the spawn menu [`] is ours
     this.global = { phase: PHASE.WAITING, day: 0, timeLeft: 0, hordeLeft: -1, bossId: 0, supplies: [0, 0, 0, 0, 0], hints: [255, 255, 255, 255, 255, 255, 255], found: 0, unlocked: 0, schemHints: [255, 255, 255, 255, 255], wave: 0, waves: 3, escapeT: 0, flags: 0, finale: false, suppliesDone: false, escapeReady: false, humansAlive: 0, playersTotal: 0, restartT: 0, benches: [], parts: [] };
     this.self = { alive: 1, hp: 100, maxHp: 100, armor: 0, armorMax: 0, battery: 100, weapons: [0, 0, 0, 0, 0], mags: [0, 0], ammo: AMMO_ITEMS.map(() => 0) };
@@ -325,6 +328,13 @@ export class Game {
     ui.board.onClose = () => this.toggleBoard(false);
     ui.bestiary.onClose = () => this.toggleBestiary(false);
     ui.cards.onClose = () => this.toggleCards(false);
+    ui.progress.onHide = () => this.togglePerks(false);
+    // the kit screens' tabs (ui/screentabs.js): in a run they are the game's; outside one, the UI swaps the two it has
+    const tabGo = ui.screenGo.bind(ui);
+    ui.screenGo = (id) => (this.screenRun() ? this.screenGo(id) : tabGo(id));
+    ui.screenRun = () => this.screenRun();
+    // (after the click that hid it is done: its Sign in hides it and opens the account panel in the same handler)
+    ui.achPanel.onHide = () => queueMicrotask(() => this.toggleAchievements(false));
     ui.fieldNotes.ctx = () => (this.state === 'playing' && this.global && !this.global.finale ? { seed: this.seed, act: this.act, day: this.global.day, phase: this.global.phase } : null);
     ui.spawn.onClose = () => this.toggleSpawn(false);
     ui.spawn.onSpawn = (cmd) => this.conn.chat(cmd);
@@ -948,6 +958,8 @@ export class Game {
     this.moving = false;
     this.ui.setConnectionStatus('');
     this.state = 'menu';
+    this.perksUp = false; // (the panel itself may stay up over the splash: it is the splash's too)
+    this.achUp = false;
     this.input.enabled = false;
     this.input.exitLock();
     this.keyGuard.release();
@@ -1260,7 +1272,7 @@ export class Game {
       const now = levelOf(xp);
       if (now > before) {
         this.ui.notify(`LEVEL ${now}`, 'big', 3.5);
-        this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks, in the inventory (${bindLabel('inventory')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
+        this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks (${bindLabel('perks')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
         this.audio.stinger?.('car_part');
       }
     }
@@ -2136,10 +2148,15 @@ export class Game {
       else if (ui.mapOpen) this.toggleMap(false);
       else if (ui.boardOpen) this.toggleBoard(false);
       else if (ui.bestiaryOpen) this.toggleBestiary(false);
+      else if (this.perksUp) this.togglePerks(false);
+      else if (this.achUp) this.toggleAchievements(false);
       else if (ui.cardsOpen) {
         if (!ui.cards.back()) this.toggleCards(false); // (a view inside it first: a card picked, the chooser, a deck)
       } else if (ui.spawnOpen) this.toggleSpawn(false);
-      else if (ui.pauseOpen) this.resumeFromPause();
+      else if (ui.pauseOpen) {
+        if (ui.fieldNotes.visible) ui.fieldNotes.hide(); // (its own keys missed it: the focus was elsewhere, or a panel was up)
+        else this.resumeFromPause();
+      }
       // (Esc only gets here with the mouse still taken under fullscreen's keyboard lock, keyguard.js: it shuts the ring,
       // then puts the piece down, and only then lets go of the mouse for the menu - whatever the input is doing: the
       // browser no longer lets go of the mouse on Esc itself, so this is the only way out short of leaving fullscreen)
@@ -2155,7 +2172,7 @@ export class Game {
       return;
     }
     if (has('players')) {
-      if (ui.cardsOpen) return; // (Tab is no key of the card table: the list would only sit under it)
+      if (ui.cardsOpen || this.perksUp || this.achUp) return; // (Tab is no key of the card table or the perks: the list would only sit under it)
       if (ui.boardOpen) this.sheetGo('players');
       else if (ui.rosterPinned) this.pinRoster(false);
       else this.showRoster(true);
@@ -2167,16 +2184,29 @@ export class Game {
       return;
     }
     // (whatever else takes the screen or the keys lets go of a pinned list first)
-    if (ui.rosterPinned && ['inventory', 'map', 'board', 'bestiary', 'cards', 'chat'].some(has)) this.pinRoster(false, false);
-    if (has('inventory')) {
-      this.toggleInventory(!ui.inventoryOpen);
+    if (ui.rosterPinned && ['inventory', 'map', 'board', 'bestiary', 'cards', 'perks', 'achievements', 'chat'].some(has)) this.pinRoster(false, false);
+    // The kit screens, [I] [M] [P] [U] (ui/screentabs.js): one modal with a tab each. The open tab's key shuts it,
+    // another's goes to its tab. Over the pause menu (the map, its Perks or its Achievements up) they only go between
+    // those three
+    const kit = ['inventory', 'map', 'perks', 'achievements'].find(has);
+    if (kit) {
+      if (kit !== 'inventory' && ui.isTyping()) return;
+      const panel = kit === 'perks' ? ui.progress : kit === 'achievements' ? ui.achPanel : null;
+      if (ui.pauseOpen && (ui.mapOpen || ui.progress.visible || ui.achPanel.visible)) {
+        if (kit === 'inventory') return;
+        if (kit === 'map' && ui.mapOpen) this.toggleMap(false);
+        else if (panel?.visible) panel.hide();
+        else this.screenGo(kit);
+      } else if (kit === 'inventory' || kit === 'map') {
+        if (kit === 'inventory' ? ui.inventoryOpen : ui.mapOpen) kit === 'inventory' ? this.toggleInventory(false) : this.toggleMap(false);
+        else this.screenGo(kit);
+      } else if (ui.pauseOpen) return;
+      else if (kit === 'perks' ? this.perksUp : this.achUp) panel.hide(); // (its onHide hands the pointer back)
+      else this.screenGo(kit);
       return;
     }
-    if (has('map')) {
-      if (ui.inventoryOpen || ui.isTyping()) return;
-      this.toggleMap(!ui.mapOpen);
-      return;
-    }
+    if (this.achUp && ['board', 'bestiary', 'cards'].some(has)) this.toggleAchievements(false, false);
+    if (this.perksUp && ['board', 'bestiary', 'cards'].some(has)) this.togglePerks(false, false);
     if (has('board')) {
       if (ui.inventoryOpen || ui.isTyping()) return;
       this.toggleBoard(!ui.boardOpen);
@@ -2330,7 +2360,7 @@ export class Game {
   // the pinned player list): the pointer is free for it, and the game's keys and buttons are off
   screenUp() {
     const ui = this.ui;
-    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned;
+    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned || this.perksUp || this.achUp;
   }
 
   resumeFromPause() {
@@ -2345,19 +2375,56 @@ export class Game {
     });
   }
 
-  toggleInventory(open) {
+  // relock: false when something else that needs the cursor is taking over (another of the kit screens' tabs)
+  toggleInventory(open, relock = true) {
     const ui = this.ui;
     if (open === ui.inventoryOpen) return;
     if (ui.mapOpen) this.toggleMap(false, false); // the inventory wants the pointer free as well
     if (ui.boardOpen) this.toggleBoard(false, false);
     if (ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (ui.cardsOpen) this.toggleCards(false, false);
+    if (open && this.perksUp) this.togglePerks(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.achUp) this.toggleAchievements(false, false);
     ui.setCraftContext(this.craftContext());
     ui.setInventoryOpen(open);
-    this.input.enabled = !open;
+    this.input.enabled = !open && !this.screenUp();
     if (open) this.input.exitLock();
-    else this.input.requestLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // whether the kit screens are the game's to go between (Game.screenGo): in a run, not over its end screen
+  screenRun() {
+    return this.state === 'playing' && !this.overlay;
+  }
+
+  // The kit screens' tabs (ui/screentabs.js): the inventory, the map, the perks and the achievements are one modal, and
+  // a tab (or another tab's key) goes from one to the next with the pointer free all the while, nothing sliding in
+  // again. Opened over the pause menu, the map, the perks and the achievements swap over it; the inventory puts it away.
+  screenGo(id) {
+    const ui = this.ui;
+    const up = { inventory: ui.inventoryOpen, map: ui.mapOpen, perks: ui.progress.visible, achievements: ui.achPanel.visible };
+    if (up[id] || !(id in up)) return;
+    screenLeft();
+    if (ui.pauseOpen && (up.map || up.perks || up.achievements)) {
+      if (id !== 'inventory') {
+        // (the one coming first, then the one going: there is never a frame of the bare menu between them)
+        if (id === 'map') this.toggleMap(true);
+        else (id === 'perks' ? ui.progress : ui.achPanel).show();
+        if (id !== 'map' && up.map) this.toggleMap(false, false);
+        if (id !== 'perks' && up.perks) ui.progress.hide();
+        if (id !== 'achievements' && up.achievements) ui.achPanel.hide();
+        return;
+      }
+      if (up.map) this.toggleMap(false, false);
+      if (up.perks) ui.progress.hide();
+      if (up.achievements) ui.achPanel.hide();
+      ui.showPause(false);
+    }
+    if (id === 'inventory') this.toggleInventory(true);
+    else if (id === 'map') this.toggleMap(true);
+    else if (id === 'perks') this.togglePerks(true);
+    else this.toggleAchievements(true);
   }
 
   // The player list, up for as long as [Tab] is held, with the pointer still locked and the game going on under it...
@@ -2404,21 +2471,26 @@ export class Game {
     }
   }
 
-  // relock: false when something else that needs the cursor is taking over
+  // relock: false when something else that needs the cursor is taking over. Shut with the Esc menu still up under it
+  // (the map, the leaderboard, the bestiary, Dead Hand opened from the menu), it is the menu again, not the game: the
+  // mouse is not taken back (that would be the menu's "Back to the game") and the input stays off.
   toggleMap(open, relock = true) {
     const ui = this.ui;
     if (open === ui.mapOpen) return;
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.perksUp) this.togglePerks(false, false);
+    if (open && this.achUp) this.toggleAchievements(false, false);
     if (open && ui.boardOpen) this.toggleBoard(false, false);
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setMapOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     // the map takes clicks (your waypoint), so it frees the pointer the way the inventory does. Clicks made
     // while it is free never reach the weapon: Input only counts a mouse button pressed under the lock.
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2431,13 +2503,13 @@ export class Game {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBoardOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     if (open) {
       this.boardT = 0; // ask the server at once (update)
       this.input.exitLock();
-    } else if (relock) this.input.requestLock();
+    } else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2452,11 +2524,72 @@ export class Game {
     if (open && ui.spawnOpen) this.toggleSpawn(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBestiaryOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // The Perks panel [P] (ui/progress.js: the kit screens' Perks tab; the pause menu and the splash open it too): a
+  // point spent mid-run without the pause menu. It takes clicks, so it frees the pointer as the bestiary does, and its
+  // own close, Esc or a click outside it hands the pointer back (progress.onHide). perksUp: open from here, not over a
+  // menu.
+  // relock: false when something else that needs the cursor is taking over
+  togglePerks(open, relock = true) {
+    const ui = this.ui;
+    if (open === !!this.perksUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
+    if (open && ui.mapOpen) this.toggleMap(false, false);
+    if (open && ui.boardOpen) this.toggleBoard(false, false);
+    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
+    if (open && ui.rosterPinned) this.pinRoster(false, false);
+    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    if (open && this.achUp) this.toggleAchievements(false, false);
+    this.perksUp = open;
+    if (open) ui.progress.show();
+    else if (ui.progress.visible) ui.progress.hide(); // (calls back here, and finds it shut already)
+    // (shut over the end screen, after a leave: the input stays as they left it)
+    if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // The Achievements panel [U] (ui/achievements.js: the kit screens' third tab; the pause menu and the splash open it
+  // too), as the Perks panel: it frees the pointer, and its own close, Esc or a click outside it hands the pointer back
+  // (achPanel.onHide). achUp: open from here, not over a menu. relock: false when something else that needs the cursor
+  // is taking over
+  toggleAchievements(open, relock = true) {
+    const ui = this.ui;
+    if (open === !!this.achUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
+    if (open && ui.mapOpen) this.toggleMap(false, false);
+    if (open && ui.boardOpen) this.toggleBoard(false, false);
+    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
+    if (open && ui.rosterPinned) this.pinRoster(false, false);
+    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open && this.perksUp) this.togglePerks(false, false);
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    this.achUp = open;
+    if (open) ui.achPanel.show();
+    else if (ui.achPanel.visible) ui.achPanel.hide(); // (calls back here, and finds it shut already)
+    // (shut over the end screen, after a leave: the input stays as they left it)
+    if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
+    // (its Sign in took them to the account panel: the pause menu under it, as when it was opened from there)
+    if (!open && ui.accountPanel.visible) return ui.showPause(true);
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2472,12 +2605,12 @@ export class Game {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setSpawnOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.inputBuffer.clear();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock) this.input.requestLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal('ui_click', { volume: 0.5 });
   }
 
@@ -2502,12 +2635,12 @@ export class Game {
     if (open && ui.rosterPinned) this.pinRoster(false, false);
     if (open && ui.spawnOpen) this.toggleSpawn(false, false);
     ui.setCardsOpen(open, view);
-    this.input.enabled = !open && !ui.inventoryOpen;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
     this.inputBuffer.clear();
     this.endHold();
     if (open) this.input.exitLock();
-    else if (relock && !this.overlay) this.input.requestLock();
+    else if (relock && !this.overlay && !ui.pauseOpen) this.input.requestLock();
     this.audio.playLocal(open ? 'card_shuffle' : 'ui_click', { volume: open ? 0.35 : 0.5 });
   }
 
@@ -3884,8 +4017,9 @@ export class Game {
     // compass + world markers
     h.yaw = this.input.yaw;
     this.buildMarkers(h, rp);
-    // the minimap: only while it is on screen
-    h.minimap = !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !this.ui.boardOpen && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
+    // the minimap: only while it is on screen (the leaderboard, and Friends docked over it, are a side sheet in a
+    // game, with the minimap still in view beside them)
+    h.minimap = !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
     h.cards = this.cards.hud(); // (Dead Hand under way with its screen shut, or a teammate's ask)
     this.ui.updateHud(h);
     this.pushInventoryToUI(false);
@@ -4065,7 +4199,6 @@ export class Game {
       carried,
       waypoint: this.waypoint,
       teamWays: this.teamWaypoints(),
-      clock: { phase: g.phase, day: g.day, timeLeft: g.timeLeft }, // (the field map's head: how long the light lasts)
     };
   }
 }

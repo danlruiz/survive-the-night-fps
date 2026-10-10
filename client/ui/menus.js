@@ -737,6 +737,18 @@ export class Pause {
 
     // captured before input.js, which would otherwise take Enter for the chat
     window.addEventListener('keydown', (e) => this._key(e), true);
+    // with the field notes up, a click off them only closes them (like any other modal's backdrop): taken before the
+    // rail's rows or the resume below see it
+    root.addEventListener(
+      'click',
+      (e) => {
+        if (!this.ui.fieldNotes?.visible || e.target.closest('.bkn')) return;
+        e.stopPropagation();
+        e.preventDefault();
+        this.ui.fieldNotes.hide();
+      },
+      true,
+    );
     // clicking anywhere off the rail resumes (keeps the user gesture for pointer lock)
     root.addEventListener('click', (e) => {
       if (e.target.closest('.pm-rail')) return;

@@ -27,6 +27,8 @@ import { isFriendName } from '../net/friends.js';
 import { onUnlock } from '../net/achievements.js';
 import { onSeen } from '../net/bestiary.js';
 import { Death, EndScreen, DawnLine } from './endscreens.js';
+import './ux-modals.css'; // (every modal's close cross: one size, in its card's top-right corner)
+import { screenLeft } from './screentabs.js';
 
 const NOOP = () => {};
 const CALLBACKS = [
@@ -350,6 +352,23 @@ export class UI {
     this.inventory.setOpen(open);
   }
 
+  // Going between the kit screens' tabs (screentabs.js). In a run the game has this (Game.screenGo, which takes the
+  // pointer its own way for each); outside one, it is only the perks and the achievements, one for the other (the
+  // sandbox's &run=1 has the inventory and the map here too)
+  screenGo(id) {
+    const shown = { inventory: this.inventoryOpen, map: this.mapOpen, perks: this.progress.visible, achievements: this.achPanel.visible };
+    if (shown[id] || !(id in shown)) return;
+    screenLeft();
+    this.sound('ui_click');
+    if (id === 'inventory') this.setInventoryOpen(true);
+    else if (id === 'map') this.setMapOpen(true);
+    else (id === 'perks' ? this.progress : this.achPanel).show();
+    if (id !== 'inventory' && shown.inventory) this.setInventoryOpen(false);
+    if (id !== 'map' && shown.map) this.setMapOpen(false);
+    if (id !== 'perks' && shown.perks) this.progress.hide();
+    if (id !== 'achievements' && shown.achievements) this.achPanel.hide();
+  }
+
   get inventoryOpen() {
     return this.inventory.open;
   }
@@ -413,10 +432,8 @@ export class UI {
     this._menuState();
   }
 
-  // our XP as the server counts it ({ xp, run, loaded, kept }: Game.onProgress): the inventory's level, and the end
-  // screen if the run is over
+  // our XP as the server counts it ({ xp, run, loaded, kept }: Game.onProgress): the end screen's, if the run is over
   setProgress(p) {
-    this.inventory.setProgress(p);
     if (!this.end.root.hidden) this.end.setXp(p);
   }
 

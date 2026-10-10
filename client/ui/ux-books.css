@@ -71,11 +71,6 @@
   color: var(--bone-dim);
 }
 
-.stn-ui .bk-book .bk-head .set-close {
-  align-self: center;
-  margin-left: 0;
-}
-
 .stn-ui .bk-book .bk-count {
   display: flex;
   flex-direction: column;
@@ -678,10 +673,6 @@
 }
 
 /* ------------------------------------------------------------------ the bestiary */
-.stn-ui .bstscr .bk-book .bk-head .set-close {
-  margin-left: 0;
-}
-
 .stn-ui .bk-book .bk-bodywrap {
   position: relative;
   flex: 1;
@@ -1275,23 +1266,6 @@
 .stn-ui .bkn-night {
   font: var(--bk-xs) / 1.1 var(--f-mono);
   color: var(--bone-dim);
-}
-
-.stn-ui .bkn-back {
-  margin-left: auto;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--amber);
-  font: var(--bk-xs) / 1 var(--f-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.stn-ui .bkn-back:hover,
-.stn-ui .bkn-back:focus-visible {
-  color: var(--bone);
 }
 
 .stn-ui .bkn-theme {

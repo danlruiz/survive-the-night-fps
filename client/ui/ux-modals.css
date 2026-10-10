@@ -1,0 +1,54 @@
+/* Every modal's close cross, one way: the same size, pinned to the top-right corner of its card at the same inset.
+   It used to sit in each head's flow, so a tall head (the bestiary's count, the perks' level bar, the account's
+   sheet) carried it down to the middle, and each screen sized its own (24 to 40 px). The panels (games.js Panel,
+   settings, invite), the full screens (map, leaderboard, bestiary, Dead Hand, spawn), the side sheet (players,
+   friends docked) and the pause menu's field notes all have it. (The inventory keeps its labelled Close with the key.) */
+.stn-ui {
+  --x-size: 2rem;
+  --x-inset: 0.75rem;
+}
+
+/* (the cards the cross is pinned to; the side sheet's and the docked panels' are absolute already) */
+.stn-ui .set-card {
+  position: relative;
+}
+
+.stn-ui .btn-icon.set-close,
+.stn-ui .btn-icon.pls-close {
+  position: absolute;
+  top: var(--x-inset);
+  right: var(--x-inset);
+  z-index: 2;
+  flex: none;
+  box-sizing: border-box;
+  width: var(--x-size);
+  height: var(--x-size);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0.45rem;
+  color: var(--bone-dim);
+}
+
+.stn-ui .btn-icon.set-close:hover,
+.stn-ui .btn-icon.pls-close:hover {
+  border-color: var(--bone);
+  color: var(--bone);
+}
+
+/* a head as tall as the cross at least, so it never hangs over what comes under the head (the field notes' line) */
+.stn-ui :is(.set-head, .map-head, .pls-head, .bk-head, .bkn-h):has(> .set-close, > .pls-close) {
+  min-height: var(--x-size);
+}
+
+.stn-ui .bkn-h:has(> .set-close) {
+  align-items: center;
+}
+
+/* the space it took in the head, kept: nothing in the head runs in under it */
+.stn-ui :is(.set-head, .map-head, .pls-head, .bk-head, .bkn-h):has(> .set-close, > .pls-close)::after {
+  content: '';
+  flex: none;
+  width: calc(var(--x-size) + 0.25rem);
+  height: 1px;
+}

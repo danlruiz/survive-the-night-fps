@@ -1,10 +1,11 @@
 // Inventory / crafting screen (I). The game does not pause while it is open (the survivor stands still while the world
 // goes on), so everything here is one click or one key away. Laid out to fit any window (issue #224, ux-inventory.css):
-// - a header across the top: health and stamina, the level and perks, Close
+// - a header across the top: the tabs of the kit screens (screentabs.js: Inventory, Perks [P], Achievements [U]), the
+//   HUD's clock while the screen is open, the close
 // - "Your kit": the loadout as a strip of tiles in hotbar order (each gun with its own ammunition), what is worn beside
 //   it; Quick use (every heal and drink carried, one click each, the one [H] takes marked) and the ammo reserve (only
-//   the calibres carried, each with the gun that fires it); then the backpack, searchable (/), filtered by category, in
-//   labelled sections with names under the icons. A click selects (the item card at the foot says what it is, compares
+//   the calibres carried, each with the gun that fires it); then the backpack, in labelled sections with names under
+//   the icons (no search: players never used it). A click selects (the item card at the foot says what it is, compares
 //   a gun or a vest with the one you hold, and has the buttons), a double-click does the main thing, a right click
 //   opens a menu of drop amounts. The same keys work on whatever is under the pointer or selected:
 //   F use / equip · S split · G drop one (Shift+G all) · X salvage. A drop can be taken back for a few seconds (Z).
@@ -21,24 +22,21 @@ import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
 import { el, svgEl, clamp } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
-import { actionsOf, bindLabel, liveText } from '../game/binds.js';
-import { levelOf } from '../../shared/progress.js';
-import { fetchProgress, lastProgress, onProgress } from '../net/progress.js';
-import { xpBar } from './progress.js';
-import { norm, itemScore } from './search.js';
+import { actionsOf, bindLabel } from '../game/binds.js';
 import { CAT_LABEL, statLines, costLine, salvageOf, shortName } from './iteminfo.js';
 import { Crafting } from './crafting.js';
+import { ScreenTabs, screenCame } from './screentabs.js';
 
 const SLOT_LABELS = ['Primary', 'Pistol', 'Melee', 'Throwable', 'Build tool'];
-// The backpack's sections, in the order the server's auto sort leaves them (BAG_TIER in defs.js), each with its filter chip.
+// The backpack's sections, in the order the server's auto sort leaves them (BAG_TIER in defs.js).
 // Only the grid is laid out that way - the server keeps each stack in its slot - so within a section stacks stay in
 // slot order, which a drag onto another stack of the section swaps.
 const SECTIONS = [
-  { id: 'gear', label: 'Weapons & gear', chip: 'Gear', cats: ['weapon', 'armor', 'pack', 'gear'] },
-  { id: 'cons', label: 'Consumables', chip: 'Consumables', cats: ['cons', 'ammo'] },
-  { id: 'throw', label: 'Throwables', chip: 'Throw', cats: ['throw'] },
-  { id: 'res', label: 'Materials', chip: 'Materials', cats: ['res'] },
-  { id: 'part', label: 'Car supplies', chip: 'Parts', cats: ['part', 'schem'] },
+  { id: 'gear', label: 'Weapons & gear', cats: ['weapon', 'armor', 'pack', 'gear'] },
+  { id: 'cons', label: 'Consumables', cats: ['cons', 'ammo'] },
+  { id: 'throw', label: 'Throwables', cats: ['throw'] },
+  { id: 'res', label: 'Materials', cats: ['res'] },
+  { id: 'part', label: 'Car supplies', cats: ['part', 'schem'] },
 ];
 const SEC_OF_CAT = Object.fromEntries(SECTIONS.flatMap((s) => s.cats.map((c) => [c, s.id])));
 const secOf = (s) => (s ? SEC_OF_CAT[ITEM_DEFS[s.item]?.cat] || 'res' : '');
@@ -113,7 +111,7 @@ function compareRows(id, held, worn = null) {
   return null;
 }
 // keys that open or shut a screen are the game's even here (passesMenus in game/input.js)
-const MENU_KEYS = new Set(['inventory', 'map', 'board', 'players', 'chat']);
+const MENU_KEYS = new Set(['inventory', 'perks', 'achievements', 'map', 'board', 'players', 'chat']);
 const menuKey = (code) => actionsOf(code).some((a) => MENU_KEYS.has(a));
 
 // The backpack stacks n crafts of a recipe would be paid from, and how much from each: slot index -> count. Taken from
@@ -191,8 +189,6 @@ export class Inventory {
     // the pointer (hoverEl) before it
     this.sel = null;
     this.hoverEl = null;
-    this.filter = 'all'; // the backpack's category chip
-    this.query = ''; // ...and its search, norm()ed
     this.showAllAmmo = false;
     // what the split popover is open on and how much of it is picked: { i, from, item, n, count, anchor }. i: the
     // backpack index, or -1 for a weapon slot or the armor worn; from: the same as ACT.SALVAGE names it (SALVAGE_FROM)
@@ -229,11 +225,12 @@ export class Inventory {
     this._renderAll();
   }
 
-  // ---- the header: the title (or, small, the two panels' tabs), health and stamina, the level and perks, Close
+  // ---- the header: the kit screens' tabs, the HUD's clock and the close (screentabs.js). Nothing else: the screen is
+  //      for the kit (health is the HUD's, the level the Perks tab's). Small, the two panels' tabs go in a row under it
   _buildHead(wrap) {
-    const head = el('header', 'ux-head', wrap);
-    el('h2', 'ux-title', head, 'Inventory');
-    const panes = (this.paneBar = el('div', 'ux-panes', head));
+    const head = (this.headEl = el('header', 'ux-head', wrap));
+    this.tabs = new ScreenTabs(this.ui, head, 'inventory', () => this.ui.cb.onCloseInventory());
+    const panes = (this.paneBar = el('div', 'ux-panes', wrap));
     const pane = (id, label, key) => {
       const b = el('button', 'ux-pane', panes);
       b.type = 'button';
@@ -250,44 +247,6 @@ export class Inventory {
     };
     this.paneKit = pane('kit', 'Your kit', 'Q');
     this.paneCraft = pane('craft', 'Crafting', 'E');
-
-    // health, its number, and stamina under it
-    const vit = (this.vitEl = el('div', 'ux-vit', head));
-    vit.title = 'Health and stamina';
-    svgEl('i', 'ux-vit-ico', vit, glyph('heart'));
-    const bars = el('div', 'ux-vit-bars', vit);
-    const hb = el('i', 'ux-hp', bars);
-    this.hpFill = el('i', '', hb);
-    const sb = el('i', 'ux-st', bars);
-    this.stFill = el('i', '', sb);
-    this.hpTxt = el('span', 'ux-hp-t', vit, '');
-
-    // the level, and the perks to pick
-    const lvl = (this.lvlEl = el('div', 'inv-lvl ux-lvl', head));
-    this.lvlBar = xpBar(lvl, 'inv-xpb');
-    const perks = (this.perksBtn = el('button', 'inv-perks', lvl));
-    perks.type = 'button';
-    svgEl('i', 'inv-perks-ico', perks, glyph('arrowUp'));
-    this.perksTxt = el('span', '', perks, 'Perks');
-    this.perksBadge = el('b', 'sp-badge', perks, '');
-    this.perksBadge.hidden = true;
-    perks.addEventListener('click', () => this.ui.progress.show());
-    this.prog = null; // our XP as the game last heard it (setProgress)
-    this.progAsked = -1e9; // when the server was last asked about our picks (fetchProgress)
-    onProgress((v) => {
-      this.perksTxt.textContent = v?.pending ? 'Spend a perk point' : 'Perks';
-      this.perksBtn.classList.toggle('lit', !!v?.pending);
-      this.perksBadge.hidden = !v?.pending;
-      this.perksBadge.textContent = v?.pending ? String(v.pending) : '';
-    });
-
-    const close = el('button', 'inv-close', head);
-    close.type = 'button';
-    liveText(close, () => `Close inventory (${bindLabel('inventory')})`, 'title');
-    liveText(el('span', 'kbd sm', close), () => bindLabel('inventory'));
-    el('span', 'inv-close-t', close, 'Close');
-    svgEl('i', 'inv-close-x', close, glyph('xmark'));
-    close.addEventListener('click', () => this.ui.cb.onCloseInventory());
   }
 
   // which panel shows while the window is small (both show otherwise)
@@ -404,35 +363,6 @@ export class Inventory {
   // ---- the backpack, and the item card under it
   _buildMid(kit) {
     const gp = (this.gridWrap = el('div', 'grid-wrap', kit));
-
-    // search: matches light up and the rest dims
-    const find = (this.bpFind = el('label', 'craft-find bp-find', gp));
-    svgEl('i', 'cf-ico', find, glyph('search'));
-    const field = (this.bpInput = el('input', 'cf-field', find));
-    field.type = 'text';
-    field.maxLength = 40;
-    field.autocomplete = 'off';
-    field.spellcheck = false;
-    field.placeholder = 'Find in backpack';
-    field.setAttribute('aria-label', 'Find in backpack');
-    this.bpCount = el('span', 'bp-count', find, '');
-    el('span', 'kbd sm bp-slash', find, '/');
-    const clr = (this.bpClear = svgEl('button', 'cf-clear', find, glyph('xmark')));
-    clr.type = 'button';
-    clr.hidden = true;
-    clr.title = 'Clear (Esc)';
-
-    // category chips, each with how many stacks it has
-    const chips = (this.chipBar = el('div', 'bp-chips', gp));
-    this.chips = [{ id: 'all', chip: 'All' }, ...SECTIONS].map((s) => {
-      const b = el('button', 'chip c-' + s.id, chips);
-      b.type = 'button';
-      b.dataset.f = s.id;
-      el('i', 'chip-dot', b);
-      el('span', '', b, s.chip);
-      return { id: s.id, b, n: el('b', 'chip-n', b, '0'), v: -1 };
-    });
-
     const scroll = (this.gridScroll = el('div', 'grid-scroll', gp));
     this.grid = el('div', 'grid', scroll);
     this.secEls = Object.fromEntries(
@@ -775,51 +705,16 @@ export class Inventory {
     this.throwAlt.addEventListener('dblclick', (e) => e.stopPropagation());
     this.undoBtn.addEventListener('click', () => this._undo());
 
-    // backpack search. Its keydowns are its own (the game and the screen's keys never see them), but Tab drops the
-    // focus so that I closes the inventory again
-    const field = this.bpInput;
-    field.addEventListener('input', () => this._setQuery(field.value));
-    field.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        return field.blur();
-      }
-      e.stopPropagation();
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (field.value) this._setQuery('');
-        else field.blur();
-      } else if (e.key === 'Enter') field.blur();
-    });
-    this.bpClear.addEventListener('click', () => {
-      this.ui.sound('ui_click');
-      this._setQuery('');
-      field.focus({ preventScroll: true });
-    });
-    this.chipBar.addEventListener('click', (e) => {
-      const b = e.target.closest('.chip');
-      if (!b) return;
-      this.ui.sound('ui_click');
-      this.filter = this.filter === b.dataset.f ? 'all' : b.dataset.f;
-      this._renderGrid();
-    });
-
     // The screen's keys, on what is under the pointer or else what is selected. Never from a text field (they keep
     // their keydowns, and isTyping() counts them too), never a key that opens or shuts a screen
     this._key = (e) => {
       if (!this.open || this.ui.isTyping() || e.ctrlKey || e.metaKey || e.altKey || menuKey(e.code)) return;
       if (e.code === 'Escape') {
         if (this.menu) this._closeMenu();
-        else if (this.query) this._setQuery('');
-        else if (this.sel) this._select(null);
+        else this.ui.cb.onCloseInventory(); // (a selection is no reason to stay: Esc puts the inventory away)
         return;
       }
       if (e.repeat) return;
-      if (e.code === 'Slash') {
-        e.preventDefault();
-        this.bpInput.focus({ preventScroll: true });
-        return;
-      }
       if (e.code === 'KeyZ' && this.undoAt) {
         e.preventDefault();
         return this._undo();
@@ -1568,15 +1463,6 @@ export class Inventory {
     this.undoEl.hidden = true;
   }
 
-  // ------------------------------------------------------------ backpack search
-  _setQuery(text) {
-    if (this.bpInput.value !== text) this.bpInput.value = text;
-    this.query = norm(text);
-    this.bpClear.hidden = !text;
-    this.bpFind.classList.toggle('on', !!this.query);
-    this._renderMarks();
-  }
-
   // ------------------------------------------------------------ data
   set(inv) {
     if (!inv) return;
@@ -1662,7 +1548,8 @@ export class Inventory {
     }
   }
 
-  // Health and stamina as the HUD has them ({ hp, maxHp, stamina, exhausted }: ui.updateHud, every frame)
+  // Health and stamina as the HUD has them ({ hp, maxHp, stamina, exhausted }: ui.updateHud, every frame): not drawn
+  // here, but Quick use marks the heal [H] takes and crafting names a heal while hurt
   setVitals(h) {
     if (!h || h.hp == null) return;
     // (kept for when the screen opens: nothing is drawn behind a closed one)
@@ -1681,17 +1568,12 @@ export class Inventory {
     if (v.hp === hp && v.maxHp === maxHp && v.stamina === st && v.exhausted === !!h.exhausted) return;
     const hpMoved = v.hp !== hp || v.maxHp !== maxHp;
     Object.assign(v, { hp, maxHp, stamina: st, exhausted: !!h.exhausted });
-    this.hpFill.style.transform = `scaleX(${clamp(hp / maxHp, 0, 1)})`;
-    this.stFill.style.transform = `scaleX(${st / 100})`;
-    this.hpTxt.textContent = `${hp} / ${maxHp}`;
-    this.vitEl.classList.toggle('low', hp < maxHp * 0.3);
-    this.vitEl.classList.toggle('ex', !!h.exhausted);
     if (!hpMoved) return;
     this._renderQuick();
     this.craft.render(); // ("For what you carry" names a heal while hurt)
   }
 
-  // the backpack: its cells, their order in sections, the chips' counts, the capacity
+  // the backpack: its cells, their order in sections, the capacity
   _renderGrid() {
     const inv = this.inv;
     for (let i = 0; i < INVENTORY_MAX; i++) this._renderCell(i);
@@ -1712,31 +1594,20 @@ export class Inventory {
       this.lockedEl.hidden = inv.cap > INVENTORY_SIZE;
     }
     // how many stacks of each kind
-    const n = { all: 0 };
+    const n = {};
     for (let i = 0; i < inv.cap; i++) {
       const s = inv.slots[i];
       if (!s) continue;
-      n.all++;
       const sec = secOf(s);
       n[sec] = (n[sec] || 0) + 1;
     }
-    if (this.filter !== 'all' && !n[this.filter]) this.filter = 'all';
-    for (const c of this.chips) {
-      const v = n[c.id] || 0;
-      c.b.classList.toggle('on', c.id === this.filter);
-      if (c.v === v) continue;
-      c.v = v;
-      c.n.textContent = String(v);
-      c.b.classList.toggle('zero', !v);
-      c.b.disabled = !v && c.id !== 'all';
-    }
-    // the order: each section that has anything (all of them, or the one the chip picks) with its stacks in slot order,
+    // the order: each section that has anything, with its stacks in slot order,
     // then the free cells. The locked pockets are not shown at all
     const order = [];
     for (const s of SECTIONS) {
       const sec = this.secEls[s.id];
       const k = n[s.id] || 0;
-      const show = k > 0 && (this.filter === 'all' || this.filter === s.id);
+      const show = k > 0;
       if (sec.n !== k) {
         sec.n = k;
         sec.t.textContent = `${s.label} · ${k}`;
@@ -1746,7 +1617,7 @@ export class Inventory {
       order.push(sec.h);
       for (let i = 0; i < inv.cap; i++) if (inv.slots[i] && secOf(inv.slots[i]) === s.id) order.push(this.cells[i].c);
     }
-    if (this.filter === 'all') for (let i = 0; i < inv.cap; i++) if (!inv.slots[i]) order.push(this.cells[i].c);
+    for (let i = 0; i < inv.cap; i++) if (!inv.slots[i]) order.push(this.cells[i].c);
     for (let i = 0; i < INVENTORY_MAX; i++) this.cells[i].c.hidden = !order.includes(this.cells[i].c);
     const key = order.map((e) => e.dataset.i ?? e.firstChild.textContent).join(',');
     if (this._orderKey !== key) {
@@ -1769,22 +1640,16 @@ export class Inventory {
     cell.cls = '';
   }
 
-  // the cells' states: selected, a search match (or not), about to be used by the recipe in focus, under a popover
+  // the cells' states: selected, about to be used by the recipe in focus, under a popover
   _renderMarks() {
-    const q = this.query;
-    let found = 0;
     const sel = this.sel?.kind === 'slot' ? this.sel.i : -1;
     const pop = this.split?.i ?? this.menu?.ref.i ?? -1;
     for (let i = 0; i < INVENTORY_MAX; i++) {
       const cell = this.cells[i];
       const s = this.inv.slots[i];
-      const hit = !!q && !!s && itemScore(s.item, q) > 0;
-      if (hit && i < this.inv.cap) found++;
-      const cls = 'cell' + (s ? ' c-' + cell.cat : ' empty') + (i === sel ? ' sel' : '') + (q ? (hit ? ' hit' : ' dim') : '') + (cell.take ? ' used' : '') + (i === pop ? ' splitting' : '');
+      const cls = 'cell' + (s ? ' c-' + cell.cat : ' empty') + (i === sel ? ' sel' : '') + (cell.take ? ' used' : '') + (i === pop ? ' splitting' : '');
       if (cell.cls !== cls) cell.c.className = cell.cls = cls;
     }
-    this.bpCount.textContent = q ? (found ? `${found} found` : 'none') : '';
-    this.bpCount.classList.toggle('none', !!q && !found);
     for (const q2 of this.eqEls) q2.r.classList.toggle('sel', this.sel?.kind === 'eq' && this.sel.slot === +q2.r.dataset.slot);
     this.armEl.classList.toggle('sel', this.sel?.kind === 'worn' && this.sel.which === WORN.ARMOR);
     this.packEl.classList.toggle('sel', this.sel?.kind === 'worn' && this.sel.which === WORN.BACKPACK);
@@ -1926,39 +1791,23 @@ export class Inventory {
     this._syncAmmo();
   }
 
-  // our XP ({ xp, run, loaded, kept }, Game.onProgress): the level at the top of the loadout column
-  setProgress(p) {
-    this.prog = p;
-    this.lvlBar.set(p ? p.xp : 0);
-    this.lvlEl.title = this.lvlEl.querySelector('.xpb-t')?.textContent || '';
-    if (this.open) this._askPerks();
-  }
-  // whether a perk is waiting is the server's to say (the picks are kept there): asked as the screen opens, at most
-  // every 15 s unless the level moved on since
-  _askPerks() {
-    const now = performance.now();
-    const moved = this.prog && lastProgress() && lastProgress().level !== levelOf(this.prog.xp);
-    if (!moved && now - this.progAsked < 15000) return;
-    this.progAsked = now;
-    fetchProgress().catch(() => {});
-  }
-
   setOpen(open) {
     open = !!open;
     if (open === this.open) return;
     this.open = open;
     this.root.hidden = !open;
-    this.ui.root.classList.toggle('inv-open', open);
     if (open) {
       this.root.classList.remove('in');
       void this.root.offsetWidth;
       this.root.classList.add('in');
-      this._askPerks();
+      screenCame(this.root); // (from another tab: no animation in)
+      this.tabs.sync();
+      this.tabs.holdClock(true);
       if (this.vitLast) this.setVitals(this.vitLast);
       this.craft.render();
     } else {
-      if (this.ui.progress.visible) this.ui.progress.hide(); // (opened from here: it goes with the screen)
-      // a focused search field would keep ui.isTyping() true and swallow gameplay keys
+      this.tabs.holdClock(false);
+      // a focused field would keep ui.isTyping() true and swallow gameplay keys
       const a = document.activeElement;
       if (a && this.root.contains(a)) a.blur();
       this.craft.dropBulk();

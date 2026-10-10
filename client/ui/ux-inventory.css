@@ -17,7 +17,8 @@
   --fh: max(1.375rem, calc(24 * var(--u)));
   --gap: max(0.5rem, calc(12 * var(--u)));
   --pad: max(0.625rem, calc(14 * var(--u)));
-  padding: calc(66 * var(--u)) max(0.75rem, calc(20 * var(--u))) max(0.5rem, calc(16 * var(--u)));
+  /* (nothing of the HUD's runs across the top over it: the clock is in the header) */
+  padding: max(0.5rem, calc(16 * var(--u))) max(0.75rem, calc(20 * var(--u)));
 }
 
 /* ---------------------------------------------------------------- frame */
@@ -36,14 +37,14 @@
   min-width: 0;
 }
 
-/* the kit is one grid: the backpack's own parts (search, chips, cells, the locked line, the card) are laid in it
-   directly (.grid-wrap is display: contents), so the search and the chips run across above Quick use too */
+/* the kit is one grid: the backpack's own parts (search, cells, the locked line, the card) are laid in it
+   directly (.grid-wrap is display: contents) */
 .stn-ui .inv.ux-inv .ux-kit {
   grid-area: kit;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto clamp(10.5rem, 18vw, 16rem);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
-  grid-template-areas: 'h h h' 'load load load' 'find chips chips' 'pack pack side' 'lock lock side' 'card card side';
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'h h h' 'load load load' 'pack pack side' 'lock lock side' 'card card side';
   column-gap: max(0.625rem, calc(14 * var(--u)));
   min-height: 0;
   overflow: hidden;
@@ -70,7 +71,8 @@
   font-size: var(--fx);
 }
 
-/* ---------------------------------------------------------------- header: title / tabs, health, level, Close */
+/* ---------------------------------------------------------------- header: the kit screens' row (ux-screens.css: tabs,
+   the HUD's clock, the close); small, the two panels' tabs in a row of their own under it */
 .stn-ui .inv.ux-inv .ux-head {
   grid-area: head;
   position: relative;
@@ -78,14 +80,6 @@
   align-items: center;
   gap: max(0.75rem, calc(18 * var(--u)));
   min-width: 0;
-}
-
-.stn-ui .inv.ux-inv .ux-title {
-  margin: 0;
-  font: 400 max(1.75rem, calc(34 * var(--u))) / 1 var(--f-head);
-  letter-spacing: 0.12em;
-  color: var(--bone);
-  white-space: nowrap;
 }
 
 .stn-ui .inv.ux-inv .ux-panes {
@@ -131,106 +125,6 @@
 .stn-ui .inv.ux-inv .ux-pane .kbd.sm,
 .stn-ui .inv.ux-inv .inv-close .kbd.sm {
   font-size: var(--fx);
-}
-
-/* health over stamina, and the number */
-.stn-ui .inv.ux-inv .ux-vit {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-  min-width: 0;
-}
-
-.stn-ui .inv.ux-inv .ux-vit-ico {
-  flex: none;
-  width: 1.125rem;
-  height: 1.125rem;
-  color: var(--blood-lite);
-}
-
-.stn-ui .inv.ux-inv .ux-vit-ico svg {
-  width: 100%;
-  height: 100%;
-}
-
-.stn-ui .inv.ux-inv .ux-vit-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: clamp(5rem, 12vw, 11rem);
-}
-
-.stn-ui .inv.ux-inv .ux-hp,
-.stn-ui .inv.ux-inv .ux-st {
-  position: relative;
-  display: block;
-  height: 0.5rem;
-  background: rgba(230, 223, 207, 0.1);
-  overflow: hidden;
-}
-
-.stn-ui .inv.ux-inv .ux-st {
-  height: 3px;
-}
-
-.stn-ui .inv.ux-inv .ux-hp i,
-.stn-ui .inv.ux-inv .ux-st i {
-  position: absolute;
-  inset: 0;
-  transform-origin: left;
-  transform: scaleX(0);
-  background: linear-gradient(90deg, var(--blood), var(--blood-hi));
-  transition: transform 0.2s;
-}
-
-.stn-ui .inv.ux-inv .ux-st i {
-  background: var(--sick);
-}
-
-.stn-ui .inv.ux-inv .ux-vit.ex .ux-st i {
-  background: var(--amber);
-}
-
-.stn-ui .inv.ux-inv .ux-hp-t {
-  font: 400 var(--fl) / 1 var(--f-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--bone);
-  white-space: nowrap;
-}
-
-.stn-ui .inv.ux-inv .ux-vit.low .ux-hp-t {
-  color: var(--blood-lite);
-}
-
-/* the level and the perks, in a line */
-.stn-ui .inv.ux-inv .ux-lvl {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.stn-ui .inv.ux-inv .ux-lvl .xpb {
-  width: clamp(6rem, 11vw, 10rem);
-}
-
-.stn-ui .inv.ux-inv .ux-lvl .xpb-t {
-  display: none;
-}
-
-.stn-ui .inv.ux-inv .ux-lvl .xpb-lv small {
-  font-size: var(--fx);
-}
-
-.stn-ui .inv.ux-inv .inv-xpb .xpb-lv b {
-  font-size: var(--fl);
-}
-
-.stn-ui .inv.ux-inv .inv-perks {
-  align-self: center;
-  font-size: var(--fx);
-  white-space: nowrap;
 }
 
 .stn-ui .inv.ux-inv .inv-close {
@@ -527,22 +421,6 @@
   box-shadow: inset 0 0 18px rgba(232, 163, 61, 0.2);
 }
 
-.stn-ui .inv.ux-inv .bp-find {
-  grid-area: find;
-  min-width: 9rem;
-  height: 2.125rem;
-  margin: 0 0 max(0.375rem, calc(8 * var(--u)));
-}
-
-.stn-ui .inv.ux-inv .bp-chips {
-  grid-area: chips;
-  align-self: center;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  min-width: 0;
-  margin: 0 0 max(0.375rem, calc(8 * var(--u)));
-}
-
 .stn-ui .inv.ux-inv .grid-scroll {
   grid-area: pack;
 }
@@ -553,26 +431,6 @@
 
 .stn-ui .inv.ux-inv .card {
   grid-area: card;
-}
-
-.stn-ui .inv.ux-inv .cf-field {
-  font-size: var(--fm);
-}
-
-.stn-ui .inv.ux-inv .bp-count {
-  font-size: var(--fx);
-}
-
-.stn-ui .inv.ux-inv .chip {
-  min-height: 2.125rem;
-  font-size: var(--fx);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-/* (a category with nothing in it is not offered at all) */
-.stn-ui .inv.ux-inv .chip.zero:not(.c-all) {
-  display: none;
 }
 
 .stn-ui .inv.ux-inv .grid {
@@ -737,14 +595,6 @@
   font-size: var(--fx);
 }
 
-.stn-ui .inv.ux-inv .craft-find {
-  height: 2.125rem;
-}
-
-.stn-ui .inv.ux-inv .craft-ready {
-  font-size: var(--fx);
-}
-
 .stn-ui .inv.ux-inv .ct {
   min-height: 1.875rem;
   padding-left: 0.4375rem;
@@ -903,7 +753,6 @@
 }
 
 .stn-ui .inv.ux-inv .craft-none,
-.stn-ui .inv.ux-inv .craft-none .cf-reset,
 .stn-ui .inv.ux-inv .cd-empty {
   font-size: var(--fs);
 }
@@ -991,7 +840,8 @@
 
 .stn-ui .inv.ux-inv.compact .inv-wrap {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'head' 'pane';
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas: 'head' 'panes' 'pane';
   gap: 0.375rem;
   width: 100%;
 }
@@ -1004,8 +854,8 @@
 
 .stn-ui .inv.ux-inv.compact .ux-kit {
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
-  grid-template-areas: 'load load' 'side side' 'find chips' 'pack pack' 'lock lock' 'card card';
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'load load' 'side side' 'pack pack' 'lock lock' 'card card';
   column-gap: 0.5rem;
 }
 
@@ -1015,7 +865,6 @@
 }
 
 .stn-ui .inv.ux-inv.compact .ux-title,
-.stn-ui .inv.ux-inv.compact .ux-lvl .xpb,
 .stn-ui .inv.ux-inv.compact .inv-close-t,
 .stn-ui .inv.ux-inv.compact .ux-kit > .inv-h,
 .stn-ui .inv.ux-inv.compact .ux-sub,
@@ -1025,15 +874,19 @@
 }
 
 .stn-ui .inv.ux-inv.compact .ux-panes {
+  grid-area: panes;
   display: flex;
+}
+
+/* (under the kit screens' tabs: each half as wide as it can be) */
+.stn-ui .inv.ux-inv.compact .ux-pane {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
 }
 
 .stn-ui .inv.ux-inv.compact .ux-head {
   gap: 0.625rem;
-}
-
-.stn-ui .inv.ux-inv.compact .ux-vit-bars {
-  width: clamp(4rem, 14vw, 8rem);
 }
 
 .stn-ui .inv.ux-inv.compact .ux-load {
@@ -1196,10 +1049,6 @@
 
 .stn-ui .inv.ux-inv.compact .ux-craft > .inv-h .inv-h-t {
   font-size: var(--fm);
-}
-
-.stn-ui .inv.ux-inv.compact .craft-find {
-  margin-bottom: 0.375rem;
 }
 
 .stn-ui .inv.ux-inv.compact .craft-tabs {

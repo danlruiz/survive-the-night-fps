@@ -2,7 +2,6 @@
 // nearest place, a teammate out and one down, a supply in your pack, one on the ground, rumours, schematics, your
 // waypoint and a teammate's, two pings and a supply drop. &act=2: the mainland. &seed=, &zoom= (1-4), &up=1 (facing
 // up), &yaw= (rad), &solo=1 (no teammates), &keys=1 (small windows: the key popover open).
-import { PHASE } from '../../shared/constants.js';
 import { WORLD } from '../../shared/acts.js';
 import { setAct, SUPPLIES } from '../game/act.js';
 
@@ -59,8 +58,8 @@ export async function mapScene(ui, q, buildScene) {
     carried: { [SUPPLIES[1]]: 1 },
     waypoint: { x: at(5).x, z: at(5).z, zone: at(5).id },
     teamWays: q.get('solo') ? [] : [{ x: at(3).x, z: at(3).z, zone: at(3).id, names: ['Marlowe'], mine: false }],
-    clock: { phase: PHASE.DAY, day: 3, timeLeft: 132 },
   };
+  ui.screenRun = () => true; // (the map is a run's: all four tabs, the HUD's clock in their row)
   ui.setMapOpen(true);
   const tick = () => {
     ui.map.update(d);

@@ -24,6 +24,12 @@
   pointer-events: auto;
 }
 
+/* come up as the other went (a tab, Tab, L): the same sheet with other contents, so it does not slide in again */
+.stn-ui .pls-scr.pls-still,
+.stn-ui .lbscr.lb-sheet.pls-still {
+  animation: none;
+}
+
 .stn-ui .pls-frame,
 .stn-ui .lbscr.lb-sheet .lb-frame,
 .stn-ui .stn-settings.pls-docked .set-card {
@@ -67,14 +73,6 @@
   font: 400 1.75rem / 1 var(--f-head);
   letter-spacing: 0.2em;
   color: var(--bone);
-}
-
-.stn-ui .pls-close {
-  width: 2rem;
-  height: 2rem;
-  min-width: 0;
-  min-height: 0;
-  padding: 0.45rem;
 }
 
 .stn-ui .pls-scr [hidden] {
@@ -543,13 +541,19 @@
   pointer-events: auto;
 }
 
+/* it lies exactly over the sheet that is up already, so it is that sheet with other contents: no slide in, and no
+   shadow of its own (the sheet under it casts the one shadow; a second fell on the tabs and set it apart) */
+.stn-ui .stn-settings.pls-docked .set-card,
 .stn-ui .stn-settings.pls-docked.in .set-card {
-  animation: pls-in 0.14s ease-out;
+  animation: none;
+  box-shadow: none;
 }
 
 .stn-ui .stn-settings.pls-docked .set-head {
-  padding: 0.85rem 1rem 0.6rem;
+  padding: 0.85rem 1rem 0.35rem;
   gap: 0.6rem;
+  /* (no rule under it: the list's and the leaderboard's heads have none) */
+  border-bottom: 0;
 }
 
 .stn-ui .stn-settings.pls-docked .set-title {
@@ -558,15 +562,9 @@
 }
 
 .stn-ui .stn-settings.pls-docked .set-sub {
-  font-size: 0.75rem;
-}
-
-.stn-ui .stn-settings.pls-docked .set-close {
-  width: 2rem;
-  height: 2rem;
   min-width: 0;
-  min-height: 0;
-  padding: 0.45rem;
+  text-align: right;
+  font: 0.75rem / 1.2 var(--f-mono);
 }
 
 .stn-ui .stn-settings.pls-docked .set-body {
@@ -578,7 +576,51 @@
 
 .stn-ui .stn-settings.pls-docked .set-foot {
   flex-wrap: wrap;
-  padding: 0.6rem 1rem 0.75rem;
+  align-items: center;
+  /* the rule over it inset to the text, as over the list's and the leaderboard's keys */
+  margin: 0 1rem;
+  padding: 0.6rem 0 0.75rem;
+  border-top-color: var(--pls-line);
+}
+
+/* Friends docked: its headings are the list's (a small caps line, ruled off to the edge) */
+.stn-ui .stn-settings.pls-docked .fr-h {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0.35rem;
+  letter-spacing: 0.16em;
+  color: var(--bone-dim);
+}
+
+.stn-ui .stn-settings.pls-docked .fr-h::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--pls-line);
+}
+
+/* ...and signed out, what an account is for reads as the sheet's text, from the top left, not a card's empty middle */
+.stn-ui .stn-settings.pls-docked .fr-signin {
+  padding: 0.35rem 0 0;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin-ico {
+  display: none;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin .gb-empty-sub {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.stn-ui .stn-settings.pls-docked .fr-signin-btns {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
 }
 
 .stn-ui .stn-settings.pls-docked .ac-tiles {
@@ -634,15 +676,6 @@
   min-width: 0;
   text-align: right;
   font: 0.75rem / 1.2 var(--f-mono);
-}
-
-.stn-ui .lbscr.lb-sheet .map-close {
-  flex: none;
-  width: 2rem;
-  height: 2rem;
-  min-width: 0;
-  min-height: 0;
-  padding: 0.45rem;
 }
 
 .stn-ui .lbscr.lb-sheet .lb-lists {
@@ -850,8 +883,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stn-ui .pls-scr,
-  .stn-ui .lbscr.lb-sheet,
-  .stn-ui .stn-settings.pls-docked.in .set-card {
+  .stn-ui .lbscr.lb-sheet {
     animation: none;
   }
 
