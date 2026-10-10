@@ -231,8 +231,10 @@ export class Combat {
           const hz = oz + dz * wallT;
           let kind = IMPACT.DIRT;
           if (wallCol && !wallTerrain) {
-            if (wallCol.flags & COL.TREE) kind = IMPACT.WOOD;
-            else if (wallCol.flags & COL.STRUCT) kind = STRUCT_DEFS[this.g.ents[wallCol.id]?.stype]?.metal ? IMPACT.METAL : IMPACT.WOOD;
+            if (wallCol.flags & COL.TREE) {
+              kind = IMPACT.WOOD;
+              g.shootTree(wallCol, hy, dx, dz); // (the rest of a blast's pellets go on through where it stood)
+            } else if (wallCol.flags & COL.STRUCT) kind = STRUCT_DEFS[this.g.ents[wallCol.id]?.stype]?.metal ? IMPACT.METAL : IMPACT.WOOD;
             else kind = IMPACT.SPARK;
             if (wallCol.flags & COL_VEHICLE) g.vehicles.shot(wallCol, def.damage); // a vehicle standing empty takes the round
           }
@@ -662,6 +664,7 @@ export class Combat {
     );
     g.sound(SOUND.EXPLOSION, x, y, z, 260);
     g.blastWrecks(x, y, z, radius);
+    g.blastTrees(x, y, z, radius);
     if (g.vehicles.list.length) g.vehicles.blast(x, y, z, radius, opts.structures || opts.zombies || 0);
     if (opts.humans) {
       for (const h of g.players.values()) {

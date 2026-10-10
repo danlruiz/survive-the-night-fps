@@ -514,6 +514,12 @@ export class Foliage {
     if (yaw !== null) this.falling.fell(i, yaw, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
   }
 
+  // Tree i shot or blown apart (Game.breakTree; FallingTrees.breakTree): out of the forest, in pieces. Where it broke
+  breakTree(i, yaw, cut, pieces, r) {
+    this.trees.hide(i);
+    return this.falling.breakTree(i, yaw, cut, pieces, r, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
+  }
+
   // dawn: every felled tree stands again
   regrow() {
     this.falling.clear();

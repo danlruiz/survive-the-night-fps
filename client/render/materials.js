@@ -291,15 +291,23 @@ const VEG_LOD_DITHER = /* glsl */ `
 #endif
 `;
 
-// a felled tree going: the same screen-space dither, by its own uVegGone (0 there .. 1 gone)
+// a felled tree going: the same screen-space dither, by its own uVegGone (0 there .. 1 gone). A piece of a tree
+// blown apart (VEG_BAND) is the slice of it between uVegBand.x and .y up its own model (vVegY: before the wind)
 const VEG_FELL_PARS = /* glsl */ `
 #ifdef VEG_FELL
   uniform float uVegGone;
+#endif
+#ifdef VEG_BAND
+  uniform vec2 uVegBand;
+  varying float vVegY;
 #endif
 `;
 const VEG_FELL_DITHER = /* glsl */ `
 #ifdef VEG_FELL
   if (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) < uVegGone) discard;
+#endif
+#ifdef VEG_BAND
+  if (vVegY < uVegBand.x || vVegY > uVegBand.y) discard;
 #endif
 `;
 
@@ -345,19 +353,20 @@ const VEG_MIP_ALPHA = /* glsl */ `
 function vegVertex(sh) {
   Object.assign(sh.uniforms, VEG);
   sh.vertexShader = sh.vertexShader
-    .replace('#include <common>', `#include <common>\n${VEG_VERT_PARS}`)
+    .replace('#include <common>', `#include <common>\n${VEG_VERT_PARS}\n#ifdef VEG_BAND\nvarying float vVegY;\n#endif`)
     .replace('#include <begin_vertex>', VEG_VERT_MAIN)
-    .replace('#include <project_vertex>', '#include <project_vertex>\nif (vegDrop) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);');
+    .replace('#include <project_vertex>', '#include <project_vertex>\nif (vegDrop) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);\n#ifdef VEG_BAND\nvVegY = position.y;\n#endif');
   return sh;
 }
 
 /** Shadow-map twin of a vegetation material: same wind and cut-outs, so shadows match. */
-function vegDepthMaterial(defines, gone = null) {
+function vegDepthMaterial(defines, gone = null, band = null) {
   const m = new THREE.MeshDepthMaterial();
   m.defines = { ...defines, VEG_DEPTH: '' };
   m.onBeforeCompile = (sh) => {
     vegVertex(sh);
     if (gone) sh.uniforms.uVegGone = gone;
+    if (band) sh.uniforms.uVegBand = band;
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying float vVegFade;\nvarying float vVegSolid;\n${VEG_FELL_PARS}`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${VEG_FELL_DITHER}`)
@@ -374,7 +383,7 @@ function vegDepthMaterial(defines, gone = null) {
  * near: the grass's near infill (fades out across uGrassNear). gone: a felled tree's { value } (0 .. 1), which
  * dithers it out, shadow and all.
  */
-function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod = -1, gone = null) {
+function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod = -1, gone = null, band = null) {
   const opaque = kind === 'trunk';
   const mat = lambert(opaque ? o : { alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: true, ...o });
   const defines = {};
@@ -387,6 +396,7 @@ function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod =
   if (lod === 0) defines.VEG_LOD_OUT = '';
   if (lod === 1) defines.VEG_LOD_IN = '';
   if (gone) defines.VEG_FELL = '';
+  if (band) defines.VEG_BAND = '';
   defines.VEG_STIFF = stiff.toFixed(3);
   mat.defines = defines;
   if (kind === 'grass') groundNoiseTexture();
@@ -396,6 +406,7 @@ function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod =
     vegVertex(sh);
     sh.uniforms.uVegTrans = uTrans;
     if (gone) sh.uniforms.uVegGone = gone;
+    if (band) sh.uniforms.uVegBand = band;
     if (kind === 'tree' && !opaque) {
       // look shadows up slightly outside the crown shell: the outer cards aren't shadowed by the (coarser,
       // far-LOD) caster around them
@@ -421,7 +432,7 @@ function vegMaterial(o, { kind, trans = null, stiff = 0.5, near = false }, lod =
       .replace('#include <aomap_fragment>', '#include <aomap_fragment>\nreflectedLight.indirectDiffuse *= mix( 0.4, 1.0, vVeg.x ) * ( 1.0 + 0.35 * vVeg.z * step( 0.001, uVegTrans.w ) );');
   };
   mat.customProgramCacheKey = () => 'veg';
-  mat.userData.depth = vegDepthMaterial(defines, gone);
+  mat.userData.depth = vegDepthMaterial(defines, gone, band);
   return mat;
 }
 
@@ -452,10 +463,11 @@ export function vegStaticMaterial(mat) {
 }
 /**
  * A felled tree's own twin of a tree material (near or far LOD): drawn at every distance, and dithered out by
- * `gone` ({ value } 0 .. 1), shadow and all. A new one every call - each falling tree fades on its own.
+ * `gone` ({ value } 0 .. 1), shadow and all. A new one every call - each falling tree fades on its own. band
+ * ({ value: Vector2 }): the slice of the model up its height that is drawn (a piece of a tree blown apart).
  */
-export function vegFellMaterial(mat, gone) {
-  const m = vegMaterial(...vegDef(mat.name.replace(/_(far|static)$/, '')), -1, gone);
+export function vegFellMaterial(mat, gone, band) {
+  const m = vegMaterial(...vegDef(mat.name.replace(/_(far|static)$/, '')), -1, gone, band);
   m.name = mat.name + '_fell';
   return m;
 }

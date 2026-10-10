@@ -934,6 +934,29 @@ export class Game {
     this.audio.play(SOUND.TREE_FALL, { x, y: this.world.heightAt(x, z) + 1.5, z });
   }
 
+  // A tree shot (pieces 1) or blown apart (2-3; EVT.TREE_BREAK): it bursts cut m up its foot, and what was above
+  // comes down toward yaw - a blast's pieces thrown that way. Out of the world until dawn, as one chopped down.
+  breakTree(qx, qy, qz, yaw, cut, pieces) {
+    const col = this.world && treeAt(this.world, qx, qy, qz);
+    if (!col || !fellTree(this.world, col)) return;
+    this.impacts?.gone(col);
+    const cuts = this.foliage?.breakTree(col.ti, yaw, cut, pieces, col.r) || [cut];
+    const x = col.x;
+    const z = col.z;
+    const foot = col.y0 + 1;
+    const dx = -Math.sin(yaw);
+    const dz = -Math.cos(yaw);
+    const near = Math.hypot(x - this.camera.position.x, z - this.camera.position.z) < 160;
+    for (const c of cuts) {
+      if (near) this.impacts?.fx.treeBurst(x, foot + c, z, col.r, dx, dz, pieces > 1);
+      this.audio.play(SOUND.WOOD_BREAK, { x, y: foot + c, z });
+    }
+    // a shot one comes down as a chopped one does, and is heard so; a blast's pieces land in the blast's noise
+    if (pieces > 1) return;
+    const out = 0.3 * (col.y1 - foot);
+    this.audio.play(SOUND.TREE_FALL, { x: x + dx * out, y: this.world.heightAt(x + dx * out, z + dz * out) + 1.5, z: z + dz * out });
+  }
+
   regrowTrees() {
     if (!this.world) return;
     regrowTrees(this.world);
@@ -1344,6 +1367,9 @@ export class Game {
       },
       fell(qx, qy, qz, yaw) {
         g.fellTree(qx, qy, qz, yaw);
+      },
+      treeBreak(qx, qy, qz, yaw, cut, pieces) {
+        g.breakTree(qx, qy, qz, yaw, cut, pieces);
       },
       strike(id, blow, heavy, x, y, z, dx, dy, dz) {
         g.impacts.strike(id, blow, heavy, x, y, z, dx, dy, dz);

@@ -238,6 +238,27 @@ export class StrikeFx {
     }
   }
 
+  // A tree's trunk (radius r) bursting at x,y,z - shot through, or blown apart (blast): splinters and chunks of wood
+  // thrown out all round and on the way it goes (dx, dz), and a cloud of wood dust
+  treeBurst(x, y, z, r, dx, dz, blast) {
+    const fx = this.fx;
+    const rn = (a, b) => a + Math.random() * (b - a);
+    const k = blast ? 1.5 : 1;
+    for (let i = Math.round(34 * k); i > 0; i--) {
+      const a = Math.random() * 6.283;
+      const ox = Math.cos(a);
+      const oz = Math.sin(a);
+      const sp = rn(2, 7) * k;
+      const along = rn(0.5, 4) * k; // (more of it goes the way the trunk is knocked)
+      const big = Math.random() < 0.3;
+      this.chips.add('splinter', x + ox * r, y + rn(-0.3, 0.3), z + oz * r, ox * sp + dx * along, rn(1, 5) * k, oz * sp + dz * along, big ? rn(3, 6) : rn(1.2, 2.5), rn(0.6, 1.1));
+    }
+    for (let i = 0; i < 4 * k; i++) {
+      const v = [rn(-1.2, 1.2) + dx * 0.8, rn(0.2, 1.2), rn(-1.2, 1.2) + dz * 0.8];
+      fx.alpha.emit(x + rn(-r, r), y + rn(-0.4, 0.4), z + rn(-r, r), v[0], v[1], v[2], rn(1.4, 2.4), 0.5 + 0.3 * k, 2.2 * k, 0.55, 0.45, 0.33, 0.55, 0.5, 0.42, 0.32, 0, -0.1, 1.6, TEX.SMOKE + LIT, rn(-0.6, 0.6));
+    }
+  }
+
   // a pane going: shards thrown out of it both ways, to fall and lie under where it was. corners: its four (12 numbers)
   shatter(corners, nx, ny, nz, dx, dy, dz, n = 26) {
     const r = (a, b) => a + Math.random() * (b - a);

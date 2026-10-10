@@ -176,6 +176,8 @@ const WEDGED_FOR = 15; // s one of the dead has been after a survivor without ge
 const CMDS_PER_TICK = CMD_RATE / SERVER_TICK_RATE; // commands a client issues per server tick
 const CMD_QUEUE_MAX = 24; // commands a client can have waiting (0.4 s of them); older ones are dropped
 const CMD_CATCH_UP = 1.05; // a client's command allowance refills this much faster than it issues them (processInputs)
+const TREE_CUT_MIN = 0.4; // m above its foot, at the least, a tree shot or blown apart breaks: the stump left
+const TREE_CUT_MAX = 12; // ...and at the most (a shot that high takes off just the crown)
 const CAR_ALARM_CHANCE = 0.1;
 const CAR_ALARM_MIN_ZOMBIES = 6;
 const CAR_ALARM_MAX_ZOMBIES = 7;
@@ -3327,6 +3329,47 @@ export class Game {
       w.i16(qpos(col.y0));
       w.i16(qpos(col.z));
       w.u8(qangle8(yaw));
+    });
+  }
+
+  // A bullet in a tree's trunk at height y, going dx,dz: it bursts there, and what stands above comes down the way
+  // the round was going. It is out of the world until dawn, as a tree chopped down is.
+  shootTree(col, y, dx, dz) {
+    const foot = col.y0 + 1; // (its collider reaches a metre into the ground)
+    this.breakTree(col, Math.atan2(-dx, -dz), Math.min(y - foot, TREE_CUT_MAX), 1);
+  }
+
+  // What a blast does to the trees round it: each trunk in reach is blown apart, low down and in pieces (more of
+  // them the nearer it was), away from the blast.
+  blastTrees(x, y, z, radius) {
+    for (const col of this.world.staticGrid.query(x, z, radius + 2, [])) {
+      if (!(col.flags & COL.TREE) || y < col.y0 - 1 || y > col.y1 + 1) continue;
+      const dx = col.x - x;
+      const dz = col.z - z;
+      const d = Math.max(0, Math.hypot(dx, dz) - col.r);
+      if (d > radius) continue;
+      const foot = col.y0 + 1;
+      this.breakTree(col, Math.atan2(-dx, -dz), y - foot, d < radius * 0.5 ? 3 : 2);
+    }
+  }
+
+  // cut: how far up its foot it broke (m); pieces: 1 for a shot, 2-3 for a blast (EVT.TREE_BREAK)
+  breakTree(col, yaw, cut, pieces) {
+    if (!fellTree(this.world, col)) return;
+    cut = Math.max(TREE_CUT_MIN, Math.min(cut, (col.y1 - col.y0 - 1) * 0.6));
+    // (all there was to cut from it is gone with it: whoever joins is told it is down - Game.join's tellStripped -
+    // and dawn's gather.clear() stands it up again)
+    const g = this.gather.get(col);
+    if (g) g.left = 0;
+    else this.gather.set(col, { left: 0 });
+    this.emit((w) => {
+      w.u8(EVT.TREE_BREAK);
+      w.i16(qpos(col.x));
+      w.i16(qpos(col.y0));
+      w.i16(qpos(col.z));
+      w.u8(qangle8(yaw));
+      w.u8(Math.round(cut * 10));
+      w.u8(pieces);
     });
   }
 
