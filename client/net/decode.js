@@ -421,6 +421,12 @@ export function readEvents(r, handler, flags, ents) {
         handler.fell?.(x, y, z, yaw);
         break;
       }
+      case EVT.TREE_BREAK: {
+        // (named as FELL's)
+        const x = r.i16(), y = r.i16(), z = r.i16(), yaw = dqangle8(r.u8()), cut = r.u8() / 10, pieces = r.u8();
+        handler.treeBreak?.(x, y, z, yaw, cut, pieces);
+        break;
+      }
       case EVT.STRIKE: {
         const id = r.u16(), bits = r.u8();
         const x = dqpos(r.i16()), y = dqpos(r.i16()), z = dqpos(r.i16());

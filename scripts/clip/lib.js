@@ -576,7 +576,7 @@ export async function launchChrome({ width = 900, height = 600, extraArgs = [], 
       headless: 'new',
       userDataDir: profile,
       defaultViewport: { width, height, deviceScaleFactor: 1 },
-      args: ['--window-position=-32000,-32000', `--window-size=${width},${height}`, '--mute-audio', `--use-angle=${angle}`, '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files', '--force-device-scale-factor=1', ...NO_CREDENTIALS, ...plan.args, ...extraArgs],
+      args: ['--window-position=-32000,-32000', `--window-size=${width},${height}`, '--mute-audio', `--use-angle=${angle}`, '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files', '--force-device-scale-factor=1', ...NO_CREDENTIALS, ...plan.args, ...extraArgs, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])], // (as root - a cloud container - Chrome will not start sandboxed)
     });
     pid = browser.process()?.pid || 0;
     current = { killNow };

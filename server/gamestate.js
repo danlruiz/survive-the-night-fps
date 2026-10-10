@@ -21,7 +21,7 @@ import { ZOMBIE_DEFS, LOOT_TABLES, ZONE, STRUCT_DEFS } from '../shared/defs.js';
 import { ENT, qpos, dqpos } from '../shared/protocol.js';
 import { COL } from '../shared/collision.js';
 import { createPlayerState, copyPlayerState } from '../shared/playersim.js';
-import { fellTree, treeAt } from '../shared/felling.js';
+import { fellTree, treeAt, cutTree } from '../shared/felling.js';
 import { mulberry32 } from '../shared/rng.js';
 
 export const HANDOFF_RESERVE = +(process.env.HANDOFF_RESERVE_SECONDS || 180); // s a restored player's place is kept
@@ -150,6 +150,7 @@ export function loadGame(g, s) {
   for (const [key, v] of s.gather) {
     const col = colAt(w, key);
     if (col) g.gather.set(col, v);
+    if (col && v.top !== undefined) cutTree(w, col, v.top); // (shot or blown down to this much of it)
     if (col && v.alarm === 4) g.ringing.add(col); // (ALARM.RINGING: it goes on ringing)
   }
   g.supplySpots = s.supplySpots.map((i) => w.partSpots[i]).filter(Boolean);

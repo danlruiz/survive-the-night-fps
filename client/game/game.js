@@ -69,7 +69,7 @@ import { decode, lookKey } from '../../shared/appearance.js';
 import { nearestRoster } from '../render/models/looks.js';
 import { LookWarmer } from './lookwarm.js';
 import { SPAWN_KEY } from '../ui/spawnmenu.js';
-import { treeAt, fellTree, regrowTrees } from '../../shared/felling.js';
+import { treeAt, fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../../shared/felling.js';
 import { nightTheme } from '../../shared/nights.js';
 import { shotDirections, shotSpread, shotClimb, aimingWith, currentWeapon, eyeHeight } from '../../shared/playersim.js';
 import { stepClimb, punchOf, punchAt, crosshairGap } from './aimview.js';
@@ -967,6 +967,36 @@ export class Game {
     this.audio.play(SOUND.TREE_FALL, { x, y: this.world.heightAt(x, z) + 1.5, z });
   }
 
+  // A tree shot (pieces 1) or blown apart (2-3; EVT.TREE_BREAK): it bursts cut m up its foot, and what was above
+  // comes down toward yaw - a blast's pieces thrown that way. What stands below stands until dawn, its collider cut
+  // down to it, and can be shot again; it gives no wood. Pieces 0: it was cut so before we came.
+  breakTree(qx, qy, qz, yaw, cut, pieces) {
+    const col = this.world && treeAt(this.world, qx, qy, qz);
+    if (!col?.cells) return; // (none, or chopped down)
+    const top = col.full === undefined ? Infinity : treeTop(col); // (what stood of it: the whole, or a trunk)
+    if (!cutTree(this.world, col, cut)) return;
+    this.stripped.add(strippedKey(qx, qy, qz));
+    this.impacts?.gone(col); // (the marks in its bark go: the ones above went with what came down)
+    const cuts = this.foliage?.breakTree(col.ti, yaw, cut, top, pieces, col.r) || [cut];
+    if (!pieces) return;
+    const x = col.x;
+    const z = col.z;
+    const foot = treeFoot(col);
+    const dx = -Math.sin(yaw);
+    const dz = -Math.cos(yaw);
+    const near = Math.hypot(x - this.camera.position.x, z - this.camera.position.z) < 160;
+    for (const c of cuts) {
+      if (near) this.impacts?.fx.treeBurst(x, foot + c, z, col.r, dx, dz, pieces > 1);
+      this.audio.play(SOUND.WOOD_BREAK, { x, y: foot + c, z });
+    }
+    // a shot one comes down as a chopped one does, and is heard so - unless it is only a length of trunk; a blast's
+    // pieces land in the blast's noise
+    const fell = Math.min(top, col.full - foot) - cut;
+    if (pieces > 1 || fell < 2) return;
+    const out = 0.3 * fell;
+    this.audio.play(SOUND.TREE_FALL, { x: x + dx * out, y: this.world.heightAt(x + dx * out, z + dz * out) + 1.5, z: z + dz * out });
+  }
+
   regrowTrees() {
     if (!this.world) return;
     regrowTrees(this.world);
@@ -1415,6 +1445,9 @@ export class Game {
       },
       fell(qx, qy, qz, yaw) {
         g.fellTree(qx, qy, qz, yaw);
+      },
+      treeBreak(qx, qy, qz, yaw, cut, pieces) {
+        g.breakTree(qx, qy, qz, yaw, cut, pieces);
       },
       strike(id, blow, heavy, x, y, z, dx, dy, dz) {
         g.impacts.strike(id, blow, heavy, x, y, z, dx, dy, dz);

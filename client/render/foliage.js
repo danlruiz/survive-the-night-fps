@@ -12,6 +12,7 @@ import { G } from './globals.js';
 import { groundFields } from './terrain.js';
 import { grassRadius } from './renderer.js';
 import { FallingTrees } from './fallingtrees.js';
+import { CutTrees } from './cuttrees.js';
 import { isShadowFrustum } from './multimesh.js';
 import { FarForest } from './farforest.js';
 
@@ -509,6 +510,7 @@ export class Foliage {
     this.crags = world.crags?.length ? new InstancedSet(scene, world.crags, getCragVariants(), { radius: CRAG_DIST, rebuildDist: 16, receive: true }) : null;
     this.grass = new GrassField(scene, world);
     this.falling = new FallingTrees(scene, world, this.trees);
+    this.cut = new CutTrees(scene, this.trees);
     // (a world as big as the mainland: its woods past the trees' drawing distance, as cards - farforest.js)
     this.far = world.size > 1000 ? new FarForest(scene, world.trees) : null;
     this.setQuality(quality, grassMul);
@@ -516,6 +518,7 @@ export class Foliage {
 
   dispose() {
     this.falling.dispose();
+    this.cut.dispose();
     this.far?.dispose();
     for (const set of [this.trees, this.bushes, this.rocks, this.crags]) set?.dispose();
     this.grass.dispose();
@@ -527,9 +530,20 @@ export class Foliage {
     if (yaw !== null) this.falling.fell(i, yaw, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
   }
 
+  // Tree i shot or blown apart (Game.breakTree; FallingTrees.breakTree) cut m up its foot, where `top` m of it stood
+  // (Infinity: the whole of it): what stood above comes down in pieces (none: it was so before we came), and what
+  // stands below is drawn cut off there (CutTrees) instead of in the forest. Where it broke
+  breakTree(i, yaw, cut, top, pieces, r) {
+    this.trees.hide(i);
+    this.cut.set(i, cut, r);
+    if (!pieces) return [cut];
+    return this.falling.breakTree(i, yaw, cut, top, pieces, r, VEG.uVegCam.value.x, VEG.uVegCam.value.z);
+  }
+
   // dawn: every felled tree stands again
   regrow() {
     this.falling.clear();
+    this.cut.clear();
     this.trees.showAll();
   }
 
@@ -583,5 +597,6 @@ export class Foliage {
     this.crags?.update(camPos.x, camPos.z, CRAG_DIST, view);
     this.grass.update(camPos.x, camPos.z, view);
     this.falling.update(dt);
+    this.cut.update(camPos.x, camPos.z, Math.round(treeR / 10) * 10);
   }
 }

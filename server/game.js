@@ -119,7 +119,8 @@ import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, H
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
 import { WORLD, nightRank, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
-import { fellTree, regrowTrees } from '../shared/felling.js';
+import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
+import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from './trees.js';
 import { blowOf, BLOW } from '../shared/surfaces.js';
 import { WRECK_SALVAGE, WRECK_HITS_MAX, HITF, WRECKF, WRECK_ALARM, ALARM, ALARM_SAY, alarmStep, wreckOf, wreckLocal, wreckUnit, wreckHalf } from '../shared/wrecks.js';
 import { PRY, pryTime, pryWeapon, trunkCar, hasBootLid } from '../shared/trunk.js';
@@ -176,6 +177,7 @@ const WEDGED_FOR = 15; // s one of the dead has been after a survivor without ge
 const CMDS_PER_TICK = CMD_RATE / SERVER_TICK_RATE; // commands a client issues per server tick
 const CMD_QUEUE_MAX = 24; // commands a client can have waiting (0.4 s of them); older ones are dropped
 const CMD_CATCH_UP = 1.05; // a client's command allowance refills this much faster than it issues them (processInputs)
+const TREE_CHOPS = 6; // blows of an axe (or a knife...) a tree gives wood for: the last brings it down
 const CAR_ALARM_CHANCE = 0.1;
 const CAR_ALARM_MIN_ZOMBIES = 6;
 const CAR_ALARM_MAX_ZOMBIES = 7;
@@ -655,6 +657,7 @@ export class Game {
     const spent = [];
     for (const [col, g] of this.gather) if (g.left <= 0) spent.push(col);
     this.tellStripped(spent, p.id);
+    this.tellCut(p.id);
     this.tellWrecks(p.id);
     this.tellFriendCodes(p);
     this.tellLooks(p);
@@ -869,6 +872,7 @@ export class Game {
     const spent = [];
     for (const [col, g] of this.gather) if (g.left <= 0) spent.push(col);
     this.tellStripped(spent, p.id);
+    this.tellCut(p.id);
     this.tellWrecks(p.id);
     this.notify(NOTIFY.PLAYER_JOINED, p.id);
     this.tellFriendCodes(p);
@@ -3133,10 +3137,11 @@ export class Game {
     const tree = !!(col.flags & COL.TREE);
     let g = this.gather.get(col);
     if (!g) {
-      g = { left: tree ? 6 : WRECK_SALVAGE };
+      g = { left: tree ? TREE_CHOPS : WRECK_SALVAGE };
       this.gather.set(col, g);
     }
-    if (g.left <= 0) {
+    // (a tree shot to pieces gives none: what is left of it is splinters)
+    if (g.left <= 0 || g.top !== undefined) {
       if (this.rng() < 0.35) this.notify(NOTIFY.SEARCH_EMPTY, tree ? 1 : 2, p.id);
       return;
     }
@@ -3344,6 +3349,57 @@ export class Game {
       w.i16(qpos(col.z));
       w.u8(qangle8(yaw));
     });
+  }
+
+  // A round of `dmg` in a tree's trunk at height y, going dx,dz (server/trees.js): the damage stays in the trunk
+  // where it struck, and once a band of it has taken enough the tree bursts there and what stood above comes down
+  // the way the round was going. What stands below stays, and can be shot again.
+  shootTree(col, y, dx, dz, dmg) {
+    let g = this.gather.get(col);
+    if (!g) this.gather.set(col, (g = { left: TREE_CHOPS }));
+    const cut = hitTree(g, col, y - treeFoot(col), dmg);
+    if (cut >= 0) this.breakTree(col, Math.atan2(-dx, -dz), cut, 1);
+  }
+
+  // What a blast does to the trees round it: each trunk in reach is blown apart, low down and in pieces (more of
+  // them the nearer it was), away from the blast.
+  blastTrees(x, y, z, radius) {
+    for (const col of this.world.staticGrid.query(x, z, radius + 2, [])) {
+      if (!(col.flags & COL.TREE) || y < col.y0 - 1 || y > col.y1 + 1) continue;
+      const dx = col.x - x;
+      const dz = col.z - z;
+      const d = Math.max(0, Math.hypot(dx, dz) - col.r);
+      if (d > radius) continue;
+      this.breakTree(col, Math.atan2(-dx, -dz), y - treeFoot(col), d < radius * 0.5 ? 3 : 2);
+    }
+  }
+
+  // Tree col breaks `cut` m up its foot, what stood above coming down toward yaw; pieces: 1 for a shot, 2-3 for a
+  // blast (EVT.TREE_BREAK). The trunk below stands until dawn - its collider no taller than it - and gives no wood.
+  breakTree(col, yaw, cut, pieces) {
+    cut = Math.max(TREE_CUT_MIN, Math.min(cut, treeCutMax(col)));
+    if (cut > treeTop(col) - TREE_PIECE_MIN || !cutTree(this.world, col, cut)) return;
+    let g = this.gather.get(col);
+    if (!g) this.gather.set(col, (g = { left: TREE_CHOPS }));
+    treeBroken(g, cut); // (whoever joins is told how much of it stands - tellCut - and dawn's gather.clear() and
+    // regrowTrees stand it up whole again)
+    this.emit((w) => this.writeTreeBreak(w, col, yaw, cut, pieces));
+  }
+
+  writeTreeBreak(w, col, yaw, cut, pieces) {
+    w.u8(EVT.TREE_BREAK);
+    w.i16(qpos(col.x));
+    w.i16(qpos(col.y0));
+    w.i16(qpos(col.z));
+    w.u8(qangle8(yaw));
+    w.u8(Math.round(cut * 10));
+    w.u8(pieces);
+  }
+
+  // The trees shot or blown down to what stands of them, to player id `to`: EVT.TREE_BREAK with no pieces (it is
+  // only how it stands, nothing comes down)
+  tellCut(to) {
+    for (const [col, g] of this.gather) if (g.top !== undefined && col.flags & COL.TREE) this.emit((w) => this.writeTreeBreak(w, col, 0, g.top, 0), { to });
   }
 
   // Which trees and wrecks are used up, to player id `to` (0: everybody). They are colliders of the static world,

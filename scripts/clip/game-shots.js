@@ -18,7 +18,8 @@
 //   give/key   /give each item and equip it from the backpack, then press a key (Digit1 guns, Digit2 sidearm,
 //              Digit3 melee, Digit4 throwables, Digit5 the hammer, Digit6 the walkie-talkie)
 //   tp/lookAt  /tp to x z (onto the ground), then turn to face a world point (x, z, height)
-//   throwAt    click once and shoot this many ms later (a throw's wind-up or release)
+//   throwAt    click once and shoot this many ms later (a throw's wind-up or release); clicks: n of them (gap ms apart,
+//              each held `hold` ms: a frame of software rendering is slow), aimed again before each
 //   hideHud / hideVm / hideZombies: the HUD, the hands, the day's walkers (client side, for a clean still)
 //   say        chat (admin) commands said once in place, e.g. ["/spawn brute"]: the zombies there before are hidden;
 //              aimZombies: h turns the view to the new ones as they come, h m above their feet
@@ -165,9 +166,17 @@ async function run(root, dir) {
         window.__game.renderer.vmScene.visible = !s.hideVm;
       }, s);
       if (s.throwAt !== undefined) {
-        await p.evaluate(() => (window.__game.input.mouseButtons = 1));
-        await sleep(80);
-        await p.evaluate(() => (window.__game.input.mouseButtons = 0));
+        // (clicks: that many, each held `hold` ms - a slow software-rendered frame must see the button down - and
+        // aimed again between them, the recoil taken back out)
+        for (let k = 0; k < (s.clicks ?? 1); k++) {
+          if (k) {
+            await sleep(s.gap ?? 700);
+            await aim(p, s);
+          }
+          await p.evaluate(() => (window.__game.input.mouseButtons = 1));
+          await sleep(s.hold ?? 80);
+          await p.evaluate(() => (window.__game.input.mouseButtons = 0));
+        }
         await sleep(s.throwAt);
       } else if (!s.say) {
         await sleep(s.wait ?? 1500);

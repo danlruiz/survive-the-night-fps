@@ -7,6 +7,7 @@ import { CRAFT_MAX, craftRun, copyInv } from '../client/game/bulkcraft.js';
 import { spawnCatalog } from '../client/ui/spawnmenu.js';
 import { RECIPES, AMMO_MAX } from '../shared/defs.js';
 import { Game } from '../server/game.js';
+import { treeHp } from '../server/trees.js';
 import { C2S, ACT, ENT, HOLD, CAR_ID, CHATF, PLF, WELCOMEF, REJECT_REASON, PROTOCOL_VERSION, Writer, Reader, S2C, qangle16, qpitch, ZSTATUS, writeInput } from '../shared/protocol.js';
 import { PHASE, BTN, NOISE, TALK_RANGE, SLOT_RADIO, INTERACT_REACH, PICK_RADIUS, CAR_REACH, BUILD_REACH, SPRINT_SPEED, EYE_HEIGHT, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX } from '../shared/constants.js';
 import { STRUCT, ITEM, WEAPONS, AMMO, SUPPLIES, SUPPLY_NEED, NOTIFY, ZTYPE, CANIM, ZANIM, ZONE, SOUND, CONT, CONSUMABLES, LOOT_TABLES, CONT_TABLES, CONT_DEFS, PROJ, ZOMBIE_DEFS, STRUCT_DEFS, THROWABLES, BURN, EVT, KILLER, structPickRadius } from '../shared/defs.js';
@@ -1338,8 +1339,8 @@ const standOff = (c, e, d) => {
 {
   const g = new Game({ seed, godMode: true, log: () => {} });
   const join = (name) => {
-    const c = { id: 0, notes: [], stripped: new Set(), fell: [], net: { tick: 0, ack: 0 }, global: null, self: {}, store: { ents: new Map(), onCreate() {}, onRemove() {}, onUpdate() {} } };
-    const on = { notify: (m, a) => c.notes.push([m, a]), stripped: (x, y, z) => c.stripped.add(strippedKey(x, y, z)), regrown: () => c.stripped.clear(), fell: (x, y, z, yaw) => c.fell.push([strippedKey(x, y, z), yaw]) };
+    const c = { id: 0, notes: [], stripped: new Set(), fell: [], broke: [], net: { tick: 0, ack: 0 }, global: null, self: {}, store: { ents: new Map(), onCreate() {}, onRemove() {}, onUpdate() {} } };
+    const on = { notify: (m, a) => c.notes.push([m, a]), stripped: (x, y, z) => c.stripped.add(strippedKey(x, y, z)), regrown: () => c.stripped.clear(), fell: (x, y, z, yaw) => c.fell.push([strippedKey(x, y, z), yaw]), treeBreak: (x, y, z, yaw, cut, pieces) => c.broke.push([strippedKey(x, y, z), yaw, cut, pieces]) };
     c.handler = new Proxy({}, { get: (_, k) => on[k] || (() => {}) });
     c.session = g.onOpen({
       send(bytes) {
@@ -1450,6 +1451,84 @@ const standOff = (c, e, d) => {
   g.startDay();
   ticks(1);
   check('dawn stands it up again', standing() && swing() === tree);
+
+  // rounds in a trunk add up where they struck: three pistol rounds about the same height (more in a thicker trunk)
+  // snap it there, and it comes down the way the round went. What stands below stays - shorter, its collider with
+  // it - takes rounds again, and breaks again lower down; whoever joins later is told how much of it stands
+  const eyeY = tree.y0 + 1 + 1.5;
+  const foot = tree.y0 + 1;
+  const full = tree.y1;
+  const shoot = (ty, weapon = ITEM.PISTOL) => {
+    const ox = tree.x + tree.r + 2;
+    const oz = tree.z;
+    const oy = eyeY;
+    g.combat.fire(p, { weapon, x: ox, y: oy, z: oz, yaw: Math.atan2(-(tree.x - ox), -(tree.z - oz)), pitch: Math.atan2(ty - oy, Math.hypot(tree.x - ox, tree.z - oz)), recoilPitch: 0, spread: 0, seed: 1 });
+    ticks(1);
+  };
+  const need = Math.ceil(treeHp(tree) / WEAPONS[ITEM.PISTOL].damage - 0.25); // (rounds a band of it takes, about)
+  S.broke.length = T.broke.length = 0;
+  shoot(foot + 2.2);
+  shoot(foot + 2.2);
+  check('two pistol rounds in the same place do not break a tree', standing() && tree.y1 === full && S.broke.length === 0 && T.broke.length === 0, JSON.stringify(S.broke));
+  let shots = 2;
+  while (S.broke.length === 0 && shots < 12) {
+    shoot(foot + 2.2);
+    shots++;
+  }
+  check(
+    `rounds about the same height add up: the ${need >= 3 ? 'third' : '?'} or later (${shots}; a trunk ${tree.r.toFixed(2)} m round takes ${treeHp(tree).toFixed(0)}) snaps it there, the way the round went`,
+    shots >= 3 && shots <= need + 1 && [S, T].every((c) => c.broke.length === 1 && c.broke[0][0] === tkey && c.broke[0][3] === 1 && Math.abs(c.broke[0][1] - Math.PI / 2) < 0.03 && Math.abs(c.broke[0][2] - 2.2) < 0.25),
+    JSON.stringify([shots, need, S.broke, T.broke]),
+  );
+  const cut1 = S.broke[0]?.[2] ?? 0;
+  check('...and what stands below stays in the world, its collider cut off where it broke', standing() && Math.abs(tree.y1 - (foot + cut1)) < 0.06 && g.world.cut?.has(tree), `${(tree.y1 - foot).toFixed(2)} m`);
+  for (let i = 0; i < 4; i++) shoot(foot + cut1 + 0.6);
+  check('...so a round over the top of it goes on through where the tree stood', S.broke.length === 1);
+  shoot(foot + 1);
+  shoot(foot + 1);
+  check('...two rounds in what stands do not break it again', S.broke.length === 1 && Math.abs(tree.y1 - (foot + cut1)) < 0.06);
+  for (let k = 2; S.broke.length === 1 && k < 12; k++) shoot(foot + 1);
+  check(
+    '...and more there break it again, lower down: a length of trunk comes off and a shorter stump stands',
+    S.broke.length === 2 && T.broke.length === 2 && Math.abs(S.broke[1][2] - 1) < 0.25 && standing() && Math.abs(tree.y1 - (foot + S.broke[1][2])) < 0.06,
+    JSON.stringify(S.broke),
+  );
+  const sticks = () => p.inv.reduce((n, x) => n + (x && x.item === ITEM.STICK ? x.count : 0), 0);
+  const had2 = sticks();
+  take.call(g, p, tree, tree.x, foot + 0.5, tree.z, ITEM.KNIFE);
+  check('...and none of it gives wood any more', sticks() === had2, `${had2} -> ${sticks()}`);
+  const before = S.broke.length;
+  shoot(foot + 0.6);
+  shoot(foot + 2.5);
+  shoot(foot + 4.5);
+  check('rounds sprayed up and down a trunk do not add up to a break', S.broke.length === before);
+  const J = join('Wanderer');
+  ticks(2);
+  check('whoever joins later is told how much of it stands, with nothing coming down', J.broke.length === 1 && J.broke[0][0] === tkey && J.broke[0][3] === 0 && Math.abs(J.broke[0][2] - S.broke[1][2]) < 0.06 && !J.stripped.has(tkey), JSON.stringify(J.broke));
+  g.startDay();
+  ticks(1);
+  check('...and dawn stands it up again, whole', standing() && tree.y1 === full && !g.world.cut?.size && !S.stripped.has(tkey));
+  S.broke.length = 0;
+  shoot(foot + 2.2, ITEM.HUNTING_RIFLE);
+  check('a hunting rifle round snaps it at once', S.broke.length === 1 && S.broke[0][3] === 1, JSON.stringify(S.broke));
+  g.startDay();
+  ticks(1);
+
+  // a blast blows apart every trunk in its reach, in more pieces near it, away from it
+  S.broke.length = 0;
+  const R = 5.5;
+  const reach = g.world.staticGrid.query(tree.x, tree.z, R + 2, []).filter((c) => c.flags & COL.TREE && Math.hypot(c.x - tree.x - 1, c.z - tree.z) - c.r <= R);
+  g.combat.explode(tree.x + 1, tree.y0 + 1 + 0.6, tree.z, R, { zombies: 300, kind: 0 });
+  ticks(1);
+  const mine = S.broke.find((b) => b[0] === tkey);
+  check(
+    'a blast blows apart every tree in its reach: the nearest in three pieces, thrown away from it',
+    reach.length > 0 && S.broke.length === reach.length && mine && mine[3] === 3 && Math.abs(Math.abs(mine[1]) - Math.PI / 2) < 0.05 && mine[2] < 1,
+    JSON.stringify(S.broke),
+  );
+  check('...and a stump of each stands', standing() && reach.every((c) => c.y1 - c.y0 - 1 < 1.1 && g.world.cut.has(c)));
+  g.startDay();
+  ticks(1);
 }
 
 // melee needs a clear line: no stabbing the dead through the wall you shelter behind, no claws through it either.
