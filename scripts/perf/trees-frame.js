@@ -4,7 +4,7 @@
 // One headless browser through lib.js's launchChrome (software rendering: the times are the CPU drawing for the
 // card, slow, but the same for every scene - draws and triangles are what the card is asked for).
 //   node scripts/perf/trees-frame.js [--rounds 3] [--n 40] [--frames 120] [--w 960] [--h 540]
-import { REPO, parseArgs, startVite, launchChrome, shoot, LIFE_DEFAULT } from '../clip/lib.js';
+import { REPO, parseArgs, startVite, launchChrome, shoot, LIFE_MAX } from '../clip/lib.js';
 import { median } from './lib.js';
 
 const args = parseArgs(process.argv.slice(2), { rounds: '3', n: '40', frames: '120', w: '960', h: '540', scenes: 'whole,gone,cut,falling' });
@@ -13,7 +13,7 @@ const res = Object.fromEntries(scenes.map((s) => [s, []]));
 let vite = null;
 let chrome = null;
 try {
-  chrome = await launchChrome({ width: +args.w, height: +args.h, life: LIFE_DEFAULT });
+  chrome = await launchChrome({ width: +args.w, height: +args.h, life: LIFE_MAX });
   vite = await startVite(REPO);
   for (let r = 0; r < +args.rounds; r++) {
     for (const s of scenes) {

@@ -113,7 +113,7 @@ const frame = (dt) => {
 };
 // warm up (programs, buffers), and a falling tree half a second into its fall
 const warm = SCENE === 'falling' ? 0.5 : 0.5;
-for (let k = 0; k < 30; k++) frame(warm / 30);
+for (let k = 0; k < 10; k++) frame(warm / 10);
 const fall = foliage.falling;
 const keepT = fall.active.map((f) => f.t);
 for (let k = 0; k < FRAMES; k++) {
