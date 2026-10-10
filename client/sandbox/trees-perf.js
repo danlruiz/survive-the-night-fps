@@ -46,7 +46,20 @@ for (let k = 0; k < trees.length; k += 7) {
   const n = world.staticGrid.query(c.x, c.z, 25, []).filter((o) => o.flags & COL.TREE).length;
   if (n > most) [best, most] = [c, n];
 }
-const eye = new THREE.Vector3(best.x + 1.5, world.heightAt(best.x + 1.5, best.z) + 1.6, best.z);
+// (out of their crowns: the nearest spot to it with no tree within 5 m)
+let ex = best.x;
+let ez = best.z;
+search: for (let d = 2; d < 40; d += 1) {
+  for (let a = 0; a < 6.28; a += 0.3) {
+    const x = best.x + Math.cos(a) * d;
+    const z = best.z + Math.sin(a) * d;
+    if (!world.staticGrid.query(x, z, 5, []).some((o) => o.flags & COL.TREE)) {
+      [ex, ez] = [x, z];
+      break search;
+    }
+  }
+}
+const eye = new THREE.Vector3(ex, world.heightAt(ex, ez) + 1.6, ez);
 // look the way most of them stand
 const near = world.staticGrid.query(eye.x, eye.z, 40, []).filter((o) => o.flags & COL.TREE);
 let ax = 0;
@@ -58,7 +71,7 @@ for (const c of near) {
 }
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 1500);
 camera.position.copy(eye);
-camera.lookAt(eye.x + ax, eye.y + 2, eye.z + az);
+camera.lookAt(eye.x + ax, eye.y + 0.3 * Math.hypot(ax, az), eye.z + az);
 sun.position.set(eye.x + 40, eye.y + 80, eye.z + 30);
 sun.target.position.copy(eye);
 
