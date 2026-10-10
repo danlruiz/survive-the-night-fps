@@ -20,7 +20,22 @@ export class Chat {
     this.input.autocomplete = 'off';
     this.input.spellcheck = false;
     this.input.setAttribute('aria-label', 'Chat message');
+    this.input.enterKeyHint = 'send'; // (a phone's keyboard: its return key says Send)
     this.count = el('span', 'chat-count', bar, '');
+    // a phone: buttons to send and to put the keyboard away (touch mode only: touch.css). On pointerdown, before the
+    // field loses the focus, which shuts the chat
+    const send = el('button', 'chat-send', bar, 'Send');
+    const shut = el('button', 'chat-shut', bar, '×');
+    send.type = shut.type = 'button';
+    shut.setAttribute('aria-label', 'Close chat');
+    send.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.send();
+    });
+    shut.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.close();
+    });
     this.typing = false;
 
     // Keydown is consumed here so the game never sees keys while typing. Keyup is left to
@@ -29,9 +44,7 @@ export class Chat {
       e.stopPropagation();
       if (e.key === 'Enter') {
         e.preventDefault();
-        const text = this.input.value.trim().slice(0, MAX_LEN);
-        this.close();
-        if (text) this.ui.cb.onChatSend(text);
+        this.send();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         this.close();
@@ -46,6 +59,12 @@ export class Chat {
     this.input.addEventListener('blur', () => {
       if (this.typing) setTimeout(() => this.typing && document.activeElement !== this.input && this.close(), 0);
     });
+  }
+
+  send() {
+    const text = this.input.value.trim().slice(0, MAX_LEN);
+    this.close();
+    if (text) this.ui.cb.onChatSend(text);
   }
 
   add(name, text, opts = {}) {

@@ -897,6 +897,38 @@ act 2, where the same loop is played with a plane and flying out wins.
   plain colour is one vertex-coloured material (`flat`), and its chunks are 128 m (the island's: 80 m, one tier,
   unchanged).
 
+## Touch mode: phones and tablets
+
+The game plays in a phone's or a tablet's browser, held on its side, with on-screen controls in place of the mouse and
+the keyboard. Nothing changes on the server or the wire: a touch button presses the same action its key would.
+
+- **When.** Settings > Mouse & aim > Touch controls: `auto` (on for a device whose main pointer is a finger:
+  `pointer: coarse` with touch points), `on` or `off`; `?touch=1` / `?touch=0` forces it for a page.
+  `client/game/touchmode.js` keeps the switch, puts the class `touch` on `<html>` and, on a phone's first visit, the
+  settings start on the low preset (`loadSettings`).
+- **No mouse to lock.** The game is built round pointer lock (`Input.locked` is play; a screen that takes clicks frees
+  it). In touch mode `Input.requestLock` / `exitLock` stand in for the browser's lock (`touchLock`): the same
+  `onLockChange` lands a moment later, so the kit screens, the pause menu and the rest open and close as they do with a
+  mouse. The tap on Join (and on the canvas) also asks for fullscreen and the landscape lock (`KeyGuard.engage`;
+  Android's Chrome gives both, an iPhone neither - added to the home screen the page is fullscreen already).
+- **The controls** (`client/ui/touchpad.js`, laid out in `client/ui/touch.css`), a layer under the HUD that is up while
+  play has "the pointer": a floating stick on the left (the direction keys; pushed past its ring, sprint), a drag
+  anywhere else to look (also from FIRE and AIM), FIRE / AIM / JUMP / CROUCH (a toggle) / RELOAD / USE (lit when the
+  prompt offers it), PREV / NEXT / REMOVE with the hammer out, and a row at the top: the pause menu, the bag, the map,
+  the flashlight and MORE (heal, drink, last weapon, drop, ping, chat, talk, players, the leaderboard, the bestiary,
+  Dead Hand). A tap on AIM with a gun out keeps the sights up until the next tap; held, it is held. The HUD's weapon
+  slots are the weapon bar (a tap is that slot's key), the build ring's pieces take a tap, and a tap on the minimap
+  opens the field map. Each button is `Input.pressAction` / `releaseAction`: a code `Touch:<action>` that no bind can
+  be, carrying that one action. Settings > Keys & controls lists them first (`TOUCH_CONTROLS`).
+- **Text names buttons.** `binds.js` `setTouchLabels`: `bindLabel` / `bindTag` / `bindPair` give the button's name
+  (`[USE] Pick up`, `Press BAG`), so every prompt and hint that names a key names the button instead. The chat has Send
+  and close buttons (a phone's keyboard may have no Enter, nor Esc). A long press is a right click and a double tap a
+  double-click (`installTouchGestures`).
+- **Not yet:** the screens themselves laid out for a short screen (the splash, the kit screens, the pause menu) - they
+  are the desktop's, at a phone's size.
+- **Tested** by `scripts/e2e-mobile.js` (`npm run test:e2e:mobile`): a phone-sized page with touch emulated, driven by
+  multi-touch through the DevTools protocol, through every control.
+
 ## Rendering pipeline
 
 - **Frame:** world -> `ScreenPasses` (`render/post.js`: SSAO, sun shafts, flashlight beam, applied in place into

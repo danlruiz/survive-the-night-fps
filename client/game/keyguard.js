@@ -10,6 +10,7 @@
 // forward are on, a Ctrl+W must not close a game. Esc too: locked, a tap of it reaches the page with the mouse still
 // taken (Game.onKey backs out of building with it before it opens the menu), and only holding it leaves fullscreen.
 import { boundKeyCodes, onBindsChange } from './binds.js';
+import { touchMode, takeScreen } from './touchmode.js';
 
 const ALWAYS = ['KeyW', 'KeyT', 'KeyN', 'Escape'];
 let lockKeys = [];
@@ -60,7 +61,14 @@ export class KeyGuard {
   // from a click (it needs the user's gesture): fullscreen with the game's keys locked. joining: the click on Join, before
   // the game is on (Game.holdForJoin)
   engage(joining = false) {
-    if (!this.fullscreen || !this.supported || !(joining || this.isPlaying())) return;
+    if (!this.fullscreen || !(joining || this.isPlaying())) return;
+    // (a phone: no keys to lock, but the whole screen, held on its side - what the browser will give of that)
+    if (touchMode()) {
+      if (document.fullscreenElement) return;
+      this.wanted = this.ours = true;
+      return takeScreen();
+    }
+    if (!this.supported) return;
     this.wanted = true;
     const lock = () => navigator.keyboard.lock(lockKeys).catch(() => {});
     if (document.fullscreenElement) {
@@ -80,6 +88,11 @@ export class KeyGuard {
   release() {
     this.wanted = false;
     navigator.keyboard?.unlock?.();
+    if (this.ours) {
+      try {
+        screen.orientation?.unlock?.();
+      } catch {}
+    }
     if (this.ours && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     this.ours = false;
   }

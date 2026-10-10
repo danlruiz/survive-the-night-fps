@@ -14,6 +14,7 @@ import { bindsOf, allBinds, keyName, bindLabel, setBind, planBind, resetBind, re
 import { bindsSync, onBindsSync } from '../net/accountbinds.js';
 import { accountState } from '../net/account.js';
 import { el } from './dom.js';
+import { touchMode, TOUCH_CONTROLS } from '../game/touchmode.js';
 
 const NOTE = 'Click a key to change it · Esc cancels · Backspace clears';
 // the rows of the old Controls list that are no bind: [what, () => its key caps]
@@ -52,6 +53,17 @@ export class KeybindsSection {
     this.note.setAttribute('aria-live', 'polite');
     const list = (this.list = el('div', 'ux-kb-list', sec));
 
+    // on a phone or a tablet (touch mode: game/touchmode.js) the on-screen controls come first: there are no keys
+    this.touchBox = this._cols(list, 'Touch controls', false);
+    for (const [caps, label] of TOUCH_CONTROLS) {
+      const r = el('div', 'set-row kb-row ux-kb-fixed', this.touchBox);
+      el('label', 'set-label', r, label);
+      const c = el('div', 'set-ctl kb-ctl', r);
+      caps.forEach((k, i) => {
+        if (i) el('span', 'ux-kb-plus', c, '/');
+        el('span', 'kbd sm', c, k);
+      });
+    }
     // (a box per group: its pinned name leaves with its last row)
     for (const g of BIND_GROUPS) {
       const box = this._cols(list, g, true);
@@ -245,6 +257,7 @@ export class KeybindsSection {
       row.reset.classList.toggle('off', isDefault(a.id));
       row.reset.disabled = isDefault(a.id);
     }
+    this.touchBox.hidden = !touchMode();
     for (const f of this.fixed) {
       f.caps.textContent = '';
       f.keys().forEach((k, i) => {

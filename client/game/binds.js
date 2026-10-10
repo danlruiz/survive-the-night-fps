@@ -92,8 +92,17 @@ export function setLayout(map) {
 // a code's key-cap label: 'KeyZ' -> 'Z' (or what this keyboard has printed on that key), 'Mouse3' -> 'Mouse 4'
 export const keyName = (code) => codeLabel(code, { layout, mac: MAC });
 
+// On a phone or a tablet (touch mode: game/touchmode.js) text names the on-screen button an action is on, not a key:
+// '[USE] Pick up', 'Press BAG'. null: a keyboard's names.
+let touchLabels = null;
+export function setTouchLabels(map) {
+  touchLabels = map || null;
+  changed('touch');
+}
+
 // An action's key, for text that names it: the primary, or the secondary if it has no primary, 'unbound' if neither
 export function bindLabel(action) {
+  if (touchLabels) return touchLabels[action] || 'menu';
   const [p, s] = bindsOf(action);
   return keyName(p || s) || 'unbound';
 }
@@ -101,6 +110,7 @@ export function bindLabel(action) {
 export const bindTag = (action) => `[${bindLabel(action)}]`;
 // both keys: 'Ctrl / C', 'Y / Enter'
 export function bindPair(action) {
+  if (touchLabels) return bindLabel(action);
   const ks = bindsOf(action).filter(Boolean).map(keyName);
   return ks.length ? ks.join(' / ') : 'unbound';
 }
