@@ -114,6 +114,7 @@ import {
   THROW_ITEMS,
   isFirearm,
   salvageOf,
+  HEARD,
 } from '../shared/defs.js';
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
@@ -950,7 +951,7 @@ export class Game {
       best: 0, // the furthest day they have ever seen dawn on (from the record)
       perks: 0, // the perks in force (a bitmask of ids; s.perks carries it into the simulation)
       perksNext: -1, // picked during a night: in force from dawn (-1: nothing waiting)
-      nightKills: 0, // kills this night (or day): past XP.killsFull they earn half
+      nightKills: 0, // kills this night (or day): the first XP.killsFull carry the fresh-night bonus
       nightRevives: 0,
       lastChance: false, // Second Chance spent this night
       progDirty: true, // S2C.PROGRESS is out of date (sendProgress)
@@ -1074,16 +1075,23 @@ export class Game {
   // leaderboard's stats
   award(p, src, n) {
     if (!p) return;
-    n = Math.round(n * playerMods(p).xp * this.diff.xp);
+    this.creditXp(p, src, this.xpScaled(p, n));
+  }
+  xpScaled(p, n) {
+    return Math.round(n * playerMods(p).xp * this.diff.xp);
+  }
+  // n XP already scaled, for `src`
+  creditXp(p, src, n) {
     if (n <= 0) return;
     const was = this.levelOf(p);
-    p.xpRun[src] += n;
+    p.xpRun[src] = (p.xpRun[src] | 0) + n; // (| 0: a run brought over from a build that had fewer sources)
     this.records.bump(p.rec, 'xp', n);
     p.progDirty = true;
     if (this.levelOf(p) !== was) this.playersDirty = true;
   }
-  // one of the dead put down by a survivor: what it was worth, less past the night's first XP.killsFull, and nothing
-  // for one that had been stuck for a while (z.wedgeT) - the dead piled up at a wall they will never get round
+  // one of the dead put down by a survivor: half what it was worth, the other half as the fresh-night bonus on the
+  // night's first XP.killsFull, and nothing for one that had been stuck for a while (z.wedgeT) - the dead piled up at
+  // a wall they will never get round
   killXp(p, z, headshot) {
     if (p.zombie) return;
     const pm = playerMods(p);
@@ -1092,12 +1100,18 @@ export class Game {
     this.loadouts.onKill(p);
     if (z.wedgeT > WEDGED_FOR) return;
     if (z.boss) return this.award(p, XPS.bosses, XP.boss);
-    const half = ++p.nightKills > XP.killsFull;
-    const base = XP.kinds[z.ztype] ?? XP.kill;
-    this.award(p, XPS.kills, half ? Math.ceil(base / 2) : base);
-    if (headshot) this.award(p, XPS.headshots, half ? Math.ceil(XP.headshot / 2) : XP.headshot);
+    const fresh = ++p.nightKills <= XP.killsFull;
+    this.killPart(p, XPS.kills, XP.kinds[z.ztype] ?? XP.kill, fresh);
+    if (headshot) this.killPart(p, XPS.headshots, XP.headshot, fresh);
   }
-  // A new night or a new day: the diminishing returns start over. dawn: also what is earned for seeing it, and the
+  // the half a kill always earns, and with a fresh night the rest as the bonus: scaled whole, so the two add up to
+  // what the full amount scales to
+  killPart(p, src, full, fresh) {
+    const half = this.xpScaled(p, Math.ceil(full / 2));
+    this.creditXp(p, src, half);
+    if (fresh) this.creditXp(p, XPS.fresh, this.xpScaled(p, full) - half);
+  }
+  // A new night or a new day: the fresh-night bonus comes back. dawn: also what is earned for seeing it, and the
   // perks picked during the night come into force
   phaseXp(dawn, night = 0) {
     for (const p of this.players.values()) {
@@ -1131,7 +1145,7 @@ export class Game {
     w.u8(S2C.PROGRESS);
     w.varu(this.xpOf(p));
     w.u8((p.xpLoaded ? PROGF.LOADED : 0) | (p.rec ? PROGF.KEPT : 0));
-    for (const v of p.xpRun) w.varu(v);
+    for (let i = 0; i < XP_SRC.length; i++) w.varu(p.xpRun[i] | 0);
     p.session.conn.send(w.bytes());
     this.stats.bytesOut += w.o;
     this.stats.msgsOut++;
@@ -3032,7 +3046,7 @@ export class Game {
   pryHeave(p, c, pry) {
     if (pry.weapon) this.strike(p, pry.weapon, false, pry.x, pry.y, pry.z, pry.dx, pry.dy, pry.dz);
     else this.sound(SOUND.SEARCH, c.x, c.y, c.z, 18);
-    this.zm.noise(c.x, c.z, PRY.noise);
+    this.zm.noise(c.x, c.z, PRY.noise, undefined, p, HEARD.PRY);
   }
 
   searchCache(p, c) {
@@ -3071,7 +3085,7 @@ export class Game {
     if (this.zombies.length >= MAX_ZOMBIES_ALIVE) return;
     this.notify(NOTIFY.CAR_ALARM, 0);
     this.sound(SOUND.HORDE_HORN, c.x, c.y, c.z, 140);
-    this.zm.noise(c.x, c.z, NOISE.CAR_ALARM);
+    this.zm.noise(c.x, c.z, NOISE.CAR_ALARM, undefined, p, HEARD.CAR_ALARM);
     let spawned = 0;
     for (let i = 0; i < count && this.zombies.length < MAX_ZOMBIES_ALIVE; i++) {
       const sp = this.pickCarAlarmSpawn(p, c, humans);
@@ -3176,14 +3190,14 @@ export class Game {
       const plankChance = (weapon === ITEM.MACHETE ? 0.35 : weapon === ITEM.HAMMER ? 0.15 : 0.22) + (col.tv === 5 ? 0.15 : 0);
       if (r() < plankChance) this.giveOrDrop(p, ITEM.WOOD, 1);
       if (!dead && r() < 0.07) this.giveOrDrop(p, ITEM.HERB, 1);
-      this.zm.noise(x, z, NOISE.CHOP); // (what it sounds like is the blow's: EVT.STRIKE)
+      this.zm.noise(x, z, NOISE.CHOP, undefined, p, HEARD.CHOP); // (what it sounds like is the blow's: EVT.STRIKE)
     } else {
       this.giveOrDrop(p, ITEM.SCRAP, weapon === ITEM.HAMMER ? 1 + (r() < 0.5 ? 1 : 0) : 1);
       if (r() < 0.3) this.giveOrDrop(p, ITEM.NAILS, 2 + Math.floor(r() * 3));
       if (r() < 0.08) this.giveOrDrop(p, ITEM.TAPE, 1);
       if (r() < 0.05) this.giveOrDrop(p, ITEM.WIRE, 1);
       if (r() < 0.04) this.giveOrDrop(p, ITEM.BATTERY, 1);
-      this.zm.noise(x, z, NOISE.SALVAGE);
+      this.zm.noise(x, z, NOISE.SALVAGE, undefined, p, HEARD.SALVAGE);
     }
     if (g.left > 0) return;
     // that was the last of it. A tree comes down, away from whoever cut it, and is out of the world until dawn;
@@ -3805,7 +3819,7 @@ export class Game {
     this.track.build(p, type);
     if (type === STRUCT.WORKBENCH) this.globalDirty = true;
     this.sound(SOUND.BUILD, x, y + 0.8, z, 35);
-    this.zm.noise(x, z, NOISE.BUILD, y);
+    this.zm.noise(x, z, NOISE.BUILD, y, p, HEARD.BUILD);
   }
 
   demolish(p, id) {
@@ -3853,7 +3867,7 @@ export class Game {
     p.actionT = this.time;
     p.invDirty = true;
     this.sound(SOUND.BUILD, e.x, e.y + 0.8, e.z, 30);
-    this.zm.noise(e.x, e.z, NOISE.BUILD, e.y);
+    this.zm.noise(e.x, e.z, NOISE.BUILD, e.y, p, HEARD.BUILD);
   }
 
   damageStructure(e, amount) {
@@ -4191,7 +4205,7 @@ export class Game {
         const t = found[0].id;
         const pack = this.zm.newPack();
         let made = 0;
-        for (let i = 0; i < n; i++) if (this.zm.spawn(t, s.x - Math.sin(s.yaw) * 12 + (this.rng() - 0.5) * 4, s.z - Math.cos(s.yaw) * 12 + (this.rng() - 0.5) * 4, { horde: true, boss: ZOMBIE_DEFS[t].boss, pack })) made++;
+        for (let i = 0; i < n; i++) if (this.zm.spawn(t, s.x - Math.sin(s.yaw) * 12 + (this.rng() - 0.5) * 4, s.z - Math.cos(s.yaw) * 12 + (this.rng() - 0.5) * 4, { horde: true, boss: ZOMBIE_DEFS[t].boss, pack, force: true })) made++;
         this.sendChat(p, 0, CHATF.SYSTEM, `spawned ${made} x ${ZOMBIE_DEFS[t].name}`);
         break;
       }
