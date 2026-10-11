@@ -1535,6 +1535,21 @@ export class AudioEngine {
     else this._playPos(buf, o.cat || 'fx', +o.x, +(o.y ?? this._ly), +(o.z ?? 0), vol, rate);
   }
 
+  /**
+   * A recording by its key (samples.js REC), whole and not placed: a voice everyone hears the same. -> true once it
+   * has started; false while it is still being fetched or decoded (asked for now: try again shortly), or if there is
+   * none to play.
+   */
+  playRecording(key, volume = 1) {
+    const rec = this._rec;
+    if (!this._ready || !rec) return false;
+    const buf = rec.get(key);
+    if (!buf) return false;
+    this._resume();
+    this._play2D(buf, volume, 1, this._sfxIn, 0.06, 0);
+    return true;
+  }
+
   playLocal(name, opts = EMPTY) {
     if (!this._ready) return;
     const d = LOCAL[name];

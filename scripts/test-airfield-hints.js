@@ -2,9 +2,9 @@
 // hung on its power poles from the breakdown to where the road leaves for the bridge, in that order, turned to whoever
 // walks that way and up out of a survivor's reach; the mainland has none. The plate's cell is in the city's atlas, the
 // island's map has its pencilled note by the bridge, the start's billboard sells the airfield, and the car's radio
-// says the owner's line word for word.
+// says the owner's line word for word, in one of its two voices picked at random.
 // usage: node scripts/test-airfield-hints.js
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync, existsSync } from 'node:fs';
 import { worldFor } from '../shared/worlds.js';
 import { WORLD } from '../shared/acts.js';
 import { airportSigns, AIRPORT_SIGN } from '../client/render/airportsigns.js';
@@ -41,6 +41,13 @@ check("the city's atlas has room for the plate's cell, and draws it", !!CITY_ATL
 check("the start's billboard sells the airfield", src('client/render/textures.js').includes("text('CALDER FIELD', ") && !src('client/render/textures.js').includes("text('PINE HOLLOW'"));
 check("the island's map has a note by the bridge: 'to airfield'", src('client/ui/mapscreen.js').includes("el('i', 'mx-note', this.bridgeLab, 'to airfield')"));
 check("the car's radio says the owner's line word for word", src('client/game/game.js').includes("const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';") && src('client/game/game.js').includes('if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();'));
+
+// the radio's two voices: both files there, both loaded as recordings, one of the two picked each time
+const takes = ['am_michael', 'af_bella'];
+check('both radio takes are in the game', takes.every((t) => existsSync(new URL(`../client/audio/radio/car-radio-${t}.mp3`, import.meta.url)) && statSync(new URL(`../client/audio/radio/car-radio-${t}.mp3`, import.meta.url)).size < 400_000));
+const { REC } = await import('../client/audio/samples.js');
+check('...each a recording the audio engine knows', takes.every((t) => REC[`vo_radio_${t}`]) && src('client/audio/samples.js').includes("import.meta.glob('./radio/car-radio-*.mp3'"));
+check('...and the radio picks one of the two at random', src('client/game/game.js').includes("const CAR_RADIO_TAKES = ['vo_radio_am_michael', 'vo_radio_af_bella'];") && src('client/game/game.js').includes('CAR_RADIO_TAKES[Math.floor(Math.random() * CAR_RADIO_TAKES.length)]'));
 
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nall passed');
 process.exit(fails.length ? 1 : 0);

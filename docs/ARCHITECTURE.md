@@ -690,8 +690,9 @@ mainland" line so the car never reads as the end, and from the start the island 
 client-side so the world's generation is unchanged: the breakdown's billboard is an ad for Calder Field "over the bridge", green AIRPORT plates hang on Route
 9's power poles from the breakdown to the bridge end (`client/render/airportsigns.js`, laid with citykit.js
 `buildSigns` from the city atlas's `road_airport`), the island's map has "to airfield" pencilled by the bridge, and
-installing the car battery turns the car's radio on (`Game.carRadio`: static, then the survivors' call for the
-airfield). `scripts/test-airfield-hints.js` holds them.
+installing the car battery turns the car's radio on (`Game.carRadio`: one of two AI-voiced takes in
+`client/audio/radio/`, picked at random, static and then the survivors' call for the airfield, with the words on
+screen). `scripts/test-airfield-hints.js` holds them.
 
 - **A world has its own size.** `world.kind` (`WORLD.ISLAND` / `WORLD.MAINLAND`, which is also the act's number),
   `world.size` / `half` / `gridN`, `world.start` (where a run on it begins) and `world.posScale`. Nothing that
