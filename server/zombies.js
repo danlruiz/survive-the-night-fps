@@ -9,6 +9,7 @@ import { ENT, qpos } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
 import { flareReach } from '../shared/skyflare.js';
+import { inFloodCone } from '../shared/power.js';
 import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
@@ -25,6 +26,13 @@ const _dir = { x: 0, z: 0, cost: 0 };
 const _ray = { t: -1, col: null, terrain: false };
 const _wq = []; // (wedgedOn)
 const SHADE_THAW = 0.15; // unbroken darkness (s) before a lit shade moves again, so a beam flickering across it still holds it
+// A shade keeps out of the survivors' lit bases: it does not step to within SHADE_EDGE m past the reach of a burning
+// torch or campfire they built, or into a powered floodlight's cone, and one that finds itself inside heads back out
+// (shadeAvoid). It stops on the edge of the light instead and waits there. Wandering, it picks somewhere dark to go:
+// SHADE_WANDER_TRIES spots at most, else it stays where it is
+const SHADE_EDGE = 1.5;
+const SHADE_WANDER_TRIES = 6;
+const _shDir = { x: 0, z: 0 };
 const BEAM_TAN = Math.tan(FLASHLIGHT_CONE);
 const BODY_AT = [0.9, 0.55, 0.2]; // head, chest, shins (fractions of the body height) - light on any of them counts
 // The leaper's pounce (fireSpecial case 2, special state 2). It flies for T = LEAP_T0 + LEAP_TK s per metre (within
@@ -47,6 +55,11 @@ const LEAP_PIN = 1.5;
 const LEAP_LAND = 1.7;
 const LEAP_MISS_CD = 2.5;
 const THROW_OFF_DAZE = 1; // s a leaper reels for once the survivor it pinned throws it off (throwOff)
+// A leaper hunts whoever has strayed (#299): a survivor with no teammate standing within LONE_NEAR m of them looks
+// LONE_WEIGHT times nearer to it than they are when it picks its prey (chooseTarget), so straying is a real risk and
+// keeping together is what covers you. How far off it notices them at all is unchanged.
+export const LONE_NEAR = 12;
+export const LONE_WEIGHT = 3;
 const PIN_NEAR = 0.55; // m in front of the survivor it has pinned...
 const PIN_SHOVED = 0.3; // ...and this much further at the end of their shove (s.shove: SHOVE_* in constants.js)
 const WEDGE_MOVE = 1.5; // m a zombie after a survivor has to get from where it was to count as getting anywhere (z.wedgeT)
@@ -141,6 +154,7 @@ const SPREAD_PROBE = 1.6;
 const _spr = { x: 0, z: 0 };
 
 const _lamps = [];
+const _floodAim = { x: 0, y: 0, z: 0, dx: 0, dy: 0, dz: 0 };
 export class Zombies {
   constructor(game) {
     this.g = game;
@@ -189,6 +203,9 @@ export class Zombies {
       if (!ok) return null;
     }
     let y = down ? opts.y : groundAt(w, x, z, 200, 0.2, false);
+    // a shade never comes out into the day: by day there is one only where the daylight does not reach (the mine, a
+    // boarded-up ward). opts.force puts one anywhere (an admin's /spawn)
+    if (def.shade && !opts.force && g.phase !== PHASE.NIGHT && !this.darkSpot(x, y, z)) return null;
     if (def.flying) y += 3 + g.rng() * 2;
     const e = this.make(type, x, y, z, opts);
     if (!g.spawnEntity(e)) return null;
@@ -1161,6 +1178,18 @@ export class Zombies {
         } else if (g.rng() < 0.4) {
           z.wanderX = z.x;
           z.wanderZ = z.z;
+        } else if (def.shade) {
+          // a shade keeps to the dark: somewhere no light reaches, or nowhere
+          z.wanderX = z.x;
+          z.wanderZ = z.z;
+          for (let i = 0; i < SHADE_WANDER_TRIES; i++) {
+            const wx = z.x + (g.rng() - 0.5) * 30;
+            const wz = z.z + (g.rng() - 0.5) * 30;
+            if (this.spotLit(wx, groundAt(w, wx, wz, z.y + 4, 0.2, false), wz)) continue;
+            z.wanderX = wx;
+            z.wanderZ = wz;
+            break;
+          }
         } else if (z.pack && !z.horde) {
           // dogs keep to their patch of woods
           const a = g.rng() * Math.PI * 2;
@@ -1243,6 +1272,12 @@ export class Zombies {
     if (len > 1e-4) {
       dx /= len;
       dz /= len;
+    }
+    // a shade does not go into a lit base: it waits on the edge of the light, or backs out of it
+    if (def.shade && !attacking && !zu && this.shadeAvoid(z, len > 1e-4 ? dx : 0, len > 1e-4 ? dz : 0)) {
+      dx = _shDir.x;
+      dz = _shDir.z;
+      len = Math.hypot(dx, dz);
     }
     const moveSpeed = attacking ? 0 : len > 1e-4 ? speed : 0;
 
@@ -1393,6 +1428,7 @@ export class Zombies {
     let best = null;
     let bd = Infinity;
     const mn = g.mineNav;
+    const lone = z.ztype === ZTYPE.LEAPER && humans.length > 1;
     for (const h of humans) {
       if (g.safe(h)) continue; // (dropped and held, or back and not playing yet: game.js hold, resume)
       const s = h.state;
@@ -1410,12 +1446,25 @@ export class Zombies {
       if (!z.horde && z.def.sense) range *= z.def.sense; // dogs catch the scent from further off
       if (z.aggroId === h.id && z.aggroT > 0) range = 600;
       if (z.target === h.id) range *= 1.6; // hysteresis
-      if (d < range && d < bd) {
-        bd = d;
+      if (d >= range) continue;
+      const w = lone && this.alone(h, humans) ? d / LONE_WEIGHT : d;
+      if (w < bd) {
+        bd = w;
         best = h;
       }
     }
     z.target = best ? best.id : 0;
+  }
+
+  // nobody else up and about within LONE_NEAR m of this survivor, on their level (the downed cover nobody)
+  alone(h, humans) {
+    const g = this.g;
+    const s = h.state;
+    for (const o of humans) {
+      if (o === h || o.downed || g.safe(o) || !!o.under !== !!h.under) continue;
+      if (Math.hypot(o.state.x - s.x, o.state.z - s.z) < LONE_NEAR) return false;
+    }
+    return true;
   }
 
   // a dog that picks up a scent sets the rest of its pack onto the same survivor (and howls, once)
@@ -1565,6 +1614,90 @@ export class Zombies {
   // noon? No daylight pins a Shade there, and the sunrise burns nothing in there.
   inDark(z) {
     return this.g.world.darkAt(z.x, z.y + 1, z.z) >= WARD_DARK;
+  }
+
+  // Is (x, y, z) somewhere the daylight does not reach: down in the mine, or in one of the world's dark interiors?
+  darkSpot(x, y, z) {
+    const w = this.g.world;
+    return w.darkAt(x, y + 1, z) >= WARD_DARK || !!w.mine?.under(x, y + 0.3, z);
+  }
+
+  // Is a lit base at (x, y, z): within pad m past the reach of a burning light the survivors built (a torch, a
+  // campfire), or in the cone of a powered floodlight? Returns the light's middle in _shDir (for the way out), or null.
+  baseLight(x, y, z, pad = 0) {
+    const g = this.g;
+    for (const s of g.structures) {
+      const def = STRUCT_DEFS[s.stype];
+      if (!def.light || !(s.burnLeft > 0)) continue;
+      const r = def.light + pad;
+      if ((x - s.x) ** 2 + (z - s.z) ** 2 > r * r || Math.abs(y - s.y) > def.light) continue;
+      _shDir.x = s.x;
+      _shDir.z = s.z;
+      return _shDir;
+    }
+    const cones = g.power.cones;
+    for (let i = 0; i < cones.length; i += 6) {
+      _floodAim.x = cones[i];
+      _floodAim.y = cones[i + 1];
+      _floodAim.z = cones[i + 2];
+      _floodAim.dx = cones[i + 3];
+      _floodAim.dy = cones[i + 4];
+      _floodAim.dz = cones[i + 5];
+      if (!inFloodCone(_floodAim, x, y + 1, z, pad)) continue;
+      _shDir.x = cones[i];
+      _shDir.z = cones[i + 2];
+      return _shDir;
+    }
+    return null;
+  }
+
+  // Would light fall on a shade at (x, y, z) there: the day outside, a lit base, or any other burning light?
+  spotLit(x, y, z) {
+    if (this.g.phase !== PHASE.NIGHT && !this.darkSpot(x, y, z)) return true;
+    if (this.baseLight(x, y, z, SHADE_EDGE)) return true;
+    const lights = this.lightSources();
+    for (let i = 0; i < lights.length; i += 4) {
+      if ((x - lights[i]) ** 2 + (z - lights[i + 2]) ** 2 <= lights[i + 3] ** 2) return true;
+    }
+    return false;
+  }
+
+  // Shade: keeps out of a lit base (SHADE_EDGE). Given the way it wants to go (dx, dz: a unit vector, or 0 0 to stand),
+  // returns true with the way it goes instead in _shDir: straight out, when it is inside one; along the edge, when its
+  // step would take it in and one side is clear; or nowhere, when neither is. Returns false when its way is clear.
+  shadeAvoid(z, dx, dz) {
+    const at = this.baseLight(z.x, z.y, z.z);
+    if (at) {
+      let ox = z.x - at.x;
+      let oz = z.z - at.z;
+      const l = Math.hypot(ox, oz);
+      if (l < 1e-3) {
+        ox = Math.sin(z.yaw);
+        oz = Math.cos(z.yaw);
+      } else {
+        ox /= l;
+        oz /= l;
+      }
+      _shDir.x = ox;
+      _shDir.z = oz;
+      return true;
+    }
+    if (!dx && !dz) return false;
+    const look = SHADE_EDGE;
+    if (!this.baseLight(z.x + dx * look, z.y, z.z + dz * look, SHADE_EDGE)) return false;
+    // its step goes in: along the edge of the light instead, whichever side is still dark, else it waits there
+    for (const sg of [1, -1]) {
+      const sx = -dz * sg;
+      const sz = dx * sg;
+      if (!this.baseLight(z.x + sx * look, z.y, z.z + sz * look, SHADE_EDGE)) {
+        _shDir.x = sx;
+        _shDir.z = sz;
+        return true;
+      }
+    }
+    _shDir.x = 0;
+    _shDir.z = 0;
+    return true;
   }
 
   // Shade: returns true while light pins it (it does nothing else this tick). Bodies part around it like a post,
