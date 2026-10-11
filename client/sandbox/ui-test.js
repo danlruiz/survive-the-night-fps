@@ -1,6 +1,6 @@
 // UI sandbox: drives the UI with fake data. ?screen=splash|hud|hud-night|hud-horde|hud-zombie|hud-downed|hud-dawn|
 // hud-finale|hud-live|inventory|players|board|build|death|gameover|victory|pause|settings|achievements|bestiary|
-// cards|hud-cards|chat|icons|picker|creator|auction
+// cards|hud-cards|chat|icons|picker|creator|auction|loadout
 // &bg=night|day|fire
 // &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=
 import { UI } from '../ui/ui.js';
@@ -449,6 +449,13 @@ switch (screen) {
     setTimeout(() => ui.auction.show(), 100);
     break;
   }
+  // the loadout: the demo collection, and the catalog's other items as silhouettes after it
+  case 'loadout': {
+    buildScene(bg || 'fire');
+    ui.showSplash();
+    setTimeout(() => ui.loadout.show(), 100);
+    break;
+  }
   // who to play as: the picker (&customs=N, &choice=...), and the character creator (&section=body|face|hair|clothes|
   // gear; &from=N: made like roster survivor N; &edit=demo0: one of the saved; else a stranger)
   case 'picker': {
@@ -793,7 +800,7 @@ switch (screen) {
           : { run: { secs: 2710, nights: 5, kills: 31 }, news: q.get('record') === 'plain' ? [] : [{ k: 'kills', label: 'New best', text: '31 kills', was: '24' }], record: { best: { secs: 0, nights: 5, kills: q.get('record') === 'plain' ? 40 : 31 }, total: { runs: 9, escapes: 0, streak: 0 }, runs: [2, 1, 3, 2, 4, 3, 5, 4, 5].map((nights) => ({ nights, result: 'wiped' })) } }
         : undefined,
       // &xp=1: the experience panel too, a run that levelled the player up
-      progress: q.get('xp') ? { xp: 329, run: [70, 24, 150, 0, 100, 0, 0], loaded: true, kept: true } : null,
+      progress: q.get('xp') ? { xp: 329, run: [35, 12, 150, 0, 100, 0, 0, 47], loaded: true, kept: true } : null,
       // the difficulty poll, against made-up votes: &vote=1..5 casts one as the screen comes up
       vote: (rating) =>
         new Promise((done) => {
