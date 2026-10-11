@@ -460,6 +460,14 @@ may browse and earn but must sign in to buy or sell. The main menu's Loadout and
 service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
 header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
+The pledge window (`shared/pledge.js`, `server/pledge.js`, `client/ui/pledge.js`) is where Skulls are spent in a game.
+Each run opens it as it begins (the run is already on: the day clock runs). Players chip into group pools and tick
+personal buys, then confirm or skip; it shuts when everyone who can spend has decided, or after `PLEDGE.WINDOW_S`.
+Nothing is paid until then. A full pool is one `spend` to the network thread with every pledger's debit on one ledger
+row (all or none: `LoadoutService.spendFromRoom`), a personal buy one of its own, and the goods are handed out only when
+the answer (`spent`) says it went through. The game knows each player's balance from the collection message (`coll`
+carries `balance`). Everything bought is an ordinary run item, gone with the run.
+
 ## Experience, levels and perks
 
 A player earns XP over every game they play, and perk points with it to spend on a perk tree. The rules are

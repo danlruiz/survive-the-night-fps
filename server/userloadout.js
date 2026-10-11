@@ -13,6 +13,7 @@ const GRANT_RE = /^[0-9a-zA-Z:_.-]{1,96}$/;
 const XFER_RE = new RegExp(`^${UUID}:loadout_(trade|wager_(lock|pay|back))$`);
 const ITEM_RE = new RegExp(`^${UUID}$`);
 const MOVES_MAX = 24;
+const PLEDGE_SPEND_MAX = 1000; // the most Skulls one survivor can be charged by one pledge (shared/pledge.js prices are far under)
 const INFLIGHT_MAX = 8;
 export const WAGER_MAX_AGE = 24 * 3600; // s: a wager lock this old is orphaned and refunded
 export const TRADE_LOCK_MAX_AGE = 15 * 60; // s: active in-run trade offers do not survive restarts
@@ -307,6 +308,19 @@ export class PgLoadoutStore {
       }
     }
     return { fresh: true };
+  }
+
+  // Skulls spent in a game (the pledge window: server/pledge.js): every entry is taken in one go, or none is
+  // (insufficient_skulls). -> { fresh, balances: { owner: balance } }
+  async spendSkulls({ id, kind, entries, meta = {} }) {
+    return this.db.tx(async (t) => {
+      const owners = [...new Set(entries.map((e) => e.owner))].sort();
+      await t.query('SELECT owner FROM loadout_skull_balances WHERE owner = ANY($1::text[]) FOR UPDATE', [owners]);
+      const got = await this.applySkulls(t, id, kind, entries, meta);
+      const balances = {};
+      for (const o of owners) balances[o] = await this.balanceIn(t, o);
+      return { ...got, balances };
+    });
   }
 
   async earnSkulls({ id, owner, amount, source = {}, cap = SKULL_EARN.HOURLY_CAP }) {
@@ -675,6 +689,12 @@ export class MemoryLoadoutStore {
     this.skullLedger.set(id, { kind, entries: clean, meta: { ...meta }, at: Date.now() });
     return { fresh: true };
   }
+  async spendSkulls({ id, kind, entries, meta = {} }) {
+    const got = this.applySkullEntries(id, kind, entries, meta);
+    const balances = {};
+    for (const e of entries) balances[e.owner] = this.skulls.get(e.owner) || 0;
+    return { ...got, balances };
+  }
   async earnSkulls({ id, owner, amount, source = {}, cap = SKULL_EARN.HOURLY_CAP }) {
     amount = Math.max(0, amount | 0);
     if (!isOwner(owner) || !GRANT_RE.test(String(id || '')) || amount <= 0) return { fresh: false, amount: 0, balance: await this.balance(owner) };
@@ -837,7 +857,7 @@ export class LoadoutService {
     }
   }
   msg(owner, c) {
-    return { t: 'loadout', op: 'coll', owner, ok: c.state === 'ok', items: c.items, slots: c.slots };
+    return { t: 'loadout', op: 'coll', owner, ok: c.state === 'ok', items: c.items, slots: c.slots, balance: c.balance | 0 };
   }
   broadcast(owner) {
     const c = this.cache.get(owner);
@@ -876,7 +896,10 @@ export class LoadoutService {
   async earnSkulls(owner, amount, source = {}, id = randomUUID()) {
     if (!isOwner(owner) || !GRANT_RE.test(id) || (amount | 0) <= 0) return null;
     const got = await this.run(() => this.store.earnSkulls({ id, owner, amount, source }));
-    if (got?.fresh && got.amount > 0) this.changed?.([owner]);
+    if (got?.fresh && got.amount > 0) {
+      this.setBalance(owner, got.balance);
+      this.changed?.([owner]);
+    }
     return got;
   }
   async auction(owner = '') {
@@ -933,6 +956,13 @@ export class LoadoutService {
     this.changed?.([owner]);
     return got;
   }
+  // a cached balance moved (the games it is in hear of it with the collection: the pledge window's)
+  setBalance(owner, balance) {
+    const c = this.cache.get(owner);
+    if (!c || !Number.isInteger(balance) || c.balance === balance) return;
+    c.balance = balance;
+    this.broadcast(owner);
+  }
   update(owner, got) {
     const c = this.cache.get(owner);
     if (!c) return;
@@ -948,6 +978,7 @@ export class LoadoutService {
       if (m.op === 'leave') return this.leave(room, m.owner);
       if (m.op === 'grant') return this.grantFromRoom(room, m);
       if (m.op === 'skulls') return this.skullsFromRoom(room, m);
+      if (m.op === 'spend') return this.spendFromRoom(room, m);
       if (m.op === 'xfer') return this.xfer(room, m);
       if (m.op === 'trade_lock') return this.tradeLock(room, m);
       if (m.op === 'trade_unlock') return this.tradeUnlock(room, m);
@@ -962,7 +993,7 @@ export class LoadoutService {
     rs.set(owner, (rs.get(owner) || 0) + 1);
     let c = this.cache.get(owner);
     if (!c) {
-      this.cache.set(owner, (c = { items: [], slots: Array(LOADOUT_SLOTS).fill(null), state: 'loading', rooms: new Set() }));
+      this.cache.set(owner, (c = { items: [], slots: Array(LOADOUT_SLOTS).fill(null), balance: 0, state: 'loading', rooms: new Set() }));
       this.fetch(owner, c);
     }
     c.rooms.add(room);
@@ -982,11 +1013,12 @@ export class LoadoutService {
   }
   fetch(owner, c = this.cache.get(owner)) {
     if (!c) return;
-    this.run(() => this.store.load(owner)).then(
+    this.run(async () => ({ ...(await this.store.load(owner)), balance: await this.store.balance(owner) })).then(
       (got) => {
         if (this.cache.get(owner) !== c) return;
         c.items = got.items;
         c.slots = got.slots;
+        c.balance = got.balance | 0;
         c.state = 'ok';
         this.broadcast(owner);
       },
@@ -1008,6 +1040,36 @@ export class LoadoutService {
     const amount = m.amount | 0;
     if (!isOwner(m.owner) || !rs?.has(m.owner) || amount <= 0 || amount > SKULL_EARN.HOURLY_CAP || !GRANT_RE.test(String(m.id || ''))) return;
     this.earnSkulls(m.owner, amount, m.source || {}, m.id).catch((err) => this.log(`loadout: skull earn failed (${err.message})`));
+  }
+  // A game spends its players' Skulls (the pledge window: server/pledge.js). Only owners in that game, only debits,
+  // at most PLEDGE_SPEND_MAX each; all of it or nothing. The game hears { op: 'spent', id, ok } either way.
+  spendFromRoom(room, m) {
+    const id = typeof m.id === 'string' ? m.id : '';
+    const rs = this.rooms.get(room);
+    const answer = (ok, why = '') => this.tell(room, { t: 'loadout', op: 'spent', id, ok, why });
+    if (!GRANT_RE.test(id) || !id.startsWith('pledge:') || !rs) return answer(false, 'refused');
+    const list = Array.isArray(m.entries) ? m.entries : [];
+    if (!list.length || list.length > MOVES_MAX) return answer(false, 'refused');
+    const seen = new Set();
+    const entries = [];
+    for (const e of list) {
+      const n = e?.delta;
+      if (!isOwner(e?.owner) || !rs.has(e.owner) || seen.has(e.owner) || !Number.isInteger(n) || n >= 0 || -n > PLEDGE_SPEND_MAX) return answer(false, 'refused');
+      seen.add(e.owner);
+      entries.push({ owner: e.owner, delta: n });
+    }
+    const meta = { offer: String(m.meta?.offer || '').slice(0, 32), run: m.meta?.run | 0 };
+    this.run(() => this.store.spendSkulls({ id, kind: 'pledge', entries, meta })).then(
+      (got) => {
+        answer(true);
+        for (const [owner, balance] of Object.entries(got.balances || {})) this.setBalance(owner, balance);
+        this.changed?.([...seen]);
+      },
+      (err) => {
+        if (err?.code !== 'insufficient_skulls') this.log(`loadout: a pledge spend failed (${err.message})`);
+        answer(false, err?.code === 'insufficient_skulls' ? 'skulls' : 'failed');
+      }
+    );
   }
   tradeLock(room, m) {
     const rs = this.rooms.get(room);

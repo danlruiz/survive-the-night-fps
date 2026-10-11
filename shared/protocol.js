@@ -2,7 +2,7 @@
 // Positions are quantized in int16: to 1/64 m on the island (range +-512 m) and to 1/32 m on the mainland, which is
 // 2048 m across (range +-1024 m: its edge). See usePos below.
 
-export const PROTOCOL_VERSION = 48; // 26: the frag grenade and the noisemaker (items 33-34, PROJ 7-8); 28: salvage, ammo reserve, unequip, RPG (PROJ 9); 29: carrying the mounted gun (ACT.GUN_PUT, HOLD.GUN_LIFT, ENT.GUN fields 6-7, s.hmg); 30: the flare gun (items 56, 79; ammo 9; PROJ 10); 31: the walkie-talkie in weapon slot 6 (SLOT_RADIO), PLF.ON_AIR; 32: achievements (EVT.ACHIEVE); 33: XP, levels and perks (S2C.PROGRESS, s.perks in SELF.RIDE, a level in S2C.PLAYERS and S2C.BOARD rows); 34: IN_PING carries u16 last measured RTT (ms) for the player list; 35: the bestiary (EVT.BESTIARY); 36: schematic rumours (a zone per schematic in the global state); 37: car supplies lying loose (item, x, z) in the global state; 38: the leaper shove meter (s.shove in the self state's fifth chunk); 39: a torch's or a campfire's burn-out tick (SF.BURN); 40: the mainland's undead deer (DEER_UNDEAD in a deer's variant, DANIM.ATTACK / CHARGE, SOUND.DEER_SCREAM, killfeed flag 8 and YOU_DIED 254 for a death by one); 41: the stray cat in a survivor's arms (ACT.CAT_PUT, ENT.CAT field HOLDER, CANIM.HELD / PET, s.pet in SELF.RIDE); 42: Dead Hand, the card game (C2S.CARDS, S2C.CARDS, card packs: items 98-99); 43: lobby Dead Hand tables; 44: Dead Hand loadout item wagers; 45: trees shot or blown apart (EVT.TREE_BREAK); 46: your noise woke the dead (EVT.HEARD); 47: the fresh-night XP bonus (XP_SRC 'fresh' in S2C.PROGRESS); 48: where each car supply is hidden and the help a team that has found none gets (global spots, help; NOTIFY.SUPPLY_HINT)
+export const PROTOCOL_VERSION = 49; // 26: the frag grenade and the noisemaker (items 33-34, PROJ 7-8); 28: salvage, ammo reserve, unequip, RPG (PROJ 9); 29: carrying the mounted gun (ACT.GUN_PUT, HOLD.GUN_LIFT, ENT.GUN fields 6-7, s.hmg); 30: the flare gun (items 56, 79; ammo 9; PROJ 10); 31: the walkie-talkie in weapon slot 6 (SLOT_RADIO), PLF.ON_AIR; 32: achievements (EVT.ACHIEVE); 33: XP, levels and perks (S2C.PROGRESS, s.perks in SELF.RIDE, a level in S2C.PLAYERS and S2C.BOARD rows); 34: IN_PING carries u16 last measured RTT (ms) for the player list; 35: the bestiary (EVT.BESTIARY); 36: schematic rumours (a zone per schematic in the global state); 37: car supplies lying loose (item, x, z) in the global state; 38: the leaper shove meter (s.shove in the self state's fifth chunk); 39: a torch's or a campfire's burn-out tick (SF.BURN); 40: the mainland's undead deer (DEER_UNDEAD in a deer's variant, DANIM.ATTACK / CHARGE, SOUND.DEER_SCREAM, killfeed flag 8 and YOU_DIED 254 for a death by one); 41: the stray cat in a survivor's arms (ACT.CAT_PUT, ENT.CAT field HOLDER, CANIM.HELD / PET, s.pet in SELF.RIDE); 42: Dead Hand, the card game (C2S.CARDS, S2C.CARDS, card packs: items 98-99); 43: lobby Dead Hand tables; 44: Dead Hand loadout item wagers; 45: trees shot or blown apart (EVT.TREE_BREAK); 46: your noise woke the dead (EVT.HEARD); 47: the fresh-night XP bonus (XP_SRC 'fresh' in S2C.PROGRESS); 48: where each car supply is hidden and the help a team that has found none gets (global spots, help; NOTIFY.SUPPLY_HINT); 49: the pledge window and its Skull buys (C2S.PLEDGE, S2C.PLEDGE)
 
 // client -> server
 export const C2S = {
@@ -18,6 +18,7 @@ export const C2S = {
   PING: 6, // f64 clientTime (answered at once with S2C.PONG; the game client pings inside its INPUT packets instead)
   BOARD: 7, // (nothing): asks for the leaderboard, answered with S2C.BOARD
   CARDS: 8, // Dead Hand: u8 CARDOP, str json (see writeCards)
+  PLEDGE: 9, // str json: a pick in the pledge window as a run begins (server/pledge.js, shared/pledge.js)
 };
 
 // server -> client
@@ -42,6 +43,7 @@ export const S2C = {
   //           list's character): everyone's on joining, a newcomer's to the rest. Not in S2C.PLAYERS, which goes out
   //           again whenever a ping changes; a game of roster survivors sends none. An older client ignores it.
   CARDS: 15, // Dead Hand, to this player alone: u8 CARDMSG, str json (see writeCards)
+  PLEDGE: 16, // str json, to this player alone: the pledge window as they see it, or { open: false } once it has shut (server/pledge.js)
 };
 export const ROOMF = { INVITE_ONLY: 1 };
 // S2C.WELCOME flags. ADMIN: this player may run the admin commands (the client offers the spawn menu); the server

@@ -152,6 +152,16 @@ export class Connection {
           case S2C.PROGRESS:
             this.h.progress?.(r);
             break;
+          case S2C.PLEDGE: {
+            let m = null;
+            try {
+              m = JSON.parse(r.str());
+            } catch (err) {
+              console.warn('[net] a pledge message could not be read', err);
+            }
+            if (m && typeof m === 'object') this.h.pledge?.(m);
+            break;
+          }
         }
       };
       ws.onclose = (e) => {
@@ -296,6 +306,14 @@ export class Connection {
     const w = this.w.reset();
     w.u8(C2S.CARDS);
     writeCards(w, op, data);
+    this.sendRaw(w);
+  }
+
+  // the pledge window (server/pledge.js): a pick, a confirm or a skip. The window comes back as S2C.PLEDGE
+  pledge(data) {
+    const w = this.w.reset();
+    w.u8(C2S.PLEDGE);
+    w.str(JSON.stringify(data));
     this.sendRaw(w);
   }
 

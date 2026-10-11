@@ -91,13 +91,13 @@ export class Loadouts {
     this.game = game;
     this.link = link || new LocalLoadouts();
     this.link.attach?.(this);
-    this.own = new Map(); // owner -> { items, slots, loaded, n }
+    this.own = new Map(); // owner -> { items, slots, loaded, balance, n }
   }
 
   use(owner) {
     let o = this.own.get(owner);
     if (!o) {
-      this.own.set(owner, (o = { items: [], slots: [null, null, null], loaded: false, n: 0 }));
+      this.own.set(owner, (o = { items: [], slots: [null, null, null], loaded: false, balance: 0, n: 0 }));
       this.link.post({ op: 'enter', owner });
     }
     o.n++;
@@ -121,10 +121,14 @@ export class Loadouts {
   }
   fromStore(m) {
     if (m.op === 'xfered') return this.game.cards?.fromLoadoutStore(m);
+    if (m.op === 'spent') return this.game.pledges?.spent(m);
     if (m.op !== 'coll') return;
     const o = this.own.get(m.owner);
     if (!o) return;
     o.loaded = m.ok === true;
+    o.heard = true; // (loaded or not, the network thread has answered)
+    o.balance = Number.isInteger(m.balance) ? m.balance : 0; // their Zombie Skulls (the pledge window's)
+    this.game.pledges?.changed();
     o.items = Array.isArray(m.items) ? m.items : [];
     o.slots = Array.isArray(m.slots) ? m.slots : [null, null, null];
     for (const p of this.game.players.values()) if (p.rejoinKey === m.owner) this.apply(p);

@@ -68,6 +68,7 @@ export const ACTIONS = [
   { id: 'cards', label: 'Dead Hand (cards)', group: 'Interface', keys: ['KeyK', null], menu: true },
   { id: 'perks', label: 'Perks', group: 'Interface', keys: ['KeyP', null], menu: true },
   { id: 'achievements', label: 'Achievements', group: 'Interface', keys: ['KeyU', null], menu: true },
+  { id: 'pledge', label: 'Pledge & buy (as a run begins)', group: 'Interface', keys: ['KeyO', null], menu: true },
   { id: 'players', label: 'Player list (hold)', group: 'Interface', keys: ['Tab', null], menu: true },
 ].map((a) => Object.freeze({ ctx: CTX_ANY, hold: false, menu: false, ...a, keys: Object.freeze(a.keys) }));
 
