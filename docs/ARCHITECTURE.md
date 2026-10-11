@@ -689,6 +689,12 @@ The island's final stand can't be begun before night `STAND_NIGHT` (3) has falle
 supplies still go in early, but the hold at the car is refused (with a chat line saying when) until then, so the
 island's escalation is played before the mainland. The objective tracker says so, and on the island carries a
 standing "Then: ... the mainland" line so the car never reads as the end. The admin's `/engine` skips the wait.
+The island also hints at the airfield from the start, all of it client-side so the world's generation is
+unchanged: the breakdown's billboard is an ad for Calder Field "over the bridge", green AIRPORT plates hang on Route
+9's power poles from the breakdown to the bridge end (`client/render/airportsigns.js`, laid with citykit.js
+`buildSigns` from the city atlas's `road_airport`), the island's map has "to airfield" pencilled by the bridge, and
+installing the car battery turns the car's radio on (`Game.carRadio`: static, then the survivors' call for the
+airfield). `scripts/test-airfield-hints.js` holds them.
 
 - **A world has its own size.** `world.kind` (`WORLD.ISLAND` / `WORLD.MAINLAND`, which is also the act's number),
   `world.size` / `half` / `gridN`, `world.start` (where a run on it begins) and `world.posScale`. Nothing that

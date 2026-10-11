@@ -164,6 +164,8 @@ const HAZE_THIN = 22;
 const FAR_SMALL = 520;
 const FAR_BIG = 1700;
 import { bearing, tonightBrief, PING_LABEL } from '../ui/hud2.js';
+// what the car's radio says once its battery is in (carRadio), word for word as the owner wrote it
+const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';
 
 const WEATHER_TOAST = {
   fog: 'Fog is rolling in',
@@ -1626,6 +1628,18 @@ export class Game {
     return left > 0xf000 ? 0 : left / SERVER_TICK_RATE;
   }
 
+  // the car's battery is in, and its radio comes on: static, then a voice (issue #269: from the first day, the run's
+  // far goal is the airfield past the bridge)
+  carRadio() {
+    const car = this.world.car;
+    if (car) this.audio.play(SOUND.RADIO_TUNE, { x: car.x, y: car.y + 1, z: car.z });
+    setTimeout(() => {
+      if (this.state !== 'playing') return;
+      this.ui.notify('THE CAR RADIO CRACKLES', 'big', 9);
+      this.ui.notify(`"${CAR_RADIO_LINE}"`, 'sub', 9);
+    }, 1400);
+  }
+
   onNotify(msg, arg) {
     const ui = this.ui;
     const a = this.audio;
@@ -1690,6 +1704,7 @@ export class Game {
       case NOTIFY.CAR_PART:
         ui.notify(`${ITEM_DEFS[arg]?.name || 'Part'} installed in the ${W.thing}`, 'good', 4);
         a.playLocal('install_part');
+        if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();
         break;
       case NOTIFY.SUPPLIES_DONE:
         ui.notify(this.act === WORLD.MAINLAND ? 'THE PLANE IS FIXED' : 'EVERY SUPPLY IS IN', 'big', 5);
