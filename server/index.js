@@ -37,6 +37,7 @@ import { LoadoutService, PgLoadoutStore, MemoryLoadoutStore, ownerKey as loadout
 import { LobbyCards } from './lobbycards.js';
 import { PublicStats, RANGES } from './publicstats.js';
 import { idKey } from './stats.js';
+import { devAdminAllowed } from './devadmin.js';
 import { api, HttpError, parseCookies, sameOrigin } from './http.js';
 import { FileStore, PgStore, BUILD } from './handoff.js';
 import { Builds } from './builds.js';
@@ -144,8 +145,8 @@ const lobby = new Lobby({
     nightLength: process.env.NIGHT_SECONDS ? +process.env.NIGHT_SECONDS : undefined,
     startDay: process.env.START_DAY ? +process.env.START_DAY : undefined,
     godMode: process.env.GODMODE === '1',
-    // Test and look-dev servers can authorize every player without accounts. Other environments ignore it.
-    devAdmin: ['development', 'test'].includes(process.env.NODE_ENV) && process.env.DEV_ADMIN === '1',
+    // Test, look-dev and `npm run dev` servers authorize every player without accounts. Other environments ignore it.
+    devAdmin: devAdminAllowed(),
   },
 });
 

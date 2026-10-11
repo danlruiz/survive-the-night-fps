@@ -364,7 +364,7 @@ export class Game {
     this.startDayNum = opts.startDay || 1;
     this.godMode = !!opts.godMode; // testing only: survivors take no damage
     // Signed-in accounts with users.is_admin may run the admin chat commands. DEV_ADMIN=1 grants the same access
-    // only on a non-production test/look-dev server without requiring accounts.
+    // to every player, only on a development or test server (server/devadmin.js): `npm run dev` turns it on.
     this.devAdmin = !!opts.devAdmin;
     this.dawnReturn = opts.dawnReturn ?? DAWN_RETURN; // the dead are survivors again at sunrise (the option: tests)
     this.themes = opts.themes !== false; // night themes (shared/nights.js). false: every night is plain (tests, benchmarks)
