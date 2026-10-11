@@ -35,7 +35,7 @@ import {
   STRUCT,
   STRUCT_DEFS,
   STRUCT_ORDER,
-  REPAIR_COST,
+  repairCostOf,
   ZOMBIE_DEFS,
   SCHEM_BIT,
   THROW_ITEMS,
@@ -226,6 +226,11 @@ const mmss = (t) => {
   const n = Math.ceil(t);
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 };
+// '1 Planks, 1 Nails': what a repair takes, for its prompt
+const costText = (cost) =>
+  Object.entries(cost)
+    .map(([id, n]) => `${n} ${ITEM_DEFS[id].name}`)
+    .join(', ');
 const RUN_JOIN_GRACE = 60; // seconds into day one by which a player must have joined for the run to go on their record
 const BOARD_EVERY = 4000; // ms between two requests for the leaderboard while it is open
 // Turning while aimed is slowed by the gun's zoom, tan(aimed fov / 2) / tan(hip fov / 2) (the ratio of the two
@@ -1823,7 +1828,7 @@ export class Game {
         break;
       }
       case NOTIFY.SEARCH_EMPTY:
-        ui.notify(arg === 1 ? 'This tree is stripped bare' : arg === 2 ? 'Nothing left to salvage' : 'Already searched', 'toast', 1.6);
+        ui.notify(arg === 1 ? 'This tree is stripped bare' : arg === 2 ? 'Nothing left to salvage' : arg === 3 ? 'Mined out' : 'Already searched', 'toast', 1.6);
         break;
       case NOTIFY.INVENTORY_FULL: {
         // arg: the item a full backpack left lying where the survivor walked over it (0: a craft, a search, a swap)
@@ -3106,7 +3111,7 @@ export class Game {
     }
     if (t.kind === ENT.PLAYER) return this.cards.chooser(t.id); // a teammate on their feet: a match or a trade (nothing is sent until one is picked)
     if (t.kind === ENT.STRUCTURE && this.power.press(t)) return; // (a generator: a tap pours fuel, held it is the switch)
-    if (t.kind === ENT.STRUCTURE) this.askedCost = REPAIR_COST;
+    if (t.kind === ENT.STRUCTURE) this.askedCost = repairCostOf(t.stype);
     this.conn.action(ACT.INTERACT, t.id);
   }
 
@@ -3989,7 +3994,7 @@ export class Game {
           if (s.slot === SLOT_BUILD) this.prompt += `${lit ? ` · burns ${mmss(this.burnLeft(e))}` : ''} · ${bindTag('demolish')} Remove`;
         } else if (s.slot === SLOT_BUILD) {
           if (e.stype === STRUCT.TORCH) this.prompt = hp < 1 || e.q[4] === 0 ? `${bindTag('interact')} Relight torch (1 Cloth) · ${bindTag('demolish')} Remove` : `Burns ${mmss(this.burnLeft(e))} · ${bindTag('demolish')} Remove torch`;
-          else this.prompt = hp < 0.99 ? `${bindTag('interact')} Repair ${def.name} (1 Planks, 1 Nails) · ${bindTag('demolish')} Demolish` : `${bindTag('demolish')} Demolish ${def.name}`;
+          else this.prompt = hp < 0.99 ? `${bindTag('interact')} Repair ${def.name} (${costText(repairCostOf(e.stype))}) · ${bindTag('demolish')} Demolish` : `${bindTag('demolish')} Demolish ${def.name}`;
         } else if (def.station === 'bench') this.prompt = `Workbench · craft here ${bindTag('inventory')}`;
         this.contextStructure = { name: def.name, hp };
         return;
@@ -4452,15 +4457,22 @@ export class Game {
     const mates = [];
     const crates = [];
     const enemies = []; // the living zombies, and players turned (big: a Tank or a boss)
+    // only the dead on your own level: up top, not those down the mine under your feet; down there, not those on the
+    // ground over you. (Within a couple of metres of your height they count wherever they are: in the mouth of a
+    // portal, on their way in or out - a drift's floor is always 4.5 m or more under the ground over it)
+    const mine = this.world.mine;
+    const rp = this.renderPos;
+    const down = !!mine?.under(rp.x, rp.y + 0.3, rp.z);
+    const near = (e) => !mine || Math.abs(e.ry - rp.y) < 2.5 || mine.under(e.rx, e.ry + 0.3, e.rz) === down;
     for (const e of this.entities.ents.values()) {
       if (e.kind === ENT.PLAYER) {
         if (e.q[5] & PFLAG.DEAD) continue;
-        if (e.q[5] & PFLAG.ZOMBIE) enemies.push({ id: e.id, x: e.rx, z: e.rz, big: false });
+        if (e.q[5] & PFLAG.ZOMBIE) near(e) && enemies.push({ id: e.id, x: e.rx, z: e.rz, big: false });
         else mates.push({ x: e.rx, z: e.rz, name: this.name(e.id), status: e.downed ? 'downed' : 'alive' });
       } else if (e.kind === ENT.ZOMBIE) {
-        if (!e.dead) enemies.push({ id: e.id, x: e.rx, z: e.rz, big: e.ztype === ZTYPE.TANK || !!ZOMBIE_DEFS[e.ztype]?.boss });
+        if (!e.dead && near(e)) enemies.push({ id: e.id, x: e.rx, z: e.rz, big: e.ztype === ZTYPE.TANK || !!ZOMBIE_DEFS[e.ztype]?.boss });
       } else if (e.kind === ENT.DEER) {
-        if (!e.dead && e.variant & DEER_UNDEAD) enemies.push({ id: e.id, x: e.rx, z: e.rz, big: false }); // (the mainland's: they hunt you)
+        if (!e.dead && e.variant & DEER_UNDEAD && near(e)) enemies.push({ id: e.id, x: e.rx, z: e.rz, big: false }); // (the mainland's: they hunt you)
       } else if (e.kind === ENT.CRATE && e.q[3] !== 2) crates.push({ x: e.rx, z: e.rz });
     }
     const carried = {};
