@@ -493,7 +493,7 @@ switch (screen) {
     }
     // &achtrack=1: three achievements tracked under the objective (&tracked= to choose them)
     if (q.get('achtrack')) fakeAchievements();
-    if (q.get('simple')) h.simpleHud = true; // &simple=1: a player's first runs (firstrun.js)
+    if (q.get('simple')) Object.assign(h, { simpleHud: true, noMap: q.get('simple') !== 'map' }); // &simple=1: a player's first runs (firstrun.js); &simple=map: once the minimap is up
     // &weapon=<item id>&mag=<n>&reserve=<n>&reload=<0..1>: try the ammo block with any primary
     if (q.get('weapon')) Object.assign(h, { weapons: [+q.get('weapon'), ...baseHud.weapons.slice(1)], mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: q.get('reload') == null ? -1 : +q.get('reload') });
     ui.hideSplash();

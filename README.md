@@ -323,8 +323,12 @@ twice (remembered in the browser); Settings -> Key hints turns them off.
 with "Fix the car: 7 parts" under the opening card and the rumoured places already on the compass. In every
 run, 20 seconds into day 1, one walker turns up about 38 m ahead of a survivor and shambles over, unless one
 of the dead is already within 45 m. The new-game card starts on Ember for a brand-new player and on the last
-difficulty picked after that. A player's first three runs keep the HUD simple: no minimap, info line or
-achievement banners (Settings -> Show the whole HUD shows them from the start).
+difficulty picked after that. A player's first three runs keep the HUD simple: no info line or achievement
+banners, and no minimap until it is needed to find the way back - 80 m from the car, the dusk horn, or a noise of
+yours waking the dead - after which it stays up for the run (Settings -> Show the whole HUD shows everything from
+the start). To see the first run again without clearing your record, open the game with `?newplayer` in the
+address (`http://localhost:5173/?newplayer` in dev): that tab plays as a brand-new player until it is closed, and
+the key hints and the remembered difficulty start over.
 
 ## The game
 

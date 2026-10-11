@@ -428,6 +428,12 @@ export class Hud {
       this.ui.root.classList.toggle('hud-simple', simple);
       this._relayout();
     }
+    const noMap = !!h.noMap; // ...whose minimap waits until it is needed (firstrun.js mapNeeded)
+    if (c.noMap !== noMap) {
+      c.noMap = noMap;
+      this.ui.root.classList.toggle('hud-nomap', noMap);
+      this._relayout();
+    }
     const night = h.phase === PHASE.NIGHT || !!h.finale;
     if (c.atNight !== night) {
       c.atNight = night;

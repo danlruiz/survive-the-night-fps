@@ -1,7 +1,7 @@
 // The first-run experience (#270): what a brand-new player is offered (client/ui/firstrun.js), the order the key
 // hints come in (client/ui/keyhints.js: the threat before the map, the inventory and building), and the walker that
 // turns up in a run's first minute (server/zombies.js spawnOpener).
-import { isFirstRun, suggestedDifficulty, rememberDifficulty, earlyRuns, simpleHud, yawTowards, goalLine, SIMPLE_HUD_RUNS } from '../client/ui/firstrun.js';
+import { isFirstRun, suggestedDifficulty, rememberDifficulty, earlyRuns, simpleHud, mapNeeded, applyNewPlayer, yawTowards, goalLine, SIMPLE_HUD_RUNS, MAP_REVEAL_DIST } from '../client/ui/firstrun.js';
 import { HINTS, KeyHints } from '../client/ui/keyhints.js';
 import { sanitizeRecord } from '../client/ui/records.js';
 import { Game } from '../server/game.js';
@@ -58,6 +58,32 @@ check('facing east is -90 degrees', near(yawTowards(0, 0, 10, 0), -Math.PI / 2))
   check('the look it gives points at the target', near(fx, dx / len, 1e-9) && near(fz, dz / len, 1e-9));
 }
 check('the goal line counts the parts', goalLine(7) === 'Fix the car: 7 parts' && goalLine(1) === 'Fix the car: 1 part');
+
+// ---- the minimap on a simple-HUD run: hidden at the start, up once it is needed to find the way back
+const day = (dist, dusk = false) => mapNeeded({ dayPhase: true, dusk, dist });
+check('no minimap by the car in the day', !day(0) && !day(MAP_REVEAL_DIST - 1));
+check(`the minimap comes up ${MAP_REVEAL_DIST} m out`, day(MAP_REVEAL_DIST) && day(300));
+check('...at the dusk horn, wherever you are', day(0, true));
+check('...and at night, in the final stand and on the crossing', mapNeeded({ dayPhase: false, dusk: false, dist: 0 }));
+
+// ---- ?newplayer: a tab that plays as a brand-new player, the record kept
+{
+  const session = {};
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    value: { getItem: (k) => (k in session ? session[k] : null), setItem: (k, v) => void (session[k] = String(v)), removeItem: (k) => void delete session[k] },
+    configurable: true,
+    writable: true,
+  });
+  store = { 'stn.keyhints': '{"map":2}', 'stn.difficulty': 'blackout', 'stn.runs': 'kept' };
+  check('an address without it changes nothing', !applyNewPlayer('?game=ABCD') && !isFirstRun(withRuns(5)) && store['stn.difficulty'] === 'blackout');
+  check('?newplayer is seen', applyNewPlayer('?newplayer') && applyNewPlayer('?game=ABCD&newplayer=1'));
+  check('...and the tab plays as a brand-new player', isFirstRun(withRuns(5)) && earlyRuns(withRuns(50)) && suggestedDifficulty(withRuns(5)) === 'ember');
+  check('...the key hints and the remembered difficulty start over', !('stn.keyhints' in store) && !('stn.difficulty' in store));
+  check('...and the record itself is left alone', store['stn.runs'] === 'kept');
+  delete globalThis.sessionStorage;
+  check('a tab without it is a returning player again', !isFirstRun(withRuns(5)));
+  store = {};
+}
 
 // ---- the key hints' order: the threat comes before the map, the inventory and building
 const at = (id) => HINTS.findIndex((h) => h.id === id);

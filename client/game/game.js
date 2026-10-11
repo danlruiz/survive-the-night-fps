@@ -149,7 +149,7 @@ import { createPickup } from '../render/models/pickups.js';
 import { createSupplyCrate, createProjectile } from '../render/models/misc.js';
 import { itemIcon, glyph } from '../ui/icons.js';
 import { recordRun, loadRecord } from '../ui/records.js';
-import { isFirstRun, earlyRuns, simpleHud, yawTowards, goalLine } from '../ui/firstrun.js';
+import { isFirstRun, earlyRuns, simpleHud, mapNeeded, yawTowards, goalLine } from '../ui/firstrun.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
 import { screenLeft } from '../ui/screentabs.js';
@@ -1257,6 +1257,7 @@ export class Game {
       if (this.runOn) return;
       this.runOn = true;
       this.earlyRuns = earlyRuns(loadRecord()); // (the simple HUD: firstrun.js)
+      this.mapShown = false; // (...whose minimap waits until it is needed: mapNeeded)
       // how much of the run was played before we saw it: nothing when it starts under us
       const gone = g.phase === PHASE.DAY && g.day === 1 ? g.phaseLen - g.timeLeft : Infinity;
       // kills0: our score when the run began. The server's count can carry over from the run before
@@ -1616,6 +1617,7 @@ export class Game {
           saveHeardSeen(g.heardSeen);
           g.ui.notify(sh.label, 'toast', 4);
         }
+        g.mapShown = true; // (a simple-HUD run's minimap comes up for its ring: firstrun.js mapNeeded)
         if (sh.show) g.ui.hud?.minimap?.heard(loud, ids);
       },
       ping(pid, kind, x, y, z) {
@@ -4247,7 +4249,12 @@ export class Game {
     // the minimap: only while it is on screen (the leaderboard, and Friends docked over it, are a side sheet in a
     // game, with the minimap still in view beside them)
     h.simpleHud = simpleHud(this.earlyRuns, this.settings);
-    h.minimap = !h.simpleHud && !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
+    if (h.simpleHud && !this.mapShown) {
+      const car = this.world.car;
+      this.mapShown = mapNeeded({ dayPhase: g.phase === PHASE.DAY && !g.finale, dusk: g.timeLeft <= DUSK_WARNING, dist: Math.hypot(car.x - rp.x, car.z - rp.z) });
+    }
+    h.noMap = h.simpleHud && !this.mapShown;
+    h.minimap = !h.noMap && !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
     h.cards = this.cards.hud(); // (Dead Hand under way with its screen shut, or a teammate's ask)
     this.ui.updateHud(h);
     this.pushInventoryToUI(false);
