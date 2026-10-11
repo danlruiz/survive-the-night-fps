@@ -86,7 +86,7 @@ import {
   STRUCT,
   STRUCT_DEFS,
   structPickRadius,
-  REPAIR_COST,
+  repairCostOf,
   demolishRefund,
   CAMPFIRE_FUEL,
   CAMPFIRE_MAX_FUEL,
@@ -180,6 +180,11 @@ const CMDS_PER_TICK = CMD_RATE / SERVER_TICK_RATE; // commands a client issues p
 const CMD_QUEUE_MAX = 24; // commands a client can have waiting (0.4 s of them); older ones are dropped
 const CMD_CATCH_UP = 1.05; // a client's command allowance refills this much faster than it issues them (processInputs)
 const TREE_CHOPS = 6; // blows of an axe (or a knife...) a tree gives wood for: the last brings it down
+// (quick on purpose: a boulder is a wall's worth in a few swings, so building never holds the run up)
+const ROCK_HITS = 3; // blows a boulder gives stone for (2 a blow) before it is mined out until dawn
+const QUARRY_HITS = 5; // ...one of the quarry's (COL.QUARRY), which gives 3 a blow
+// what breaks the most stone off: a blunt, heavy head gives one more, every other blow
+const ROCK_BLUNT = new Set([ITEM.HAMMER, ITEM.BAT, ITEM.SPIKED_BAT]);
 // A trunk's alarm is set when the car is (at the start, and again when the boot is refilled at dawn), not rolled when
 // it comes open: an armed car blinks and chirps at a survivor who comes near (Game.tellArmedTrunks), so forcing its
 // boot is a choice - or a lure. Only a trunk behind a wreck the clients draw can be armed (it has lamps to blink).
@@ -3209,24 +3214,29 @@ export class Game {
     p.invDirty = true;
   }
 
-  // ---------------------------------------------------------------- gathering (melee on trees & wrecks)
+  // ---------------------------------------------------------------- gathering (melee on trees, wrecks & rocks)
   gatherHit(p, col, x, y, z, weapon) {
     const tree = !!(col.flags & COL.TREE);
+    const rock = !tree && !!(col.flags & COL.ROCK);
+    const quarry = rock && !!(col.flags & COL.QUARRY);
     let g = this.gather.get(col);
     if (!g) {
-      g = { left: tree ? TREE_CHOPS : WRECK_SALVAGE };
+      g = { left: tree ? TREE_CHOPS : rock ? (quarry ? QUARRY_HITS : ROCK_HITS) : WRECK_SALVAGE };
       this.gather.set(col, g);
     }
     // (a tree shot to pieces gives none: what is left of it is splinters)
     if (g.left <= 0 || g.top !== undefined) {
-      if (this.rng() < 0.35) this.notify(NOTIFY.SEARCH_EMPTY, tree ? 1 : 2, p.id);
+      if (this.rng() < 0.35) this.notify(NOTIFY.SEARCH_EMPTY, tree ? 1 : rock ? 3 : 2, p.id);
       return;
     }
     g.left--;
     const r = this.rng;
     const more = playerMods(p).gather;
-    if (more && r() < more) this.giveOrDrop(p, tree ? ITEM.STICK : ITEM.SCRAP, 1);
-    if (tree) {
+    if (more && r() < more) this.giveOrDrop(p, tree ? ITEM.STICK : rock ? ITEM.STONE : ITEM.SCRAP, 1);
+    if (rock) {
+      this.giveOrDrop(p, ITEM.STONE, (quarry ? 3 : 2) + (ROCK_BLUNT.has(weapon) && r() < 0.5 ? 1 : 0));
+      this.zm.noise(x, z, NOISE.MINE);
+    } else if (tree) {
       const dead = col.tv === 3 || col.tv === 4 || col.tv === 6;
       let sticks = weapon === ITEM.KNIFE || weapon === ITEM.NUNCHAKU ? 1 : 2;
       if (dead) sticks++;
@@ -3251,7 +3261,7 @@ export class Game {
       return this.fellTree(col, Math.atan2(p.state.x - col.x, p.state.z - col.z));
     }
     this.tellStripped([col]);
-    this.notify(NOTIFY.SEARCH_EMPTY, 2, p.id);
+    this.notify(NOTIFY.SEARCH_EMPTY, rock ? 3 : 2, p.id);
   }
 
   // ---------------------------------------------------------------- blows on the world, and wrecks taken apart
@@ -3902,7 +3912,7 @@ export class Game {
       e.burnLeft = STRUCT_DEFS[STRUCT.TORCH].burn;
       e.hp = e.maxHp;
     } else {
-      const plan = this.planFor(p, REPAIR_COST);
+      const plan = this.planFor(p, repairCostOf(e.stype));
       if (!plan) return this.notify(NOTIFY.NOT_ENOUGH, 0, p.id);
       payCost(p.inv, plan.take);
       this.madeExtra(p, plan);
