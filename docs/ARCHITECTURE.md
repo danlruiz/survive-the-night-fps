@@ -685,12 +685,9 @@ A run is two maps (issue #111, `shared/acts.js`). Act 1 is the island: fix the c
 off. That is no longer the victory: the car crosses a broken bridge (`PHASE.CROSSING`, a cutscene) to the mainland,
 act 2, where the same loop is played with a plane and flying out wins.
 
-The island's final stand can't be begun before night `STAND_NIGHT` (3) has fallen (`standOpen`, issue #269): the
-supplies still go in early, but the hold at the car is refused (with a chat line saying when) until then, so the
-island's escalation is played before the mainland. The objective tracker says so, and on the island carries a
-standing "Then: ... the mainland" line so the car never reads as the end. The admin's `/engine` skips the wait.
-The island also hints at the airfield from the start, all of it client-side so the world's generation is
-unchanged: the breakdown's billboard is an ad for Calder Field "over the bridge", green AIRPORT plates hang on Route
+The island hints at what comes after it (issue #269): the objective tracker carries a standing "Then: ... the
+mainland" line so the car never reads as the end, and from the start the island points at the airfield, all of it
+client-side so the world's generation is unchanged: the breakdown's billboard is an ad for Calder Field "over the bridge", green AIRPORT plates hang on Route
 9's power poles from the breakdown to the bridge end (`client/render/airportsigns.js`, laid with citykit.js
 `buildSigns` from the city atlas's `road_airport`), the island's map has "to airfield" pencilled by the bridge, and
 installing the car battery turns the car's radio on (`Game.carRadio`: static, then the survivors' call for the

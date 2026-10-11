@@ -15,7 +15,7 @@
 // its place over every other marker (Compass, RANK below), a red toast and an alarm (game/matedown.js).
 import { ITEM_DEFS, ZONE_NAMES, ITEM, ZOMBIE_DEFS, supplyRumours } from '../../shared/defs.js';
 import { SUPPLIES, SUPPLY_NEED, W, ACT_NOW } from '../game/act.js'; // (this act's: the car's supplies, or the plane's parts)
-import { WORLD, RUNWAY, nightRank, standOpen, STAND_NIGHT } from '../../shared/acts.js';
+import { WORLD, RUNWAY, nightRank } from '../../shared/acts.js';
 import { PHASE, DUSK_WARNING, BOSS_WAVE } from '../../shared/constants.js';
 import { nightBoss, nightTheme } from '../../shared/nights.js';
 import { el, svgEl, fmtTime, clamp, replay } from './dom.js';
@@ -434,9 +434,6 @@ export class Objective {
         dir = plane ? (o.standWarm ? `Defend the plane · engines warm in ${fmtTime(o.escapeT)}` : `Hold the fuel truck · tanks full in ${fmtTime(o.escapeT)}`) : `Defend the car · engine ready in ${fmtTime(o.escapeT)}`;
         tone = 'danger';
       }
-    } else if (o.suppliesDone && !standOpen(this.act, o.day, o.phase === PHASE.NIGHT)) {
-      dir = `Every supply is in. The final stand can't begin before night ${STAND_NIGHT}: hold out and stock up for it.`;
-      tone = 'good';
     } else if (o.suppliesDone) {
       dir = plane ? `Every part is in. Hold ${bindTag('interact')} at the plane to start fuelling - then hold the truck, the plane and the runway.` : `Every supply is in. Hold ${bindTag('interact')} at the car to start the engine - then survive the final stand.`;
       tone = 'good';
