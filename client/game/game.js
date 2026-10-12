@@ -166,6 +166,11 @@ const HAZE_THIN = 22;
 const FAR_SMALL = 520;
 const FAR_BIG = 1700;
 import { bearing, tonightBrief, PING_LABEL } from '../ui/hud2.js';
+// what the car's radio says once its battery is in (carRadio), word for word as the owner wrote it
+const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';
+// ...in one of two voices (client/audio/radio/, samples.js REC), whose words begin this many seconds in
+const CAR_RADIO_TAKES = ['vo_radio_am_michael', 'vo_radio_af_bella'];
+const CAR_RADIO_WORDS = 1.6;
 
 const WEATHER_TOAST = {
   fog: 'Fog is rolling in',
@@ -1651,6 +1656,29 @@ export class Game {
     return left > 0xf000 ? 0 : left / SERVER_TICK_RATE;
   }
 
+  // the car's battery is in, and its radio comes on: static, then a voice (issue #269: from the first day, the run's
+  // far goal is the airfield past the bridge). The voice is one of two takes, picked at random (CAR_RADIO_TAKES: their
+  // static comes first, the words CAR_RADIO_WORDS s in); a take still loading is waited for a few seconds, and with
+  // no take at all the radio's own static plays at the car. The words are on screen as they are spoken.
+  carRadio() {
+    const key = CAR_RADIO_TAKES[Math.floor(Math.random() * CAR_RADIO_TAKES.length)];
+    const caption = () => {
+      if (this.state !== 'playing') return;
+      this.ui.notify('THE CAR RADIO CRACKLES', 'big', 9);
+      this.ui.notify(`"${CAR_RADIO_LINE}"`, 'sub', 9);
+    };
+    let tries = 0;
+    const play = () => {
+      if (this.state !== 'playing') return;
+      if (this.audio.playRecording?.(key)) return void setTimeout(caption, CAR_RADIO_WORDS * 1000);
+      if (++tries < 16) return void setTimeout(play, 250);
+      const car = this.world.car;
+      if (car) this.audio.play(SOUND.RADIO_TUNE, { x: car.x, y: car.y + 1, z: car.z });
+      setTimeout(caption, 1400);
+    };
+    play();
+  }
+
   onNotify(msg, arg) {
     const ui = this.ui;
     const a = this.audio;
@@ -1729,6 +1757,7 @@ export class Game {
       case NOTIFY.CAR_PART:
         ui.notify(`${ITEM_DEFS[arg]?.name || 'Part'} installed in the ${W.thing}`, 'good', 4);
         a.playLocal('install_part');
+        if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();
         break;
       case NOTIFY.SUPPLIES_DONE:
         ui.notify(this.act === WORLD.MAINLAND ? 'THE PLANE IS FIXED' : 'EVERY SUPPLY IS IN', 'big', 5);
