@@ -78,6 +78,7 @@ import {
   TALK_CLEAR,
   TALK_RANGE,
   SLOT_RADIO,
+  PIN_FACE,
 } from '../shared/constants.js';
 import {
   ITEM,
@@ -5361,7 +5362,7 @@ export class Game {
             c.f32(s.leapCd);
             c.f32(s.stunT);
             c.f32(s.shove);
-            c.u8(s.pulled ? 1 : 0);
+            c.u8((s.pulled ? 1 : 0) | (s.pinned === PIN_FACE ? 2 : 0)); // (2: what has them is a crawler on the face)
             if (s.pulled) {
               c.f32(s.pullX);
               c.f32(s.pullY);

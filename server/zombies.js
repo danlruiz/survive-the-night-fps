@@ -3,7 +3,7 @@
 // zombie dog packs that den in the thick woods, flank and lunge, the shade that only moves in darkness).
 // The herd that wanders the roads by day is in herd.js.
 import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, EYE_HEIGHT, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, FLASHLIGHT_RANGE, FLASHLIGHT_CONE, FIRE_LIGHT_MARGIN, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
-import { EYE_HEIGHT_CROUCH, HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEIGHT, CRAWL_HEAD_Y } from '../shared/constants.js';
+import { EYE_HEIGHT_CROUCH, HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEIGHT, CRAWL_HEAD_Y, PIN_FACE } from '../shared/constants.js';
 import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, PROJ, AREA, EVT, IMPACT, ITEM, STRUCT_DEFS, THROWABLES, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
 import { ENT, qpos } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
@@ -2151,7 +2151,7 @@ export class Zombies {
       z.yaw = s.yaw + Math.PI;
       z.anim = ZANIM.ATTACK;
       z.animT = 0.2;
-      s.pinned = 1;
+      s.pinned = latch ? PIN_FACE : 1;
       if (z.attackCd <= 0) {
         // (a crawler does no harm itself: it holds on and chitters while the rest of the dead come for them)
         z.attackCd = latch ? def.latchRate : 0.45;
@@ -2434,7 +2434,7 @@ export class Zombies {
         z.link = h.id;
         z.linkDmg = 0;
         z.linkT = 0;
-        s.pinned = 1;
+        s.pinned = z.ztype === ZTYPE.CRAWLER ? PIN_FACE : 1; // (on the face: blind, but still on their feet)
         s.vx = s.vz = 0;
         h.pinnedBy = z.id;
         g.track?.grabbed(h, 'pinned');

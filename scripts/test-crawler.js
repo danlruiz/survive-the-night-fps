@@ -5,15 +5,16 @@
 //     their chest as a leaper does, and stays there, just in front of their eyes, while it has them
 //   - it does not bite or claw anyone, on their face or off it: all it does is blind them, and it lets go when it
 //     has had latchMax s
-//   - mashing Space claws it off in about a second, a single tap does not, and once it is off it reels and does not
-//     take them again at once
+//   - with one on their face they are blind but still on their feet: they can walk on, slowed, and it stays on
+//   - thrashing the view about tears it off in a couple of seconds; looking round as anyone does in a fight does not,
+//     and Space (the leaper's shove) does nothing to it. Once it is off it reels and does not take them again at once
 //   - a teammate's blow knocks it off, and it does not go for a face that already has something on it
 //   - it joins the horde on its own night (minNight) and not before
 // usage: node scripts/test-crawler.js [seed ...]   (VERBOSE=1 prints each scenario's numbers)
 import { Game } from '../server/game.js';
 import { leapAim } from '../server/zombies.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
-import { BTN, SERVER_TICK_RATE } from '../shared/constants.js';
+import { BTN, SERVER_TICK_RATE, CMD_DT, PIN_FACE, WALK_SPEED } from '../shared/constants.js';
 import { ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
 import { groundAt, raycastWorld } from '../shared/collision.js';
 
@@ -49,7 +50,10 @@ function setup(seed) {
   w.u8(PROTOCOL_VERSION);
   w.str('Prey');
   game.onMessage(c.session, w.bytes().slice());
-  c.input = (buttons) => {
+  // yawAt(k): the view's yaw for the k-th command from now (a command is CMD_DT s), for a survivor throwing their head
+  // about; without it the view holds still at c.yaw
+  c.k = 0;
+  c.input = (buttons, yawAt = null) => {
     const w2 = new Writer(64);
     w2.u8(C2S.INPUT);
     w2.u16(game.tick & 0xffff);
@@ -57,6 +61,8 @@ function setup(seed) {
     const cmds = [];
     for (let i = 0; i < 3; i++) {
       c.seq = (c.seq + 1) & 0xffff;
+      if (yawAt) c.yaw = yawAt(c.k);
+      c.k++;
       cmds.push({ seq: c.seq, buttons, qyaw: qangle16(c.yaw), qpitch: qpitch(0), slot: 255 });
     }
     writeInput(w2, cmds);
@@ -151,7 +157,7 @@ function trial(env, spot, d, rng) {
   return r;
 }
 
-const runs = { tried: 0, latched: 0, onFace: 0, bites: 0, time: [], mash: { n: 0, ok: 0, t: [] }, tap: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
+const runs = { tried: 0, latched: 0, onFace: 0, bites: 0, time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
 
 for (const seed of seeds) {
   const env = setup(seed);
@@ -203,35 +209,51 @@ for (const seed of seeds) {
     }
   }
 
-  // Space claws it off: mashed (a press every 3 ticks), it is off in about a second; a single tap is not enough. Off, it
-  // reels, and does not take them again while they run
-  for (const how of ['mash', 'tap']) {
+  // on their face it leaves them their feet: held forward for 2 s they walk on, slower than they would, and it stays on
+  {
+    const r = trial(env, spot, 5, rng);
+    if (r.latched) {
+      runs.walk.n++;
+      const x0 = s.x, z0 = s.z;
+      let on = true;
+      for (let i = 0; i < 2 / DT; i++) {
+        c.input(BTN.FWD | BTN.SPRINT);
+        game.update();
+        if (s.pinned !== PIN_FACE || r.z.state !== 3) on = false;
+      }
+      const d = Math.hypot(s.x - x0, s.z - z0);
+      runs.walk.d.push(d);
+      if (on && d > 2 && d < WALK_SPEED * 2) runs.walk.ok++;
+    }
+  }
+
+  // thrashing the view about (a third of a turn either way, three times a second) tears it off in a couple of seconds;
+  // off, it reels, and does not take them again while they run. Looking round as anyone does (a sweep of 1.5 rad/s,
+  // turning back now and then) never does, and nor does mashing Space
+  for (const how of ['shake', 'look', 'mash']) {
     const r = trial(env, spot, 5, rng);
     if (!r.latched) continue;
     const z = r.z;
+    const yaw0 = c.yaw;
+    c.k = 0;
+    const yawAt = how === 'shake' ? (k) => yaw0 + 1.05 * Math.sin(2 * Math.PI * 3 * k * CMD_DT) : how === 'look' ? (k) => yaw0 + 1.5 * Math.sin(k * CMD_DT) * 1.6 : null;
     let released = -1;
-    let full = 0;
     let again = false;
     let dazed = false;
-    for (let i = 0; i < 3 / DT; i++) {
-      let btn = 0;
-      if (released >= 0) btn = BTN.FWD | BTN.SPRINT;
-      else btn = how === 'tap' ? (i === 0 ? BTN.JUMP : 0) : i % 3 === 0 ? BTN.JUMP : 0;
-      c.input(btn);
+    for (let i = 0; i < 4 / DT; i++) {
+      const btn = released >= 0 ? BTN.FWD | BTN.SPRINT : how === 'mash' && i % 3 === 0 ? BTN.JUMP : 0;
+      c.input(btn, released >= 0 ? null : yawAt);
       game.update();
-      full = Math.max(full, s.shove);
       if (released < 0 && !s.pinned) released = i;
       if (released >= 0 && z.dazedT > 0) dazed = true;
       if (released >= 0 && i > released + 2 && (z.state === 3 || s.pinned)) again = true;
     }
     runs[how].n++;
-    if (how === 'tap') {
-      if (released < 0 && full < 0.5) runs.tap.ok++;
-    } else {
+    if (how === 'shake') {
       const took = released * DT;
-      runs.mash.t.push(took);
-      if (released >= 0 && took < 1.6 && dazed && !again) runs.mash.ok++;
-    }
+      runs.shake.t.push(took);
+      if (released >= 0 && took < 2.5 && dazed && !again) runs.shake.ok++;
+    } else if (released < 0) runs[how].ok++;
   }
 
   // a teammate's blow knocks it off
@@ -277,8 +299,10 @@ check('a survivor standing still has one on their face from every crawler that s
 check('...held at their head, just in front of their eyes (not on their chest, as a leaper)', runs.latched > 0 && runs.onFace === runs.latched, `${runs.onFace} of ${runs.latched}`);
 check(`it holds on and lets go after ${DEF.latchMax} s`, runs.time.length === seeds.length && runs.time.every((t) => t >= DEF.latchMax - 0.2 && t <= DEF.latchMax + 0.5), `let go after ${runs.time.map((t) => t.toFixed(2)).join('/')} s`);
 check('in all of that it never once hurt anyone: it does not attack, it only blinds', runs.latched > 0 && runs.bites === 0, `${runs.bites} hits`);
-check('mashing Space claws it off in about a second; off, it reels and does not take them again as they run', runs.mash.n >= seeds.length && runs.mash.ok === runs.mash.n, `${runs.mash.ok} of ${runs.mash.n} (${runs.mash.t.map((t) => t.toFixed(2)).join('/')} s)`);
-check('...and a single tap does not', runs.tap.n >= seeds.length && runs.tap.ok === runs.tap.n, `${runs.tap.ok} of ${runs.tap.n}`);
+check('with one on their face they still walk on, slowed (no sprint), and it stays on', runs.walk.n >= seeds.length && runs.walk.ok === runs.walk.n, `${runs.walk.ok} of ${runs.walk.n} (${runs.walk.d.map((d) => d.toFixed(1)).join('/')} m in 2 s)`);
+check('thrashing their head about tears it off in about two seconds; off, it reels and does not take them again as they run', runs.shake.n >= seeds.length && runs.shake.ok === runs.shake.n, `${runs.shake.ok} of ${runs.shake.n} (${runs.shake.t.map((t) => t.toFixed(2)).join('/')} s)`);
+check('...looking round as anyone does in a fight does not', runs.look.n >= seeds.length && runs.look.ok === runs.look.n, `${runs.look.ok} of ${runs.look.n}`);
+check("...and mashing Space (the leaper's shove) does not", runs.mash.n >= seeds.length && runs.mash.ok === runs.mash.n, `${runs.mash.ok} of ${runs.mash.n}`);
 check("a teammate's blow knocks it off", runs.struck.n >= seeds.length && runs.struck.ok === runs.struck.n, `${runs.struck.ok} of ${runs.struck.n}`);
 check('it does not spring at a face that already has something on it', runs.taken.n === seeds.length && runs.taken.ok === runs.taken.n, `${runs.taken.ok} of ${runs.taken.n}`);
 check('a crawler goes for the face, a leaper still for the chest', leapAim({ ztype: ZTYPE.CRAWLER }) > 1.2 && leapAim({ ztype: ZTYPE.LEAPER }) < 1);

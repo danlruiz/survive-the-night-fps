@@ -172,11 +172,12 @@ export class Hud {
     this.useWrap.hidden = true;
     this.dmgDir = new DamageDir(center);
 
-    // pinned by a leaper: the key to mash, which jolts with every press, over how far it has been shoved off
+    // pinned by a leaper: the key to mash, which jolts with every press, over how far it has been shoved off (a crawler
+    // on the face: the mouse, thrashed about; h.shoveText says which)
     this.shove = el('div', 'shove', center);
     const shoveRow = el('div', 'shove-row', this.shove);
     this.shoveKey = el('span', 'kbd', shoveRow, '');
-    el('span', 'shove-t', shoveRow, 'Mash to shove it off');
+    this.shoveT = el('span', 'shove-t', shoveRow, 'Mash to shove it off');
     this.shoveFill = el('i', '', el('div', 'shove-bar', this.shove));
     this.shove.hidden = true;
 
@@ -870,6 +871,8 @@ export class Hud {
       if (sv >= 0) this.shoveFill.style.transform = `scaleX(${sv})`;
     }
     if (c.shoveKey !== h.shoveKey) this.shoveKey.textContent = c.shoveKey = h.shoveKey;
+    const st = h.shoveText || 'Mash to shove it off';
+    if (c.shoveT !== st) this.shoveT.textContent = c.shoveT = st;
     if (c.shoves !== h.shoves) {
       c.shoves = h.shoves;
       if (sv >= 0) replay(this.shoveKey, 'hit');

@@ -27,6 +27,7 @@ import {
   STAMINA_MAX,
   BTN,
   MOON,
+  PIN_FACE,
 } from '../../shared/constants.js';
 import {
   ITEM,
@@ -113,6 +114,7 @@ import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
 import { TouchPad } from '../ui/touchpad.js';
+import { touchMode } from './touchmode.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { mateDown } from './matedown.js';
 import { DropHold } from './drophold.js';
@@ -4187,7 +4189,9 @@ export class Game {
     h.dropHint = this.dropHold.hint > 0 ? bindLabel('drop') : ''; // (let go too soon: "Hold G to drop")
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
-    h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
+    const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
+    h.shoveKey = h.shove >= 0 ? (face ? (touchMode() ? 'Swipe' : 'Mouse') : bindLabel('jump')) : '';
+    h.shoveText = face ? 'Thrash your head about to tear it off' : 'Mash to shove it off';
     h.shoves = this.shoves | 0;
     const w = currentWeapon(s);
     const def = WEAPONS[w];
