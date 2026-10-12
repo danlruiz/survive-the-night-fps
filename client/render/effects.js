@@ -843,6 +843,17 @@ export class Effects {
     this.alpha.emit(x, y + h + 0.1, z, this.rnd(-0.3, 0.3), 1.5, this.rnd(-0.3, 0.3), 1.6, 0.5 * s, 1.8 * s, 0.1, 0.09, 0.08, 0.6, 0.15, 0.15, 0.15, 0, -0.2, 0.8, TEX.SMOKE);
   }
 
+  // a smoker on the move (ZTYPE.SMOKER: client side only, nothing a survivor's sight is cut by): wisps seeping off its
+  // body, h tall and r round, and the trail it leaves at its feet, low and slow to thin, that marks the way it came
+  smokerWisp(x, y, z, h, r) {
+    const c = this.rnd(0.05, 0.08);
+    this.alpha.emit(x + this.rnd(-r, r), y + this.rnd(0.6, h), z + this.rnd(-r, r), this.rnd(-0.15, 0.15), this.rnd(0.35, 0.8), this.rnd(-0.15, 0.15), this.rnd(1.5, 2.5), this.rnd(0.12, 0.2), this.rnd(0.6, 0.9), c, c * 0.95, c * 0.9, 0.55, 0.14, 0.13, 0.12, 0, -0.05, 0.6, TEX.SMOKE, this.rnd(-0.3, 0.3));
+  }
+  smokerTrail(x, y, z) {
+    const c = this.rnd(0.045, 0.07);
+    this.alpha.emit(x + this.rnd(-0.25, 0.25), y + this.rnd(0.15, 0.6), z + this.rnd(-0.25, 0.25), this.rnd(-0.08, 0.08), this.rnd(0.03, 0.12), this.rnd(-0.08, 0.08), this.rnd(4, 6), this.rnd(0.5, 0.8), this.rnd(1.8, 2.6), c, c * 0.95, c * 0.9, 0.6, 0.13, 0.12, 0.11, 0, -0.01, 0.3, TEX.SMOKE, this.rnd(-0.1, 0.1));
+  }
+
   // flamethrower: one puff of the stream leaving (x,y,z) along (dx,dy,dz). dist = how far it gets before it hits
   // something (the puffs die there and the fire splashes off it), cone = the stream's half-angle (rad)
   flameJet(x, y, z, dx, dy, dz, dist, cone = 0.2) {

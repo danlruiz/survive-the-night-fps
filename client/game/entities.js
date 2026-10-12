@@ -264,6 +264,8 @@ function setShadowFlags(obj, cast, receive) {
   });
 }
 
+const SMOKER_TRAIL = 0.45; // m a smoker walks between the puffs of smoke it leaves behind it (updateSmoker)
+
 export class Entities {
   constructor(game) {
     this.g = game;
@@ -800,6 +802,28 @@ export class Entities {
     e.burnLoop?.setPosition(e.rx, e.ry + 1, e.rz);
   }
 
+  // a smoker alive and in sight: wisps off its body all the time, and a puff of trail every SMOKER_TRAIL m it walks
+  updateSmoker(e, dt, distC) {
+    if (e.dead || distC > 70 * 70) {
+      e.trailX = undefined;
+      return;
+    }
+    const fx = this.g.effects;
+    const def = ZOMBIE_DEFS[e.ztype];
+    if (Math.random() < dt * 12) fx.smokerWisp(e.rx, e.ry, e.rz, def.height, def.radius * 0.8);
+    if (e.trailX === undefined || Math.hypot(e.rx - e.trailX, e.rz - e.trailZ) > 3) {
+      // (first seen, or put somewhere new: the trail starts here)
+      e.trailX = e.rx;
+      e.trailZ = e.rz;
+      return;
+    }
+    if (Math.hypot(e.rx - e.trailX, e.rz - e.trailZ) >= SMOKER_TRAIL) {
+      fx.smokerTrail(e.rx, e.ry, e.rz);
+      e.trailX = e.rx;
+      e.trailZ = e.rz;
+    }
+  }
+
   // ---------------------------------------------------------------- events from server
   zombieDie(id, yaw, flags) {
     const e = this.ents.get(id);
@@ -951,6 +975,7 @@ export class Entities {
             if (Math.random() < dt * 20) g.effects.burnPuff(e.rx, e.ry, e.rz);
           }
           this.updateBurning(e, dt, distC);
+          if (e.ztype === ZTYPE.SMOKER) this.updateSmoker(e, dt, distC);
           if (e.loop) {
             if (e.dead) {
               e.loop.stop();
