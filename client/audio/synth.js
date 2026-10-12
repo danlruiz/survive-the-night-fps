@@ -820,6 +820,34 @@ export function screecherScream(sr, rng) {
   return finish(out, sr, 0.95);
 }
 
+// a Mother's baby: a newborn's wail out of a dead throat - two or three sobs, each a breath drawn in with a catch and
+// pushed out as a cracked, rising "waah", a rasp under it where no living baby has one. Short enough to come again
+// and again as it crawls (client: entities.js, every 1.6-2.8 s)
+export function babyCry(sr, rng) {
+  const sobs = rng() < 0.5 ? 2 : 3;
+  const lens = Array.from({ length: sobs }, (_, i) => (i === sobs - 1 ? rrange(rng, 0.65, 0.85) : rrange(rng, 0.38, 0.5)));
+  const gaps = lens.map(() => rrange(rng, 0.12, 0.2));
+  const out = alloc(sr, lens.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0) + 0.2);
+  let t = 0.02;
+  for (let i = 0; i < sobs; i++) {
+    const dur = lens[i];
+    const b = rrange(rng, 420, 520) * (i === sobs - 1 ? 1.08 : 1);
+    // the catch of breath before it
+    addNorm(out, noise(sr, rng, gaps[i] * 0.8, { bp: [2400, 1.5], sweep: [1600, 3200], env: (u) => u * (1 - u) * 4 }), sr, t, 0.12);
+    t += gaps[i];
+    const v = voice(sr, rng, {
+      dur, pitch: [[0, b * 0.8], [0.15, b * 1.15], [0.45, b * 1.25], [0.75, b * 1.1], [1, b * 0.7]],
+      vowels: vowelPath(['ae', 'a', 'a', 'uh'], rng), fscale: 1.35, bw: 1.8, jitter: 0.09, jitterHz: 38, shimmer: 0.45,
+      rasp: 0.55, raspHz: 160, breath: 0.4, vib: 0.04, vibHz: 9, drive: 3, chest: 0, a3: 0.6, a4: 0.4, hp: 250,
+      env: [[0, 0], [0.08, 0.9], [0.5, 1], [0.85, 0.7], [1, 0]],
+    });
+    addNorm(out, v, sr, t, i === sobs - 1 ? 1 : 0.85);
+    t += dur;
+  }
+  softclip(out, 2.2);
+  return finish(out, sr, 0.9);
+}
+
 export function zpGrowl(sr, rng, i) {
   const b = rrange(rng, 90, 118);
   return voice(sr, rng, {
@@ -2187,6 +2215,7 @@ export const SFX_DEFS = [
   { bank: 'z_shade_freeze', n: 2, sr: HI, gen: shadeFreeze },
   { bank: 'z_shade_shriek', n: 2, sr: MID, gen: shadeShriek },
   { bank: 'z_screecher', n: 2, sr: MID, gen: screecherScream },
+  { bank: 'z_baby_cry', n: 4, sr: MID, gen: babyCry },
   { bank: 'zp_growl', n: 3, sr: MID, gen: zpGrowl },
   { bank: 'cat_meow', n: 3, sr: HI, gen: catMeow },
   { bank: 'cat_purr', n: 3, sr: MID, gen: catPurr },

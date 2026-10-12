@@ -346,6 +346,7 @@ export class Zombies {
       lit: false, // shade: frozen by light
       darkT: 1,
       trapSlow: 1,
+      burst: false, // a Mother whose belly has been torn open (Combat.burstBelly): her babies are out
       legs: 0, // legs shot off (Combat.hitLeg): bit 0 the left, bit 1 the right. One gone it hobbles, both gone it crawls
       legHp: def.legs ? [hp * LEG_HP, hp * LEG_HP] : null, // what each leg still takes (left, right)
       stumbleT: 0, // tripped by a shot in the leg: seconds until it has caught itself

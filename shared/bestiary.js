@@ -28,6 +28,8 @@ export const BESTIARY = Object.freeze([
   B(ZTYPE.ROPER, 'special', 'Something that reaches further than it should.', 'Lashes a rope at you from up to 24 m and drags you in. The rope needs line of sight: keep to cover, and shoot the roper to break it.'),
   B(ZTYPE.SMOKER, 'special', 'A wheeze, and the air goes thick and dark.', 'Breathes out clouds of black smoke you cannot see through, and the dead come at you out of them. When it dies it lets go one more, and killed among your walls it fills the whole base. Shoot it out past your walls.'),
   B(ZTYPE.SCREECHER, 'special', 'A scream, and then the whole night answers it.', 'Stops when it sees you and screams: the dead come running from all round, and the scream leaves your ears ringing until it dies. Kill it from range before it sees you, or the moment it rears back to scream.'),
+  B(ZTYPE.MOTHER, 'special', 'A woman heavy with child, and something moving inside.', 'Shoot her in the belly and it bursts: twin babies crawl out of it and come for whoever shot her, crying all the way. They are low and quick, but frail. Aim for her head, and nothing comes out.'),
+  B(ZTYPE.BABY, 'special', 'Crying, low down, and getting closer.', 'Out of a Mother\'s belly, two at a time. They crawl after whoever shot her, faster than the walking dead, and bite at your ankles. They are frail, and low enough to miss: look down, and follow the crying.'),
   B(ZTYPE.TANK, 'special', 'Heavy footsteps that shake the ground.'),
   B(ZTYPE.BOSS_BRUTE, 'boss', 'A hulking shape, slow for now.'),
   B(ZTYPE.BOSS_ALPHA, 'boss', 'A howl, and the dogs answer it.'),

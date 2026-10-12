@@ -25,7 +25,7 @@ const def = ZOMBIE_DEFS[ZTYPE.SCREECHER];
 // ---------------------------------------------------------------- the kind
 check('the screecher is a special of its own, with its numbers', !!def && !def.boss && !def.common && def.screamRange > 0 && def.screamRate > 0 && def.screamHorde > 0 && def.ringRange > 0 && def.ringT > 0);
 check('...in the bestiary with the specials', BESTIARY.some((e) => e.t === ZTYPE.SCREECHER && e.group === 'special'));
-check('...and its own night, after every other kind has joined', Object.values(ZOMBIE_DEFS).every((d) => d.boss || d === def || d.minNight < def.minNight));
+check('...and its own night, after every kind before it has joined', Object.entries(ZOMBIE_DEFS).every(([t, d]) => d.boss || d === def || (+t < ZTYPE.SCREECHER ? d.minNight < def.minNight : d.minNight > def.minNight)));
 {
   const kinds = (n) => {
     game.day = n;

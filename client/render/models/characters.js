@@ -469,6 +469,78 @@ function buildScreecher() {
 }
 
 /**
+ * The Mother: a young woman dead late in her pregnancy, still in the nightdress she went into labour in, blood down the
+ * front of it from the waist. The bump stands out under the cloth, too round and too still, on a bone of its own
+ * ('womb') - until a shot tears it open (ZSTATUS.BURST, ZombieInstance.setBurst): then the bump is gone and the 'wound'
+ * bone shows instead, a dark hole ringed with torn skin and cloth, two cords hanging out of it.
+ */
+function buildMother() {
+  const P = humanP({ hipY: 0.92, hipW: 0.1, thighLen: 0.43, shinLen: 0.42, spineLen: 0.13, chestLen: 0.19, neckOff: 0.18, neckLen: 0.1, headR: 0.1, shoulderW: 0.17, uarmLen: 0.29, farmLen: 0.26, handLen: 0.17 });
+  const far = buildDetail < 0.7;
+  const gown = 0xc4b0b4;
+  const L = {
+    dead: true, sex: 'f', skin: 0xb0a89e, eye: 0xd8d2c4, eyeGlow: 0.35, noBrows: true,
+    face: { sockets: 1.5, gaunt: 0.5, rot: 0.4, w: 0.95, h: 1.05, jaw: 1.1, chin: 1.05, lips: 0.5, fem: 1 },
+    gaunt: 0.25, build: { w: 0.95, hips: 1.15, belly: 0.5, arm: 0.9, leg: 0.92 },
+    top: { kind: 'tee', color: gown, region: CR.COTTON, sleeves: 'short', hem: 0.42, tear: 0.15, collar: 'crew', tint: bloodied(19, 0.5) },
+    pants: null, shoes: null, hair: { style: 'long', color: 0x3a2a1c, ragged: 0.3, length: 0.28 },
+    jawScale: 1.1, claws: 0.01, curl: 0.4, missingTeeth: 0x12,
+    blood: [[[0, 0.8, -0.12], 0.16, 1], [[0, 0.62, -0.1], 0.12, 0.9]], dirt: { y0: 0.4, k: 0.6 },
+  };
+  const mb = new MeshBuilder();
+  standardHumanoid(mb, P, L);
+  const yB = P.hipY + 0.07;
+  // the bump, under the nightdress (on the spine: it leans and twists with her)
+  mb.addBone('womb', 'spine', 0, yB, 0);
+  const birth = (pp, n, c) => {
+    // blood soaking up into the cloth from under the bump
+    const k = clamp((yB - 0.02 - pp.y) * 9 + (fbm3(pp.x * 12, pp.y * 12, pp.z * 12, 2, 23) - 0.5) * 0.8, 0, 0.85);
+    if (k > 0) c.lerp(color(0x4a0806), k);
+  };
+  mb.ellip('womb', [0, 0.01, -0.06], [0.135, 0.165, 0.15], { ws: far ? 10 : 16, hs: far ? 8 : 12, color: gown, region: CR.COTTON, mottle: 0.12, tint: birth });
+  // what is left of it torn open, hidden until it is (ZombieInstance.setBurst)
+  mb.addBone('wound', 'spine', 0, yB, 0);
+  mb.ellip('wound', [0, 0, -0.112], [0.09, 0.1, 0.03], { ws: 10, hs: 8, color: 0x2a0606, region: CR.FLESH, mottle: 0.3, blood: false });
+  mb.ellip('wound', [0, -0.015, -0.13], [0.06, 0.07, 0.016], { ws: 8, hs: 6, color: 0x5a1210, region: CR.FLESH, mottle: 0.35, blood: false });
+  const rnd = mulberry32(61);
+  const flaps = far ? 6 : 10;
+  for (let i = 0; i < flaps; i++) {
+    // torn skin and cloth, peeled back round the hole like petals
+    const a = (i / flaps) * TAU + (rnd() - 0.5) * 0.4;
+    const bx = Math.cos(a) * 0.088, by = Math.sin(a) * 0.098;
+    const len = 0.03 + rnd() * 0.03;
+    mb.spike('wound', [bx, by, -0.115], [bx + Math.cos(a) * len * 0.7, by + Math.sin(a) * len * 0.7, -0.15 - rnd() * 0.025], 0.026 + rnd() * 0.01, { rs: 4, color: i & 1 ? 0x8a6a68 : 0x7a2a22, region: i & 1 ? CR.COTTON : CR.FLESH, mottle: 0.35, tint: bloodied(31 + i, 0.9), noise: 0.004, nf: 40 });
+  }
+  // the cords, hanging out of it
+  for (const s of [-1, 1]) {
+    mb.tube('wound', [[s * 0.02, -0.02, -0.13], [s * 0.05, -0.12, -0.17], [s * 0.03, -0.26, -0.15], [s * 0.06, -0.38, -0.12]], 0.011, 0.007, { rs: 5, ts: 8, color: 0x8a4a58, region: CR.FLESH, mottle: 0.3, blood: false });
+  }
+  return { mb, P, A: { jawHang: 0.15 } };
+}
+
+/**
+ * A Mother's baby: a newborn, grey-blue and still slick with her, on its front from the start (ZOMBIE_DEFS crawl, posed
+ * by poseCrawl). Built big - about two and a half times a real one, a toddler's frame on a newborn's proportions: the
+ * great head, short fat limbs - and calibrate() brings it down to its size. Its mouth hangs open in the cry.
+ */
+function buildBaby() {
+  const P = humanP({ hipY: 0.5, hipW: 0.085, thighLen: 0.22, shinLen: 0.19, spineLen: 0.15, chestLen: 0.16, neckOff: 0.11, neckLen: 0.04, headR: 0.16, shoulderW: 0.16, shoulderDrop: 0.03, uarmLen: 0.22, farmLen: 0.19, handLen: 0.11, depth: 0.14 });
+  const L = {
+    dead: true, skin: 0x8e97a0, eye: 0xe8eef0, eyeGlow: 0.6, noBrows: true,
+    face: { sockets: 1.3, gaunt: 0, rot: 0.3, w: 1.15, h: 0.9, jaw: 0.8, chin: 0.7, lips: 0.7, nose: 0.6, cheek: 1.6, ear: 0.8 },
+    gaunt: 0, build: { w: 1.05, d: 1.15, belly: 1, arm: 1.25, leg: 1.3, neck: 1.2 },
+    top: null, pants: null, shoes: null, hair: { style: 'buzz', color: 0x2a221c },
+    jawScale: 0.9, claws: 0.0, curl: 0.6,
+    blood: [[[0, 0.75, -0.1], 0.18, 1], [[0, 1.0, 0.1], 0.2, 0.8]], dirt: { y0: 0.3, k: 0.3 },
+  };
+  const mb = new MeshBuilder();
+  standardHumanoid(mb, P, L);
+  // the cord, still on it, trailing from the belly
+  mb.tube('spine', [[0, -0.06, -0.12], [0.02, -0.14, -0.1], [0.06, -0.26, -0.02], [0.04, -0.36, 0.1]], 0.02, 0.012, { rs: 5, ts: 6, color: 0x8a4a58, region: CR.FLESH, mottle: 0.3, blood: false });
+  return { mb, P, A: { jawHang: 0.35 } };
+}
+
+/**
  * The Shade: a starved, ash-dark silhouette that the night swallows whole (a beam shows it grey as a statue). What
  * gives it away in the dark are the pale eyes, the veins of cold light under its skin - faint while it stalks, flaring
  * when a light pins it (ZombieInstance.hold) - and the same light in the cage of its ribs, where its chest has opened.
@@ -1810,6 +1882,8 @@ const BUILDERS = {
   [ZTYPE.BOSS_BLOATER]: buildBloater,
   [ZTYPE.SMOKER]: buildSmoker,
   [ZTYPE.SCREECHER]: buildScreecher,
+  [ZTYPE.MOTHER]: buildMother,
+  [ZTYPE.BABY]: buildBaby,
 };
 const VARIANTS = { [ZTYPE.WALKER]: WALKER_VARIANTS, [ZTYPE.RUNNER]: 3, [ZTYPE.DOG]: DOG_COATS };
 const NO_EXTRAS = {};
@@ -1820,7 +1894,7 @@ let buildDetail = 1;
 const LOD_DETAIL = 0.5;
 const LOD_FAR = 15, LOD_NEAR = 12; // (m: at 15 m a walker is some 140 px tall on a 1080p screen)
 // (types whose far copy is worth having: everything people.js builds whole)
-const LOD_TYPES = new Set([ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.SPITTER, ZTYPE.LEAPER, ZTYPE.ROPER, ZTYPE.BOOMER, ZTYPE.SHADE, ZTYPE.SMOKER, ZTYPE.SCREECHER]);
+const LOD_TYPES = new Set([ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.SPITTER, ZTYPE.LEAPER, ZTYPE.ROPER, ZTYPE.BOOMER, ZTYPE.SHADE, ZTYPE.SMOKER, ZTYPE.SCREECHER, ZTYPE.MOTHER]);
 function getRig(type, variant, far = false) {
   if (far && !LOD_TYPES.has(type)) return null;
   const key = type + ':' + variant + (far ? ':far' : '');
@@ -1921,6 +1995,18 @@ const ZS = {
     walkLean: -0.25, runLean: -0.45, cycleWalk: 1.35, cycleRun: 2.4, walkStride: 0.4, walkKnee: 0.55, runStride: 0.62, runKnee: 1.0,
     limp: 0.2, sway: 0.9, armWalk: 0.3, armDroop: 0.2, armSwing: 0.2, armRun: 0.6, elbow: 0.3, headPitch: 0.1, headTilt: 0.4, jaw: 0.4, neckFwd: 0.3,
     idleLean: -0.2, twitchy: 1,
+  },
+  [ZTYPE.MOTHER]: {
+    // a slow, heavy-footed sway, leaning back to carry the bump, a hand drifting to it
+    walkLean: 0.04, runLean: -0.12, cycleWalk: 1.4, cycleRun: 2.2, walkStride: 0.34, walkKnee: 0.5, runStride: 0.5, runKnee: 0.85,
+    limp: 0.25, sway: 1.4, waddle: 0.5, armWalk: 0.22, armDroop: 0.15, armSwing: 0.18, armRun: 0.5, armOut: 0.12, elbow: 0.35, headPitch: 0.05, headTilt: 0.3, jaw: 0.3,
+    legSplay: 0.05, idleLean: 0.02,
+  },
+  [ZTYPE.BABY]: {
+    // (it only ever crawls: poseCrawl reads its head and jaw from here)
+    walkLean: -0.2, runLean: -0.3, cycleWalk: 1.2, cycleRun: 1.8, walkStride: 0.3, walkKnee: 0.5, runStride: 0.4, runKnee: 0.8,
+    limp: 0, sway: 0.6, armWalk: 0.25, armDroop: 0.1, armSwing: 0.2, armRun: 0.5, elbow: 0.3, headPitch: 0.1, headTilt: 0.4, jaw: 0.55,
+    idleLean: -0.1,
   },
   [ZTYPE.BOSS_BRUTE]: {
     // a heavy, rolling waddle under the gut, fists swinging wide of it; enraged (RUN) it lumbers in bent forward
@@ -3247,7 +3333,7 @@ const CRAWL_REACH = 2.75, CRAWL_TUCK = 1.05; // upper arm swung out ahead of the
 
 /** Ground covered by one cycle of the phase for a zombie that has lost legs. */
 function legCycleLen(z, speed) {
-  return z.legs === 3 ? CRAWL_CYCLE : clamp(0.34 + 0.2 * speed, HOP_MIN, HOP_MAX);
+  return z.legs === 3 || z.crawler ? CRAWL_CYCLE : clamp(0.34 + 0.2 * speed, HOP_MIN, HOP_MAX);
 }
 
 /** Tripped by a shot in the leg: that knee gives, the body pitches forward over it and the arms fly out to catch it. */
@@ -3492,7 +3578,7 @@ function poseCrawl(z, p) {
   const h = headYZ(z, p);
   p[n] = 0;
   p[n + 1] = (P.depth || 0.12) * 1.12 - 0.015 * Math.abs(sway) * up;
-  p[n + 2] = -CRAWL_HEAD_FWD / (z.gScale || 1) + h.y - (z.cal ? z.cal.dz : 0);
+  p[n + 2] = -(z.crawler ? z.def.headFwd : CRAWL_HEAD_FWD) / (z.gScale || 1) + h.y - (z.cal ? z.cal.dz : 0);
   // (the hands go down once the body is where it will be)
   for (let side = 0; side < 2; side++) crawlArm(z, p, side);
 }
@@ -3506,7 +3592,7 @@ function poseHumanoid(z) {
   z.gOn = false;
   z.standOn = false;
   z.hopOn = false;
-  if (z.legs === 3) poseCrawl(z, p);
+  if (z.legs === 3 || z.crawler) poseCrawl(z, p);
   else switch (z.state) {
     case ZANIM.STUMBLE: poseStumble(z, p); break;
     case ZANIM.WALK: poseLoco(z, p, false); break;
@@ -3527,7 +3613,7 @@ function poseHumanoid(z) {
   const alive = z.state !== ZANIM.DEAD;
   if (alive && z.voxT < VOX[z.voxKind]?.dur) poseVocal(z, p);
   if (alive && z.state !== ZANIM.STAGGER && z.flinchT < 0.6) poseFlinch(z, p);
-  if (z.legs === 3) return; // prone: poseCrawl has put the head where the server's hitbox has it
+  if (z.legs === 3 || z.crawler) return; // prone: poseCrawl has put the head where the server's hitbox has it
   if (z.legs && alive) oneLegged(z, p);
   if (z.gazeW > 0.01) applyGaze(z, p);
   if (z.state !== ZANIM.DEAD && z.state !== ZANIM.EAT) {
@@ -3700,6 +3786,7 @@ class ZombieInstance {
     this.A = rig.A;
     this.st = ZS[type] || ZS[ZTYPE.WALKER];
     this.isBat = type === ZTYPE.BAT;
+    this.crawler = !!this.def.crawl; // on its front from the start, legs and all (a Mother's baby): poseCrawl
     this.landT = -1; // s since a dead bat hit the ground (land), -1 while it is still in the air
     const rnd = mulberry32(this.seed * 2654435761 + type);
     this.off = rnd() * 100;
@@ -3743,6 +3830,7 @@ class ZombieInstance {
     this.gone = new Uint8Array(nb);
     this.legs = 0;
     if (this.X.stumpL !== undefined) this.gone[this.X.stumpL] = this.gone[this.X.stumpR] = 1;
+    if (this.X.wound !== undefined) this.gone[this.X.wound] = 1; // (a Mother's belly, whole until setBurst)
     // The renderer calls skeleton.update() for every drawn skinned mesh every frame, which re-uploads the
     // bone texture. The bones are mesh-local (detached rig), so only a new pose or fx value changes them:
     // solve + upload then, and only for zombies that are actually drawn.
@@ -4002,7 +4090,7 @@ class ZombieInstance {
     if (this.isBat) {
       this.flapPh += dt * (7 + clamp(speed, 0, 10) * 0.5) * this.rate * (this.state === ZANIM.ATTACK ? 0 : 1);
     } else if (anim !== ZANIM.DEAD) {
-      const cyc = this.legs ? legCycleLen(this, speed) : gaitLen(this, anim === ZANIM.RUN || (anim === ZANIM.ATTACK && sub === 2), speed);
+      const cyc = this.legs || this.crawler ? legCycleLen(this, speed) : gaitLen(this, anim === ZANIM.RUN || (anim === ZANIM.ATTACK && sub === 2), speed);
       this.phase += (dt * speed * TAU * this.rate) / cyc;
       if (this.phase > 1e4) this.phase -= TAU * 1000;
     }
@@ -4136,6 +4224,15 @@ class ZombieInstance {
     this.poseDirty = true;
   }
 
+  /** A Mother's belly torn open (ZSTATUS.BURST): the bump goes, the hole it leaves shows. */
+  setBurst(on) {
+    if (this.X.wound === undefined || !!this.burst === !!on) return;
+    this.burst = !!on;
+    this.gone[this.X.womb] = on ? 1 : 0;
+    this.gone[this.X.wound] = on ? 0 : 1;
+    this.poseDirty = true;
+  }
+
   dispose() {
     this.member.crowd?.remove(this.member);
     this.skeleton.dispose();
@@ -4171,6 +4268,7 @@ export function createZombie(ztype, seed = 0) {
     footfalls: () => z.footfallCount(),
     setHeadless: (v) => z.setHeadless(v),
     setLegs: (bits, fall) => z.setLegs(bits, fall),
+    setBurst: (on) => z.setBurst(on),
     land: () => z.land(),
     kneeWorld: (side, out) => z.kneeWorld(side, out),
     shin: rig.shin === undefined ? null : { color: rig.shin, len: rig.P.shinLen * cal.k, thick: 0.06 * cal.k }, // the piece a shot-off leg leaves (Effects.gibLeg)

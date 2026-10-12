@@ -262,6 +262,8 @@ def(S.SHADE_WHISPER, 'z_shade_whisper', 'zombie', 0.8, 0.1, 0.15, R_Z_WHISPER);
 def(S.SHADE_FREEZE, 'z_shade_freeze', 'zombie', 1, 0.06);
 def(S.SHADE_SHRIEK, 'z_shade_shriek', 'zombie', 1, 0.06);
 def(S.SCREECHER_SCREAM, 'z_screecher', 'scream', 1, 0.05, 0.25);
+def(S.BABY_CRY, 'z_baby_cry', 'zombie', 0.8, 0.08, 0.15);
+def(S.BELLY_BURST, 'flesh_heavy', 'fx', 1, 0.06, 0.15, R_FLESH); // (a Mother's belly torn open: the wettest of the flesh hits)
 def(S.EAT, 'eat', 'fx', 0.5, 0.05);
 def(S.DRINK, 'drink', 'fx', 0.4, 0.05); // (-2 dB: it measures that much hotter than can_open)
 def(S.BODY_FALL, 'land', 'fx', 0.9, 0.1, 0.15, R_BODY);

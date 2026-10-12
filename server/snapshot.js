@@ -100,7 +100,7 @@ function quant(e) {
       q[5] = Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255)));
       q[6] = e.link || 0;
       q[7] = e.legs;
-      q[8] = e.onFire || e.burnT > 0 ? ZSTATUS.BURNING : 0;
+      q[8] = (e.onFire || e.burnT > 0 ? ZSTATUS.BURNING : 0) | (e.burst ? ZSTATUS.BURST : 0);
       break;
     case ENT.ITEM:
       q[3] = e.count;

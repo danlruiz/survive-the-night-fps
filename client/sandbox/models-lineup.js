@@ -1,7 +1,8 @@
 // Character lineup sandbox.
 // Params:
 //   ?anim=N      freeze ZANIM state N (else cycles every 2s)
-//   ?hit=1       draw hitbox cylinder + head sphere wireframes
+//   ?hit=1       draw hitbox cylinder + head sphere wireframes;  ?burst=1  a Mother's belly torn open
+//   ?brood=1     a Mother, her belly torn open, her two babies crawling ahead of her and a survivor for scale
 //   ?only=T      show only zombie type T (number) close-up; ?only=surv for survivors
 //   ?surv=1      survivor row with every weapon;  ?zombie=1 -> zombified survivors
 //   ?cam=side|back|top   camera angle;  ?t=SECONDS fixed clock;  ?zoom=F
@@ -96,6 +97,7 @@ function addZombie(type, seed, x, z, y = 0) {
   scene.add(zb.object);
   if (q.get('headless') === '1') zb.setHeadless(true);
   if (q.has('legs')) zb.setLegs?.(+q.get('legs')); // &legs=1|2|3: legs shot off (types that have them to lose)
+  if (q.get('burst') === '1') zb.setBurst?.(true); // &burst=1: a Mother's belly torn open
   if (showHit) hitbox(type, x, z).position.y = y ? y - ZOMBIE_DEFS[type].headY : 0;
   actors.push({ kind: 'z', type, obj: zb, x, z });
   return zb;
@@ -250,6 +252,15 @@ if (q.has('deer')) {
   }
   target.set(0, isSurv ? 0.9 : t === ZTYPE.BAT ? 1.2 : d.height * 0.5, 0);
   dist = sp * 5.2;
+} else if (q.get('brood') === '1') {
+  // a Mother with her belly torn open, her twins crawling out ahead of her, and a survivor for scale (&anim=1: on the move)
+  const m = addZombie(ZTYPE.MOTHER, 1, 0, 1.2);
+  m.setBurst?.(true);
+  addZombie(ZTYPE.BABY, 1, -0.45, -0.3);
+  addZombie(ZTYPE.BABY, 2, 0.5, -0.7);
+  addSurvivor(2, ITEM.PISTOL, 1.6, 0.2, false);
+  target.set(0.3, 0.75, 0);
+  dist = 4.2;
 } else if (only !== null) {
   const t = +only;
   const d = ZOMBIE_DEFS[t];
