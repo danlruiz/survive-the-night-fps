@@ -24,7 +24,7 @@ const RIFLE = WEAPONS[ITEM.HUNTING_RIFLE];
 const dps = (w) => (w.damage * w.pellets) / w.rate;
 
 // ---------------------------------------------------------------- the item
-check('the item: id 58, a weapon of its own', ITEM.DEAGLE === 58 && ITEM_DEFS[58]?.cat === 'weapon' && ITEM_DEFS[58].stack === 1 && ITEM_DEFS[58].name === 'Desert Eagle');
+check('the item: id 59, a weapon of its own', ITEM.DEAGLE === 59 && ITEM_DEFS[59]?.cat === 'weapon' && ITEM_DEFS[59].stack === 1 && ITEM_DEFS[59].name === 'Desert Eagle');
 check('no id was renumbered for it', ITEM.PISTOL === 55 && ITEM.FLARE_GUN === 56 && ITEM.NUNCHAKU === 57 && ITEM.SHOTGUN === 60 && ITEM.AMMO_308 === 73);
 check('the protocol version is as it was', PROTOCOL_VERSION >= 41, `${PROTOCOL_VERSION}`);
 check("a sidearm (the pistol's slot), semi-automatic, firing the hunting rifle's .308", DEF.slot === SLOT_PISTOL && !DEF.melee && !DEF.auto && DEF.ammo === AMMO.R308 && AMMO_ITEMS[DEF.ammo] === ITEM.AMMO_308 && DEF.ammo === RIFLE.ammo);

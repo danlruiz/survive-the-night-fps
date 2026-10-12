@@ -52,7 +52,7 @@ export const ITEM = {
   PISTOL: 55,
   FLARE_GUN: 56, // a sidearm (the pistol's slot): one parachute flare at a time, up into the sky (shared/skyflare.js)
   NUNCHAKU: 57, // melee with a moveset of its own: combos, a wound-up heavy, a simulated chain (shared/nunchaku.js)
-  DEAGLE: 58, // a sidearm (the pistol's slot) that hits like a rifle, on the hunting rifle's .308
+  DEAGLE: 59, // a sidearm (the pistol's slot) that hits like a rifle, on the hunting rifle's .308
   SHOTGUN: 60,
   AK47: 61,
   HUNTING_RIFLE: 62,
