@@ -287,6 +287,8 @@ export class Objective {
     this.pips = Array.from({ length: SUPPLY_NEED.reduce((a, b) => a + b, 0) }, () => el('i', '', pips));
     this.hCount = el('span', 'obj-count', head, '');
     this.directive = el('div', 'obj-dir', this.root, '');
+    // the far goal (issue #269): on the island, that the car is not the end of the run
+    this.next = el('div', 'obj-next', this.root, '');
     this.list = el('div', 'obj-list', this.root);
     this.rows = SUPPLIES.map((item, i) => {
       const r = el('div', 'obj-row', this.list);
@@ -450,8 +452,11 @@ export class Objective {
     this.directive.textContent = dir;
     this.directive.className = 'obj-dir' + (tone ? ' dir-' + tone : '');
     this.directive.hidden = !dir;
+    const next = plane ? '' : 'Then: drive over the old bridge to the mainland, where the airfield is.';
+    this.next.textContent = next;
+    this.next.hidden = !next;
     this.root.classList.toggle('compact', o.phase === PHASE.NIGHT || o.finale);
-    this.headTip.body = `${done} of ${total} ${W.parts} are in the ${W.thing}. Install them all, ${W.start} and ${W.go}.` + (dir ? `\n\nNow: ${dir}` : '');
+    this.headTip.body = `${done} of ${total} ${W.parts} are in the ${W.thing}. Install them all, ${W.start} and ${W.go}.` + (dir ? `\n\nNow: ${dir}` : '') + (next ? `\n\n${next}` : '');
     if (this.tipFor) this._hover(this.tipFor); // (what it says may just have changed)
   }
 }
