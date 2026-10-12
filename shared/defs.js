@@ -608,13 +608,13 @@ export const ZOMBIE_DEFS = {
   // bile in a fan at whoever is within spewRange every spewRate s, and when it dies it bursts: blastRadius, blastDmg
   // to survivors, blastStruct to what you built. Bring it down far from the walls
   [ZTYPE.BOSS_BLOATER]: { name: 'The Bloater', hp: 2400, speed: 1.45, dmg: 22, rate: 1.4, range: 2.6, radius: 1.15, height: 2.9, headY: 2.55, headR: 0.32, moveR: 0.5, moveH: 1.9, structDmg: 160, loot: 1, knock: 6, boss: true, minNight: 3, spewRange: 13, spewRate: 7, blastRadius: 10, blastDmg: 70, blastStruct: 900, tip: 'When it dies it bursts and takes everything near it. Bring it down far from your walls.', tipBrief: 'Bursts when it dies. Kill it far from your walls.' },
-  // a raccoon the infection has had for a while: rabid, half bald, its ringed tail gnawed, its hand-like forepaws grown
-  // long hooked claws. It never bites or claws (noMelee, no damage: nothing it does hurts). It runs in low under the
-  // guns and springs at a survivor's face from up to latchRange m (the leaper's pounce, aimed at the head) and clamps
-  // on with all four feet (the leaper's pin: s.pinned, the shove meter). While it is on them all they see is its belly
-  // (client/game/facelatch.js), until they mash Space to claw it off, a teammate shoots or strikes it off, or it has
-  // had latchMax s
-  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchMax: 10, minNight: 10, intro: 'Crawlers join the horde: they leap onto your face and blind you. Mash Space to claw one off, or get a teammate to shoot it off you.', introBrief: 'Leap onto your face and blind you. Mash Space.' },
+  // a flying squirrel the infection has grown to the size of a cat. It never bites or claws (noMelee, no damage: nothing
+  // it does hurts). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/zombies.js
+  // PERCH_*), and glides down on to the face of whoever comes under it (the leaper's pounce at the head, falling slower),
+  // clamping on with all four feet (s.pinned = PIN_FACE). Blind (client/game/facelatch.js: its belly and its membrane
+  // over their eyes) but on their feet, they shake it off by throwing their head about (SHAKE_*), or a teammate shoots
+  // or strikes it off, or it has had latchMax s. With no tree near, it springs from the ground (latchRange m)
+  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchMax: 10, minNight: 10, intro: 'Crawlers join the horde: they wait up trees, eyes glowing, and glide down onto your face to blind you. Keep away from the trees they chitter in, and shake your head hard to tear one off.', introBrief: 'Wait up trees, glide onto your face. Shake it off.' },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far

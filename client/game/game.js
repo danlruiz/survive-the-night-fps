@@ -2069,7 +2069,7 @@ export class Game {
       const rz = e.rz - ev.z;
       const along = rx * dx + ry * dy + rz * dz;
       if (along < -1 || along > wallT + 2 || rx * rx + ry * ry + rz * rz - along * along > 16) continue;
-      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
+      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim, e.perched) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
       _hbPos.x = e.rx;
       _hbPos.y = e.ry;
       _hbPos.z = e.rz;

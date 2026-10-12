@@ -1,4 +1,4 @@
-// A crawler on our own face, as we see it (ZTYPE.CRAWLER whose ZF.LINK is us): not a darkened screen but the raccoon
+// A crawler on our own face, as we see it (ZTYPE.CRAWLER whose ZF.LINK is us): not a darkened screen but the squirrel
 // itself, in the viewmodel scene (camera space), spread flat against the eyes with all four feet hooked round the head.
 // What fills the view is its belly, the legs reaching back past the edges of the screen, the head and the tail over
 // the top and the bottom. It slams in when it lands, heaves with its breathing and our struggle, jolts with every press
@@ -19,7 +19,7 @@ const KICK = 1.6; // a press of the shove key: m/s out from the face (a spring b
 
 export class FaceLatch {
   constructor(vmScene) {
-    this.view = createZombieDog(7, 'raccoon');
+    this.view = createZombieDog(7, 'squirrel');
     this.view.setLatched(true);
     // (its latched pose has the belly to the rig's -Z, toward whoever it holds: turned, toward the eye)
     this.inner = new THREE.Group();

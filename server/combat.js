@@ -106,7 +106,7 @@ export class Combat {
   hitbox(e, isPlayer) {
     if (isPlayer) return playerHitbox(e.zombie, e.state.crouch);
     if (e.kind === ENT.DEER) return deerHitbox(e.yaw, e.anim);
-    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim);
+    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim, e.perched);
   }
 
   // ---------------------------------------------------------------- guns
@@ -175,7 +175,7 @@ export class Combat {
         const px = rx - dx * along;
         const py = ry - dy * along;
         const pz = rz - dz * along;
-        const lim = hb.r + hb.headY + 0.5;
+        const lim = hb.r + Math.abs(hb.headY) + 0.5; // (a crawler up a tree hangs its head below it: perched)
         if (px * px + py * py + pz * pz > lim * lim) return;
         const tt = rayHitbox(pos, hb, ox, oy, oz, dx, dy, dz, wallT);
         if (tt < 0) return;

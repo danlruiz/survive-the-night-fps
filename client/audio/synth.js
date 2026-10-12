@@ -904,7 +904,7 @@ export function dogSnarl(sr, rng, i) {
   if (i % 3 !== 1) addNorm(out, noise(sr, rng, 0.03, { bp: [2600, 1.2], a: 0.0005, d: 0.012 }), sr, dur * 0.92, 0.7); // teeth clack
   return finish(out, sr);
 }
-// the crawler (a rabid raccoon): a run of shrill, rasping chitters over a hiss through its teeth
+// the crawler (a flying squirrel, grown huge): a run of shrill, rasping chitters over a hiss through its teeth
 export function zCrawler(sr, rng, i) {
   const out = alloc(sr, 0.9);
   addNorm(out, noise(sr, rng, 0.55, { bp: [3800, 0.9], sweep: [4400, 2600], a: 0.03, d: 0.3 }), sr, 0, 0.35);

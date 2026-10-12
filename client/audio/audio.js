@@ -75,7 +75,7 @@ const R_ZP_GROWL = { key: 'zv_growl', vol: 1.6, pitch: [0.88, 1.0] };
 // feral dogs (real dogs, pitched down a little: bigger and meaner) and the stray cat
 const R_DOG_BARK = { key: 'dog_bark', vol: 1.3, pitch: [0.82, 0.95] };
 const R_DOG_SNARL = { key: 'dog_snarl', vol: 1.2, pitch: [0.8, 0.95] };
-const R_CRAWLER = { key: 'dog_snarl', vol: 0.9, pitch: [1.55, 1.8] }; // the crawler: a dog's snarl from a raccoon's throat
+const R_CRAWLER = { key: 'dog_snarl', vol: 0.9, pitch: [1.55, 1.8] }; // the crawler: a dog's snarl from a squirrel's throat
 const R_DOG_HOWL = { key: 'dog_howl', vol: 1.85, pitch: [0.85, 0.98] };
 const R_DOG_YELP = { key: 'dog_yelp', vol: 1.05, pitch: [0.9, 1.05] };
 const R_CAT_MEOW = { key: 'cat_meow', vol: 2.4, pitch: [0.95, 1.08] };

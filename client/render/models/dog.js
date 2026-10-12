@@ -51,17 +51,19 @@ export const DOG_COATS = COATS.length;
 // mangier still, a ridge of bone spurs down its spine, longer fangs, eyes that burn red
 const ALPHA = { name: 'alpha', fur: 0x24211e, saddle: 0x0c0b0a, belly: 0x45382e, ears: 'up', tornEar: 1, ribs: -1, alpha: true, bulk: 1.22, mange: 0.5, flay: 1 };
 export const ALPHA_SCALE = 2.0;
-// The crawler (ZTYPE.CRAWLER): a raccoon the infection has had for a while, on the same rig, drawn at RACCOON_SCALE.
-// Stocky, grizzled grey, the black mask over its eyes and the ringed tail, half of it gnawed bald; its hand-like
-// forepaws grown long hooked claws (claws: x a dog's), to take hold of a face. Ears short and round (earLen)
-const RACCOON = { name: 'raccoon', fur: 0x8a847a, saddle: 0x3a3632, belly: 0xb8b0a0, ears: 'up', earLen: 0.042, mask: true, rings: true, tailBulk: 1.9, bulk: 1.18, mange: 0.52, claws: 1.9, tornEar: -1, ribs: 1 };
-export const RACCOON_SCALE = 0.7;
-// ...and squat: wider, much lower on its legs and shorter from nose to tail than a dog (x, y, z of the drawn size)
-const RACCOON_SHAPE = [1.15, 0.6, 0.75];
+// The crawler (ZTYPE.CRAWLER): a flying squirrel the infection has grown to the size of a cat, on the same rig, drawn at
+// SQUIRREL_SCALE. Grey-brown over a cream belly, mangy, a flat, wide brush of a tail (flatTail), short round ears
+// (earLen), huge eyes that burn amber in the dark (bigEyes: and a halo round each, SquirrelEyes) so that one up a tree
+// is seen from far off, and hooked claws (claws: x a dog's) to take hold of bark, or a face. Its gliding membrane
+// (Membrane) is drawn apart from the rig, stretched each frame from wrist to ankle down both flanks
+const SQUIRREL = { name: 'squirrel', fur: 0x7a6c5c, saddle: 0x4c4036, belly: 0xd6cab0, ears: 'up', earLen: 0.036, flatTail: true, tailBulk: 2.5, bulk: 0.92, mange: 0.6, claws: 1.7, tornEar: -1, ribs: 1, bigEyes: true };
+export const SQUIRREL_SCALE = 0.7;
+// ...and low and long: a little wider, much lower on its legs, its body a dog's length (x, y, z of the drawn size)
+const SQUIRREL_SHAPE = [1.1, 0.5, 0.74];
+// its head: short and round, the snout pushed in (the head bone's scale, x y z)
+const SQUIRREL_HEAD = [1.18, 1.08, 0.62];
 
 const C_MANGE = new THREE.Color(0x7c6a64); // bald, diseased skin
-const C_MASK = new THREE.Color(0x121010); // a raccoon's mask and the dark rings of its tail
-const C_BROW = new THREE.Color(0xb8b2a6); // ...and the pale fur round the mask
 const C_SCAB = new THREE.Color(0x3a1410);
 const C_TEETH = 0xb8ab84;
 const C_GUM = 0x4a0e10;
@@ -76,16 +78,7 @@ function coatTint(coat, part, seed) {
       const k = smooth(clamp((P.y - 0.55 + (fbm3(P.x * 9, P.y * 9, P.z * 9, 2, 3) - 0.5) * 0.08) * 14, 0, 1));
       if (P.z > -0.3 && P.z < 0.36) C.lerp(saddle, k * 0.85);
     }
-    if (coat.mask && part === 'head') {
-      // the mask: a black band across the eyes and down the cheeks, pale fur over it and on the muzzle
-      const band = 1 - Math.abs(P.z + 0.552) / 0.05 + (fbm3(P.x * 30, P.y * 30, P.z * 30, 2, 7) - 0.5) * 0.4;
-      if (band > 0 && P.y > 0.6) C.lerp(C_MASK, clamp(band * 4, 0, 0.92));
-      else if ((P.z > -0.515 && P.z < -0.46 && P.y > 0.66) || (P.z < -0.6 && P.y > 0.615)) C.lerp(C_BROW, 0.7);
-    }
-    if (coat.rings && part === 'tail') {
-      // the rings down its tail
-      if (Math.floor((P.z - 0.33) / 0.055) % 2 === 1) C.lerp(C_MASK, 0.85);
-    }
+    if (coat.flatTail && part === 'tail' && saddle) C.lerp(saddle, smooth(clamp((P.z - 0.45) * 4, 0, 1)) * 0.7); // (darker to its tip)
     if (belly) {
       let b = 0;
       if (part === 'body') b = N.y < -0.35 ? 0.8 : 0;
@@ -105,8 +98,8 @@ function coatTint(coat, part, seed) {
 }
 
 function buildDog(coatIdx) {
-  const coat = coatIdx === 'alpha' ? ALPHA : coatIdx === 'raccoon' ? RACCOON : COATS[coatIdx % COATS.length];
-  const seed = coatIdx === 'alpha' ? 77.3 : coatIdx === 'raccoon' ? 41.9 : coatIdx * 13.7;
+  const coat = coatIdx === 'alpha' ? ALPHA : coatIdx === 'squirrel' ? SQUIRREL : COATS[coatIdx % COATS.length];
+  const seed = coatIdx === 'alpha' ? 77.3 : coatIdx === 'squirrel' ? 41.9 : coatIdx * 13.7;
   const bk = coat.bulk || 1; // a heavier build: body, neck and legs this much thicker
   const hi = coat.alpha ? 1.4 : 1.12; // the Alpha is seen close and alone: a finer mesh
   const mb = new MeshBuilder();
@@ -237,10 +230,12 @@ function buildDog(coatIdx) {
     }
     on('jaw', () => mb.spike('root', [s * 0.014, 0.588, -0.636], [s * 0.014, 0.588 + (coat.alpha ? 0.036 : 0.026), -0.64], 0.0052, tooth));
     for (let i = 0; i < 3; i++) on('head', () => mb.spike('root', [s * (0.005 + i * 0.008), 0.606, -0.668 + i * 0.004], [s * (0.005 + i * 0.008), 0.596, -0.67 + i * 0.004], 0.0036, tooth));
-    // clouded, faintly glowing eyes in bruised sockets (one of them gone, on some)
+    // clouded, faintly glowing eyes in bruised sockets (one of them gone, on some). A flying squirrel's: huge, bulging,
+    // burning amber (bigEyes)
+    const ek = coat.bigEyes ? 1.9 : 1;
     on('head', () => {
-      mb.ellip('root', [s * 0.04, 0.656, -0.546], [0.015, 0.013, 0.011], plain(0x241010, { region: CR.GORE }));
-      if (coat.oneEye !== s) mb.ellip('root', [s * 0.042, 0.657, -0.552], [0.0098, 0.0088, 0.0072], coat.alpha ? plain(0xff3a18, { region: CR.GLOW, glow: 1, mottle: 0, blood: false }) : plain(0xcfc47a, { glow: 0.45, mottle: 0, blood: false }));
+      mb.ellip('root', [s * 0.04 * (coat.bigEyes ? 1.12 : 1), 0.656, -0.546], [0.015 * ek, 0.013 * ek, 0.011 * ek], plain(0x241010, { region: CR.GORE }));
+      if (coat.oneEye !== s) mb.ellip('root', [s * 0.042 * (coat.bigEyes ? 1.16 : 1), 0.657, -0.552], [0.0098 * ek, 0.0088 * ek, 0.0072 * ek * 1.25], coat.alpha ? plain(0xff3a18, { region: CR.GLOW, glow: 1, mottle: 0, blood: false }) : coat.bigEyes ? plain(0xffb238, { region: CR.GLOW, glow: 1, mottle: 0, blood: false }) : plain(0xcfc47a, { glow: 0.45, mottle: 0, blood: false }));
     });
   }
   // ears: flattened four-sided cones; pricked or floppy, one torn short on some
@@ -266,9 +261,11 @@ function buildDog(coatIdx) {
       ringLoft(mb, 'tail0', [{ c: [0, 0.6, 0.36], rx: 0.03 }, { c: [0, 0.593, 0.41], rx: 0.026 }, { c: [0, 0.59, 0.435], rx: 0.02 }], { ...fur('tail'), nu: 7, sub: 1 });
       on('tail0', () => mb.ellip('root', [0, 0.59, 0.437], [0.02, 0.02, 0.012], plain(0x5a0c0a, { region: CR.GORE, blood: false })));
     } else {
-      const tk = bk * (coat.tailBulk || 1); // (a raccoon's: a thick, bushy brush)
-      ringLoft(mb, 'tail0', [{ c: [0, 0.6, 0.35], rx: 0.032 }, { c: T[0], rx: 0.029 }, { c: T[1], rx: 0.023 }, { c: T[2], rx: 0.017 }, { c: T[3], rx: 0.008 }].map((r) => ({ ...r, rx: r.rx * tk })), {
-        ...fur('tail'), nu: 7, sub: coat.rings ? 6 : 2, cap1: 0.012,
+      const tk = bk * (coat.tailBulk || 1); // (a flying squirrel's: a wide brush, flat as a feather: flatTail)
+      const fl = coat.flatTail ? 0.32 : 1;
+      const rings = coat.flatTail ? [0.032, 0.029, 0.026, 0.022, 0.016] : [0.032, 0.029, 0.023, 0.017, 0.008];
+      ringLoft(mb, 'tail0', [[0, 0.6, 0.35], T[0], T[1], T[2], T[3]].map((c, i) => ({ c, rx: rings[i] * tk, ry: rings[i] * tk * fl })), {
+        ...fur('tail'), nu: coat.flatTail ? 10 : 7, sub: coat.flatTail ? 3 : 2, cap1: 0.012,
         wts: (p) => (p[2] < T[1][2] - 0.02 ? [tb[0], 1, 0, 0] : p[2] < T[1][2] + 0.02 ? blend(tb[0], tb[1], (p[2] - T[1][2] + 0.02) / 0.04) : p[2] < T[2][2] - 0.02 ? [tb[1], 1, 0, 0] : p[2] < T[2][2] + 0.02 ? blend(tb[1], tb[2], (p[2] - T[2][2] + 0.02) / 0.04) : [tb[2], 1, 0, 0]),
         dr: (s, a) => 0.004 * Math.sin(a * 5 + s * 30), // a ragged, half-bald brush
       });
@@ -299,7 +296,7 @@ function buildDog(coatIdx) {
         for (let t = 0; t < 4; t++) {
           const tx = (t - 1.5) * 0.013 * bk, tz = c[2] - r[2] * bk * (0.72 + (t === 1 || t === 2 ? 0.16 : 0));
           mb.ellip('root', [s * c[0] + tx, 0.014, tz], [0.0085 * bk, 0.011, 0.015 * bk], { ws: 5, hs: 3, ...fur('paw') });
-          const cl = bone[0] === 'f' ? coat.claws || 1 : 1; // (a raccoon's forepaws: long hooked claws)
+          const cl = coat.claws || 1; // (a flying squirrel's: long hooked claws, for bark)
           mb.spike('root', [s * c[0] + tx, 0.013, tz - 0.011 * bk], [s * c[0] + tx * 1.05, 0.002 + 0.004 * (cl - 1), tz - (0.011 + 0.016 * cl) * bk], 0.0036 * bk, plain(0x1a1410, { region: CR.BONE, rs: 4 }));
         }
       });
@@ -352,14 +349,118 @@ const S_LOCO = 0, S_ATK = 1, S_SPC = 2, S_AIR = 3, S_STAG = 4, S_DEAD = 5, S_EAT
 const STATE_OF = { [ZANIM.IDLE]: S_LOCO, [ZANIM.WALK]: S_LOCO, [ZANIM.RUN]: S_LOCO, [ZANIM.ATTACK]: S_ATK, [ZANIM.SPECIAL]: S_SPC, [ZANIM.AIRBORNE]: S_AIR, [ZANIM.STAGGER]: S_STAG, [ZANIM.DEAD]: S_DEAD, [ZANIM.EAT]: S_EAT };
 const BLEND = [9, 16, 14, 14, 18, 14, 6]; // 1/s towards each state
 
+// A flying squirrel's gliding membrane, both sides: a sheet from the shoulder to the hip along the flank (inside the
+// body) out to the wrist and the ankle, its free edge cut in between them. It is not skinned on the rig (two bones a
+// vertex could not hold it to four): each frame it is stretched between where those four joints are, in the mesh's
+// space. spread: 1 flat out between the limbs, gliding or on a face; less, gathered in along the flank as it runs
+const MEM_U = 8, MEM_V = 4;
+const C_MEM = new THREE.Color(0x5e5044), C_MEM_EDGE = new THREE.Color(0xd8ccb2), C_MEM_RAW = new THREE.Color(0x6a3a32);
+let _memMat = null;
+const _mInv = new THREE.Matrix4();
+const _ma = new THREE.Vector3(), _mb = new THREE.Vector3(), _mc = new THREE.Vector3(), _md = new THREE.Vector3();
+const _mi = new THREE.Vector3(), _mo = new THREE.Vector3();
+class Membrane {
+  constructor(inst) {
+    this.inst = inst;
+    const nv = (MEM_U + 1) * (MEM_V + 1);
+    const pos = new Float32Array(nv * 2 * 3);
+    const col = new Float32Array(nv * 2 * 3);
+    const idx = [];
+    const c = new THREE.Color();
+    for (let side = 0; side < 2; side++) {
+      const o = side * nv;
+      for (let i = 0; i <= MEM_U; i++) {
+        for (let j = 0; j <= MEM_V; j++) {
+          const v = j / MEM_V;
+          c.copy(C_MEM).lerp(C_MEM_EDGE, smooth(clamp((v - 0.72) * 4, 0, 1)) * 0.8);
+          if (noise3(i * 0.9 + side * 5, j * 0.8, 0.5, 47) > 0.62) c.lerp(C_MEM_RAW, 0.6); // (mange: raw, bald skin)
+          c.toArray(col, (o + i * (MEM_V + 1) + j) * 3);
+          if (i < MEM_U && j < MEM_V) {
+            const a = o + i * (MEM_V + 1) + j, b = a + MEM_V + 1;
+            idx.push(a, b, a + 1, b, b + 1, a + 1);
+          }
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(idx);
+    this.pos = pos;
+    _memMat ||= new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    this.mesh = new THREE.Mesh(g, _memMat);
+    this.mesh.frustumCulled = false; // (its points move with the rig: drawn with the body it is part of)
+    this.mesh.castShadow = true;
+  }
+
+  update(spread) {
+    const d = this.inst;
+    const X = d.X;
+    d.mesh.updateWorldMatrix(true, true);
+    _mInv.copy(d.mesh.matrixWorld).invert();
+    const at = (out, bone) => out.setFromMatrixPosition(d.bones[X[bone]].matrixWorld).applyMatrix4(_mInv);
+    const k = 0.25 + 0.75 * clamp(spread, 0, 1);
+    const pos = this.pos;
+    const nv = (MEM_U + 1) * (MEM_V + 1);
+    for (let side = 0; side < 2; side++) {
+      const n = side ? 'R' : 'L';
+      at(_ma, 'fu' + n);
+      at(_mb, 'fp' + n);
+      at(_mc, 'hh' + n);
+      at(_md, 'hu' + n);
+      for (let i = 0; i <= MEM_U; i++) {
+        const u = i / MEM_U;
+        _mi.lerpVectors(_ma, _md, u);
+        _mo.lerpVectors(_mb, _mc, u);
+        // the free edge cut in between wrist and ankle; the sheet billows a little
+        const cut = 0.32 * Math.sin(Math.PI * u);
+        _mo.lerp(_mi, cut);
+        for (let j = 0; j <= MEM_V; j++) {
+          const v = (j / MEM_V) * k;
+          const o = (side * nv + i * (MEM_V + 1) + j) * 3;
+          pos[o] = _mi.x + (_mo.x - _mi.x) * v;
+          pos[o + 1] = _mi.y + (_mo.y - _mi.y) * v - 0.025 * Math.sin(Math.PI * u) * Math.sin(Math.PI * (j / MEM_V)) * k;
+          pos[o + 2] = _mi.z + (_mo.z - _mi.z) * v;
+        }
+      }
+    }
+    const g = this.mesh.geometry;
+    g.attributes.position.needsUpdate = true;
+    g.computeVertexNormals();
+  }
+}
+
+// the halo round a flying squirrel's eyes (a soft amber glow, added to what is behind it)
+const EYE_HALO = 0.16;
+let _haloMat = null;
+function eyeHaloMaterial() {
+  if (_haloMat) return _haloMat;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const x = cv.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,230,160,1)');
+  gr.addColorStop(0.18, 'rgba(255,180,60,0.85)');
+  gr.addColorStop(0.5, 'rgba(255,120,20,0.25)');
+  gr.addColorStop(1, 'rgba(255,90,0,0)');
+  x.fillStyle = gr;
+  x.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  _haloMat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+  return _haloMat;
+}
+
 class DogInstance {
   constructor(coat, seed) {
     const rig = getRig(coat);
-    this.S = coat === 'alpha' ? ALPHA_SCALE : coat === 'raccoon' ? RACCOON_SCALE : 1; // drawn at this size (the rig is a dog's)
+    this.S = coat === 'alpha' ? ALPHA_SCALE : coat === 'squirrel' ? SQUIRREL_SCALE : 1; // drawn at this size (the rig is a dog's)
     this.alpha = coat === 'alpha';
-    this.raccoon = coat === 'raccoon';
+    this.squirrel = coat === 'squirrel';
     this.latched = false; // a crawler on a survivor's face (setLatched): stood up against it, clinging
     this.latchK = 0;
+    this.perched = 0; // ...up a tree (setPerched: 0..1, how far up off the ground): head down on the trunk, clinging
+    this.perchK = 0;
     const inst = instantiateRig(rig, getCharacterMaterial(), (rig.sphere.radius * 1.6 + 0.3) * this.S);
     this.mesh = inst.mesh;
     this.bones = inst.bones;
@@ -374,7 +475,7 @@ class DogInstance {
     this.object = new THREE.Group();
     this.object.name = 'zombie';
     this.mesh.scale.setScalar(this.S);
-    if (this.raccoon) this.mesh.scale.set(this.S * RACCOON_SHAPE[0], this.S * RACCOON_SHAPE[1], this.S * RACCOON_SHAPE[2]);
+    if (this.squirrel) this.mesh.scale.set(this.S * SQUIRREL_SHAPE[0], this.S * SQUIRREL_SHAPE[1], this.S * SQUIRREL_SHAPE[2]);
     this.object.add(this.mesh);
     const r = (k) => noise3(seed * 0.618 + k * 7.1, k, 0.3, 29);
     this.seed = seed;
@@ -411,6 +512,19 @@ class DogInstance {
     this.bones[this.X.jaw].add(this.mouth);
     this.object.userData.mouth = this.mouth;
     this.object.userData.head = this.headCenter;
+    if (this.squirrel) {
+      this.headScale = SQUIRREL_HEAD;
+      this.membrane = new Membrane(this);
+      this.mesh.add(this.membrane.mesh);
+      // a halo round each eye, so that one up a tree in the dark is seen from far off
+      for (const s of [-1, 1]) {
+        const halo = new THREE.Sprite(eyeHaloMaterial());
+        halo.position.set(s * 0.049, 0.657 - B.head[1], -0.56 - B.head[2]);
+        halo.scale.setScalar(EYE_HALO);
+        halo.renderOrder = 2;
+        this.bones[this.X.head].add(halo);
+      }
+    }
     this.pose(0);
   }
 
@@ -426,9 +540,11 @@ class DogInstance {
     // on a face: it swings up off its feet to lie belly-on against it, head over the top of the skull (the mesh pitched
     // about its feet, which the server holds just in front of the survivor's eyes)
     this.latchK += ((this.latched && anim === ZANIM.ATTACK ? 1 : 0) - this.latchK) * Math.min(1, dt * 14);
-    if (this.raccoon) {
-      this.mesh.rotation.x = (Math.PI / 2) * this.latchK;
-      this.mesh.position.set(0, -0.12 * this.latchK, 0);
+    // up a tree: pitched head down about its feet, its belly to the bark (which is behind it: it faces out)
+    this.perchK += ((anim === ZANIM.AIRBORNE ? 0 : this.perched) - this.perchK) * Math.min(1, dt * 10);
+    if (this.squirrel) {
+      this.mesh.rotation.x = (Math.PI / 2) * this.latchK - (Math.PI / 2) * this.perchK;
+      this.mesh.position.set(0, -0.12 * this.latchK + 0.1 * this.perchK, 0.12 * this.perchK);
     }
     const cur = STATE_OF[anim] ?? S_LOCO;
     for (let i = 0; i < NS; i++) this.w[i] += ((i === cur ? 1 : 0) - this.w[i]) * Math.min(1, dt * BLEND[cur]);
@@ -465,7 +581,7 @@ class DogInstance {
     const st = { hy: 0, hz: 0, ry: 0, rootX: 0, rootY: 0 };
     if (w[S_LOCO] > 0.001) {
       this.poseLoco(t, w[S_LOCO], st);
-      if (this.raccoon) this.poseHunch(w[S_LOCO], st);
+      if (this.squirrel) this.poseHunch(w[S_LOCO], st);
     }
     if (w[S_ATK] > 0.001) {
       const L = this.latchK;
@@ -473,7 +589,11 @@ class DogInstance {
       if (L > 0.001) this.poseCling(t, w[S_ATK] * L, st);
     }
     if (w[S_SPC] > 0.001) this.poseCrouch(t, w[S_SPC], st);
-    if (w[S_AIR] > 0.001) this.poseLeap(t, w[S_AIR], st);
+    if (w[S_AIR] > 0.001) {
+      if (this.squirrel) this.poseGlide(t, w[S_AIR], st);
+      else this.poseLeap(t, w[S_AIR], st);
+    }
+    if (this.perchK > 0.001) this.posePerch(t, this.perchK * (1 - w[S_AIR]), st);
     if (w[S_STAG] > 0.001) this.poseStagger(t, w[S_STAG], st);
     if (w[S_EAT] > 0.001) this.poseFeed(t, w[S_EAT], st);
     if (w[S_DEAD] > 0.001) this.poseDead(t, w[S_DEAD], st);
@@ -501,7 +621,15 @@ class DogInstance {
     for (let i = 1; i < this.nb; i++) bones[i].rotation.set(this.rx[i], this.ry[i], this.rz[i]);
     bones[this.X.hips].position.set(B.hips[0], B.hips[1] + st.hy, B.hips[2] + st.hz);
     bones[this.X.root].position.set(st.rootX, st.rootY, 0);
-    bones[this.X.head].scale.setScalar(this.headless ? 0.001 : 1);
+    this.scaleHead();
+    if (this.membrane) this.membrane.update(Math.max(this.w[S_AIR], this.latchK * this.w[S_ATK], this.perchK * 0.45));
+  }
+
+  scaleHead() {
+    const hs = this.headScale;
+    if (this.headless) this.bones[this.X.head].scale.setScalar(0.001);
+    else if (hs) this.bones[this.X.head].scale.set(hs[0], hs[1], hs[2]);
+    else this.bones[this.X.head].scale.setScalar(1);
   }
 
   // stand / trot / gallop (speed-driven), with a hitching limp, a low twitchy head and panting
@@ -560,9 +688,11 @@ class DogInstance {
     }
   }
 
-  // a raccoon goes about low and hunched: knees and elbows bent under it, its back arched up over its hips, its head low
+  // a flying squirrel goes about low and hunched: knees and elbows bent under it, its back arched up over its hips, its
+  // brush of a tail carried up over its back and curled at the tip
   poseHunch(W, st) {
     st.hy -= 0.06 * W;
+    for (let i = 0; i < TAIL_N; i++) this.add('tail' + i, W, [-2.0, -0.7, 0.6][i] ?? 0.3);
     this.add('hips', W, 0.1);
     this.add('chest', W, -0.12);
     this.add('neck', W, -0.15);
@@ -695,6 +825,53 @@ class DogInstance {
     for (let i = 0; i < TAIL_N; i++) this.add('tail' + i, W, i === 0 ? 0.05 : -0.05);
   }
 
+  // AIRBORNE, a flying squirrel's: spread-eagled to glide, the forelegs out and forward, the hind legs out and back,
+  // stretching the membrane between them flat; its head up, its jaws open, its tail out straight behind as a rudder
+  poseGlide(t, W, st) {
+    const u = clamp(this.stateT / 0.3, 0, 1);
+    const flap = Math.sin(t * 9 + this.sd) * 0.05;
+    this.add('hips', W, -0.05);
+    this.add('neck', W, 0.35);
+    this.add('head', W, 0.15);
+    this.add('jaw', W, -0.5 - 0.2 * u);
+    for (const s of ['L', 'R']) {
+      const sg = s === 'L' ? -1 : 1;
+      this.add('fu' + s, W, 0.55, 0, sg * (0.6 + 0.75 * u + flap));
+      this.add('fl' + s, W, -0.15);
+      this.add('fp' + s, W, 0.1);
+      this.add('hu' + s, W, -0.65, 0, sg * (0.55 + 0.7 * u - flap));
+      this.add('hk' + s, W, 0.1);
+      this.add('hh' + s, W, -0.2);
+    }
+    this.add('earL', W, 1.1, 0, -0.1);
+    this.add('earR', W, 1.1, 0, 0.1);
+    for (let i = 0; i < TAIL_N; i++) this.add('tail' + i, W, i === 0 ? 0.15 : -0.04, Math.sin(t * 5 + i) * 0.06);
+  }
+
+  // up a tree (perchK): head down on the trunk (the mesh pitched: rig -Y is the bark), all four limbs splayed and hooked
+  // into it, the tail up the trunk behind it; its head bent back out from the bark to watch whoever is below, turning a
+  // little, the jaws working now and then
+  posePerch(t, W, st) {
+    const look = Math.sin(t * 0.7 + this.sd) * 0.35;
+    const chew = Math.max(0, Math.sin(t * 3.1 + this.sd * 2)) * 0.3;
+    this.add('chest', W, 0.1);
+    this.add('neck', W, 0.85, look * 0.6);
+    this.add('head', W, 0.45, look * 0.4);
+    this.add('jaw', W, -0.1 - chew);
+    for (const s of ['L', 'R']) {
+      const sg = s === 'L' ? -1 : 1;
+      this.add('fu' + s, W, 0.5, 0, sg * 0.75);
+      this.add('fl' + s, W, -0.5);
+      this.add('fp' + s, W, 0.6);
+      this.add('hu' + s, W, -0.35, 0, sg * 0.7);
+      this.add('hk' + s, W, 0.3);
+      this.add('hh' + s, W, 0.5);
+    }
+    this.add('earL', W, 0.9);
+    this.add('earR', W, 0.9);
+    for (let i = 0; i < TAIL_N; i++) this.add('tail' + i, W, i === 0 ? -0.25 : -0.08, Math.sin(t * 1.4 + i) * 0.1);
+  }
+
   // STAGGER: knocked sideways, head thrown back
   poseStagger(t, W, st) {
     const u = clamp(this.stateT / 0.35, 0, 1);
@@ -788,7 +965,11 @@ class DogInstance {
 
   setHeadless(v) {
     this.headless = !!v;
-    this.bones[this.X.head].scale.setScalar(this.headless ? 0.001 : 1);
+    this.scaleHead();
+  }
+
+  setPerched(k) {
+    this.perched = clamp(k, 0, 1);
   }
 
   anchorWorld(anchor, out) {
@@ -806,17 +987,17 @@ class DogInstance {
 export function dogStats() {
   const out = COATS.map((c, i) => ({ type: 'dog', variant: i, tris: getRig(i).tris, bones: getRig(i).bones.length }));
   out.push({ type: 'alpha', variant: 0, tris: getRig('alpha').tris, bones: getRig('alpha').bones.length });
-  out.push({ type: 'raccoon', variant: 0, tris: getRig('raccoon').tris, bones: getRig('raccoon').bones.length });
+  out.push({ type: 'squirrel', variant: 0, tris: getRig('squirrel').tris, bones: getRig('squirrel').bones.length });
   return out;
 }
 
 /**
  * A zombie dog view with the createZombie() interface: { object, update(dt, anim, speed, time, inView), flash, hurt, vocalize, setHeadless,
  * setLatched, anchorWorld, dispose }. seed picks the coat (same hash as the other zombie variants) + per-instance quirks;
- * alpha: true for The Alpha, 'raccoon' for the crawler.
+ * alpha: true for The Alpha, 'squirrel' for the crawler.
  */
 export function createZombieDog(seed = 0, alpha = false) {
-  const coat = alpha === 'raccoon' ? 'raccoon' : alpha ? 'alpha' : (((seed >>> 0) * 2654435761) >>> 0) % COATS.length;
+  const coat = alpha === 'squirrel' ? 'squirrel' : alpha ? 'alpha' : (((seed >>> 0) * 2654435761) >>> 0) % COATS.length;
   const d = new DogInstance(coat, seed >>> 0);
   return {
     object: d.object,
@@ -826,6 +1007,7 @@ export function createZombieDog(seed = 0, alpha = false) {
     vocalize: (kind) => d.vocalize(kind),
     setHeadless: (v) => d.setHeadless(v),
     setLatched: (v) => d.setLatched(v),
+    setPerched: (k) => d.setPerched(k),
     anchorWorld: (a, out) => d.anchorWorld(a, out),
     dispose: () => d.dispose(),
     _inst: d,

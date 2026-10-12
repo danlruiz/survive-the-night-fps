@@ -932,6 +932,10 @@ export class Entities {
             // the eyes, and what we see of it is its belly, drawn in the view (facelatch.js)
             v.setLatched?.(e.q[6] !== 0);
             v.object.visible = !(e.q[6] !== 0 && e.q[6] === g.myId && e.q[4] === ZANIM.ATTACK);
+            // ...or up a tree (the server's perch): as high off the ground as only a tree would hold it, and not in the air
+            const up = e.q[4] === ZANIM.AIRBORNE ? 0 : Math.min(1, Math.max(0, (e.ry - groundAt(g.world, e.rx, e.rz, e.ry + 0.5, 0.2, false) - 0.8) / 1.2));
+            v.setPerched?.(up);
+            e.perched = up > 0.99; // (its hitbox: shared/hitbox.js)
           }
           // How often it is posed. Past 60 m: every other frame. Nearer, but past POSE_NEAR (where its far copy is
           // drawn): no more than POSE_HZ times a second - at 80 frames a second or fewer that is every frame, as it
