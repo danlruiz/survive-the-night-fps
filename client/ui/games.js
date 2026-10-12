@@ -4,7 +4,6 @@
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
 import { DIFFICULTIES, NIGHTFALL, difficultyLabel } from '../../shared/difficulty.js';
 import { el, svgEl } from './dom.js';
-import { loadRecord } from './records.js';
 import { isFirstRun, suggestedDifficulty, rememberDifficulty, NEW_DIFFICULTY } from './firstrun.js';
 import { glyph } from './icons.js';
 import { listGames, createGame } from '../net/lobby.js';
@@ -270,9 +269,8 @@ export class GameCreator extends Panel {
   show() {
     super.show();
     // Ember for a brand-new player, else the last one picked here (firstrun.js)
-    const rec = loadRecord();
-    this.first = isFirstRun(rec);
-    this.difficulty = suggestedDifficulty(rec);
+    this.first = isFirstRun();
+    this.difficulty = suggestedDifficulty();
     this.sync();
     this.err.hidden = true;
     this.name.placeholder = `${this.splash.playerName()}'s game`;

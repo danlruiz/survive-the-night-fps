@@ -101,7 +101,7 @@ export class KeyHints {
     if (active && day) this.age += waited;
     if (this.shown?.early) this.dwell[this.shown.id] = (this.dwell[this.shown.id] || 0) + waited;
     let pick = null;
-    if (active && g.settings.keyHints !== false) {
+    if (active && g.settings.keyHints !== false && !g.onboarding?.showing) { // (the walkthrough's card says it better)
       for (const h of HINTS) {
         if ((this.counts[h.id] | 0) >= RETIRE || !hasBind(h.action) || !this.applies(h, day)) continue;
         pick = h;

@@ -1,9 +1,9 @@
-// The first-run experience (#270): what a brand-new player is offered (client/ui/firstrun.js), the order the key
-// hints come in (client/ui/keyhints.js: the threat before the map, the inventory and building), and the walker that
-// turns up in a run's first minute (server/zombies.js spawnOpener).
-import { isFirstRun, suggestedDifficulty, rememberDifficulty, earlyRuns, simpleHud, mapNeeded, applyNewPlayer, yawTowards, goalLine, SIMPLE_HUD_RUNS, MAP_REVEAL_DIST } from '../client/ui/firstrun.js';
+// The first playthrough (#270): the walkthrough's steps and what this browser remembers of it (client/ui/firstrun.js),
+// the order the key hints come in (client/ui/keyhints.js: the threat before the map, the inventory and building), and
+// the walker that turns up in a run's first minute (server/zombies.js spawnOpener).
+import { isFirstRun, suggestedDifficulty, rememberDifficulty, applyNewPlayer, yawTowards, loadOnboarding, markStep, markTip, tipSeen, finishOnboarding, onboardingDone, reloadOnboarding, pickStep, CORE, TIPS, ZOMBIE_NEAR } from '../client/ui/firstrun.js';
 import { HINTS, KeyHints } from '../client/ui/keyhints.js';
-import { sanitizeRecord } from '../client/ui/records.js';
+import { ACTIONS } from '../shared/binds.js';
 import { Game } from '../server/game.js';
 import { OPENER_AT, OPENER_UNTIL, OPENER_DIST } from '../server/zombies.js';
 import { PHASE } from '../shared/constants.js';
@@ -24,65 +24,85 @@ Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
   writable: true,
 });
-const withRuns = (n) => sanitizeRecord({ v: 1, runs: [], total: { runs: n, escapes: 0, streak: 0 }, best: {} });
+const startOver = () => applyNewPlayer('?newplayer');
 
 // ---- who is new, and what they are offered
-check('no run in the record is a first run', isFirstRun(withRuns(0)) && isFirstRun(sanitizeRecord(null)) && isFirstRun(undefined));
-check('one run in the record is not', !isFirstRun(withRuns(1)));
-check('a brand-new player is offered Ember', suggestedDifficulty(withRuns(0)) === 'ember');
-check('a returning player with no choice remembered gets Nightfall', suggestedDifficulty(withRuns(4)) === 'nightfall');
+startOver();
+check('nobody has been through it yet: a first run', isFirstRun() && !onboardingDone());
+check('a new player is offered Ember', suggestedDifficulty() === 'ember');
 rememberDifficulty('blackout');
-check('the last difficulty picked here wins for a returning player', suggestedDifficulty(withRuns(4)) === 'blackout');
-check('...and for a new one who already picked', suggestedDifficulty(withRuns(0)) === 'blackout');
+check('the last difficulty picked here wins', suggestedDifficulty() === 'blackout');
 rememberDifficulty('god');
-check('a name the game does not have is not remembered', suggestedDifficulty(withRuns(4)) === 'blackout');
-store = {};
+check('a name the game does not have is not remembered', suggestedDifficulty() === 'blackout');
 store['stn.difficulty'] = 'nonsense';
-check('a stored name the game does not have is ignored', suggestedDifficulty(withRuns(0)) === 'ember' && suggestedDifficulty(withRuns(2)) === 'nightfall');
+check('a stored name the game does not have is ignored', suggestedDifficulty() === 'ember');
 
-// ---- the simple HUD
-check(`the first ${SIMPLE_HUD_RUNS} runs get the simple HUD`, earlyRuns(withRuns(0)) && earlyRuns(withRuns(SIMPLE_HUD_RUNS - 1)) && !earlyRuns(withRuns(SIMPLE_HUD_RUNS)));
-check('a returning player never gets it', !simpleHud(earlyRuns(withRuns(10)), {}) && !simpleHud(earlyRuns(withRuns(10)), { fullHud: false }));
-check('Show the whole HUD turns it off for a new player', simpleHud(true, { fullHud: false }) && !simpleHud(true, { fullHud: true }));
+// ---- what is remembered, and when it is over
+startOver();
+for (const s of CORE.slice(0, -1)) markStep(s.id);
+check('all but one step done: still going', !onboardingDone() && isFirstRun());
+markStep(CORE[CORE.length - 1].id);
+check('every step done: over, on any difficulty', onboardingDone() && !isFirstRun() && suggestedDifficulty() === 'nightfall');
+check('...and it is kept in storage', JSON.parse(store['stn.onboarding']).done === true);
+startOver();
+markStep('goal');
+finishOnboarding();
+check('a first night survived or a run played out ends it too', onboardingDone() && loadOnboarding().steps.goal === 1);
+store['stn.onboarding'] = '{"v":1,"done":"yes","steps":{"goal":true},"tips":"x"}';
+check('a hand-edited record comes back well formed', (() => {
+  const o = reloadOnboarding();
+  return o.done === false && o.steps.goal === 1 && Object.keys(o.tips).length === 0 && isFirstRun();
+})());
+store['stn.onboarding'] = 'not json';
+check('...and one that is not JSON starts over', !reloadOnboarding().done && Object.keys(loadOnboarding().steps).length === 0);
+startOver();
+check('the first-time tips are kept apart from the walkthrough', !tipSeen('perks') && (markTip('perks'), tipSeen('perks')) && !onboardingDone());
+finishOnboarding();
+check('...and outlive it', tipSeen('perks') && !tipSeen('bestiary'));
 
-// ---- the opening look and the goal
+// ---- ?newplayer: what a first playthrough shows starts over, the record of runs kept
+store = { 'stn.onboarding': '{"v":1,"done":true,"steps":{},"tips":{}}', 'stn.keyhints': '{"map":2}', 'stn.difficulty': 'blackout', 'stn.runs': 'kept' };
+check('an address without it changes nothing', !applyNewPlayer('?game=ABCD') && store['stn.difficulty'] === 'blackout');
+check('?newplayer is seen', applyNewPlayer('?game=ABCD&newplayer=1'));
+check('...and the walkthrough, the key hints and the remembered difficulty start over', isFirstRun() && !('stn.onboarding' in store) && !('stn.keyhints' in store) && !('stn.difficulty' in store));
+check('...and the record of runs is left alone', store['stn.runs'] === 'kept');
+
+// ---- the steps
+const actions = new Set(ACTIONS.map((a) => a.id));
+const keys = (t) => [...t.matchAll(/\[(\w+)\]/g)].map((m) => m[1]);
+const named = [...CORE.map((s) => s.text), ...Object.values(TIPS).map((t) => t.text)].flatMap(keys);
+check('every key a step names is a real action', named.length > 10 && named.every((k) => actions.has(k)), named.filter((k) => !actions.has(k)).join(' '));
+check('the zombie, then a car part, take over: they come first', CORE[0].id === 'zombie' && CORE[0].urgent && CORE[1].id === 'part' && CORE[1].urgent);
+check('trees and rocks have a step of their own', CORE.some((s) => s.id === 'harvest' && /tree/i.test(s.text) && /rock/i.test(s.text) && s.text.includes('[fire]')));
+check('the first-time tips name the perks, achievements and bestiary keys', TIPS.perks.text.includes('[perks]') && TIPS.achievements.text.includes('[achievements]') && TIPS.bestiary.text.includes('[bestiary]'));
+
+const moment = (o = {}) => ({ t: 0, x: 0, z: 0, dayN: 1, day: true, dusk: false, night: false, zombie: null, gone: new Set(), harvest: null, gathered: false, searchable: false, searching: false, picked: false, inv: false, carrying: false, installed: 0, danger: 0, ...o });
+const id = (s) => s?.id ?? null;
+check('a run opens on the goal', id(pickStep(moment(), null, {})) === 'goal');
+check('...then moving', id(pickStep(moment(), null, { goal: 1 })) === 'move');
+const goal = CORE.find((s) => s.id === 'goal');
+check('a zombie close by takes over from the goal', id(pickStep(moment({ zombie: { id: 9, d: 30 } }), goal, {})) === 'zombie');
+check(`...but not one further off than ${ZOMBIE_NEAR} m (the moment leaves it out)`, id(pickStep(moment(), goal, {})) === 'goal');
+check('a calm step waits while another is up', id(pickStep(moment({ harvest: { kind: 'tree', d: 5 } }), goal, {})) === 'goal');
+const zombie = CORE[0];
+check('the zombie step stays up until its zombie is gone', !zombie.done(moment({ gone: new Set([4]) }), { target: 9 }) && zombie.done(moment({ gone: new Set([9]) }), { target: 9 }));
+check('a tree or rock in reach brings up the harvest step', id(pickStep(moment({ harvest: { kind: 'rock', d: 8 } }), null, { goal: 1, move: 1 })) === 'harvest');
+check('...not with the dead close', id(pickStep(moment({ harvest: { kind: 'rock', d: 8 }, danger: 0.5 }), null, { goal: 1, move: 1 })) === null);
+check('...and it is done by chopping or mining', CORE.find((s) => s.id === 'harvest').done(moment({ gathered: true })));
+check('a car part in the pack takes over, and is done when one more is in the car', id(pickStep(moment({ carrying: true }), goal, {})) === 'part' && CORE[1].done(moment({ installed: 3 }), { had: 2 }));
+check('the dusk horn and the night have theirs', id(pickStep(moment({ dusk: true }), null, Object.fromEntries(CORE.slice(0, 7).map((s) => [s.id, 1])))) === 'dusk' && id(pickStep(moment({ day: false, night: true }), null, {})) === 'night');
+check('a step seen to never comes back', id(pickStep(moment(), null, Object.fromEntries(CORE.map((s) => [s.id, 1])))) === null);
+startOver();
+
+// ---- the opening look
 check('facing north is yaw 0 (forward is -z)', near(yawTowards(0, 0, 0, -10), 0));
 check('facing east is -90 degrees', near(yawTowards(0, 0, 10, 0), -Math.PI / 2));
 {
   const y = yawTowards(3, 4, -20, 31);
-  const fx = -Math.sin(y);
-  const fz = -Math.cos(y);
   const dx = -23;
   const dz = 27;
   const len = Math.hypot(dx, dz);
-  check('the look it gives points at the target', near(fx, dx / len, 1e-9) && near(fz, dz / len, 1e-9));
-}
-check('the goal line counts the parts', goalLine(7) === 'Fix the car: 7 parts' && goalLine(1) === 'Fix the car: 1 part');
-
-// ---- the minimap on a simple-HUD run: hidden at the start, up once it is needed to find the way back
-const day = (dist, dusk = false) => mapNeeded({ dayPhase: true, dusk, dist });
-check('no minimap by the car in the day', !day(0) && !day(MAP_REVEAL_DIST - 1));
-check(`the minimap comes up ${MAP_REVEAL_DIST} m out`, day(MAP_REVEAL_DIST) && day(300));
-check('...at the dusk horn, wherever you are', day(0, true));
-check('...and at night, in the final stand and on the crossing', mapNeeded({ dayPhase: false, dusk: false, dist: 0 }));
-
-// ---- ?newplayer: a tab that plays as a brand-new player, the record kept
-{
-  const session = {};
-  Object.defineProperty(globalThis, 'sessionStorage', {
-    value: { getItem: (k) => (k in session ? session[k] : null), setItem: (k, v) => void (session[k] = String(v)), removeItem: (k) => void delete session[k] },
-    configurable: true,
-    writable: true,
-  });
-  store = { 'stn.keyhints': '{"map":2}', 'stn.difficulty': 'blackout', 'stn.runs': 'kept' };
-  check('an address without it changes nothing', !applyNewPlayer('?game=ABCD') && !isFirstRun(withRuns(5)) && store['stn.difficulty'] === 'blackout');
-  check('?newplayer is seen', applyNewPlayer('?newplayer') && applyNewPlayer('?game=ABCD&newplayer=1'));
-  check('...and the tab plays as a brand-new player', isFirstRun(withRuns(5)) && earlyRuns(withRuns(50)) && suggestedDifficulty(withRuns(5)) === 'ember');
-  check('...the key hints and the remembered difficulty start over', !('stn.keyhints' in store) && !('stn.difficulty' in store));
-  check('...and the record itself is left alone', store['stn.runs'] === 'kept');
-  delete globalThis.sessionStorage;
-  check('a tab without it is a returning player again', !isFirstRun(withRuns(5)));
-  store = {};
+  check('the look it gives points at the target', near(-Math.sin(y), dx / len) && near(-Math.cos(y), dz / len));
 }
 
 // ---- the key hints' order: the threat comes before the map, the inventory and building

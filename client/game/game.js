@@ -149,8 +149,9 @@ import { createDeer } from '../render/models/deer.js';
 import { createPickup } from '../render/models/pickups.js';
 import { createSupplyCrate, createProjectile } from '../render/models/misc.js';
 import { itemIcon, glyph } from '../ui/icons.js';
-import { recordRun, loadRecord } from '../ui/records.js';
-import { isFirstRun, earlyRuns, simpleHud, mapNeeded, yawTowards, goalLine } from '../ui/firstrun.js';
+import { recordRun } from '../ui/records.js';
+import { isFirstRun, finishOnboarding, yawTowards } from '../ui/firstrun.js';
+import { Onboarding } from './onboarding.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
 import { screenLeft } from '../ui/screentabs.js';
@@ -398,6 +399,7 @@ export class Game {
     this.joinHold = false; // the mouse and the screen were asked for on the click on Join, and the join is not done (holdForJoin)
     this.input.onRequestLock = () => this.keyGuard.engage(this.joinHold);
     this.keyHints = new KeyHints(this); // names the key on the HUD at the moment it would help
+    this.onboarding = new Onboarding(this); // a new player's walkthrough, and the first-time tips (onboarding.js)
     this.conn = new Connection({
       snapshot: (r) => this.onSnapshot(r),
       world: (seed, act) => this.onWorld(seed, act),
@@ -1267,8 +1269,7 @@ export class Game {
     if (g.phase === PHASE.DAY || g.phase === PHASE.NIGHT || g.phase === PHASE.CROSSING) {
       if (this.runOn) return;
       this.runOn = true;
-      this.earlyRuns = earlyRuns(loadRecord()); // (the simple HUD: firstrun.js)
-      this.mapShown = false; // (...whose minimap waits until it is needed: mapNeeded)
+      this.onboarding.reset(); // (a new player's walkthrough looks at this run from its start: onboarding.js)
       // how much of the run was played before we saw it: nothing when it starts under us
       const gone = g.phase === PHASE.DAY && g.day === 1 ? g.phaseLen - g.timeLeft : Infinity;
       // kills0: our score when the run began. The server's count can carry over from the run before
@@ -1278,6 +1279,7 @@ export class Game {
       const run = this.run;
       this.run = null;
       if (g.phase !== PHASE.VICTORY && g.phase !== PHASE.GAMEOVER) return;
+      finishOnboarding(); // (a run played to its end: the walkthrough is not shown again, firstrun.js)
       if (!run) {
         this.runReport = { late: true };
         return;
@@ -1471,6 +1473,7 @@ export class Game {
       if (now > before) {
         this.ui.notify(`LEVEL ${now}`, 'big', 3.5);
         this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks (${bindLabel('perks')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
+        if (picksEarned(now) > picksEarned(before)) this.onboarding.levelUp(); // (the first time: a card with the perks key)
         this.audio.stinger?.('car_part');
       }
     }
@@ -1574,6 +1577,7 @@ export class Game {
       },
       pickup(item, count) {
         g.ui.pickup(item, count);
+        g.onboarding.pickup(item);
         g.audio.playLocal('pickup');
       },
       zombieDie(id, yaw, flags) {
@@ -1628,7 +1632,6 @@ export class Game {
           saveHeardSeen(g.heardSeen);
           g.ui.notify(sh.label, 'toast', 4);
         }
-        g.mapShown = true; // (a simple-HUD run's minimap comes up for its ring: firstrun.js mapNeeded)
         if (sh.show) g.ui.hud?.minimap?.heard(loud, ids);
       },
       ping(pid, kind, x, y, z) {
@@ -1931,12 +1934,9 @@ export class Game {
         this.introPending = false;
         ui.notify(`DAY ${arg}`, 'big', 5);
         ui.notify('Your car died on Route 9. Find the supplies to fix it - before the dark finds you.', 'sub', 6);
-        if (isFirstRun(loadRecord())) {
-          // a player's first run opens on the goal (#270): turned to face the car, the parts it needs in one line,
-          // and where the nearest is rumoured to be already on the compass (buildMarkers)
-          this.faceCar = FACE_CAR_WAIT;
-          ui.notify(`${goalLine(SUPPLY_NEED.reduce((a, n) => a + n, 0))}. The compass shows where each is rumoured to be.`, 'toast', 8);
-        }
+        // a new player's first run opens on the goal (#270): turned to face the car, and the walkthrough's first
+        // card says what it needs (onboarding.js)
+        if (isFirstRun()) this.faceCar = FACE_CAR_WAIT;
         break;
       case NOTIFY.PLAYER_JOINED:
       case NOTIFY.PLAYER_LEFT:
@@ -3715,6 +3715,7 @@ export class Game {
     this.cards.update(dt); // (Dead Hand: the practice table's clock and the computer's moves, the screen shut on a fall)
     // HUD
     this.updateHud(dt, s, aiming, wdef);
+    this.onboarding.update(dt);
     this.keyHints.update(dt);
     if (this.faceCar > 0) this.turnToCar(dt);
     // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out)
@@ -4298,13 +4299,7 @@ export class Game {
     this.buildMarkers(h, rp);
     // the minimap: only while it is on screen (the leaderboard, and Friends docked over it, are a side sheet in a
     // game, with the minimap still in view beside them)
-    h.simpleHud = simpleHud(this.earlyRuns, this.settings);
-    if (h.simpleHud && !this.mapShown) {
-      const car = this.world.car;
-      this.mapShown = mapNeeded({ dayPhase: g.phase === PHASE.DAY && !g.finale, dusk: g.timeLeft <= DUSK_WARNING, dist: Math.hypot(car.x - rp.x, car.z - rp.z) });
-    }
-    h.noMap = h.simpleHud && !this.mapShown;
-    h.minimap = !h.noMap && !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
+    h.minimap = !h.zombie && !this.ui.inventoryOpen && !this.ui.mapOpen && !(this.ui.boardOpen && this.ui.board.lobbyMode) && !this.ui.bestiaryOpen && !this.ui.cardsOpen ? this.mapData(counts) : null;
     h.cards = this.cards.hud(); // (Dead Hand under way with its screen shut, or a teammate's ask)
     this.ui.updateHud(h);
     this.pushInventoryToUI(false);
@@ -4452,6 +4447,8 @@ export class Game {
       cm.push({ kind: 'ping', bearing: bearing(p.x - rp.x, p.z - rp.z), icon: glyph('ping'), label: `${Math.round(d)}m`, cls: 'p' + p.kind, pinEdge: true });
       if (this.project(p.x, p.y + 0.4, p.z, sc)) wm.push({ kind: 'ping', x: sc.x, y: sc.y, icon: glyph('ping'), name: `${p.name}: ${PING_LABEL[p.kind]}`, sub: `${Math.round(d)}m`, cls: 'p' + p.kind + (fade < 1 ? ' fading' : ''), scale: 1 });
     }
+    // a new player's walkthrough: the zombie coming for them, the tree or rock to hit (onboarding.js, last frame's)
+    for (const m of this.onboarding.marks) wm.push(m);
     // the car when it matters (finale, or carrying supplies back)
     if ((g.finale || h.objective?.anyCarried || g.suppliesDone) && dCar > 10 && this.project(car.x, car.y + 2.2, car.z, sc)) {
       wm.push({ kind: 'car', x: sc.x, y: sc.y, icon: carIcon, name: g.finale ? (g.escapeReady ? 'GET IN' : g.escapeStalled ? 'Engine stalled' : `Defend the ${W.thing}`) : W.your, sub: `${Math.round(dCar)}m`, cls: g.finale ? 'urgent' : '', scale: 0.95 });
