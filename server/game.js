@@ -642,6 +642,17 @@ export class Game {
     this.log(`hold ${p.name}: ${handoff ? 'from the last server' : 'dropped'}, ${grace} s to come back`);
   }
 
+  // A player's account or browser has joined again while their old socket is still open here: that socket is let go -
+  // closed, as one a newer join replaced, and nothing it still sends counts - and they are held for resume to take over.
+  takeOver(p) {
+    const old = p.session;
+    this.sessions.delete(old);
+    old.player = null;
+    old.conn.replace?.('You joined this game again from another page.');
+    this.hold(p, { quiet: true });
+    this.log(`take over ${p.name}: joined again while their old socket was still open`);
+  }
+
   // a held player is back (a JOIN from the same account or browser): this session takes over their body
   resume(session, p) {
     const moved = p.away?.handoff;
@@ -839,9 +850,15 @@ export class Game {
     // back from a drop inside the grace minute, or from a deploy: their own body (onClose / hold). (A guest by the
     // hash of their browser id, never the id: it is the key to their leaderboard record, and a deploy saves this.)
     const key = account ? `a:${account.id}` : UUID_RE.test(pid) ? `g:${idKey(pid)}` : '';
+    // ...or, in a full game, back before the game has even seen them go: their old link is dead but its socket has not
+    // closed here yet (the page notices a lost connection long before the server does), and it still fills their seat.
+    // This one takes the body over, and the old socket is let go (takeOver; Room.mayComeBack let it in). (With a seat
+    // free, the same browser in another tab is a player of its own, as ever)
     if (key) {
+      const full = this.players.size >= this.maxPlayers;
       for (const q of this.players.values()) {
-        if (!q.away || q.rejoinKey !== key) continue;
+        if (q.rejoinKey !== key || (!q.away && !full)) continue;
+        if (!q.away) this.takeOver(q);
         q.rec ||= this.records.enter(pid, q.name, account); // (one brought over from the last server has none here yet)
         return this.resume(session, q);
       }

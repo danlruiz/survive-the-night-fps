@@ -294,8 +294,11 @@ const app = uWS.App();
 const perIp = new Map(); // address -> sockets it has open
 const EARLY_MAX = 8; // messages kept for a socket that is still waiting for its seat (/ws open)
 
-// A game socket's seat in its game (d.code), or in whichever a quick join picks - or it is told why not, and closed
-function seat(ws) {
+const KNOCK_MS = 1000; // how long a socket at a full game has to send its JOIN (seat): a page sends it as the socket opens
+// A game socket's seat in its game (d.code), or in whichever a quick join picks - or it is told why not, and closed.
+// join: its JOIN, once it has sent it. At a full game the seat waits for that (d.knocked): it may be one of the game's
+// own players coming back while their old socket is still open here, who is let in (Room.mayComeBack)
+function seat(ws, join = null) {
   const d = ws.getUserData();
   let reason = 0;
   let room = null;
@@ -303,7 +306,15 @@ function seat(ws) {
   else if (CONN_PER_IP && (perIp.get(d.ip) || 0) >= CONN_PER_IP) reason = REJECT_REASON.FULL;
   else {
     room = d.code ? lobby.find(d.code, d.ip) : lobby.quick();
-    const slot = room ? room.attach(ws) : -1;
+    if (room?.full && d.code && !join && !d.knocked) {
+      d.knocked = true;
+      d.early = [];
+      setTimeout(() => {
+        if (d.early && !d.room) seat(ws, new Uint8Array(0)); // (never said who it is: turned away, or seated if there is room now)
+      }, KNOCK_MS);
+      return;
+    }
+    const slot = room ? room.attach(ws, join) : -1;
     if (slot >= 0) {
       d.room = room;
       d.slot = slot;
@@ -363,7 +374,7 @@ app.ws('/ws', {
     // up; when what is there reads as "Connection: close, all sent" it closes the socket, straight after open (close
     // code 1006, 0 ms). Fixed upstream in uNetworking/uWebSockets#1929. (scripts/test-session-socket.js)
     const wait = user || restoring ? Promise.all([user, restoring]).then(([u]) => u, () => null) : null;
-    res.upgrade({ ip, code, user: null, wait, early: null, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
+    res.upgrade({ ip, code, user: null, wait, early: null, knocked: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
   },
   open: (ws) => {
     const d = ws.getUserData();
@@ -375,8 +386,8 @@ app.ws('/ws', {
       d.wait = d.early = null;
       if (!early) return; // (closed while it waited)
       d.user = user;
-      seat(ws);
-      for (const bytes of early) if (d.room) hear(ws, bytes); // (no room: turned away, and closed by now)
+      seat(ws, early[0] || null);
+      for (const bytes of early) if (d.room) hear(ws, bytes); // (no room: turned away, and closed by now; or knocking: seat)
     });
   },
   message: (ws, message, isBinary) => {
@@ -388,6 +399,14 @@ app.ws('/ws', {
     netMetrics.wsIn(gameInChannel(bytes), bytes.byteLength);
     const d = ws.getUserData();
     if (!d.early) return hear(ws, bytes);
+    if (d.knocked && !d.wait) {
+      // its JOIN, at a full game: one of its own players coming back gets a seat (seat), anyone else is turned away
+      const join = new Uint8Array(message.slice(0));
+      d.early = null;
+      seat(ws, join);
+      if (d.room) hear(ws, join);
+      return;
+    }
     // (a client sends its JOIN and then waits for the answer: more than a few messages before it is not one of ours)
     if (d.early.length >= EARLY_MAX) return ws.end(1008, 'Too much before joining');
     d.early.push(new Uint8Array(message.slice(0)));
