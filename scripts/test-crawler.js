@@ -3,7 +3,8 @@
 // already wound up to go, and each is watched until it is on them or 6 s are up:
 //   - a survivor who stands still has one on their face from every one of them: it comes down at head height, not on
 //     their chest as a leaper does, and stays there, just in front of their eyes, while it has them
-//   - on them it gnaws (latchDmg every latchRate s), and it lets go when it has had latchMax s
+//   - it does not bite or claw anyone, on their face or off it: all it does is blind them, and it lets go when it
+//     has had latchMax s
 //   - mashing Space claws it off in about a second, a single tap does not, and once it is off it reels and does not
 //     take them again at once
 //   - a teammate's blow knocks it off, and it does not go for a face that already has something on it
@@ -65,7 +66,7 @@ function setup(seed) {
     c.input(0);
     game.update();
   }
-  // every bite it lands (godMode keeps the survivor's health where it is)
+  // anything it does to anyone's health (it should not: it only blinds them)
   const bites = [];
   const dp = game.damagePlayer.bind(game);
   game.damagePlayer = (p, amount, src, ...rest) => {
@@ -150,7 +151,7 @@ function trial(env, spot, d, rng) {
   return r;
 }
 
-const runs = { tried: 0, latched: 0, onFace: 0, gnaw: [], time: [], mash: { n: 0, ok: 0, t: [] }, tap: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
+const runs = { tried: 0, latched: 0, onFace: 0, bites: 0, time: [], mash: { n: 0, ok: 0, t: [] }, tap: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
 
 for (const seed of seeds) {
   const env = setup(seed);
@@ -183,11 +184,10 @@ for (const seed of seeds) {
     if (ok) runs.onFace++;
   }
 
-  // it gnaws while it holds on, and lets go once it has had latchMax s
+  // it holds on without harming them, and lets go once it has had latchMax s
   {
     const r = trial(env, spot, 5, rng);
     if (r.latched) {
-      bites.length = 0;
       const t0 = game.tick * DT;
       let released = -1;
       for (let i = 0; i < (DEF.latchMax + 2) / DT; i++) {
@@ -198,9 +198,8 @@ for (const seed of seeds) {
           break;
         }
       }
-      runs.gnaw.push(bites.length);
       runs.time.push(released);
-      if (process.env.VERBOSE) console.log(`      seed ${seed}: ${bites.length} bites of ${bites[0]?.amount.toFixed(1)} hp, let go after ${released.toFixed(2)} s`);
+      if (process.env.VERBOSE) console.log(`      seed ${seed}: let go after ${released.toFixed(2)} s`);
     }
   }
 
@@ -270,13 +269,14 @@ for (const seed of seeds) {
     if (!leapt) runs.taken.ok++;
     game.zm.releaseLink(leaper);
   }
+  runs.bites += bites.length;
 }
 
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
 check('a survivor standing still has one on their face from every crawler that springs at them', runs.tried >= seeds.length * TRIALS && runs.latched === runs.tried, `${runs.latched} of ${runs.tried} (${pct(runs.latched, runs.tried)})`);
 check('...held at their head, just in front of their eyes (not on their chest, as a leaper)', runs.latched > 0 && runs.onFace === runs.latched, `${runs.onFace} of ${runs.latched}`);
-const expBites = DEF.latchMax / DEF.latchRate;
-check(`on them it gnaws (every ${DEF.latchRate} s) and lets go after ${DEF.latchMax} s`, runs.gnaw.length === seeds.length && runs.gnaw.every((n) => n >= expBites - 2 && n <= expBites + 2) && runs.time.every((t) => t >= DEF.latchMax - 0.2 && t <= DEF.latchMax + 0.5), `bites ${runs.gnaw.join('/')}, let go after ${runs.time.map((t) => t.toFixed(2)).join('/')} s`);
+check(`it holds on and lets go after ${DEF.latchMax} s`, runs.time.length === seeds.length && runs.time.every((t) => t >= DEF.latchMax - 0.2 && t <= DEF.latchMax + 0.5), `let go after ${runs.time.map((t) => t.toFixed(2)).join('/')} s`);
+check('in all of that it never once hurt anyone: it does not attack, it only blinds', runs.latched > 0 && runs.bites === 0, `${runs.bites} hits`);
 check('mashing Space claws it off in about a second; off, it reels and does not take them again as they run', runs.mash.n >= seeds.length && runs.mash.ok === runs.mash.n, `${runs.mash.ok} of ${runs.mash.n} (${runs.mash.t.map((t) => t.toFixed(2)).join('/')} s)`);
 check('...and a single tap does not', runs.tap.n >= seeds.length && runs.tap.ok === runs.tap.n, `${runs.tap.ok} of ${runs.tap.n}`);
 check("a teammate's blow knocks it off", runs.struck.n >= seeds.length && runs.struck.ok === runs.struck.n, `${runs.struck.ok} of ${runs.struck.n}`);

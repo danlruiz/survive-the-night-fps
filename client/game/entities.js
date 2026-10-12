@@ -928,8 +928,8 @@ export class Entities {
           v.object.position.set(e.rx, e.ry, e.rz);
           v.object.rotation.y = e.ryaw;
           if (e.ztype === ZTYPE.CRAWLER) {
-            // on somebody's face (ZF.LINK: whose): it clings there. On ours it is not drawn - it is right in front of the
-            // eyes, and what we see of it is the dark (the HUD's fx-latch)
+            // on somebody's face (ZF.LINK: whose): it clings there. On ours it is not drawn here - it is right in front of
+            // the eyes, and what we see of it is its belly, drawn in the view (facelatch.js)
             v.setLatched?.(e.q[6] !== 0);
             v.object.visible = !(e.q[6] !== 0 && e.q[6] === g.myId && e.q[4] === ZANIM.ATTACK);
           }

@@ -55,7 +55,7 @@ export const ALPHA_SCALE = 2.0;
 // Stocky, grizzled grey, the black mask over its eyes and the ringed tail, half of it gnawed bald; its hand-like
 // forepaws grown long hooked claws (claws: x a dog's), to take hold of a face. Ears short and round (earLen)
 const RACCOON = { name: 'raccoon', fur: 0x8a847a, saddle: 0x3a3632, belly: 0xb8b0a0, ears: 'up', earLen: 0.042, mask: true, rings: true, tailBulk: 1.9, bulk: 1.18, mange: 0.52, claws: 1.9, tornEar: -1, ribs: 1 };
-export const RACCOON_SCALE = 0.56;
+export const RACCOON_SCALE = 0.7;
 // ...and squat: wider, much lower on its legs and shorter from nose to tail than a dog (x, y, z of the drawn size)
 const RACCOON_SHAPE = [1.15, 0.6, 0.75];
 
@@ -617,7 +617,7 @@ class DogInstance {
       this.add('fu' + s, W, 0.9, 0, sg * 0.55);
       this.add('fl' + s, W, -0.9 - gnaw * 0.2);
       this.add('fp' + s, W, 0.9);
-      this.add('hu' + s, W, -0.7, 0, sg * 0.5);
+      this.add('hu' + s, W, -0.5, 0, sg * 1.0);
       this.add('hk' + s, W, 0.6);
       this.add('hh' + s, W, -0.4);
     }

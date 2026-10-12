@@ -108,6 +108,7 @@ import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
 import { FairClient } from './fair.js';
 import { HandcarClient } from './handcar.js';
+import { FaceLatch } from './facelatch.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
@@ -2297,6 +2298,7 @@ export class Game {
         case 'shove':
           // a shove at the leaper on us: the hands thrust (the viewmodel), the palms thump into it, the HUD's key jolts
           this.vm.shove(ev.v);
+          this.faceLatch?.jolt(); // (a crawler on our face jolts off it)
           this.shoves = (this.shoves | 0) + 1;
           a.playLocal('hit', { volume: 0.3 + 0.25 * ev.v, rate: 0.75 });
           this.camShake = Math.min(1, (this.camShake || 0) + 0.05);
@@ -3490,6 +3492,10 @@ export class Game {
     const prying = self.holdKind === HOLD.SEARCH && this.entities.ents.get(this.holding);
     vmState.pry = !!(prying && this.bootOf(prying)?.shut && pryWeapon(weaponNow));
     this.vm.update(dt, vmState);
+    // a crawler on our face: the animal itself over our eyes, its belly to them (built the first time one lands)
+    const latched = vmState.pinned && !s.zombie && !cine && !this.debugCam && !!this.latchedBy();
+    if (latched && !this.faceLatch) this.faceLatch = new FaceLatch(this.renderer.vmScene);
+    this.faceLatch?.update(dt, latched, s.shove, time);
     if (this.vm.itemId === ITEM.NUNCHAKU && this.vm.nk) nkSounds(this.audio, this.vm.nk.core, null, this.nkSt, time);
     this.updateSelfBody(dt, s, rp, time, hspeed);
     if (this.vmMuzzleT > 0) {
@@ -4182,8 +4188,6 @@ export class Game {
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
     h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
-    // ...by a crawler, on their face: they cannot see (the HUD's fx-latch), less so the further they have clawed it off
-    h.latch = h.shove >= 0 && this.latchedBy() ? 1 - 0.45 * s.shove : 0;
     h.shoves = this.shoves | 0;
     const w = currentWeapon(s);
     const def = WEAPONS[w];

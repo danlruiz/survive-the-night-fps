@@ -1194,7 +1194,7 @@ export class Zombies {
 
     // stop to attack
     let attacking = false;
-    if (target && z.state !== 7 && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target))) {
+    if (target && z.state !== 7 && !def.noMelee && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target))) {
       attacking = true;
       dx = tx - z.x;
       dz = tz - z.z;
@@ -2153,10 +2153,14 @@ export class Zombies {
       z.animT = 0.2;
       s.pinned = 1;
       if (z.attackCd <= 0) {
+        // (a crawler does no harm itself: it holds on and chitters while the rest of the dead come for them)
         z.attackCd = latch ? def.latchRate : 0.45;
-        g.damagePlayer(p, (latch ? def.latchDmg : 5.5) * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
-        g.impact(IMPACT.BLOOD, s.x, s.y + (latch ? 1.5 : 1), s.z);
-        if (latch && g.rng() < 0.3) g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 25);
+        if (latch) {
+          if (g.rng() < 0.3) g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 25);
+        } else {
+          g.damagePlayer(p, 5.5 * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
+          g.impact(IMPACT.BLOOD, s.x, s.y + 1, s.z);
+        }
       }
       if (z.linkT > (latch ? def.latchMax : 5) || z.linkDmg > z.maxHp * 0.45) this.releaseLink(z);
       return true;
@@ -2300,7 +2304,7 @@ export class Zombies {
         break;
       case ZTYPE.CRAWLER:
         // (not at whoever already has something on them: it goes for a face that is free)
-        if (z.specialCd <= 0 && z.los && dist < def.latchRange && dist > 1.6 && z.vy === 0 && !target.state.pinned && !target.state.pulled) {
+        if (z.specialCd <= 0 && z.los && dist < def.latchRange && z.vy === 0 && !target.state.pinned && !target.state.pulled) {
           windup(0.35, 2, SOUND.CRAWLER_CHITTER);
           return true;
         }
@@ -2435,10 +2439,14 @@ export class Zombies {
         h.pinnedBy = z.id;
         g.track?.grabbed(h, 'pinned');
         g.director?.grabbed(g, h);
-        const latch = z.ztype === ZTYPE.CRAWLER;
-        if (latch) z.attackCd = z.def.latchRate; // (its first bite is the one it lands with)
-        g.sound(latch ? SOUND.CRAWLER_CHITTER : SOUND.LEAPER_SCREECH, z.x, z.y + 1, z.z, 40);
-        g.damagePlayer(h, latch ? 5 : 10, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
+        // (a crawler lands on the face and does no harm: being blind is the harm)
+        if (z.ztype === ZTYPE.CRAWLER) {
+          z.attackCd = z.def.latchRate;
+          g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y + 1, z.z, 40);
+        } else {
+          g.sound(SOUND.LEAPER_SCREECH, z.x, z.y + 1, z.z, 40);
+          g.damagePlayer(h, 10, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
+        }
         return true;
       }
     }
