@@ -37,7 +37,8 @@ npm run dev        # game server on :3000 + Vite dev server on :5173 -> open htt
 `npm run dev` gives the server a database of its own: PGlite (Postgres compiled to WebAssembly, run inside the
 server process) kept in `data/pglite`, migrated on start - accounts, friends, messages and match records all work
 with nothing to install. Point `DATABASE_URL` at a real Postgres to use that instead, or set it empty
-(`DATABASE_URL= npm run dev`) for no database at all.
+(`DATABASE_URL= npm run dev`) for no database at all. Every player on it may use the admin chat commands (`/give`,
+`/tp`, ...), signed in or not (`DEV_ADMIN=0 npm run dev` turns that off); a production server never allows that.
 
 Production:
 
@@ -69,7 +70,8 @@ Several servers behind the proxy (`npm run proxy`, docs/scaling.md): `CLUSTER=1`
 Testing only: `HANDOFF_STATE_VERSION` and `CLIENT_BUILD` (a server of another build), `GAME_IDLE_SECONDS` (90: how long an empty game lasts), `JOIN_WAIT_SECONDS` (15: how long a socket
 may hold a seat without joining), `LOBBY_LIMITS=0` (no per-address allowance on making games or asking for codes,
 and no one-game-each: load tests), `DAY_SECONDS`, `NIGHT_SECONDS`, `START_DAY`, `GODMODE=1` (survivors take no damage), `DEV_ADMIN=1`
-(every player may use admin commands when `NODE_ENV` is `development` or `test`; other environments ignore it).
+(every player may use admin commands when `NODE_ENV` is `development` or `test`; other environments ignore it.
+`npm run dev` sets it, so the chat commands always work locally; `DEV_ADMIN=0 npm run dev` plays without them).
 
 A player (a signed-in account, or a guest's address) may have one game they made going at a time. The most games at
 once over every server is a setting in the database, so it changes without a deploy or a restart (the servers read it
@@ -296,7 +298,7 @@ hints and controls lists name whatever the keys are now.
 | E | Interact: pick up, install supplies, feed a campfire, pour fuel into a generator, repair, man the mounted gun. **Hold** to search containers, revive a downed teammate, start the engine, drive away once it is warm, switch a generator off or on, lift the mounted gun. Carrying the mounted gun: set it up where you face |
 | Melee | Hit trees for sticks & planks, wrecks for scrap |
 | Z / middle mouse | Ping: go here / danger (aim at a zombie) / loot (aim at an item or container) |
-| L | Leaderboard: every player's kills, nights survived, wins and revives over all their games, and yours. Click a column to sort by it |
+| L | Leaderboard: every player's nights survived, revives, wins and kills over all their games, and yours. It opens sorted by nights survived; click a column to sort by it |
 | M | Field map. Click to set your own waypoint (on a place's name or yard: that place); click it again, right-click or X to clear it. It shows on the compass and in the world with its distance until you get there, and your team sees it too: everyone's waypoint is a teal flag with their name on the compass, in the world and on the map |
 | F | Flashlight (battery drains, recharges when off; a beam held on a Shade keeps it frozen) |
 | G (hold) | Drop current weapon: held a moment, so a stray press in a fight keeps your gun (Settings -> Hold to drop weapon off: a press drops it) |

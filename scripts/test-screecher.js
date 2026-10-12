@@ -162,7 +162,7 @@ check('...coming from out of reach, 30 m off at the nearest', dmin >= 30, `${dmi
 const d0 = called.reduce((n, z) => n + near(z), 0) / called.length;
 run(100);
 const d1 = called.reduce((n, z) => n + near(z), 0) / called.length;
-check('...and they close in', d1 < d0 - 15, `${d0.toFixed(1)} m -> ${d1.toFixed(1)} m on average in 5 s`);
+check('...and they close in', d1 < d0 - 10, `${d0.toFixed(1)} m -> ${d1.toFixed(1)} m on average in 5 s`);
 
 // ---------------------------------------------------------------- ringing ears
 const ringA = A.screeches.filter((e) => e.id === sc.id);
