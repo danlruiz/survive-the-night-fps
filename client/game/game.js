@@ -150,6 +150,8 @@ import { createPickup } from '../render/models/pickups.js';
 import { createSupplyCrate, createProjectile } from '../render/models/misc.js';
 import { itemIcon, glyph } from '../ui/icons.js';
 import { recordRun } from '../ui/records.js';
+import { isFirstRun, finishOnboarding, yawTowards } from '../ui/firstrun.js';
+import { Onboarding } from './onboarding.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
 import { screenLeft } from '../ui/screentabs.js';
@@ -232,6 +234,8 @@ const mmss = (t) => {
   const n = Math.ceil(t);
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 };
+const FACE_CAR_NEAR = 80; // m: a first run's opening look turns to the car once we stand this near it (turnToCar)...
+const FACE_CAR_WAIT = 10; // ...within this many seconds of the run's start, or not at all
 // '1 Planks, 1 Nails': what a repair takes, for its prompt
 const costText = (cost) =>
   Object.entries(cost)
@@ -395,6 +399,7 @@ export class Game {
     this.joinHold = false; // the mouse and the screen were asked for on the click on Join, and the join is not done (holdForJoin)
     this.input.onRequestLock = () => this.keyGuard.engage(this.joinHold);
     this.keyHints = new KeyHints(this); // names the key on the HUD at the moment it would help
+    this.onboarding = new Onboarding(this); // a new player's walkthrough, and the first-time tips (onboarding.js)
     this.conn = new Connection({
       snapshot: (r) => this.onSnapshot(r),
       world: (seed, act) => this.onWorld(seed, act),
@@ -1264,6 +1269,7 @@ export class Game {
     if (g.phase === PHASE.DAY || g.phase === PHASE.NIGHT || g.phase === PHASE.CROSSING) {
       if (this.runOn) return;
       this.runOn = true;
+      this.onboarding.reset(); // (a new player's walkthrough looks at this run from its start: onboarding.js)
       // how much of the run was played before we saw it: nothing when it starts under us
       const gone = g.phase === PHASE.DAY && g.day === 1 ? g.phaseLen - g.timeLeft : Infinity;
       // kills0: our score when the run began. The server's count can carry over from the run before
@@ -1273,6 +1279,7 @@ export class Game {
       const run = this.run;
       this.run = null;
       if (g.phase !== PHASE.VICTORY && g.phase !== PHASE.GAMEOVER) return;
+      finishOnboarding(); // (a run played to its end: the walkthrough is not shown again, firstrun.js)
       if (!run) {
         this.runReport = { late: true };
         return;
@@ -1287,6 +1294,19 @@ export class Game {
         team: this.players.size,
       });
     }
+  }
+
+  // The first look of a player's first run (#270): at the car they came in, once our own state is at the start beside
+  // it. The look is ours to set: the server takes the yaw our commands send.
+  turnToCar(dt) {
+    this.faceCar -= dt;
+    if (!this.prediction.hasServerState || !this.self.alive) return;
+    const s = this.prediction.state;
+    const car = this.world.car;
+    if (Math.hypot(car.x - s.x, car.z - s.z) > FACE_CAR_NEAR) return;
+    this.faceCar = 0;
+    this.input.yaw = yawTowards(s.x, s.z, car.x, car.z);
+    this.input.pitch = 0;
   }
 
   onInventory(r) {
@@ -1453,6 +1473,7 @@ export class Game {
       if (now > before) {
         this.ui.notify(`LEVEL ${now}`, 'big', 3.5);
         this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks (${bindLabel('perks')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
+        if (picksEarned(now) > picksEarned(before)) this.onboarding.levelUp(); // (the first time: a card with the perks key)
         this.audio.stinger?.('car_part');
       }
     }
@@ -1556,6 +1577,7 @@ export class Game {
       },
       pickup(item, count) {
         g.ui.pickup(item, count);
+        g.onboarding.pickup(item);
         g.audio.playLocal('pickup');
       },
       zombieDie(id, yaw, flags) {
@@ -1912,6 +1934,9 @@ export class Game {
         this.introPending = false;
         ui.notify(`DAY ${arg}`, 'big', 5);
         ui.notify('Your car died on Route 9. Find the supplies to fix it - before the dark finds you.', 'sub', 6);
+        // a new player's first run opens on the goal (#270): turned to face the car, and the walkthrough's first
+        // card says what it needs (onboarding.js)
+        if (isFirstRun()) this.faceCar = FACE_CAR_WAIT;
         break;
       case NOTIFY.PLAYER_JOINED:
       case NOTIFY.PLAYER_LEFT:
@@ -3690,7 +3715,9 @@ export class Game {
     this.cards.update(dt); // (Dead Hand: the practice table's clock and the computer's moves, the screen shut on a fall)
     // HUD
     this.updateHud(dt, s, aiming, wdef);
+    this.onboarding.update(dt);
     this.keyHints.update(dt);
+    if (this.faceCar > 0) this.turnToCar(dt);
     // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out)
     const canDrop = !!self.alive && !s.zombie && !s.downed && this.input.enabled;
     if (this.dropHold.update(dt, s.slot, canDrop) === 'drop' && s.weapons[s.slot] && s.slot !== SLOT_THROW) this.conn.action(ACT.DROP_WEAPON, s.slot);
@@ -4420,6 +4447,8 @@ export class Game {
       cm.push({ kind: 'ping', bearing: bearing(p.x - rp.x, p.z - rp.z), icon: glyph('ping'), label: `${Math.round(d)}m`, cls: 'p' + p.kind, pinEdge: true });
       if (this.project(p.x, p.y + 0.4, p.z, sc)) wm.push({ kind: 'ping', x: sc.x, y: sc.y, icon: glyph('ping'), name: `${p.name}: ${PING_LABEL[p.kind]}`, sub: `${Math.round(d)}m`, cls: 'p' + p.kind + (fade < 1 ? ' fading' : ''), scale: 1 });
     }
+    // a new player's walkthrough: the zombie coming for them, the tree or rock to hit (onboarding.js, last frame's)
+    for (const m of this.onboarding.marks) wm.push(m);
     // the car when it matters (finale, or carrying supplies back)
     if ((g.finale || h.objective?.anyCarried || g.suppliesDone) && dCar > 10 && this.project(car.x, car.y + 2.2, car.z, sc)) {
       wm.push({ kind: 'car', x: sc.x, y: sc.y, icon: carIcon, name: g.finale ? (g.escapeReady ? 'GET IN' : g.escapeStalled ? 'Engine stalled' : `Defend the ${W.thing}`) : W.your, sub: `${Math.round(dCar)}m`, cls: g.finale ? 'urgent' : '', scale: 0.95 });
