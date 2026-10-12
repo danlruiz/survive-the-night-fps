@@ -810,7 +810,7 @@ export class Entities {
     }
     const fx = this.g.effects;
     const def = ZOMBIE_DEFS[e.ztype];
-    if (Math.random() < dt * 12) fx.smokerWisp(e.rx, e.ry, e.rz, def.height, def.radius * 0.8);
+    if (Math.random() < dt * 24) fx.smokerWisp(e.rx, e.ry, e.rz, def.height, def.radius * 0.8);
     if (e.trailX === undefined || Math.hypot(e.rx - e.trailX, e.rz - e.trailZ) > 3) {
       // (first seen, or put somewhere new: the trail starts here)
       e.trailX = e.rx;
