@@ -7,6 +7,8 @@
 //   - its blow sets a survivor alight: they burn and keep burning until put out; holding Space puts it out in about
 //     PLAYER_FIRE.time, a teammate beside them holding theirs as well halves that, a tap does not do it, going down
 //     puts it out
+//   - killed, it leaves a pool of fire where it fell: the dead burn in it, a survivor who walks in is set alight (and
+//     again, put out while still in it), it burns out
 //   - fire does it no harm (a molotov's status, a campfire), the sun does
 //   - the clients hear all of it: a burning survivor's STATUS field, their own burning bit and how far it is put out,
 //     a burning piece's BURN field
@@ -14,7 +16,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT, PSTATUS, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, SLOT_BUILD, PHASE } from '../shared/constants.js';
-import { ZTYPE, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, ITEM, STRUCT_FIRE, PLAYER_FIRE, structBurns } from '../shared/defs.js';
+import { ZTYPE, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, ITEM, AREA, STRUCT_FIRE, PLAYER_FIRE, structBurns } from '../shared/defs.js';
 import { makeBox, COL } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
 
@@ -288,6 +290,41 @@ check('the burning survivor hears it (self status) and the others see it (STATUS
   check('going down puts it out', !pa.burning);
   game.revive(pa, null);
   pa.hp = pa.maxHp;
+}
+
+// ---------------------------------------------------------------- the fire it dies in
+{
+  pa.burning && game.putOut(pa);
+  put(pa, X + 8, Z);
+  const fx = X - 4;
+  const f = game.zm.spawn(ZTYPE.FLAMMER, fx, Z, { horde: true });
+  const before = game.areas.length;
+  game.combat.killZombie(f, pa, {});
+  const pool = game.areas[game.areas.length - 1];
+  const fd = ZOMBIE_DEFS[ZTYPE.FLAMMER].deathFire;
+  check('a flammer killed leaves a pool of fire where it fell', game.areas.length === before + 1 && pool.atype === AREA.FIRE && pool.setsAlight && Math.hypot(pool.x - fx, pool.z - Z) < 0.5 && pool.radius === fd.radius, `r ${pool?.radius}`);
+  run(1, () => put(pa, X + 8, Z));
+  check('...which the clients see', [...A.store.ents.values()].some((e) => e.kind === ENT.AREA && e.id === pool.id));
+  check('...and a survivor clear of it does not catch', !pa.burning);
+  const w = game.zm.spawn(ZTYPE.WALKER, fx + 0.5, Z, { horde: true });
+  const whp = w.hp;
+  const t = run(2, () => {
+    put(pa, fx + 1, Z);
+    w.x = fx + 0.5;
+    w.z = Z;
+    return pa.burning;
+  });
+  check('one who walks into it is set alight', pa.burning, `after ${t.toFixed(2)} s`);
+  check('...and the dead that walk through it burn', w.dead || w.hp < whp, `${w.hp} of ${whp}`);
+  game.putOut(pa);
+  run(0.2, () => put(pa, fx + 1, Z));
+  check('...put out but still standing in it, they catch again', pa.burning);
+  game.putOut(pa);
+  put(pa, X + 8, Z);
+  run(fd.time + 0.5, () => put(pa, X + 8, Z));
+  check(`...and it burns out (${fd.time} s)`, !game.areas.includes(pool));
+  game.putOut(pa);
+  clearZombies();
 }
 
 // ---------------------------------------------------------------- fireproof, but not sunproof

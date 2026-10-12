@@ -671,6 +671,12 @@ export class Combat {
       // The Bloater bursts, and takes what stands near it along: the dead too. (Burnt out by the dawn sun, it only falls)
       this.explode(z.x, z.y + 1.2, z.z, z.def.blastRadius, { humans: z.def.blastDmg, zombies: 160, structures: z.def.blastStruct, kind: 2, source: z });
     }
+    // The Flammer goes down in a pool of burning fuel: a molotov's fire that also sets alight a survivor who walks in
+    if (z.def.deathFire) {
+      const f = z.def.deathFire;
+      const a = this.spawnArea(AREA.FIRE, z.x, groundAt(g.world, z.x, z.z, z.y + 0.3, 0.2), z.z, f.radius, f.time, null, f.dps);
+      if (a) a.setsAlight = true;
+    }
   }
 
   explode(x, y, z, radius, opts) {
@@ -1112,8 +1118,9 @@ export class Combat {
   spawnArea(atype, x, y, z, radius, life, owner, dps) {
     const g = this.g;
     const e = { kind: ENT.AREA, atype, x, y, z, radius, until: g.time + life, owner: owner || null, dps: dps || 9 };
-    if (!g.spawnEntity(e)) return;
+    if (!g.spawnEntity(e)) return null;
     g.areas.push(e);
+    return e;
   }
 
   updateAreas(dt) {
@@ -1138,7 +1145,12 @@ export class Combat {
         });
         g.dm.scorch(a, dt);
         for (const h of g.players.values()) {
-          if (!h.alive || !h.zombie) continue;
+          if (!h.alive) continue;
+          if (!h.zombie) {
+            // (a flammer's: whoever stands in it catches fire - Game.setAlight - and catches again once put out)
+            if (a.setsAlight && Math.hypot(h.state.x - a.x, h.state.z - a.z) < a.radius && Math.abs(h.state.y - a.y) < 1.2) g.setAlight(h);
+            continue;
+          }
           if (Math.hypot(h.state.x - a.x, h.state.z - a.z) < a.radius) g.damagePlayer(h, a.dps * dt, { kind: KILLER.PLAYER, id: a.owner ? a.owner.id : 0, weapon: ITEM.MOLOTOV, x: a.x, z: a.z });
         }
       } else if (a.atype === AREA.ACID) {

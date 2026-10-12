@@ -625,7 +625,7 @@ export const ZOMBIE_DEFS = {
   // still does). What the survivors built catches from it: every igniteRate s it sets alight a piece within
   // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
   // metal does not burn, and a hammer puts a fire out
-  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, minNight: 10, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire, Space puts out you.', introBrief: 'Set walls and you alight. Hammer the fire, hold Space.' },
+  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, minNight: 10, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire, Space puts out you.', introBrief: 'Set walls and you alight. Hammer the fire, hold Space.' },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
