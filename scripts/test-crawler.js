@@ -1,6 +1,10 @@
-// The crawler (ZTYPE.CRAWLER: server/zombies.js LATCH_*, fireSpecial case 2, special states 2 and 3), against the real
-// server in-process with a survivor driven by real input. Crawlers are put down 4-7 m from the survivor on open ground,
-// already wound up to go, and each is watched until it is on them or 6 s are up:
+// The crawler (ZTYPE.CRAWLER: server/zombies.js LATCH_*, PERCH_*, perch, fireSpecial case 2, special states 2 and 3),
+// against the real server in-process with a survivor driven by real input. A flying squirrel, it waits up trees:
+//   - after a survivor, it makes for a tree near them (not over them), runs up it and clings there, chittering now and
+//     then, and leaves alone a survivor who keeps away from that tree; one who comes close under it it glides down on,
+//     more slowly than a leaper's pounce, and has by the face. A tree cut down under it drops it
+// With no tree to go to it hunts on the ground: crawlers are put down 4-7 m from the survivor on open ground, already
+// wound up to go, with no tree to make for, and each is watched until it is on them or 6 s are up:
 //   - a survivor who stands still has one on their face from every one of them: it comes down at head height, not on
 //     their chest as a leaper does, and stays there, just in front of their eyes, while it has them
 //   - it does not bite or claw anyone, on their face or off it: all it does is blind them, and it lets go when it
@@ -15,7 +19,9 @@ import { Game } from '../server/game.js';
 import { leapAim } from '../server/zombies.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, CMD_DT, PIN_FACE, WALK_SPEED } from '../shared/constants.js';
-import { ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
+import { ZTYPE, ZOMBIE_DEFS, SOUND } from '../shared/defs.js';
+import { COL } from '../shared/collision.js';
+import { fellTree } from '../shared/felling.js';
 import { groundAt, raycastWorld } from '../shared/collision.js';
 
 const seeds = process.argv.slice(2).map(Number).filter((n) => n > 0);
@@ -72,6 +78,13 @@ function setup(seed) {
     c.input(0);
     game.update();
   }
+  // its chitters (game.sound)
+  const calls = [];
+  const snd = game.sound.bind(game);
+  game.sound = (id, x, y, z, ...rest) => {
+    if (id === SOUND.CRAWLER_CHITTER) calls.push({ t: game.tick * DT, y });
+    return snd(id, x, y, z, ...rest);
+  };
   // anything it does to anyone's health (it should not: it only blinds them)
   const bites = [];
   const dp = game.damagePlayer.bind(game);
@@ -79,7 +92,7 @@ function setup(seed) {
     if (src?.ztype === ZTYPE.CRAWLER) bites.push({ t: game.tick * DT, amount });
     return dp(p, amount, src, ...rest);
   };
-  return { game, c, p: game.players.get(c.id), bites };
+  return { game, c, p: game.players.get(c.id), bites, calls };
 }
 
 // open, flat-ish ground around the car's valley: nothing standing within R m at knee or head height, no water
@@ -141,6 +154,7 @@ function trial(env, spot, d, rng) {
   const a = rng() * Math.PI * 2;
   const z = game.zm.spawn(ZTYPE.CRAWLER, spot.x + Math.sin(a) * d, spot.z + Math.cos(a) * d, { horde: true });
   z.specialCd = 0.3;
+  z.treeT = Infinity; // (no tree to make for: on the ground it springs as a leaper does)
   const r = { z, latched: false, leaps: 0, peak: -Infinity };
   let air = false;
   for (let i = 0; i < 6 / DT; i++) {
@@ -156,6 +170,101 @@ function trial(env, spot, d, rng) {
   }
   return r;
 }
+
+// up a tree: a survivor stands TREE_OFF m from a tree with open ground round it and a crawler is put down 20 m off them.
+// It should be up a tree within 15 s, chittering; a survivor who keeps where they are (well away from its tree) for 12 s
+// is left alone; one who then walks in under it is glided down on and had within 5 s
+function treeTrial(env, rng) {
+  const { game, c, p, calls } = env;
+  const w = game.world;
+  const s = p.state;
+  const out = { up: false, tree: null, high: 0, calls: 0, left: true, latched: false, air: 0, felledDrops: false, why: '' };
+  // a tree that stands on open, level ground, with nothing else solid within 9 m of it
+  let tree = null;
+  for (let k = 0; k < 400 && !tree; k++) {
+    const x = (rng() - 0.5) * 2 * (w.half - 40);
+    const z = (rng() - 0.5) * 2 * (w.half - 40);
+    for (const col of w.staticGrid.query(x, z, 30, [])) {
+      if (!(col.flags & COL.TREE) || col.y1 - col.y0 < 10 || w.isDeepWater(col.x, col.z)) continue;
+      const near = w.staticGrid.query(col.x, col.z, 9, []).filter((o) => o !== col && Math.hypot(o.x - col.x, o.z - col.z) < 9 + (o.r || 1));
+      const g0 = w.heightAt(col.x, col.z);
+      let flat = true;
+      for (let a = 0; a < 6.28; a += 0.5) if (Math.abs(w.heightAt(col.x + Math.sin(a) * 8, col.z + Math.cos(a) * 8) - g0) > 1) flat = false;
+      if (!near.length && flat && !game.nav.isBlocked(col.x + 8, col.z)) {
+        tree = col;
+        break;
+      }
+    }
+  }
+  if (!tree) return ((out.why = 'no lone tree'), out);
+  clear(game);
+  s.pinned = s.pulled = 0;
+  s.shove = 0;
+  p.pinnedBy = 0;
+  const put = (d) => {
+    s.x = tree.x + d;
+    s.z = tree.z;
+    s.y = groundAt(w, s.x, s.z, 200, 0.3);
+    s.vx = s.vy = s.vz = 0;
+  };
+  put(12);
+  const z = game.zm.spawn(ZTYPE.CRAWLER, s.x + 20, s.z, { horde: true });
+  calls.length = 0;
+  for (let i = 0; i < 15 / DT && !z.perched; i++) {
+    c.input(0);
+    game.update();
+  }
+  out.up = z.perched;
+  if (!z.perched) return ((out.why = `not up a tree (state ${z.state}, at ${(z.y - w.heightAt(z.x, z.z)).toFixed(1)} m)`), out);
+  out.tree = z.tree;
+  out.high = z.y - (z.tree.y0 + 1);
+  const keep = Math.hypot(s.x - z.tree.x, s.z - z.tree.z);
+  out.keep = keep;
+  for (let i = 0; i < 12 / DT; i++) {
+    c.input(0);
+    game.update();
+    if (s.pinned || !z.perched) out.left = false;
+  }
+  out.calls = calls.filter((k) => k.y > z.tree.y0 + 2).length;
+  // in under it: put 4 m off its trunk on its side, and held there
+  const t = z.tree;
+  s.x = t.x + Math.sin(z.perchA) * 4.5;
+  s.z = t.z + Math.cos(z.perchA) * 4.5;
+  s.y = groundAt(w, s.x, s.z, 200, 0.3);
+  let airT = 0;
+  for (let i = 0; i < 5 / DT; i++) {
+    c.input(0);
+    game.update();
+    if (z.state === 2) airT += DT;
+    if (z.state === 3 && s.pinned === PIN_FACE && p.pinnedBy === z.id) {
+      out.latched = true;
+      break;
+    }
+  }
+  out.air = airT;
+  game.zm.releaseLink(z);
+  // another up the same kind of tree, and the tree cut down under it
+  {
+    clear(game);
+    put(12);
+    const z2 = game.zm.spawn(ZTYPE.CRAWLER, s.x + 20, s.z, { horde: true });
+    for (let i = 0; i < 15 / DT && !z2.perched; i++) {
+      c.input(0);
+      game.update();
+    }
+    if (z2.perched) {
+      fellTree(w, z2.tree);
+      for (let i = 0; i < 2 / DT; i++) {
+        c.input(0);
+        game.update();
+      }
+      out.felledDrops = !z2.perched && z2.y - w.heightAt(z2.x, z2.z) < 0.5;
+    }
+  }
+  return out;
+}
+
+const trees = [];
 
 const runs = { tried: 0, latched: 0, onFace: 0, bites: 0, time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
 
@@ -292,8 +401,18 @@ for (const seed of seeds) {
     game.zm.releaseLink(leaper);
   }
   runs.bites += bites.length;
+  {
+    const r = treeTrial(env, mulberry(seed * 31));
+    trees.push(r);
+    if (process.env.VERBOSE) console.log(`      seed ${seed}: up ${r.up} ${r.why} ${r.high?.toFixed?.(1)} m, ${r.keep?.toFixed?.(1)} m off, ${r.calls} chitters, left alone ${r.left}, latched ${r.latched} after ${r.air.toFixed(2)} s in the air, felled drops ${r.felledDrops}`);
+  }
 }
 
+check('after a survivor, it runs up a tree near them (6-32 m off them) and clings there 3.5-6.5 m up', trees.length === seeds.length && trees.every((r) => r.up && r.high >= 3.4 && r.high <= 6.6 && r.keep >= 6 && r.keep <= 33), trees.map((r) => (r.up ? `${r.high.toFixed(1)} m up, ${r.keep.toFixed(1)} m off` : r.why)).join(' / '));
+check('...and chitters up there now and then, so it can be heard', trees.every((r) => r.calls >= 2), trees.map((r) => r.calls).join('/'));
+check('...and leaves alone a survivor who keeps away from its tree', trees.every((r) => r.up && r.left));
+check('...and glides down on one who comes in under it, slower than a leaper springs, and has them by the face', trees.every((r) => r.latched && r.air > 0.6), trees.map((r) => `${r.latched ? 'had them' : 'missed'} after ${r.air.toFixed(2)} s in the air`).join(' / '));
+check('a tree cut down under it drops it', trees.every((r) => r.felledDrops));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
 check('a survivor standing still has one on their face from every crawler that springs at them', runs.tried >= seeds.length * TRIALS && runs.latched === runs.tried, `${runs.latched} of ${runs.tried} (${pct(runs.latched, runs.tried)})`);
 check('...held at their head, just in front of their eyes (not on their chest, as a leaper)', runs.latched > 0 && runs.onFace === runs.latched, `${runs.onFace} of ${runs.latched}`);
