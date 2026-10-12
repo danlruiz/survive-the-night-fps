@@ -439,6 +439,9 @@ function buildSmoker() {
     blister(mb, T, 0.5, yC + 0.12, 0.016, 0.35, vent);
   }
   return { mb, P, A: { jawHang: 0.2 } };
+}
+
+/**
  * The screecher: a woman in what is left of a hospital gown, barefoot, long hair hanging in strings. Her throat has
  * swollen into a raw red sac on either side of the windpipe, lit from inside, and her jaw hangs open wide enough to
  * scream with: that and the white of her eyes is what shows of her in the dark.

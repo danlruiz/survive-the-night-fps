@@ -468,7 +468,7 @@ try {
     BOSS_ALPHA: { bones: 23, sig: '29658d9bc6fe', k: 2, headC: [0, 0.015, -0.06], h: 1.56, w: 0.3, d: 1.34 },
     BOSS_BLOATER: { bones: 24, sig: '1d303268902b', k: 1.6162, headC: [0, 0.1035, 0], h: 2.76, w: 1, d: 1.25 },
     SMOKER: { bones: 23, sig: 'dbb56fc011fa', k: 0.9862, headC: [0, 0.1008, 0], h: 1.82, w: 0.25, d: 0.21 },
-    SCREECHER: { bones: 23, sig: '023897771bdf', k: 0.9846, headC: [0, 0.0882, 0], h: 1.75, w: 0.21, d: 0.19 },
+    SCREECHER: { bones: 23, sig: '023897771bdf', k: 0.9842, headC: [0, 0.0882, 0], h: 1.75, w: 0.21, d: 0.19 },
   };
   // triangles: a boss is alone on the screen, a special comes in threes and fours, dogs in packs and bats in swarms
   const BOSS_TRIS = 12000, DOG_TRIS = 4500, ALPHA_TRIS = 7000, BAT_TRIS = 1500;
