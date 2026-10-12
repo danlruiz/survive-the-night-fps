@@ -26,6 +26,7 @@ import {
   CAR_REACH,
   STAMINA_MAX,
   BTN,
+  MOON,
 } from '../../shared/constants.js';
 import {
   ITEM,
@@ -164,6 +165,11 @@ const HAZE_THIN = 22;
 const FAR_SMALL = 520;
 const FAR_BIG = 1700;
 import { bearing, tonightBrief, PING_LABEL } from '../ui/hud2.js';
+// what the car's radio says once its battery is in (carRadio), word for word as the owner wrote it
+const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';
+// ...in one of two voices (client/audio/radio/, samples.js REC), whose words begin this many seconds in
+const CAR_RADIO_TAKES = ['vo_radio_am_michael', 'vo_radio_af_bella'];
+const CAR_RADIO_WORDS = 1.6;
 
 const WEATHER_TOAST = {
   fog: 'Fog is rolling in',
@@ -1639,6 +1645,29 @@ export class Game {
     return left > 0xf000 ? 0 : left / SERVER_TICK_RATE;
   }
 
+  // the car's battery is in, and its radio comes on: static, then a voice (issue #269: from the first day, the run's
+  // far goal is the airfield past the bridge). The voice is one of two takes, picked at random (CAR_RADIO_TAKES: their
+  // static comes first, the words CAR_RADIO_WORDS s in); a take still loading is waited for a few seconds, and with
+  // no take at all the radio's own static plays at the car. The words are on screen as they are spoken.
+  carRadio() {
+    const key = CAR_RADIO_TAKES[Math.floor(Math.random() * CAR_RADIO_TAKES.length)];
+    const caption = () => {
+      if (this.state !== 'playing') return;
+      this.ui.notify('THE CAR RADIO CRACKLES', 'big', 9);
+      this.ui.notify(`"${CAR_RADIO_LINE}"`, 'sub', 9);
+    };
+    let tries = 0;
+    const play = () => {
+      if (this.state !== 'playing') return;
+      if (this.audio.playRecording?.(key)) return void setTimeout(caption, CAR_RADIO_WORDS * 1000);
+      if (++tries < 16) return void setTimeout(play, 250);
+      const car = this.world.car;
+      if (car) this.audio.play(SOUND.RADIO_TUNE, { x: car.x, y: car.y + 1, z: car.z });
+      setTimeout(caption, 1400);
+    };
+    play();
+  }
+
   onNotify(msg, arg) {
     const ui = this.ui;
     const a = this.audio;
@@ -1649,8 +1678,17 @@ export class Game {
       case NOTIFY.NIGHT_FALLS: {
         // a themed night says so (the same theme the server drew: both work it out from the seed)
         const th = nightTheme(this.seed, arg, this.act);
-        ui.notify(th ? `NIGHT ${arg}: ${th.name.toUpperCase()}` : `NIGHT ${arg}`, 'big', th ? 6 : 4);
-        ui.notify(th ? th.warn : arg <= 1 ? 'The horde is coming to wherever you are. Hold your shelter.' : `Horde ${arg}: more of them than last night.`, 'sub', th ? 6 : 4);
+        const moon = this.global.moon;
+        if (moon === MOON.BLOOD) {
+          // a blood moon leads: it is the thing about tonight (the theme still says what the horde is made of)
+          ui.notify(`NIGHT ${arg}: BLOOD MOON`, 'big', 6);
+          ui.notify('More of them than any night yet, and they will not let up. Hold together.', 'sub', 6);
+          if (th) ui.notify(`${th.name}: ${th.warn}`, 'toast', 8);
+        } else {
+          ui.notify(th ? `NIGHT ${arg}: ${th.name.toUpperCase()}` : moon === MOON.CLEAR ? `NIGHT ${arg}: CLEAR MOON` : `NIGHT ${arg}`, 'big', th ? 6 : 4);
+          ui.notify(th ? th.warn : moon === MOON.CLEAR ? 'A bright moon and a calmer night. Regroup and patch up.' : arg <= 1 ? 'The horde is coming to wherever you are. Hold your shelter.' : `Horde ${arg}: more of them than last night.`, 'sub', th ? 6 : 4);
+          if (th && moon === MOON.CLEAR) ui.notify('A clear moon: a calmer night. Regroup and patch up.', 'toast', 6);
+        }
         a.stinger?.('night');
         break;
       }
@@ -1666,7 +1704,12 @@ export class Game {
       case NOTIFY.HORDE_SOON:
         // one line. What tonight brings (its theme, the new kind, its boss) is on the card under the clock from now to
         // dark (hud2.js Tonight, from Game.tonight), and the objective says where to board up
-        ui.notify('THE HORDE IS COMING', 'danger', 5);
+        // ...unless tonight is a blood moon: that is said out loud (and the sky turns red as the sun goes)
+        if (this.global.moon === MOON.BLOOD) {
+          ui.notify('A BLOOD MOON IS RISING', 'big', 6);
+          ui.notify('Tonight will hurt: more of them, and no let-up. Dig in.', 'sub', 6);
+          a.stinger?.('boss');
+        } else ui.notify('THE HORDE IS COMING', 'danger', 5);
         break;
       case NOTIFY.BOSS: {
         const zd = ZOMBIE_DEFS[arg];
@@ -1703,6 +1746,7 @@ export class Game {
       case NOTIFY.CAR_PART:
         ui.notify(`${ITEM_DEFS[arg]?.name || 'Part'} installed in the ${W.thing}`, 'good', 4);
         a.playLocal('install_part');
+        if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();
         break;
       case NOTIFY.SUPPLIES_DONE:
         ui.notify(this.act === WORLD.MAINLAND ? 'THE PLANE IS FIXED' : 'EVERY SUPPLY IS IN', 'big', 5);
@@ -1892,8 +1936,8 @@ export class Game {
   // null by night, before the horn and in the final stand
   tonight(g) {
     if (g.phase !== PHASE.DAY || g.finale || !g.day || g.timeLeft > DUSK_WARNING) return null;
-    const key = `${this.seed}:${this.act}:${g.day}`;
-    if (this._tonight?.key !== key) this._tonight = { key, rows: tonightBrief(this.seed, g.day, this.act) };
+    const key = `${this.seed}:${this.act}:${g.day}:${g.moon || 0}`;
+    if (this._tonight?.key !== key) this._tonight = { key, rows: tonightBrief(this.seed, g.day, this.act, g.moon) };
     return this._tonight;
   }
 
@@ -3616,6 +3660,7 @@ export class Game {
     // (the mainland's passage was kept lit to the end - its lamps every few metres: down it a little of the light stays,
     // so its timbers, rails and tubs read; the island's mine is as dark as it was)
     this._envOver.under = this.world.size > 1000 && deep > 0 ? this.under * 0.8 : this.under;
+    this._envOver.moon = this.debugMoon ?? (cine ? 0 : g.moon || 0); // tonight's moon (MOON), from the dusk horn to dawn
     this._envOver.fogMul = this.debugFog ?? (cine ? cine.fogMul : 0); // (a cutscene's long shots see further than the day's haze lets a survivor; debugFog: a look-dev camera's)
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
     this.viewDist = Math.max(cine ? cine.far : 0, this.env.fogVisibility + 40); // how far anything is drawn: past it the haze has it

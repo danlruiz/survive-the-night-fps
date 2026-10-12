@@ -524,6 +524,8 @@ export class MapScreen {
     this.bridgeLab = el('div', 'mx-bridge', this.labels);
     el('b', '', this.bridgeLab, 'Route 9 bridge');
     el('span', '', this.bridgeLab, plane ? 'back to Harlan Valley · its last span is down' : `to the Calder Coast · fix the ${W.thing} to cross`);
+    // (on the island's map: somebody's pencil beside it, the run's far goal - issue #269)
+    if (!plane) el('i', 'mx-note', this.bridgeLab, 'to airfield');
     this.bridgeLab.hidden = true;
     if (world.bridge) {
       const b = world.bridge;
