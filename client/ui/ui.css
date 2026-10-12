@@ -1146,10 +1146,6 @@ body {
   animation: stn-shoveMash 0.3s ease-in-out infinite;
 }
 
-.stn-ui .shove.hold .kbd {
-  animation: none;
-}
-
 .stn-ui .shove .kbd.hit {
   animation: stn-shoveHit 0.16s ease-out, stn-shoveMash 0.3s 0.45s ease-in-out infinite;
 }

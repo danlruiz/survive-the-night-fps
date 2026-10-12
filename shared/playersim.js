@@ -83,6 +83,7 @@ export function createPlayerState() {
     pullZ: 0,
     pinned: 0,
     shove: 0, // pinned by a leaper: how far they have shoved it off (SHOVE_*), 0-1
+    burning: 0, // set alight by a flammer (PLAYER_FIRE): no jumping, [Space] beats the flames out (set by the server)
     stunT: 0,
     downed: 0, // incapacitated: crawl, pistol only, waiting for a teammate to revive
     using: 0, // an item in the hands being used (a medkit, a tin: Game.useItem): set by the server, put away here
@@ -151,6 +152,7 @@ export function copyPlayerState(dst, src) {
   dst.pullZ = src.pullZ;
   dst.pinned = src.pinned;
   dst.shove = src.shove;
+  dst.burning = src.burning;
   dst.stunT = src.stunT;
   dst.downed = src.downed;
   dst.using = src.using;
@@ -186,7 +188,7 @@ export function samePlayerState(a, b) {
   for (let i = 0; i < 5; i++) if (a.weapons[i] !== b.weapons[i]) return false;
   for (let i = 0; i < AMMO_ITEMS.length; i++) if (a.ammo[i] !== b.ammo[i]) return false;
   if (a.switchT !== b.switchT || a.cooldown !== b.cooldown || a.reloadT !== b.reloadT || a.recoil !== b.recoil) return false;
-  if (a.zombie !== b.zombie || a.leapCd !== b.leapCd || a.pulled !== b.pulled || a.pinned !== b.pinned) return false;
+  if (a.zombie !== b.zombie || a.leapCd !== b.leapCd || a.pulled !== b.pulled || a.pinned !== b.pinned || a.burning !== b.burning) return false;
   if (a.pullX !== b.pullX || a.pullY !== b.pullY || a.pullZ !== b.pullZ || a.stunT !== b.stunT || a.shove !== b.shove) return false;
   if (a.hmg !== b.hmg || a.pet !== b.pet || a.perks !== b.perks) return false;
   if (a.ride !== b.ride || a.rideT !== b.rideT || a.rideGo !== b.rideGo) return false;
@@ -245,7 +247,7 @@ export function hashPlayerState(s) {
   mix(Math.round(s.vx * 128));
   mix(Math.round(s.vy * 128));
   mix(Math.round(s.vz * 128));
-  mix((s.onGround ? 1 : 0) | (s.crouch ? 2 : 0) | (s.exhausted ? 4 : 0) | (s.sprinting ? 8 : 0) | (s.zombie ? 16 : 0) | (s.pulled ? 32 : 0) | (s.pinned ? 64 : 0) | (s.downed ? 128 : 0) | (s.using ? 256 : 0));
+  mix((s.onGround ? 1 : 0) | (s.crouch ? 2 : 0) | (s.exhausted ? 4 : 0) | (s.sprinting ? 8 : 0) | (s.zombie ? 16 : 0) | (s.pulled ? 32 : 0) | (s.pinned ? 64 : 0) | (s.downed ? 128 : 0) | (s.using ? 256 : 0) | (s.burning ? 512 : 0));
   mix(Math.round(s.stamina * 64));
   mix(Math.round(s.staminaDelay * 512));
   mix(s.slot | (s.mags[0] << 8) | (s.mags[1] << 16) | (s.throwCount << 24));
@@ -588,7 +590,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
       s.onGround = 0;
       s.leapCd = CLAWS.leapCooldown;
       if (events) events.push({ type: 'leap' });
-    } else if (pressed & BTN.JUMP && (s.zombie || s.stamina >= STAMINA_JUMP_COST)) {
+    } else if (pressed & BTN.JUMP && !s.burning && (s.zombie || s.stamina >= STAMINA_JUMP_COST)) {
       s.vy = JUMP_VELOCITY * (s.zombie ? 1.15 : 1);
       if (!s.zombie) {
         s.stamina -= STAMINA_JUMP_COST;

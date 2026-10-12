@@ -1011,7 +1011,7 @@ export class Game {
       ropedBy: 0,
       burning: false, // set alight by a flammer (PLAYER_FIRE, updateFire): until it is put out
       douse: 0, // ...how far it has been put out (0-1)
-      jumpHeld: false, // [Space] down in their newest command (holding it puts a fire out: theirs or a teammate's)
+      firePresses: 0, // presses of [Space] since the last tick (each beats a fire down: theirs or a teammate's)
       ping: 0,
       ts: null, // the stint analytics.js is counting for them (null: none)
       rejoinKey: '', // 'a:<account id>' or 'g:<sha-256 of the browser id>': whose JOIN may take this player back after a drop (resume)
@@ -2501,8 +2501,8 @@ export class Game {
         if (!samePlayerState(p.state, p.shadow)) p.selfSync = true;
         // an item asked for is in the hands from the client's first command after asking on (useItem)
         if (p.useItem && !p.state.using && ((cmd.seq - p.useItem.from) & 0xffff) < 0x8000) p.state.using = 1;
+        if (cmd.buttons & BTN.JUMP & ~p.state.lastBtn) p.firePresses++;
         simulatePlayer(p.state, cmd, this.world, events);
-        p.jumpHeld = !!(cmd.buttons & BTN.JUMP);
         // pinned by a leaper: shoved all the way (the simulation's meter, s.shove), they throw it off (Zombies.throwOff)
         if (p.state.pinned && p.state.shove >= 1 && this.zm.throwOff(p)) {
           p.selfSync = true;
@@ -4020,6 +4020,7 @@ export class Game {
   setAlight(p) {
     if (!p || !p.alive || p.zombie || p.downed || p.burning || this.safe(p) || swimming(this.world, p.state)) return false;
     p.burning = true;
+    p.state.burning = 1; // (no jumping: the simulation's)
     p.douse = 0;
     this.sound(SOUND.FIRE_WHOOSH, p.state.x, p.state.y + 1, p.state.z, 40);
     return true;
@@ -4028,25 +4029,27 @@ export class Game {
   putOut(p, loud = true) {
     if (!p.burning) return;
     p.burning = false;
+    p.state.burning = 0;
     p.douse = 0;
     if (loud) this.sound(SOUND.ACID_SIZZLE, p.state.x, p.state.y + 1, p.state.z, 25);
   }
 
-  // Each tick for a survivor alight: in the water it is out; otherwise it burns them, and [Space] held - theirs, and
-  // every teammate's within reach who is up and not burning - puts it out over PLAYER_FIRE.time. true: it killed them
+  // Each tick for a survivor alight: in the water it is out; otherwise it burns them, and each press of [Space] - theirs,
+  // and every teammate's within reach who is up and not burning - beats it down, PLAYER_FIRE.presses of them putting it
+  // out. true: it killed them
   updateFire(p, dt) {
     const s = p.state;
     if (swimming(this.world, s) || p.downed) {
       this.putOut(p);
       return false;
     }
-    let hands = p.jumpHeld ? 1 : 0;
+    let presses = p.firePresses;
     for (const q of this.players.values()) {
-      if (q === p || !q.alive || q.zombie || q.downed || q.burning || !q.jumpHeld || this.safe(q)) continue;
-      if (Math.hypot(q.state.x - s.x, q.state.z - s.z) < PLAYER_FIRE.reach && Math.abs(q.state.y - s.y) < 1.5) hands++;
+      if (q === p || !q.firePresses || !q.alive || q.zombie || q.downed || q.burning || this.safe(q)) continue;
+      if (Math.hypot(q.state.x - s.x, q.state.z - s.z) < PLAYER_FIRE.reach && Math.abs(q.state.y - s.y) < 1.5) presses += q.firePresses;
     }
-    p.douse = hands ? p.douse + (hands * dt) / PLAYER_FIRE.time : Math.max(0, p.douse - (PLAYER_FIRE.decay * dt) / PLAYER_FIRE.time);
-    if (p.douse >= 1) {
+    p.douse = presses ? p.douse + presses / PLAYER_FIRE.presses : Math.max(0, p.douse - PLAYER_FIRE.decay * dt);
+    if (p.douse >= 0.999) {
       this.putOut(p);
       return false;
     }
@@ -4057,9 +4060,9 @@ export class Game {
     return !p.alive;
   }
 
-  // the burning survivor a teammate's [Space] is beating the flames out on (the nearest), or null
+  // the burning survivor a teammate's [Space] beats the flames out on (the nearest within reach), or null
   dousing(q) {
-    if (!q.jumpHeld || !q.alive || q.zombie || q.downed || q.burning || this.safe(q)) return null;
+    if (!q.alive || q.zombie || q.downed || q.burning || this.safe(q)) return null;
     let best = null;
     let bd = PLAYER_FIRE.reach;
     for (const p of this.players.values()) {
@@ -4818,6 +4821,7 @@ export class Game {
     this.cemetery.update(dt);
     ts.mark(T_PHASE);
     this.updatePlayers(dt);
+    for (const p of this.players.values()) p.firePresses = 0; // (each counted this tick: updateFire)
     this.gun.update(dt);
     ts.mark(T_PLAYERS);
     this.zm.update(dt);

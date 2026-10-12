@@ -177,7 +177,7 @@ export class Hud {
     this.shove = el('div', 'shove', center);
     const shoveRow = el('div', 'shove-row', this.shove);
     this.shoveKey = el('span', 'kbd', shoveRow, '');
-    this.shoveText = el('span', 'shove-t', shoveRow, 'Mash to shove it off'); // (or, on fire: hold to put it out)
+    this.shoveText = el('span', 'shove-t', shoveRow, 'Mash to shove it off'); // (or, on fire: mash to put it out)
     this.shoveFill = el('i', '', el('div', 'shove-bar', this.shove));
     this.shove.hidden = true;
 
@@ -873,8 +873,6 @@ export class Hud {
     if (c.shoveKey !== h.shoveKey) this.shoveKey.textContent = c.shoveKey = h.shoveKey;
     const st = h.shoveText || 'Mash to shove it off';
     if (c.shoveText !== st) this.shoveText.textContent = c.shoveText = st;
-    const hold = !!h.shoveHold; // (a fire is put out by holding, not mashing: the key stays still)
-    if (c.shoveHold !== hold) this.shove.classList.toggle('hold', (c.shoveHold = hold));
     const fire = !!h.onFire;
     if (c.onFire !== fire) this.ui.root.classList.toggle('on-fire', (c.onFire = fire));
     if (c.shoves !== h.shoves) {

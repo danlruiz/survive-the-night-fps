@@ -62,7 +62,8 @@ export class InputBuffer {
     // after all, or no longer what it was pressed for) and its button is still down, 0 nothing: the real button
     this.left = [0, 0, 0];
     this.ctx = [0, 0, 0]; // what each held press was made for
-    this.passJump = false; // jump goes out as it is held, unbuffered (a fire to put out: PLAYER_FIRE)
+    this.passJump = false; // jump goes out as it is pressed, unbuffered (a fire to beat out: PLAYER_FIRE)
+    this.firePresses = 0; // ...and those presses, counted (the HUD's key jolts at each)
   }
 
   // nothing held may act later (death, a menu or the chat taking the input)
@@ -86,9 +87,10 @@ export class InputBuffer {
         this.left[i] = 0;
         continue;
       }
-      // (on fire, or beside a teammate who is: [Space] is held to put it out, and the server has to see it held
-      // whatever a jump would do - Game sets passJump)
+      // (on fire, or beside a teammate who is: each press of [Space] beats the flames down, and the server has to see
+      // every one as it was made, whatever a jump would do - Game sets passJump)
       if (bit === BTN.JUMP && this.passJump) {
+        if (fresh & bit) this.firePresses++;
         this.left[i] = 0;
         continue;
       }

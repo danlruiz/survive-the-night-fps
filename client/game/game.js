@@ -4192,16 +4192,14 @@ export class Game {
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
     h.shoveText = '';
-    h.shoveHold = false;
-    // ...or the same meter for a fire (a flammer's doing: PLAYER_FIRE): [Space] held puts it out - ours, or that of the
-    // teammate beside us we are beating the flames out on
+    // ...or the same meter for a fire (a flammer's doing: PLAYER_FIRE): each press of [Space] beats it down - ours, or
+    // that of the teammate beside us we are beating the flames out on
     const burning = !!self.burning && !!self.alive && !s.zombie && !s.downed;
     if (this.frame % 6 === 1) this.fireMate = burning || !self.alive || s.zombie || s.downed ? null : this.burningMate(s);
     const mate = !burning && this.fireMate && this.entities.ents.get(this.fireMate.id) === this.fireMate ? this.fireMate : null;
     if (h.shove < 0 && (burning || mate)) {
       h.shove = self.douse || 0;
-      h.shoveHold = true;
-      h.shoveText = burning ? 'Hold to put the fire out' : `Hold to beat out the fire on ${this.name(mate.id)}`;
+      h.shoveText = burning ? 'Mash to put the fire out' : `Mash to beat out the fire on ${this.name(mate.id)}`;
     }
     h.onFire = burning;
     this.inputBuffer.passJump = burning || !!mate;
@@ -4214,7 +4212,7 @@ export class Game {
     }
     this.burnLoop?.setPosition(s.x, s.y + 1, s.z);
     h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
-    h.shoves = this.shoves | 0;
+    h.shoves = (this.shoves | 0) + this.inputBuffer.firePresses;
     const w = currentWeapon(s);
     const def = WEAPONS[w];
     if (def && !def.melee) {

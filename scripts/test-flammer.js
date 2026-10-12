@@ -4,9 +4,9 @@
 //     kept away from what was built
 //   - a burning piece takes STRUCT_FIRE.dps until it is gone, and the fire spreads to the piece that touches it; a swing
 //     of the hammer puts it out for nothing, and one without the hammer in hand does not
-//   - its blow sets a survivor alight: they burn and keep burning until put out; holding Space puts it out in about
-//     PLAYER_FIRE.time, a teammate beside them holding theirs as well halves that, a tap does not do it, going down
-//     puts it out
+//   - its blow sets a survivor alight: they burn and keep burning until put out, and cannot jump meanwhile; each press
+//     of Space beats it down (holding it is one press), PLAYER_FIRE.presses of them put it out, a teammate beside them
+//     mashing as well halves that, going down puts it out
 //   - killed, it leaves a pool of fire where it fell: the dead burn in it, a survivor who walks in is set alight (and
 //     again, put out while still in it), it burns out
 //   - fire does it no harm (a molotov's status, a campfire), the sun does
@@ -70,6 +70,13 @@ const run = (secs, each = null) => {
     if (each && each()) return i * DT;
   }
   return Infinity;
+};
+// a press of Space by each client given (one command with jump down, then let go)
+const press = (...cs) => {
+  for (const c of cs) c.buttons = BTN.JUMP;
+  run(DT);
+  for (const c of cs) c.buttons = 0;
+  run(DT * 2);
 };
 function clearZombies() {
   for (const z of [...game.zombies]) {
@@ -238,53 +245,77 @@ check('the burning survivor hears it (self status) and the others see it (STATUS
   const hp = pa.hp;
   run(4);
   check('they burn, and it does not go out by itself', pa.burning && hp - pa.hp > PLAYER_FIRE.dps * 3 * game.diff.hurt, `${(hp - pa.hp).toFixed(1)} hp in 4 s`);
-  // a tap
-  A.buttons = BTN.JUMP;
-  run(0.15);
-  A.buttons = 0;
-  run(1.5);
-  check('a tap of Space does not put it out', pa.burning);
-  // held
+  // one press beats it down, and it creeps back between presses
+  press(A);
+  const once = pa.douse;
+  check('a press of Space beats it down a step', pa.burning && Math.abs(once - 1 / PLAYER_FIRE.presses) < 0.05, `${once.toFixed(2)}`);
+  run(2);
+  check('...which creeps back between presses', pa.burning && pa.douse < once, `${pa.douse.toFixed(2)}`);
+  // held: one press, not a stream of them
   pa.hp = pa.maxHp;
   A.buttons = BTN.JUMP;
-  let half = -1;
-  const t = run(4, () => {
-    if (half < 0 && A.self.douse >= 0.4) half = A.self.douse;
-    return !pa.burning;
+  run(2);
+  A.buttons = 0;
+  run(DT * 2);
+  check('holding Space does not put it out', pa.burning);
+  // jumping
+  put(pa, X, Z);
+  run(0.3, () => put(pa, X, Z));
+  const y0 = pa.state.y;
+  A.buttons = BTN.JUMP;
+  let top = y0;
+  run(0.4, () => {
+    top = Math.max(top, pa.state.y);
   });
   A.buttons = 0;
-  check('holding Space puts it out in about PLAYER_FIRE.time', !pa.burning && Math.abs(t - PLAYER_FIRE.time) < 0.4, `${t.toFixed(2)} s`);
-  check('...and they watched it go out (the douse in their status)', half >= 0.4, `${half}`);
+  check('...and they cannot jump while they burn', top - y0 < 0.1 && pa.state.burning === 1, `rose ${(top - y0).toFixed(2)} m`);
+  run(2);
+  // mashed
+  let half = -1;
+  let n = 0;
+  for (; n < 20 && pa.burning; n++) {
+    press(A);
+    if (half < 0 && A.self.douse >= 0.35) half = A.self.douse;
+  }
+  check('mashing Space puts it out in about PLAYER_FIRE.presses presses', !pa.burning && Math.abs(n - PLAYER_FIRE.presses) <= 1, `${n} presses`);
+  check('...and they watched it go out (the douse in their status)', half >= 0.35, `${half}`);
   run(0.2);
   check('...which everyone hears', A.self.burning === 0 && !(B.store.ents.get(pa.id)?.q[9] & PSTATUS.BURNING));
+  // put out, they jump again
+  put(pa, X, Z);
+  run(0.6, () => put(pa, X, Z));
+  const y1 = pa.state.y;
+  A.buttons = BTN.JUMP;
+  let top1 = y1;
+  run(0.4, () => {
+    top1 = Math.max(top1, pa.state.y);
+  });
+  A.buttons = 0;
+  run(1);
+  check('...and once it is out they can jump again', top1 - y1 > 0.3, `rose ${(top1 - y1).toFixed(2)} m`);
 }
 {
-  // a teammate beside them, both holding
+  // a teammate beside them, both mashing
   game.setAlight(pa);
   put(pb, X + 1, Z);
-  A.buttons = BTN.JUMP;
-  B.buttons = BTN.JUMP;
-  const t = run(4, () => {
-    put(pb, X + 1, Z);
-    return !pa.burning;
-  });
-  A.buttons = B.buttons = 0;
-  check('...with a teammate beside them holding theirs too, in half the time', !pa.burning && t < PLAYER_FIRE.time * 0.65, `${t.toFixed(2)} s`);
+  let n = 0;
+  for (; n < 20 && pa.burning; n++) press(A, B);
+  check('...with a teammate beside them mashing too, in half the presses', !pa.burning && n <= Math.ceil(PLAYER_FIRE.presses / 2), `${n} each`);
   // the teammate alone
   game.setAlight(pa);
-  B.buttons = BTN.JUMP;
-  const t2 = run(4, () => {
+  let m = 0;
+  for (; m < 20 && pa.burning; m++) {
+    press(B);
     put(pb, X + 1, Z);
-    return !pa.burning;
-  });
-  B.buttons = 0;
-  check('...and by the teammate alone', !pa.burning && Math.abs(t2 - PLAYER_FIRE.time) < 0.4, `${t2.toFixed(2)} s`);
+  }
+  check('...and by the teammate alone', !pa.burning && Math.abs(m - PLAYER_FIRE.presses) <= 1, `${m} presses`);
   // too far off to reach
   game.setAlight(pa);
   put(pb, X + 6, Z);
-  B.buttons = BTN.JUMP;
-  run(3, () => put(pb, X + 6, Z));
-  B.buttons = 0;
+  for (let k = 0; k < 10; k++) {
+    press(B);
+    put(pb, X + 6, Z);
+  }
   check('...but not from out of reach', pa.burning);
   game.goDown(pa);
   check('going down puts it out', !pa.burning);

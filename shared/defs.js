@@ -322,10 +322,11 @@ export const BURN = { time: 5, dps: 18 };
 export const STRUCT_FIRE = { dps: 25, spreadAfter: 3, spread: 0.25, gap: 0.3 };
 export const structBurns = (stype) => !!STRUCT_DEFS[stype] && !STRUCT_DEFS[stype].metal && !STRUCT_DEFS[stype].burn;
 // A survivor set alight by a flammer's blow burns at `dps` a second until the fire is put out - it does not go out by
-// itself. Holding [Space] does it (stop, drop and roll), and so does a teammate within `reach` m holding theirs (they
-// beat the flames out): `time` s of holding between them, two at once in half the time. Let go and it creeps back
-// `decay` times as fast. Going down, or into water deep enough to swim, puts it out at once (Game.updateFire)
-export const PLAYER_FIRE = { dps: 5, time: 1.6, reach: 2, decay: 0.5 };
+// itself, and they cannot jump while it burns. Each press of [Space] beats it down (stop, drop and roll), and so does
+// each press of a teammate's within `reach` m (they beat the flames out): `presses` between them put it out, and it
+// creeps back `decay` of the way a second between presses. Going down, or into water deep enough to swim, puts it
+// out at once (Game.updateFire)
+export const PLAYER_FIRE = { dps: 5, presses: 5, reach: 2, decay: 0.3 };
 
 // Player-zombie claws (not an item)
 export const CLAWS = { damage: 22, rate: 0.6, range: 2.0, headMul: 1.0, leapCooldown: 4.5, leapSpeed: 12, leapUp: 5.5 };
@@ -625,7 +626,7 @@ export const ZOMBIE_DEFS = {
   // still does). What the survivors built catches from it: every igniteRate s it sets alight a piece within
   // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
   // metal does not burn, and a hammer puts a fire out
-  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, minNight: 10, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire, Space puts out you.', introBrief: 'Set walls and you alight. Hammer the fire, hold Space.' },
+  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, minNight: 10, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.' },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
