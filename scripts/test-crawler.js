@@ -85,11 +85,11 @@ function setup(seed) {
     if (id === SOUND.CRAWLER_CHITTER) calls.push({ t: game.tick * DT, y });
     return snd(id, x, y, z, ...rest);
   };
-  // anything it does to anyone's health (it should not: it only blinds them)
+  // anything it does to anyone's health (only a nibble now and then, and only to the face it has hold of)
   const bites = [];
   const dp = game.damagePlayer.bind(game);
   game.damagePlayer = (p, amount, src, ...rest) => {
-    if (src?.ztype === ZTYPE.CRAWLER) bites.push({ t: game.tick * DT, amount });
+    if (src?.ztype === ZTYPE.CRAWLER) bites.push({ t: game.tick * DT, amount, day: game.day, face: p.state.pinned === PIN_FACE });
     return dp(p, amount, src, ...rest);
   };
   return { game, c, p: game.players.get(c.id), bites, calls };
@@ -266,7 +266,7 @@ function treeTrial(env, rng) {
 
 const trees = [];
 
-const runs = { tried: 0, latched: 0, onFace: 0, bites: 0, time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
+const runs = { tried: 0, latched: 0, onFace: 0, bites: [], held: [], time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
 
 for (const seed of seeds) {
   const env = setup(seed);
@@ -299,11 +299,12 @@ for (const seed of seeds) {
     if (ok) runs.onFace++;
   }
 
-  // it holds on without harming them, and lets go once it has had latchMax s
+  // it holds on, nibbling at them, and lets go once it has had latchMax s
   {
     const r = trial(env, spot, 5, rng);
     if (r.latched) {
       const t0 = game.tick * DT;
+      const b0 = bites.length;
       let released = -1;
       for (let i = 0; i < (DEF.latchMax + 2) / DT; i++) {
         c.input(0);
@@ -314,6 +315,7 @@ for (const seed of seeds) {
         }
       }
       runs.time.push(released);
+      runs.held.push(bites.length - b0);
       if (process.env.VERBOSE) console.log(`      seed ${seed}: let go after ${released.toFixed(2)} s`);
     }
   }
@@ -400,7 +402,7 @@ for (const seed of seeds) {
     if (!leapt) runs.taken.ok++;
     game.zm.releaseLink(leaper);
   }
-  runs.bites += bites.length;
+  runs.bites.push(...bites);
   {
     const r = treeTrial(env, mulberry(seed * 31));
     trees.push(r);
@@ -417,7 +419,10 @@ const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
 check('a survivor standing still has one on their face from every crawler that springs at them', runs.tried >= seeds.length * TRIALS && runs.latched === runs.tried, `${runs.latched} of ${runs.tried} (${pct(runs.latched, runs.tried)})`);
 check('...held at their head, just in front of their eyes (not on their chest, as a leaper)', runs.latched > 0 && runs.onFace === runs.latched, `${runs.onFace} of ${runs.latched}`);
 check(`it holds on and lets go after ${DEF.latchMax} s`, runs.time.length === seeds.length && runs.time.every((t) => t >= DEF.latchMax - 0.2 && t <= DEF.latchMax + 0.5), `let go after ${runs.time.map((t) => t.toFixed(2)).join('/')} s`);
-check('in all of that it never once hurt anyone: it does not attack, it only blinds', runs.latched > 0 && runs.bites === 0, `${runs.bites} hits`);
+const nibble = (b) => DEF.latchDmg * (1 + 0.05 * b.day);
+const perHold = Math.floor(DEF.latchMax / DEF.latchRate);
+check(`on their face it nibbles: ${DEF.latchDmg} hp (+5% a night) every ${DEF.latchRate} s, about ${perHold} bites over a full hold`, runs.held.length === seeds.length && runs.held.every((n) => n >= perHold - 2 && n <= perHold + 1) && runs.bites.every((b) => Math.abs(b.amount - nibble(b)) < 1e-9), `${runs.held.join('/')} bites a hold, ${[...new Set(runs.bites.map((b) => b.amount.toFixed(2)))].join('/')} hp each`);
+check('...and that is all the harm it does: nothing to anyone it has not got by the face', runs.latched > 0 && runs.bites.length > 0 && runs.bites.every((b) => b.face), `${runs.bites.filter((b) => !b.face).length} of ${runs.bites.length} off the face`);
 check('with one on their face they still walk on, slowed (no sprint), and it stays on', runs.walk.n >= seeds.length && runs.walk.ok === runs.walk.n, `${runs.walk.ok} of ${runs.walk.n} (${runs.walk.d.map((d) => d.toFixed(1)).join('/')} m in 2 s)`);
 check('thrashing their head about tears it off in about two seconds; off, it reels and does not take them again as they run', runs.shake.n >= seeds.length && runs.shake.ok === runs.shake.n, `${runs.shake.ok} of ${runs.shake.n} (${runs.shake.t.map((t) => t.toFixed(2)).join('/')} s)`);
 check('...looking round as anyone does in a fight does not', runs.look.n >= seeds.length && runs.look.ok === runs.look.n, `${runs.look.ok} of ${runs.look.n}`);

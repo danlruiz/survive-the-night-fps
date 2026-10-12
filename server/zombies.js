@@ -2241,9 +2241,10 @@ export class Zombies {
       z.animT = 0.2;
       s.pinned = latch ? PIN_FACE : 1;
       if (z.attackCd <= 0) {
-        // (a crawler does no harm itself: it holds on and chitters while the rest of the dead come for them)
+        // (a crawler only nibbles: latchDmg every latchRate s, a little at a time while the rest of the dead come for them)
         z.attackCd = latch ? def.latchRate : 0.45;
         if (latch) {
+          g.damagePlayer(p, def.latchDmg * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
           if (g.rng() < 0.3) g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 25);
         } else {
           g.damagePlayer(p, 5.5 * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });

@@ -615,13 +615,13 @@ export const ZOMBIE_DEFS = {
   // baseRange m (Combat.inBase) - the cloud it lets go is big enough to fill the base (baseSmoke). Kill it out past the
   // walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
   [ZTYPE.SMOKER]: { name: 'Smoker', hp: 130, speed: 2.0, dmg: 8, rate: 1.1, range: 1.55, radius: 0.38, height: 1.86, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.6, smokeRange: 20, smokeRate: 11, smokeRadius: 4.5, smokeLife: 9, deathSmoke: { radius: 5, life: 10 }, baseSmoke: { radius: 14, life: 26 }, baseRange: 12, baseCount: 4, minNight: 10, legs: true, intro: 'Smokers join the horde: they breathe out clouds you cannot see through. Kill them out past your walls, or their last breath fills the base.', introBrief: 'Smoke you cannot see through. Kill them past the walls.' },
-  // a flying squirrel the infection has grown to the size of a cat. It never bites or claws (noMelee, no damage: nothing
-  // it does hurts). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/zombies.js
+  // a flying squirrel the infection has grown to the size of a cat. It never claws or bites in passing (noMelee): it only
+  // hurts whoever it has by the face, a nibble of latchDmg every latchRate s (+5% a night). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/zombies.js
   // PERCH_*), and glides down on to the face of whoever comes under it (the leaper's pounce at the head, falling slower),
   // clamping on with all four feet (s.pinned = PIN_FACE). Blind (client/game/facelatch.js: its belly and its membrane
   // over their eyes) but on their feet, they shake it off by throwing their head about (SHAKE_*), or a teammate shoots
   // or strikes it off, or it has had latchMax s. With no tree near, it springs from the ground (latchRange m)
-  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchMax: 10, minNight: 10, intro: 'Crawlers join the horde: they wait up trees, eyes glowing, and glide down onto your face to blind you. Keep away from the trees they chitter in, and shake your head hard to tear one off.', introBrief: 'Wait up trees, glide onto your face. Shake it off.' },
+  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchDmg: 2, latchMax: 10, minNight: 10, intro: 'Crawlers join the horde: they wait up trees, eyes glowing, and glide down onto your face to blind you. Keep away from the trees they chitter in, and shake your head hard to tear one off.', introBrief: 'Wait up trees, glide onto your face. Shake it off.' },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
