@@ -488,7 +488,7 @@ export function readEvents(r, handler, flags, ents) {
       }
       case EVT.BESTIARY: {
         const flags = r.u8();
-        const mask = r.u16();
+        const mask = r.u32();
         handler.bestiary?.(flags, mask);
         break;
       }

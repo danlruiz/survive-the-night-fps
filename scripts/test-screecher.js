@@ -179,12 +179,12 @@ const seen = new Set(game.zombies);
 let again = false;
 while (sc.specialCd > 0.1 && !sc.dead) {
   run(1);
-  if (sc.state === 1 && sc.stateAct === 13) again = true;
+  if (sc.state === 1 && sc.stateAct === 14) again = true;
 }
 check('...and does not', !again && !fresh(seen).length);
 for (let i = 0; i < 100 && !again; i++) {
   run(1);
-  if (sc.state === 1 && sc.stateAct === 13) again = true;
+  if (sc.state === 1 && sc.stateAct === 14) again = true;
 }
 check('...and then it screams again: it keeps on until it is dead', again);
 
@@ -194,7 +194,7 @@ A.screeches.length = 0;
 sc = put();
 const before2 = new Set(game.zombies);
 for (let i = 0; i < 200 && sc.state !== 1; i++) run(1);
-check('a fresh one rears back to scream', sc.state === 1 && sc.stateAct === 13);
+check('a fresh one rears back to scream', sc.state === 1 && sc.stateAct === 14);
 game.combat.killZombie(sc, a);
 run(Math.ceil(def.screamWindup * 20) + 10);
 check('shot dead in its windup, it brings nobody and rings no ears', !fresh(before2).length && A.screeches.length === 0);

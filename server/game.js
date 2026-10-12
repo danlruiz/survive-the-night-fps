@@ -1917,6 +1917,7 @@ export class Game {
         [ZTYPE.ROPER, 5 + sp * 3],
         [ZTYPE.TANK, (1 + n * 0.3) * (0.5 + sp)],
         [ZTYPE.SHADE, 2.5 + sp * 2.5],
+        [ZTYPE.SMOKER, 3 + sp * 3],
         [ZTYPE.SCREECHER, 1.5 + sp * 2], // (each one's scream brings a crowd of its own: SCREECH_* in zombies.js)
       ];
       // one new kind a night: each stays out of the horde until its night comes
@@ -1926,7 +1927,7 @@ export class Game {
       // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
       if (this.diff.specials !== 1) {
         for (const wt of weights) {
-          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SCREECHER) wt[1] *= this.diff.specials;
+          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER) wt[1] *= this.diff.specials;
         }
       }
       const tot = weights.reduce((a, b) => a + b[1], 0);
