@@ -36,6 +36,8 @@ const CATS = {
   bell: { ref: 30, max: 1000, roll: 0.6, air: 320, wet: 0.12, hrtf: 0, cap: 4, delay: true },
   // high overhead: a parachute flare bursting alight 40-90 m up, heard all round the place it went up over
   sky: { ref: 30, max: 380, roll: 0.9, air: 150, wet: 0.2, hrtf: 0, cap: 4, delay: true },
+  // a screecher's scream: loud at any range in the fight, and carrying most of the way across the valley
+  scream: { ref: 14, max: 300, roll: 0.85, air: 120, wet: 0.26, hrtf: 30, cap: 4, delay: true },
 };
 for (const k in CATS) CATS[k].sendExp = 0.45 * CATS[k].roll;
 
@@ -261,6 +263,7 @@ def(S.DOG_YELP, 'dog_yelp', 'zombie', 0.8, 0.08, 0.15, R_DOG_YELP);
 def(S.SHADE_WHISPER, 'z_shade_whisper', 'zombie', 0.8, 0.1, 0.15, R_Z_WHISPER);
 def(S.SHADE_FREEZE, 'z_shade_freeze', 'zombie', 1, 0.06);
 def(S.SHADE_SHRIEK, 'z_shade_shriek', 'zombie', 1, 0.06);
+def(S.SCREECHER_SCREAM, 'z_screecher', 'scream', 1, 0.05, 0.25);
 def(S.EAT, 'eat', 'fx', 0.5, 0.05);
 def(S.DRINK, 'drink', 'fx', 0.4, 0.05); // (-2 dB: it measures that much hotter than can_open)
 def(S.BODY_FALL, 'land', 'fx', 0.9, 0.1, 0.15, R_BODY);
@@ -969,6 +972,11 @@ class VoiceSource {
   }
 }
 
+const RING_VOL = 0.085; // a screecher's ringing (ring): plainly there over the fight, not painful
+const RING_WORLD = 0.08; // the world and the music under it: all but gone while it rings (ring, _ringDuck)
+const RING_VOICE = 0.3; // the other survivors' voices: faint, but there
+const RING_FADE = 1.5; // s it takes to fade once it is over
+const RING_LP = 900; // Hz: the world through ringing ears
 const RADIO_STATIC_VOL = 0.28; // radioStatic(1) about -22 LUFS, a few dB under the forest and well under a voice; held (0.35), -31
 const NULL_LOOP = Object.freeze({ setPosition() {}, setVolume() {}, setRate() {}, stop() {} });
 const NULL_VOICE = Object.freeze({ setPosition() {}, setAbsent() {}, setRadio() {}, mode: () => 0, setVolume() {}, setMuffled() {}, disconnect() {} });
@@ -1008,7 +1016,7 @@ export class AudioEngine {
     this._lastResume = 0;
     this._timer = null;
     this._loopScratch = [];
-    this._mix = { world: -1, sfxLP: -1 };
+    this._mix = { world: -1, sfxLP: -1, ring: 0 };
     this._queue = null;
     this._foot = 1; // alternates the own footsteps a hair left / right
     this._gearT = 2; // steps until the next clothing rustle
@@ -1138,7 +1146,9 @@ export class AudioEngine {
     this._worldIn.connect(this._worldLP);
     this._worldDuck = g(1); // (voice chat ducking)
     this._worldLP.connect(this._worldDuck);
-    this._worldDuck.connect(this._pre);
+    this._ringDuck = g(1); // (ringing ears: the world and the music fade under the ring, _tick)
+    this._ringDuck.connect(this._pre);
+    this._worldDuck.connect(this._ringDuck);
 
     this._sfxIn = g(1); // user sfx volume
     this._sfxLP = c.createBiquadFilter(); // low-health muffle
@@ -1154,9 +1164,11 @@ export class AudioEngine {
     this._musicIn = g(1);
     this._musicDuck = g(1);
     this._musicIn.connect(this._musicDuck);
-    this._musicDuck.connect(this._pre);
+    this._musicDuck.connect(this._ringDuck);
     this._voiceIn = g(1);
-    this._voiceIn.connect(this._pre);
+    this._voiceRing = g(1);
+    this._voiceIn.connect(this._voiceRing);
+    this._voiceRing.connect(this._pre);
     this._voiceAn = c.createAnalyser(); // how loud the voices you can hear are right now: drives the ducking
     this._voiceAn.fftSize = 1024;
     this._voiceIn.connect(this._voiceAn);
@@ -1604,6 +1616,52 @@ export class AudioEngine {
     this._static.g.gain.setTargetAtTime(level * RADIO_STATIC_VOL, this._ctx.currentTime, 0.03);
   }
 
+  // A screecher's scream close by (EVT.SCREECH): the ears ring for secs - a thin, high tone right in the head, two
+  // pitches a few hertz apart so it beats, and the world dulled under it (_tick: the sfx low-pass) - or until
+  // stopRing() (the screecher is dead, or so is the survivor). It comes in at once and goes slowly; a second scream
+  // while it rings only makes it last. The tone is on the ui bus: it is in the head, not out in the world
+  ring(secs) {
+    if (!this._ready || this._state.menu || !(secs > 0)) return;
+    const c = this._ctx;
+    const now = c.currentTime;
+    if (!this._ring) {
+      const g = c.createGain();
+      g.gain.value = 0;
+      const osc = [3870, 3911, 7790].map((f, i) => {
+        const o = c.createOscillator();
+        o.frequency.value = f;
+        const k = c.createGain();
+        k.gain.value = i === 2 ? 0.12 : 0.5;
+        o.connect(k);
+        k.connect(g);
+        o.start(now);
+        return o;
+      });
+      g.connect(this._uiIn);
+      this._ring = { g, osc, end: now };
+    }
+    this._ring.end = Math.max(this._ring.end, now + secs);
+    this._ring.g.gain.setTargetAtTime(RING_VOL, now, 0.04);
+  }
+  stopRing() {
+    if (this._ring) this._ring.end = Math.min(this._ring.end, this._ctx.currentTime);
+  }
+  // how hard the ears still ring, 0..1 (fading over the last RING_FADE s), for the muffle in _tick
+  _ringing(now) {
+    const r = this._ring;
+    if (!r) return 0;
+    const left = r.end - now;
+    if (left > -RING_FADE) {
+      const k = Math.max(0, Math.min(1, (left + RING_FADE) / RING_FADE));
+      if (left < 0) r.g.gain.setTargetAtTime(RING_VOL * k * k, now, 0.1);
+      return left > 0 ? 1 : k;
+    }
+    for (const o of r.osc) o.stop();
+    r.g.disconnect();
+    this._ring = null;
+    return 0;
+  }
+
   // recorded foley (R_* defs): every layer must be decoded, otherwise false and the caller plays the procedural bank
   // (a recording that is only waiting to be decoded is asked for, so it is there the next time).
   // cat = positional category or null for 2D; pitch = the caller's own rate on top of the take's pitch range.
@@ -1921,7 +1979,17 @@ export class AudioEngine {
     const s = this._state;
     // low health: sfx muffle + heartbeat
     const lh = s.dead || s.menu ? 0 : s.lowHealth;
-    const lpf = lh > 0.02 ? Math.round(20000 * Math.pow(2600 / 20000, lh)) : 20000;
+    let lpf = lh > 0.02 ? Math.round(20000 * Math.pow(2600 / 20000, lh)) : 20000;
+    // ringing ears (ring): the world comes through dull, and clears as the ringing fades
+    const rk = this._ringing(now);
+    if (s.menu) this.stopRing();
+    if (rk > 0) lpf = Math.min(lpf, Math.round(RING_LP * Math.pow(20000 / RING_LP, 1 - rk)));
+    // and everything else fades under it, coming back as it fades
+    if (Math.abs(rk - this._mix.ring) > 0.01 || (rk === 0) !== (this._mix.ring === 0)) {
+      this._mix.ring = rk;
+      this._ringDuck.gain.setTargetAtTime(1 - (1 - RING_WORLD) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+      this._voiceRing.gain.setTargetAtTime(1 - (1 - RING_VOICE) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+    }
     if (Math.abs(lpf - this._mix.sfxLP) > 50) {
       this._mix.sfxLP = lpf;
       this._sfxLP.frequency.setTargetAtTime(lpf, now, 0.4);

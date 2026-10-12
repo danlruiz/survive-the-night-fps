@@ -4,9 +4,9 @@ import { CMDS_PER_PACKET, EYE_HEIGHT, EYE_HEIGHT_CROUCH, EYE_HEIGHT_DOWNED, SERV
 import { EVT, AMMO_ITEMS, PROJ } from '../../shared/defs.js';
 import { ACH_STATS } from '../../shared/achievements.js';
 
-const FIELD_COUNT = { [ENT.PLAYER]: 9, [ENT.ZOMBIE]: 9, [ENT.ITEM]: 4, [ENT.STRUCTURE]: 6, [ENT.PROJECTILE]: 3, [ENT.CRATE]: 4, [ENT.AREA]: 3, [ENT.CACHE]: 4, [ENT.CAT]: 6, [ENT.DEER]: 5, [ENT.FAIR]: 9, [ENT.GUN]: 8, [ENT.HANDCAR]: 5, [ENT.VEHICLE]: 9 };
+const FIELD_COUNT = { [ENT.PLAYER]: 10, [ENT.ZOMBIE]: 9, [ENT.ITEM]: 4, [ENT.STRUCTURE]: 6, [ENT.PROJECTILE]: 3, [ENT.CRATE]: 4, [ENT.AREA]: 3, [ENT.CACHE]: 4, [ENT.CAT]: 6, [ENT.DEER]: 5, [ENT.FAIR]: 9, [ENT.GUN]: 8, [ENT.HANDCAR]: 5, [ENT.VEHICLE]: 9 };
 const BIT_SLOTS = {
-  [ENT.PLAYER]: [[0, 3], [3, 5], [5, 6], [6, 7], [7, 8], [8, 9]],
+  [ENT.PLAYER]: [[0, 3], [3, 5], [5, 6], [6, 7], [7, 8], [8, 9], [9, 10]],
   [ENT.ZOMBIE]: [[0, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]],
   [ENT.ITEM]: [[0, 3], [3, 4]],
   [ENT.STRUCTURE]: [[0, 3], [3, 4], [4, 5], [5, 6]],
@@ -173,6 +173,7 @@ export function readSelf(r, out, flags) {
     out.leapCd = r.f32();
     out.stunT = r.f32();
     out.shove = r.f32();
+    out.ears = r.f32();
     const pf = r.u8();
     if (out.pinned) out.pinned = pf & 2 ? PIN_FACE : 1;
     if (pf & 1) {
@@ -239,7 +240,7 @@ export function readSelf(r, out, flags) {
 }
 
 // store: { ents: Map, onCreate(e), onRemove(e), onUpdate(e, mask) }
-// entity record: { id, kind, q: Int32Array(9), ...static attrs }
+// entity record: { id, kind, q: Int32Array(10), ...static attrs }
 export function readEntities(r, store, tick, flags) {
   if (flags & SNAP.REMOVES) {
     let id = 0;
@@ -256,7 +257,7 @@ export function readEntities(r, store, tick, flags) {
     for (let n = r.varu(); n > 0; n--) {
       const id = r.u16();
       const kind = r.u8();
-      const e = { id, kind, q: new Int32Array(9) };
+      const e = { id, kind, q: new Int32Array(10) };
       switch (kind) {
         case ENT.ZOMBIE:
           e.ztype = r.u8();
@@ -480,6 +481,11 @@ export function readEvents(r, handler, flags, ents) {
         const ids = [];
         for (let k = r.u8(); k > 0; k--) ids.push(r.u8());
         handler.achieve?.(flags, add, ids);
+        break;
+      }
+      case EVT.SCREECH: {
+        const id = r.u16(), secs = r.u8() / 10;
+        handler.screech?.(id, secs);
         break;
       }
       case EVT.BESTIARY: {

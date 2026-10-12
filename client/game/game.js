@@ -1587,6 +1587,11 @@ export class Game {
       },
       zombieDie(id, yaw, flags) {
         g.entities.zombieDie(id, yaw, flags);
+        if (id === g.ringFrom) {
+          // the screecher that left our ears ringing is dead: they clear
+          g.ringFrom = 0;
+          g.audio.stopRing?.();
+        }
       },
       zombieLeg(id, legs, yaw) {
         g.entities.zombieLeg(id, legs, yaw);
@@ -1620,6 +1625,12 @@ export class Game {
       },
       flyover(x, y, z, heading, eta) {
         g.flyover?.start(x, y, z, heading, eta, g.time, g.audio);
+      },
+      screech(id, secs) {
+        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/zombies.js screech)
+        if (g.self?.zombie) return;
+        g.ringFrom = id;
+        g.audio.ring?.(secs);
       },
       grave(i) {
         g.graves?.stir(i);
@@ -1815,6 +1826,7 @@ export class Game {
       case NOTIFY.YOU_DIED:
         this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', ztype: arg < 254 ? arg : -1, day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead(), dawnIn: this.global.phase === PHASE.NIGHT ? this.global.timeLeft : 0 };
         ui.showDeath(this.deathInfo);
+        a.stopRing?.(); // (the screecher's ringing, if it was still going: screech)
         a.stinger?.('death');
         this.deathShown = true;
         break;
@@ -3492,7 +3504,7 @@ export class Game {
     this.vm.setVisible(self.alive && !cine && !this.ui.inventoryOpen && !this.ui.mapOpen && !this.ui.boardOpen && !this.ui.bestiaryOpen && !this.ui.cardsOpen && !this.debugCam && !this.gun.manning && !s.hmg && !this.handcar.handsOn && !this.vehicles.handsOn && !swim);
     const lk = this.settings.weaponSway === false ? 0 : 0.0022 * inp.sensitivity;
     const wallDist = self.alive ? this.weaponClearance(cam) : 99; // (the viewmodel tucks back off a wall in front)
-    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, shove: s.shove, pet: stroking };
+    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, ears: s.ears > 0 && !!self.alive, shove: s.shove, pet: stroking };
     const vmCam = this.renderer.vmCamera;
     if (Math.abs(vmCam.fov - this.vm.fov) > 0.01) {
       vmCam.fov = this.vm.fov; // (as of last frame: the aimed view of iron sights is narrowed onto them, cfg.adsFov)

@@ -90,6 +90,7 @@ export function createPlayerState() {
     pinned: 0,
     shove: 0, // pinned by a leaper: how far they have shoved it off (SHOVE_*), 0-1
     stunT: 0,
+    ears: 0, // s left with both hands clapped over the ears (a screecher's scream, close: EARS_* in server/zombies.js)
     downed: 0, // incapacitated: crawl, pistol only, waiting for a teammate to revive
     using: 0, // an item in the hands being used (a medkit, a tin: Game.useItem): set by the server, put away here
     lastBtn: 0,
@@ -158,6 +159,7 @@ export function copyPlayerState(dst, src) {
   dst.pinned = src.pinned;
   dst.shove = src.shove;
   dst.stunT = src.stunT;
+  dst.ears = src.ears;
   dst.downed = src.downed;
   dst.using = src.using;
   dst.lastBtn = src.lastBtn;
@@ -193,7 +195,7 @@ export function samePlayerState(a, b) {
   for (let i = 0; i < AMMO_ITEMS.length; i++) if (a.ammo[i] !== b.ammo[i]) return false;
   if (a.switchT !== b.switchT || a.cooldown !== b.cooldown || a.reloadT !== b.reloadT || a.recoil !== b.recoil) return false;
   if (a.zombie !== b.zombie || a.leapCd !== b.leapCd || a.pulled !== b.pulled || a.pinned !== b.pinned) return false;
-  if (a.pullX !== b.pullX || a.pullY !== b.pullY || a.pullZ !== b.pullZ || a.stunT !== b.stunT || a.shove !== b.shove) return false;
+  if (a.pullX !== b.pullX || a.pullY !== b.pullY || a.pullZ !== b.pullZ || a.stunT !== b.stunT || a.shove !== b.shove || a.ears !== b.ears) return false;
   if (a.hmg !== b.hmg || a.pet !== b.pet || a.perks !== b.perks) return false;
   if (a.ride !== b.ride || a.rideT !== b.rideT || a.rideGo !== b.rideGo) return false;
   if (a.cart !== b.cart || a.cartS !== b.cartS || a.cartV !== b.cartV) return false;
@@ -219,6 +221,7 @@ export function snapPlayerState(s) {
   s.recoil = fr(s.recoil);
   s.leapCd = fr(s.leapCd);
   s.stunT = fr(s.stunT);
+  s.ears = fr(s.ears);
   s.shove = fr(s.shove);
   s.pullX = fr(s.pullX);
   s.pullY = fr(s.pullY);
@@ -263,6 +266,7 @@ export function hashPlayerState(s) {
   mix(Math.round(s.recoil * 256));
   mix(Math.round(s.leapCd * 512));
   mix(Math.round(s.stunT * 512));
+  mix(Math.round(s.ears * 512));
   if (s.pinned) mix(Math.round(s.shove * 512));
   if (s.pulled) {
     mix(Math.round(s.pullX * 64));
@@ -454,6 +458,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
     s.reloadT = 0;
     s.recoil = 0;
     if (s.stunT > 0) s.stunT -= dt;
+    if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
     if (s.leapCd > 0) s.leapCd -= dt;
     if (s.switchT > 0) s.switchT -= dt;
     if (s.cooldown > 0) s.cooldown -= dt;
@@ -542,6 +547,9 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
 
   if (s.stunT > 0) s.stunT -= dt;
   if (s.leapCd > 0) s.leapCd -= dt;
+  // a screecher screamed right by them: both hands are over their ears until it lets up (the server sets it)
+  const ears = s.ears > 0 && !s.zombie;
+  if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
 
   // pinned by a leaper: both hands on it, shoving (SHOVE_*). Every press counts at once (the event: the client's early
   // presses go into the first command they act in, inputbuffer.js); full, the server throws it off (Zombies.throwOff).
@@ -686,16 +694,16 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
     s.onGround = 1;
   }
 
-  // both hands on the leaper (pinned): an item in them is put away and a reload let go of
-  if (pinned) {
+  // both hands on the leaper (pinned), or over the ears: an item in them is put away and a reload let go of
+  if (pinned || ears) {
     if (s.using) putAwayItem(s, events);
     s.reloadT = 0;
     s.recoil = 0;
   }
-  // both arms round the mounted gun or the cat, or both hands shoving a leaper off: no weapon goes off, reloads, throws
+  // both arms round the mounted gun or the cat, both hands shoving a leaper off or over the ears: no weapon goes off, reloads, throws
   // or swings (the clocks run on). The fire button with the cat in their arms strokes it, which is the server's
   // business (Cats.update), not this
-  if (s.hmg || s.pet || pinned) {
+  if (s.hmg || s.pet || pinned || ears) {
     if (s.switchT > 0) s.switchT -= dt;
     if (s.cooldown > 0) s.cooldown -= dt;
     s.lastBtn = cmd.buttons;
