@@ -198,7 +198,7 @@ export const ITEM_DEFS = {
   [ITEM.AVGAS]: { name: 'Avgas Drum', cat: 'part', stack: 3, color: 0x2f6fb0, desc: 'Aviation fuel for the plane. The tanks need three drums.' },
 
   [ITEM.SCHEM_SHOTGUN]: { name: 'Shotgun Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Shotgun and the Double-Barrel at the workbench for the whole team.' },
-  [ITEM.SCHEM_RIFLE]: { name: 'Rifle Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Hunting Rifle and the Anti-Tank Rifle at the workbench for the whole team.' },
+  [ITEM.SCHEM_RIFLE]: { name: 'Rifle Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Hunting Rifle, the AK-47, the M4A1 and the Anti-Tank Rifle at the workbench for the whole team.' },
   [ITEM.SCHEM_KEVLAR]: { name: 'Armor Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Kevlar Vest at the workbench for the whole team.' },
   [ITEM.SCHEM_EXPLOSIVES]: { name: 'Explosives Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks Pipe Bombs, Frag Grenades and the Flamethrower at the workbench for the whole team.' },
   [ITEM.SCHEM_METAL]: { name: 'Fortification Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks Metal Walls for the whole team.' },
@@ -483,6 +483,14 @@ export const RECIPES = [
   // into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
   { id: 41, out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
   { id: 42, out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
+  // the rest of the arsenal, so every weapon can be made (scripts/test-recipes.js). The knife and the pistol are what
+  // everyone starts with, made again cheaply when lost; the MP5 a step past the pistol; the two assault rifles the
+  // dearest guns short of the anti-tank rifle, behind the Rifle Schematic like it
+  { id: 43, out: ITEM.KNIFE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.LEATHER]: 1 }, station: 'bench' },
+  { id: 44, out: ITEM.PISTOL, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 3, [ITEM.TAPE]: 1 }, station: 'bench' },
+  { id: 45, out: ITEM.MP5, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 1 }, station: 'bench' },
+  { id: 46, out: ITEM.AK47, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
+  { id: 47, out: ITEM.M4A1, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
 ];
 
 // The order the backpack grid is sorted in after a pickup or a drop, by category: weapons, what is worn or carried for
