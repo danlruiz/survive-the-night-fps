@@ -99,6 +99,8 @@ const R_GUN = {
   dbshotgun: gunRec('gun_dbshotgun', [0.9, 0.96], [0.74, 0.8]),
   // the anti-tank rifle: the hunting rifle's recording a long way down, over its own deeper procedural boom
   atrifle: { key: 'gun_rifle', vol: 1.35, pitch: [0.74, 0.79], far: { key: 'gun_far', vol: 1.3, pitch: [0.64, 0.7] }, layer: true, layerVol: 0.6 },
+  // the Desert Eagle: the pistol's recording well down, over its own heavier procedural shot
+  deagle: { key: 'gun_pistol', vol: 1.3, pitch: [0.76, 0.82], far: { key: 'gun_far', vol: 1.15, pitch: [0.86, 0.94] }, layer: true, layerVol: 0.6 },
 };
 // the survivors' voice (one performer for every grunt and scream)
 const R_P_HURT = { key: 'pv_hurt', vol: 1.5, pitch: [0.96, 1.04] };
@@ -141,6 +143,7 @@ const R_BOLT = { key: 'fol_bolt', vol: 1.4, pitch: [0.97, 1.04] };
 const R_DRY = { key: 'fol_dry', vol: 0.55, pitch: [0.96, 1.05] };
 const R_DRAW = { key: 'fol_draw', vol: 1.2, pitch: [0.94, 1.06] };
 R_GUN.atrifle.fp = { key: 'gun_rifle', vol: 1.4, pitch: [0.74, 0.78], layer: true, layerVol: 0.65 };
+R_GUN.deagle.fp = { key: 'gun_pistol', vol: 1.35, pitch: [0.76, 0.81], layer: true, layerVol: 0.6 };
 // the anti-tank rifle's bolt and its round: the same foley, heavier
 const R_AT_BOLT = { key: 'fol_bolt', vol: 1.6, pitch: [0.8, 0.86] };
 const R_AT_ROUND = { key: 'fol_shell', vol: 0.8, pitch: [0.7, 0.78] };
@@ -223,6 +226,7 @@ def(S.CRAFT, 'craft', 'fx', 0.6, 0.05);
 def(S.RELOAD, 'reload', 'fx', 0.55, 0.04, 0.15, R_MAG_IN);
 def(S.CROSSBOW_COCK, 'xbow_cock', 'fx', 0.5, 0.03);
 def(S.AT_RIFLE, 'gun_atrifle', 'gun', 1, 0.03, 0.2, R_GUN.atrifle);
+def(S.DEAGLE, 'gun_deagle', 'gun', 0.95, 0.03, 0.18, R_GUN.deagle);
 def(S.AT_RELOAD, 'bolt', 'fx', 0.7, 0.03, 0.15, R_AT_BOLT);
 def(S.DRY_FIRE, 'dry', 'fx', 0.55, 0.05, 0.15, R_DRY);
 def(S.PLAYER_HURT, 'hurt', 'fx', 0.8, 0.06, 0.15, R_P_HURT);
@@ -322,6 +326,7 @@ const LOCAL = {
   mp5: { bank: 'fp_mp5', vol: 0.8, jit: 0.035, send: 0.1, rec: R_GUN.mp5.fp },
   dbshotgun: { bank: 'fp_dbshotgun', vol: 1, jit: 0.025, send: 0.2, rec: R_GUN.dbshotgun.fp },
   atrifle: { bank: 'fp_atrifle', vol: 1, jit: 0.02, send: 0.22, rec: R_GUN.atrifle.fp },
+  deagle: { bank: 'fp_deagle', vol: 1, jit: 0.025, send: 0.18, rec: R_GUN.deagle.fp },
   crossbow: { bank: 'fp_crossbow', vol: 0.7, jit: 0.03, send: 0.05, rec: R_XBOW },
   flaregun: { bank: 'fp_flare', vol: 0.55, jit: 0.03, send: 0.16 },
   flare_open: { bank: 'flare_open', vol: 0.75 }, // the flare gun broken open, the spent case out, a shell in...
