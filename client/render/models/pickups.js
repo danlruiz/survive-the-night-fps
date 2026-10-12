@@ -750,6 +750,7 @@ function FALLBACK_WEAPON(b, id) {
       b.box('steel', 0.04, 0.03, 0.12, { p: [0.14, 0.018, 0] });
       break;
     case ITEM.PISTOL:
+    case ITEM.REVOLVER:
       gun(0.18, false);
       break;
     case ITEM.SHOTGUN:
