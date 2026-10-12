@@ -55,6 +55,12 @@ check('a hand-edited record comes back well formed', (() => {
 })());
 store['stn.onboarding'] = 'not json';
 check('...and one that is not JSON starts over', !reloadOnboarding().done && Object.keys(loadOnboarding().steps).length === 0);
+store = { 'stn.runs': '{"v":1,"runs":[],"total":{"runs":3,"escapes":0,"streak":0},"best":{}}' };
+check('a player with runs on record from before the guide has been through it', reloadOnboarding().done === true);
+startOver();
+check('...unless they ask for it again with ?newplayer', !onboardingDone() && !reloadOnboarding().done && isFirstRun());
+store = {};
+check('nothing stored and no runs: a new player', !reloadOnboarding().done);
 startOver();
 check('the first-time tips are kept apart from the walkthrough', !tipSeen('perks') && (markTip('perks'), tipSeen('perks')) && !onboardingDone());
 finishOnboarding();
@@ -64,7 +70,7 @@ check('...and outlive it', tipSeen('perks') && !tipSeen('bestiary'));
 store = { 'stn.onboarding': '{"v":1,"done":true,"steps":{},"tips":{}}', 'stn.keyhints': '{"map":2}', 'stn.difficulty': 'blackout', 'stn.runs': 'kept' };
 check('an address without it changes nothing', !applyNewPlayer('?game=ABCD') && store['stn.difficulty'] === 'blackout');
 check('?newplayer is seen', applyNewPlayer('?game=ABCD&newplayer=1'));
-check('...and the walkthrough, the key hints and the remembered difficulty start over', isFirstRun() && !('stn.onboarding' in store) && !('stn.keyhints' in store) && !('stn.difficulty' in store));
+check('...and the walkthrough, the key hints and the remembered difficulty start over', isFirstRun() && JSON.parse(store['stn.onboarding']).done === false && !('stn.keyhints' in store) && !('stn.difficulty' in store));
 check('...and the record of runs is left alone', store['stn.runs'] === 'kept');
 
 // ---- the steps

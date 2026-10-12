@@ -30,7 +30,16 @@ export function loadOnboarding() {
   } catch {
     /* not JSON: start over */
   }
-  return (mem = fresh());
+  // nothing stored: a player with a run on record here (from before the guide) has been through it already
+  return (mem = { ...fresh(), done: playedBefore() });
+}
+
+function playedBefore() {
+  try {
+    return (JSON.parse(lsGet('stn.runs', 'null'))?.total?.runs | 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
 // read it from storage again (another tab, or a test, changed it)
@@ -71,7 +80,7 @@ export function applyNewPlayer(search = globalThis.location?.search ?? '') {
   if (!new URLSearchParams(search).has('newplayer')) return false;
   mem = null;
   try {
-    localStorage.removeItem(KEY);
+    localStorage.setItem(KEY, JSON.stringify(fresh())); // (stored, so a record of runs does not count as been through it)
     localStorage.removeItem(HINTS_KEY);
     localStorage.removeItem(DIFF_KEY);
   } catch {
