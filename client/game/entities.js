@@ -2,7 +2,7 @@
 // the three.js views (zombies, remote survivors, the cat, items, structures, projectiles, crates, areas).
 import * as THREE from 'three';
 import { POSE_NEAR, POSE_HZ } from '../render/rates.js';
-import { ENT, PFLAG, ZSTATUS, HCAR_AT, playerRide, dqpos, dqangle16, dqangle8, dqpitch } from '../../shared/protocol.js';
+import { ENT, PFLAG, PSTAT, ZSTATUS, HCAR_AT, playerRide, dqpos, dqangle16, dqangle8, dqpitch } from '../../shared/protocol.js';
 import { ZTYPE, ZANIM, CANIM, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, PROJ, AREA, SOUND, WEAPONS, ITEM, ITEM_DEFS, structPickRadius } from '../../shared/defs.js';
 import { makeBox, COL, canReach, groundAt } from '../../shared/collision.js';
 import { SERVER_TICK_RATE, PICK_RADIUS, MATE_PICK_Y, CRAWL_HEIGHT, CRAWL_HEAD_Y, CRAWL_HEAD_FWD, WATER_LEVEL, GRAVITY } from '../../shared/constants.js';
@@ -10,6 +10,7 @@ import { afloatAt } from '../../shared/swim.js';
 import { createZombie, createSurvivor, setZombieViewer } from '../render/models/characters.js';
 import { defaultCharacter } from '../../shared/characters.js';
 import { createCat } from '../render/models/cat.js';
+import { ScreechFx } from '../render/screechfx.js';
 import { createDeerView, deerAnimChanged, removeDeerView, updateDeer } from './deer.js';
 import { createPickup } from '../render/models/pickups.js';
 import { createStructure, setStructureDamage } from '../render/models/structures.js';
@@ -271,6 +272,7 @@ export class Entities {
     this.charShadows = !!game.renderer?.q?.charShadows;
     this.corpses = [];
     this.zombieCount = 0;
+    this.screechFx = new ScreechFx(game.scene);
     this.store = {
       ents: this.ents,
       onCreate: (e, t) => this.onCreate(e, t),
@@ -612,6 +614,12 @@ export class Entities {
           const anim = e.q[4];
           if (anim === ZANIM.DEAD && !e.dead) e.dead = true;
           if (anim === ZANIM.SPECIAL && !initial) this.zombieSpecialSound(e);
+          if (e.ztype === ZTYPE.SCREECHER && !initial && (anim === ZANIM.SPECIAL) !== !!e.screeching) {
+            // drawing breath, and then the scream (render/screechfx.js)
+            e.screeching = anim === ZANIM.SPECIAL;
+            const def = ZOMBIE_DEFS[e.ztype];
+            this.screechFx.special(e, e.screeching, def.headY, def.screamWindup * 0.75);
+          }
         }
         if (mask & 0b100000 && !initial) e.view?.setLegs?.(e.q[7], true); // ZF.LEGS: a leg has just been shot off
         break;
@@ -881,6 +889,7 @@ export class Entities {
     const flashCands = [];
     const cam = g.camera;
     setZombieViewer(cam.position.x, cam.position.y, cam.position.z);
+    this.screechFx.update(dt);
     // this frame's view frustum: a zombie turning into view is posed now, not one frame late (with a stale pose)
     cam.updateMatrixWorld();
     _frustum.setFromProjectionMatrix(_pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
@@ -1078,7 +1087,8 @@ export class Entities {
           e.afloat = afloat;
           const carry = !grips && g.gun.carrier === e.id; // ...or carrying it off in both arms (mountedgun.js draws it there)
           const cat = g.cat.poseOf(e.id, _catPose); // ...or the stray cat (catcarry.js draws it there)
-          const weapon = zombie || grips || afloat || carry || cat.cradle || (seat && seat.k === 0) ? 0 : e.q[6]; // (the cat in their arms; at the wheel: both hands on it)
+          const ears = !zombie && !dead && !!(e.q[9] & PSTAT.EARS); // (both hands over the ears: a screecher's scream)
+          const weapon = zombie || grips || afloat || carry || cat.cradle || ears || (seat && seat.k === 0) ? 0 : e.q[6]; // (the cat in their arms; at the wheel: both hands on it)
           if (weapon !== e.weapon) {
             e.weapon = weapon;
             v.setWeapon(weapon);
@@ -1108,7 +1118,7 @@ export class Entities {
               v.object.quaternion.copy(_vq).slerp(e.vQuat, vU);
             }
           }
-          v.update(dt, { speed: downed ? e.speed * 0.4 : e.speed, sprint: !!(flags & PFLAG.SPRINT), crouch: !!(flags & PFLAG.CROUCH) || downed, pitch: downed ? 0.9 : e.rpitch, onGround: Math.abs(e.vy) < 1.5, reloading: !!(flags & PFLAG.RELOADING), dead, time, grips, carry, cradle: cat.cradle, pet: cat.pet, sit: e.seatK > 0.5 || !!seat || e.vK > 0, reach: vride?.reach, sitT: vride?.sitT, sitK: vride?.sitK, sitSplay: vride?.sitSplay, sitLean: vride?.sitLean, sitTwist: vride?.sitTwist, feet: vride?.feet, sitNow: seat || e.vK > 0 ? vU : undefined, swim: afloat && !downed, talk: !!g.players.get(e.id)?.onAir, voice: g.voice?.mouthLevel(e.id) || 0 }); // (talk: on the walkie-talkie; voice: how loud they are talking, for the mouth)
+          v.update(dt, { speed: downed ? e.speed * 0.4 : e.speed, sprint: !!(flags & PFLAG.SPRINT), crouch: !!(flags & PFLAG.CROUCH) || downed, pitch: downed ? 0.9 : e.rpitch, onGround: Math.abs(e.vy) < 1.5, reloading: !!(flags & PFLAG.RELOADING), dead, time, grips, carry, cradle: cat.cradle, pet: cat.pet, sit: e.seatK > 0.5 || !!seat || e.vK > 0, reach: vride?.reach, sitT: vride?.sitT, sitK: vride?.sitK, sitSplay: vride?.sitSplay, sitLean: vride?.sitLean, sitTwist: vride?.sitTwist, feet: vride?.feet, sitNow: seat || e.vK > 0 ? vU : undefined, swim: afloat && !downed, ears, talk: !!g.players.get(e.id)?.onAir, voice: g.voice?.mouthLevel(e.id) || 0 }); // (talk: on the walkie-talkie; voice: how loud they are talking, for the mouth)
           v.object.visible = !(dead && zombie);
           // nunchucks: what their chain is doing is heard from where they stand (nothing of it is on the wire)
           if (weapon === ITEM.NUNCHAKU) {

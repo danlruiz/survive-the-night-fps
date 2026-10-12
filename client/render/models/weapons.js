@@ -2721,6 +2721,10 @@ FG_RELOAD.q = handQ(-1, [0.25, 0.12, -0.96], [1, -0.3, 0]);
 const PUSH_Q_R = handQ(1, [-0.3, 0.92, 0.25], [-0.25, 0, -1]);
 const PUSH_Q_L = handQ(-1, [0.3, 0.92, 0.25], [0.25, 0, -1]);
 const PUSH_IN = 0.22, PUSH_OUT = 0.4, PUSH_FLING = 0.3, PUSH_KICK = 2.4;
+// deafened by a screecher's scream close by (s.ears, _push): both hands clapped over the ears, at the edges of the view,
+// fingers up and back, palms in toward the head
+const EARS_Q_R = handQ(1, [0.1, 0.9, 0.35], [-1, 0, 0.2]);
+const EARS_Q_L = handQ(-1, [-0.1, 0.9, 0.35], [1, 0, 0.2]);
 // left support under a handguard: hand X -> weapon Y (palm up), fingers (-Y) -> weapon +X, tunnel Z along barrel
 const supportGrip = (roll, yaw, pitch = 0) => {
   // mirrored left hand (palm = +X_hand): X_hand -> weapon +Y (palm up), -Y_hand (fingers) -> weapon +X, Z_hand -> weapon +Z
@@ -3155,6 +3159,7 @@ export class ViewModel {
     this.pushK = new Spring(260, 22);
     this.flingT = 0;
     this.flung = false;
+    this.earsOn = false; // the hands are over the ears (s.ears) rather than on a leaper
     this.crouchT = 0;
     this.moveT = 0;
     this.bobPhase = 0;
@@ -4332,7 +4337,7 @@ export class ViewModel {
   // Pinned by a leaper (s.pinned, s.shove): the weapon goes down, then both hands come up flat against it, further out
   // the further it has been shoved off (the meter), thrusting at every press (shove()) and shaking with the struggle.
   // Thrown off, they finish the shove at full stretch before they drop and the weapon comes back up. True while the
-  // hands have the view.
+  // hands have the view. Deafened by a scream (s.ears) the same way, the hands over the ears instead.
   _push(dt, s) {
     if (this.claws) {
       // (turned: nothing to shove with, and setItem has put the arms back)
@@ -4341,6 +4346,10 @@ export class ViewModel {
       return false;
     }
     const pinned = !!s.pinned;
+    const ears = !!s.ears && !pinned;
+    if (ears) this.earsOn = true;
+    else if (pinned) this.earsOn = false;
+    if ((pinned || ears) && this.act && this.act.type !== 'use') this.act = null;
     if (pinned && !this.pinOn) {
       this.pinOn = true;
       this.flingT = 0;
@@ -4359,7 +4368,7 @@ export class ViewModel {
     }
     if (pinned && s.shove >= 1) this.pushFull = true;
     if (this.flingT > 0) this.flingT = Math.max(0, this.flingT - dt);
-    this.pinT = pinned || this.flingT > 0 ? Math.min(1, this.pinT + dt / PUSH_IN) : Math.max(0, this.pinT - dt / PUSH_OUT);
+    this.pinT = pinned || ears || this.flingT > 0 ? Math.min(1, this.pinT + dt / PUSH_IN) : Math.max(0, this.pinT - dt / PUSH_OUT);
     if (pinned) this.pushLvl += ((s.shove || 0) - this.pushLvl) * (1 - Math.exp(-dt * 18));
     else if (this.pinT <= 0) this.pushLvl = 0;
     this.pushK.step(dt);
@@ -4368,6 +4377,7 @@ export class ViewModel {
         // the hands are down: back to the weapon
         this.pushing = false;
         this.flung = false;
+        this.earsOn = false;
         this.armR.shoulder.position.copy(SHOULDER_R);
         this.armL.shoulder.position.copy(SHOULDER_L);
         if (this.cur) this.cur.root.visible = true;
@@ -4384,6 +4394,24 @@ export class ViewModel {
       this.armL.shoulder.position.copy(FP_SHOULDER_L);
     }
     const up = smoothstep(0.5, 1, this.pinT);
+    if (this.earsOn) {
+      const t = this.time;
+      for (let side = -1; side <= 1; side += 2) {
+        const arm = side < 0 ? this.armL : this.armR;
+        // pressed hard against the head, trembling, and swaying with it
+        _v1.set(
+          side * (0.2 + Math.sin(t * 29 + side) * 0.003) + Math.sin(t * 3.1) * 0.01,
+          -0.02 + Math.sin(t * 23 + side * 2.1) * 0.003 - (1 - up) * 0.3,
+          -0.19,
+        );
+        _q1.copy(side < 0 ? EARS_Q_L : EARS_Q_R);
+        if (up < 1) _q1.premultiply(_q2.setFromAxisAngle(X_AXIS, -(1 - up) * 0.9));
+        arm.setVisible(true);
+        arm.setPose('shove');
+        this._solveArm(arm, _v1, _q1, side < 0 ? FP_SHOULDER_L : FP_SHOULDER_R, side < 0 ? POLE_L : POLE_R);
+      }
+      return true;
+    }
     const fl = this.flung ? smoothstep(0, 0.1, PUSH_FLING - this.flingT) : 0;
     const m = this.pushLvl, k = this.pushK.x, t = this.time;
     const shake = (1 - fl) * (0.6 + 0.4 * (1 - m)); // (it bears down hardest while it is still close)

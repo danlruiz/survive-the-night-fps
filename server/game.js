@@ -5359,6 +5359,7 @@ export class Game {
             c.f32(s.leapCd);
             c.f32(s.stunT);
             c.f32(s.shove);
+            c.f32(s.ears);
             c.u8(s.pulled ? 1 : 0);
             if (s.pulled) {
               c.f32(s.pullX);

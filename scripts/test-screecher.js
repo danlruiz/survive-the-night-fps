@@ -9,6 +9,7 @@ import './clip/dom-stub.js';
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND } from '../shared/defs.js';
+import { BTN, SLOT_PISTOL } from '../shared/constants.js';
 import { BESTIARY } from '../shared/bestiary.js';
 import { readSnapshot } from '../client/net/decode.js';
 
@@ -61,7 +62,7 @@ function client(name) {
   game.onMessage(c.session, w.bytes().slice());
   c.p = () => game.players.get(c.id);
   if (c.p()) c.p().admin = true;
-  c.input = (yaw = 0) => {
+  c.input = (yaw = 0, buttons = c.btn || 0) => {
     const w2 = new Writer(64);
     w2.u8(C2S.INPUT);
     w2.u16(game.tick & 0xffff);
@@ -69,7 +70,7 @@ function client(name) {
     const cmds = [];
     for (let i = 0; i < 3; i++) {
       c.seq = (c.seq + 1) & 0xffff;
-      cmds.push({ seq: c.seq, buttons: 0, qyaw: qangle16(yaw), qpitch: qpitch(0), slot: 255 });
+      cmds.push({ seq: c.seq, buttons, qyaw: qangle16(yaw), qpitch: qpitch(0), slot: 255 });
     }
     writeInput(w2, cmds);
     game.onMessage(c.session, w2.bytes().slice());
@@ -121,8 +122,8 @@ run(4);
 clear();
 
 // (ready to scream at once: a fresh one waits a few seconds first, by when it would be on top of them)
-const put = () => {
-  const z = game.zm.spawn(ZTYPE.SCREECHER, s.x, s.z - 14, { horde: true });
+const put = (d = 14) => {
+  const z = game.zm.spawn(ZTYPE.SCREECHER, s.x, s.z - d, { horde: true });
   if (z) z.specialCd = 0;
   return z;
 };
@@ -220,9 +221,42 @@ check('shot dead in its windup, it brings nobody and rings no ears', !fresh(befo
   check('with a hundred of the horde about it still screams, but calls nobody more', rang && !fresh(b).length, `${fresh(b).length}`);
 }
 
+// ---------------------------------------------------------------- too close: hands over the ears
+{
+  clear();
+  A.screeches.length = 0;
+  s.slot = SLOT_PISTOL;
+  s.mags[SLOT_PISTOL] = 8;
+  const sc3 = put(5);
+  for (let i = 0; i < 200 && !A.screeches.some((e) => e.id === sc3.id); i++) run(1);
+  const ears = s.ears;
+  check('screamed at from 5 m, the survivor claps their hands over their ears for a moment', ears > 1.5 && ears <= 3, `${ears.toFixed(2)} s`);
+  check('...and their own game is told (the hands, the weapon put away)', A.self.ears > 1, `${A.self.ears}`);
+  check(`...the other survivor, ${def.ringRange + 8} m off, is not`, B.p().state.ears === 0);
+  const mag = s.mags[SLOT_PISTOL];
+  A.btn = BTN.ATTACK;
+  let held = 0;
+  while (s.ears > 0 && held < 100) {
+    run(1);
+    held++;
+    A.btn = held & 1 ? 0 : BTN.ATTACK; // (one shot per press)
+  }
+  check('...and cannot shoot while they do', s.mags[SLOT_PISTOL] === mag, `${mag} -> ${s.mags[SLOT_PISTOL]} in ${held} ticks`);
+  check('...for no more than a few seconds', held / 20 <= 3.1, `${(held / 20).toFixed(1)} s`);
+  for (let i = 0; i < 30; i++) {
+    A.btn = i & 1 ? 0 : BTN.ATTACK;
+    run(1);
+  }
+  A.btn = 0;
+  check('...and can again once the hands come down', s.mags[SLOT_PISTOL] < mag, `${mag} -> ${s.mags[SLOT_PISTOL]}`);
+  game.combat.killZombie(sc3, null);
+}
+
 // ---------------------------------------------------------------- the client's ears
 {
   const { AudioEngine } = await import('../client/audio/audio.js').catch(() => ({}));
+  const { ScreechFx } = await import('../client/render/screechfx.js').catch((err) => (console.log(err), {}));
+  check('the client has the scream drawn (aura and blast)', !!ScreechFx && typeof ScreechFx.prototype.special === 'function' && typeof ScreechFx.prototype.update === 'function');
   check('the audio engine has a ringing to start and stop', !!AudioEngine && typeof AudioEngine.prototype.ring === 'function' && typeof AudioEngine.prototype.stopRing === 'function');
 }
 

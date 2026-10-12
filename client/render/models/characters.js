@@ -4843,6 +4843,14 @@ class SurvivorInstance {
       if (s.pet) arm(p, 1, PET_ARM[0], PET_ARM[1], PET_ARM[2], PET_ARM[3], 0); // (solvePet puts the hand on it)
       else arm(p, 1, CRADLE[0], CRADLE[1], CRADLE[2], CRADLE[3], 0);
     }
+    // ...or both hands clapped over the ears (s.ears: a screecher screamed right by them), the head ducked into it
+    else if (s.ears) {
+      const sh = Math.sin(t * 31) * 0.03;
+      arm(p, 0, 0.35 + sh, 1.05, -0.6, 2.35, 0.3);
+      arm(p, 1, 0.35 - sh, 1.05, -0.6, 2.35, 0.3);
+      A(p, NECK, -0.25, 0, 0);
+      A(p, HEAD, -0.15, 0, 0.12 * Math.sin(t * 4));
+    }
     // throw pulse without IK hold
     if (this.hold === HOLD_NONE && this.pulseMelee < 0.4) {
       const u = this.pulseMelee / 0.4;

@@ -36,6 +36,8 @@ const CATS = {
   bell: { ref: 30, max: 1000, roll: 0.6, air: 320, wet: 0.12, hrtf: 0, cap: 4, delay: true },
   // high overhead: a parachute flare bursting alight 40-90 m up, heard all round the place it went up over
   sky: { ref: 30, max: 380, roll: 0.9, air: 150, wet: 0.2, hrtf: 0, cap: 4, delay: true },
+  // a screecher's scream: loud at any range in the fight, and carrying most of the way across the valley
+  scream: { ref: 14, max: 300, roll: 0.85, air: 120, wet: 0.26, hrtf: 30, cap: 4, delay: true },
 };
 for (const k in CATS) CATS[k].sendExp = 0.45 * CATS[k].roll;
 
@@ -258,7 +260,7 @@ def(S.DOG_YELP, 'dog_yelp', 'zombie', 0.8, 0.08, 0.15, R_DOG_YELP);
 def(S.SHADE_WHISPER, 'z_shade_whisper', 'zombie', 0.8, 0.1, 0.15, R_Z_WHISPER);
 def(S.SHADE_FREEZE, 'z_shade_freeze', 'zombie', 1, 0.06);
 def(S.SHADE_SHRIEK, 'z_shade_shriek', 'zombie', 1, 0.06);
-def(S.SCREECHER_SCREAM, 'z_screecher', 'big', 1, 0.05, 0.25);
+def(S.SCREECHER_SCREAM, 'z_screecher', 'scream', 1, 0.05, 0.25);
 def(S.EAT, 'eat', 'fx', 0.5, 0.05);
 def(S.DRINK, 'drink', 'fx', 0.4, 0.05); // (-2 dB: it measures that much hotter than can_open)
 def(S.BODY_FALL, 'land', 'fx', 0.9, 0.1, 0.15, R_BODY);
@@ -967,7 +969,9 @@ class VoiceSource {
   }
 }
 
-const RING_VOL = 0.07; // a screecher's ringing (ring): plainly there over the fight, not painful
+const RING_VOL = 0.085; // a screecher's ringing (ring): plainly there over the fight, not painful
+const RING_WORLD = 0.08; // the world and the music under it: all but gone while it rings (ring, _ringDuck)
+const RING_VOICE = 0.3; // the other survivors' voices: faint, but there
 const RING_FADE = 1.5; // s it takes to fade once it is over
 const RING_LP = 900; // Hz: the world through ringing ears
 const RADIO_STATIC_VOL = 0.28; // radioStatic(1) about -22 LUFS, a few dB under the forest and well under a voice; held (0.35), -31
@@ -1009,7 +1013,7 @@ export class AudioEngine {
     this._lastResume = 0;
     this._timer = null;
     this._loopScratch = [];
-    this._mix = { world: -1, sfxLP: -1 };
+    this._mix = { world: -1, sfxLP: -1, ring: 0 };
     this._queue = null;
     this._foot = 1; // alternates the own footsteps a hair left / right
     this._gearT = 2; // steps until the next clothing rustle
@@ -1139,7 +1143,9 @@ export class AudioEngine {
     this._worldIn.connect(this._worldLP);
     this._worldDuck = g(1); // (voice chat ducking)
     this._worldLP.connect(this._worldDuck);
-    this._worldDuck.connect(this._pre);
+    this._ringDuck = g(1); // (ringing ears: the world and the music fade under the ring, _tick)
+    this._ringDuck.connect(this._pre);
+    this._worldDuck.connect(this._ringDuck);
 
     this._sfxIn = g(1); // user sfx volume
     this._sfxLP = c.createBiquadFilter(); // low-health muffle
@@ -1155,9 +1161,11 @@ export class AudioEngine {
     this._musicIn = g(1);
     this._musicDuck = g(1);
     this._musicIn.connect(this._musicDuck);
-    this._musicDuck.connect(this._pre);
+    this._musicDuck.connect(this._ringDuck);
     this._voiceIn = g(1);
-    this._voiceIn.connect(this._pre);
+    this._voiceRing = g(1);
+    this._voiceIn.connect(this._voiceRing);
+    this._voiceRing.connect(this._pre);
     this._voiceAn = c.createAnalyser(); // how loud the voices you can hear are right now: drives the ducking
     this._voiceAn.fftSize = 1024;
     this._voiceIn.connect(this._voiceAn);
@@ -1973,6 +1981,12 @@ export class AudioEngine {
     const rk = this._ringing(now);
     if (s.menu) this.stopRing();
     if (rk > 0) lpf = Math.min(lpf, Math.round(RING_LP * Math.pow(20000 / RING_LP, 1 - rk)));
+    // and everything else fades under it, coming back as it fades
+    if (Math.abs(rk - this._mix.ring) > 0.01 || (rk === 0) !== (this._mix.ring === 0)) {
+      this._mix.ring = rk;
+      this._ringDuck.gain.setTargetAtTime(1 - (1 - RING_WORLD) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+      this._voiceRing.gain.setTargetAtTime(1 - (1 - RING_VOICE) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+    }
     if (Math.abs(lpf - this._mix.sfxLP) > 50) {
       this._mix.sfxLP = lpf;
       this._sfxLP.frequency.setTargetAtTime(lpf, now, 0.4);

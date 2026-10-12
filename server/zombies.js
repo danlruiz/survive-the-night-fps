@@ -109,6 +109,11 @@ const SCREECH_AGGRO = 20;
 const SCREECH_HORDE_ALIVE = 100;
 const SCREECH_ALIVE_MAX = 200;
 const SCREECH_LOUD = 90;
+// ...and a survivor within EARS_RANGE m of it claps both hands over their ears: no shot, swing or throw for EARS_T s
+// (EARS_T_MIN at the edge of that range), though they can still walk (s.ears, shared/playersim.js)
+const EARS_RANGE = 10;
+const EARS_T = 3;
+const EARS_T_MIN = 1.5;
 // the client's distance haze: fog density by sun height (KEYS s / fogD in client/render/environment.js), see sightRange()
 const HAZE_SUN = [-1, -0.12, 0.02, 0.18, 0.55, 1];
 const HAZE_DENSITY = [0.025, 0.025, 0.0195, 0.0108, 0.0074, 0.0072];
@@ -2314,7 +2319,7 @@ export class Zombies {
         // it stops where it sees a survivor and rears back to scream: the scream is heard well before the horde comes
         if (z.specialCd <= 0 && z.los && dist < def.screamRange && Math.abs(ty - z.y) < 6) {
           windup(def.screamWindup, 13, null);
-          g.sound(SOUND.SCREECHER_SCREAM, z.x, z.y + def.headY, z.z, 160);
+          g.sound(SOUND.SCREECHER_SCREAM, z.x, z.y + def.headY, z.z, 300);
           return true;
         }
         break;
@@ -2696,6 +2701,7 @@ export class Zombies {
       const s = h.state;
       const d = Math.hypot(s.x - z.x, s.y - z.y, s.z - z.z);
       if (d >= def.ringRange) continue;
+      if (d < EARS_RANGE && !h.downed && !(s.drive || s.pass)) s.ears = Math.max(s.ears, EARS_T - (EARS_T - EARS_T_MIN) * (d / EARS_RANGE));
       const secs = def.ringT * (1 - 0.5 * (d / def.ringRange));
       g.emit(
         (w) => {

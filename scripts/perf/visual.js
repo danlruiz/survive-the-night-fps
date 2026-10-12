@@ -177,7 +177,7 @@ function VIS() {
     const sc = g.world.posScale || 64;
     for (const o of list) {
       const y = g.world.heightAt(o.x, o.z);
-      const e = { id: o.id, kind: o.k === 'p' ? ENT.PLAYER : ENT.ZOMBIE, q: new Int32Array(9) };
+      const e = { id: o.id, kind: o.k === 'p' ? ENT.PLAYER : ENT.ZOMBIE, q: new Int32Array(10) };
       e.q[0] = Math.round(o.x * sc);
       e.q[1] = Math.round(y * sc);
       e.q[2] = Math.round(o.z * sc);

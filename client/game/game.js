@@ -3473,7 +3473,7 @@ export class Game {
     this.vm.setVisible(self.alive && !cine && !this.ui.inventoryOpen && !this.ui.mapOpen && !this.ui.boardOpen && !this.ui.bestiaryOpen && !this.ui.cardsOpen && !this.debugCam && !this.gun.manning && !s.hmg && !this.handcar.handsOn && !this.vehicles.handsOn && !swim);
     const lk = this.settings.weaponSway === false ? 0 : 0.0022 * inp.sensitivity;
     const wallDist = self.alive ? this.weaponClearance(cam) : 99; // (the viewmodel tucks back off a wall in front)
-    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, shove: s.shove, pet: stroking };
+    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, ears: s.ears > 0 && !!self.alive, shove: s.shove, pet: stroking };
     const vmCam = this.renderer.vmCamera;
     if (Math.abs(vmCam.fov - this.vm.fov) > 0.01) {
       vmCam.fov = this.vm.fov; // (as of last frame: the aimed view of iron sights is narrowed onto them, cfg.adsFov)
