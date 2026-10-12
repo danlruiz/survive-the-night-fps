@@ -377,6 +377,7 @@ const LOCAL = {
   zombie_player_growl: { bank: 'zp_growl', vol: 0.65, jit: 0.07, rec: R_ZP_GROWL },
   death: { bank: 'death_local', vol: 0.9, bus: 'ui', send: 0 },
   notify: { bank: 'notify', vol: 0.3, bus: 'ui', jit: 0.02, send: 0 },
+  mate_down: { bank: 'mate_down', vol: 0.35, bus: 'ui', jit: 0, send: 0 }, // a teammate is down (game/matedown.js)
   achieve: { bank: 'achieve', vol: 0.4, bus: 'ui', jit: 0, send: 0 },
   achieve_rare: { bank: 'achieve_rare', vol: 0.45, bus: 'ui', jit: 0, send: 0 },
   chat: { bank: 'chat', vol: 0.25, bus: 'ui', jit: 0.02, send: 0 },
@@ -995,7 +996,7 @@ export class AudioEngine {
     this._lpitch = NaN;
     this._state = {
       night: 0, horde: false, boss: false, danger: 0, lowHealth: 0, nearFire: 0, underCover: false, rain: 0, dead: false, menu: false,
-      nightPhase: false, cycle: NaN, wind: NaN, gust: NaN, open: 0, indoor: 0,
+      nightPhase: false, cycle: NaN, wind: NaN, gust: NaN, open: 0, indoor: 0, home: false, homeless: false,
     };
     this._vol = { master: 1, music: 1, sfx: 1, ambience: 1, voice: 1 };
     this._duck = { on: true, k: 0, set: 0, at: 0, timer: null, buf: null };
@@ -1535,6 +1536,21 @@ export class AudioEngine {
     else this._playPos(buf, o.cat || 'fx', +o.x, +(o.y ?? this._ly), +(o.z ?? 0), vol, rate);
   }
 
+  /**
+   * A recording by its key (samples.js REC), whole and not placed: a voice everyone hears the same. -> true once it
+   * has started; false while it is still being fetched or decoded (asked for now: try again shortly), or if there is
+   * none to play.
+   */
+  playRecording(key, volume = 1) {
+    const rec = this._rec;
+    if (!this._ready || !rec) return false;
+    const buf = rec.get(key);
+    if (!buf) return false;
+    this._resume();
+    this._play2D(buf, volume, 1, this._sfxIn, 0.06, 0);
+    return true;
+  }
+
   playLocal(name, opts = EMPTY) {
     if (!this._ready) return;
     const d = LOCAL[name];
@@ -1842,7 +1858,9 @@ export class AudioEngine {
   // optional extras: cycle (the renderer's day cycle 0..1: day 0.055-0.485, night 0.5-0.99; gives real dawn / dusk
   // windows), wind (the weather's: 0.3 breeze .. ~1.2 gale) and gust 0..1 (to match visible wind; otherwise the engine wanders its own, readable via
   // `audio.wind`), open 0..1 (clearing / road: open-field reverb), indoor 0..1 (inside a building: room reverb and
-  // muffled outdoor beds, like underCover), nightPhase (the game's night, nightfall to dawn: the night's theme plays).
+  // muffled outdoor beds, like underCover), nightPhase (the game's night, nightfall to dawn: the night's theme plays),
+  // home (inside the walls the team has built: home.js; at night a warm room tone over the ducked outside beds) and
+  // homeless (tonight's theme leaves the home bed out).
   setAmbience(state) {
     if (!state) return;
     const s = this._state;
@@ -1869,6 +1887,8 @@ export class AudioEngine {
     s.gust = gv === gv ? clamp01(gv) : NaN;
     s.open = clamp01(+state.open || 0);
     s.indoor = clamp01(+state.indoor || 0);
+    s.home = !!state.home;
+    s.homeless = !!state.homeless;
     if (changed && this._ready) this._applyStateNow();
   }
 
