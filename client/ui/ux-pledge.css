@@ -1,0 +1,208 @@
+/* The pledge window (ui/pledge.js): a card over the game as a run begins, Skulls into group pools and personal buys. */
+.stn-ui .pdg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(5, 4, 3, 0.55);
+  pointer-events: auto;
+}
+.stn-ui .pdg[hidden] {
+  display: none;
+}
+.stn-ui .pdg-card {
+  position: relative;
+  width: min(40rem, 100%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 1.1rem 1.2rem 1rem;
+  background: rgba(14, 11, 10, 0.96);
+  border: 1px solid var(--bone-faint);
+  color: var(--bone);
+}
+.stn-ui .pdg-card .btn-icon.set-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0.45rem;
+}
+.stn-ui .pdg-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-right: 2.75rem; /* (clear of the close cross: ux-modals.css) */
+}
+.stn-ui .pdg-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.stn-ui .pdg-title b {
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.stn-ui .pdg-sub,
+.stn-ui .pdg-note,
+.stn-ui .pdg-foot-note {
+  color: var(--bone-dim);
+  font-size: 0.85rem;
+}
+.stn-ui .pdg-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.stn-ui .pdg-clock.pdg-late {
+  color: var(--blood-lite);
+}
+.stn-ui .pdg-wallet {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.25rem;
+}
+.stn-ui .pdg-wallet i,
+.stn-ui .pdg-ic {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+  color: var(--bone-2);
+}
+.stn-ui .pdg-h {
+  margin: 0.9rem 0 0.2rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+.stn-ui .pdg-note {
+  margin: 0 0 0.4rem;
+}
+.stn-ui .pdg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.stn-ui .pdg-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--bone-faint);
+}
+.stn-ui .pdg-row.pdg-full {
+  border-color: var(--bone-dim);
+}
+.stn-ui .pdg-own {
+  cursor: pointer;
+}
+.stn-ui .pdg-list:has(> .pdg-own) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.stn-ui .pdg-own.pdg-off {
+  opacity: 0.5;
+  cursor: default;
+}
+.stn-ui .pdg-txt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.stn-ui .pdg-txt span {
+  color: var(--bone-dim);
+  font-size: 0.85rem;
+}
+.stn-ui .pdg-bar {
+  height: 0.3rem;
+  margin-top: 0.25rem;
+  background: var(--bone-faint);
+}
+.stn-ui .pdg-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--blood-hi);
+  transition: width 0.2s;
+}
+.stn-ui .pdg-full .pdg-bar i {
+  background: var(--bone);
+}
+.stn-ui .pdg-pooled {
+  color: var(--bone-dim);
+}
+.stn-ui .pdg-ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+}
+.stn-ui .pdg-step,
+.stn-ui .pdg-rest {
+  min-width: 2.4rem;
+  padding: 0.25rem 0.4rem;
+}
+.stn-ui .pdg-mine {
+  min-width: 2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.stn-ui .pdg-price {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stn-ui .pdg-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.9rem;
+}
+.stn-ui .pdg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--bone-faint);
+  font-size: 0.8rem;
+  color: var(--bone-dim);
+}
+.stn-ui .pdg-chip i {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.stn-ui .pdg-chip-done {
+  color: var(--bone);
+  border-color: var(--bone-dim);
+}
+.stn-ui .pdg-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+.stn-ui .pdg-foot-note {
+  flex: 1;
+}
+@media (max-width: 520px) {
+  .stn-ui .pdg-list:has(> .pdg-own) {
+    grid-template-columns: 1fr;
+  }
+  .stn-ui .pdg-row:not(.pdg-own) {
+    flex-wrap: wrap;
+  }
+  .stn-ui .pdg-ctl {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

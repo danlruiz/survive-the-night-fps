@@ -230,6 +230,7 @@ const TRANSIENT = [
   /^power\.(rng|running|cones)\b/,
   /^game\.cards\.(game|link|own|ofP|packT|rng|cw)\b/, // (Dead Hand: the collections' copies and who was sent what are read and sent again; its stream reseeded)
   /^game\.loadouts\.(game|link|own)\b/, // (loadout collections are profile-owned caches, read again on the next server)
+  /^game\.pledges\b/, // (the pledge window is not carried over a deploy: it is the first seconds of a run, and shuts unpaid)
   /^dm\b/,
   /^cm\b/,
 ];

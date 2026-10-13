@@ -15,6 +15,8 @@ import { Leaderboard } from './leaderboard.js';
 import { Bestiary } from './bestiary.js';
 import { CardsScreen } from './cards.js';
 import { SpawnMenu } from './spawnmenu.js';
+import { PledgePanel } from './pledge.js';
+import './ux-pledge.css';
 import { Roster } from './roster.js';
 import { FriendsPanel } from './friends.js';
 import { AccountPanel } from './account.js';
@@ -117,6 +119,7 @@ export class UI {
     this.bestiary = new Bestiary(this, modalL);
     this.cards = new CardsScreen(this, modalL); // Dead Hand, the card game (Game.toggleCards)
     this.spawn = new SpawnMenu(this, modalL); // (admins only: Game.toggleSpawn)
+    this.pledge = new PledgePanel(this, modalL); // the pledge window as a run begins (Game.togglePledge: it sets the callbacks)
     this.roster = new Roster(this, ovL);
     this.splash = new Splash(this, menuL);
     this.settingsPanel = new SettingsPanel(this, modalL);
@@ -265,6 +268,10 @@ export class UI {
 
   get boardOpen() {
     return this.board.open;
+  }
+
+  get pledgeOpen() {
+    return this.pledge.open;
   }
 
   setBestiaryOpen(open) {

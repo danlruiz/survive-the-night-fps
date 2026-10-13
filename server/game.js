@@ -164,6 +164,8 @@ import { MatchTracker } from './analytics.js';
 import { AchievementTracker } from './achievements.js';
 import { BestiaryTracker } from './bestiary.js';
 import { Cards } from './cards.js';
+import { Pledges } from './pledge.js';
+import { PLEDGE } from '../shared/pledge.js';
 import { Loadouts, clearLoadoutRun, isLoadoutArmor, isLoadoutBackpack, isLoadoutStack, isLoadoutWeapon, playerMods } from './loadouts.js';
 import { checkEnvelope, worldPrint, sameWorld, HandoffError } from './handoff.js';
 import { saveGame, loadGame } from './gamestate.js';
@@ -489,6 +491,7 @@ export class Game {
     // (the network thread: room-worker.js RemoteCards); none, in this thread (LocalCards)
     this.cards = new Cards(this, opts.cards);
     this.loadouts = new Loadouts(this, opts.loadouts);
+    this.pledges = new Pledges(this); // the pledge window as a run begins: Skulls spent on what the group starts with
     if (restore) this.load(restore.game);
   }
 
@@ -782,6 +785,16 @@ export class Game {
           return this.sendBoard(p);
         case C2S.CARDS:
           return this.cards.onMessage(p, r);
+        case C2S.PLEDGE: {
+          if (r.view.getUint16(r.o, true) > PLEDGE.MSG_MAX) return;
+          let data = null;
+          try {
+            data = JSON.parse(r.str());
+          } catch {
+            return;
+          }
+          return this.pledges.onMessage(p, data);
+        }
         case C2S.VOICE: {
           const target = r.u16();
           const payload = r.str();
@@ -927,6 +940,7 @@ export class Game {
       if (left) this.sendChat(p, 0, CHATF.SYSTEM, 'Back in the same run: you have what you left with.');
     }
     this.vehicles.provide(); // (a seat for them too: the next of the bridgehead's vehicles, if the team has outgrown the rest)
+    this.pledges.joined(p); // (a run that has just begun: they are in its pledge window too)
     this.track.join(p);
     this.ach.join(p);
     this.bestiary.join(p);
@@ -1247,6 +1261,7 @@ export class Game {
     this.releaseHolds(p);
     this.cards.leave(p); // (a match they were playing is lost, asks and a trade being haggled over called off)
     this.loadouts.leave(p);
+    this.pledges.leave(p);
     this.parkKit(p); // (they take their starting kit along: only what they found beyond it is dropped)
     this.dropAll(p);
     this.players.delete(p.id);
@@ -1329,6 +1344,7 @@ export class Game {
   resetToWaiting() {
     this.track.finish('abandoned'); // (a run still on: everybody left it)
     this.cards.runEnded();
+    this.pledges.cancel();
     this.clearWorld();
     this.checkpoint = null;
     this.crossing = null;
@@ -1406,6 +1422,7 @@ export class Game {
     this.playersDirty = true;
     this.track.start();
     this.ach.start();
+    this.pledges.begin(); // (after the spawns: everybody here is in the window)
     this.log('new game started');
   }
 
@@ -4809,6 +4826,7 @@ export class Game {
     this.vehicles.update();
     ts.mark(T_INPUTS);
     this.updatePhase(dt);
+    this.pledges.update(dt);
     this.updateSupplyHelp(dt);
     this.cemetery.update(dt);
     ts.mark(T_PHASE);

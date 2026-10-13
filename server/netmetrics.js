@@ -128,6 +128,8 @@ export function gameInChannel(bytes) {
       return 'game_board';
     case C2S.CARDS:
       return 'game_cards';
+    case C2S.PLEDGE:
+      return 'game_pledge';
     default:
       return 'game_other';
   }
@@ -149,6 +151,8 @@ export function gameOutChannel(bytes) {
       return 'game_board';
     case S2C.CARDS:
       return 'game_cards';
+    case S2C.PLEDGE:
+      return 'game_pledge';
     case S2C.PLAYERS:
       return 'game_players';
     case S2C.PROGRESS:

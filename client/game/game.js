@@ -270,6 +270,7 @@ export class Game {
     this.myId = 0;
     this.perksUp = false; // the Perks panel opened with [P] mid-run (togglePerks)
     this.achUp = false; // the Achievements panel opened with [U] mid-run (toggleAchievements)
+    this.pledgeShown = false; // this run's pledge window has opened its panel by itself once (onPledge)
     this.admin = false; // the server lets us run the admin commands (WELCOMEF.ADMIN): the spawn menu [`] is ours
     this.global = { phase: PHASE.WAITING, day: 0, timeLeft: 0, hordeLeft: -1, bossId: 0, supplies: [0, 0, 0, 0, 0], hints: [255, 255, 255, 255, 255, 255, 255], found: 0, spots: [0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff], help: 0, unlocked: 0, schemHints: [255, 255, 255, 255, 255], wave: 0, waves: 3, escapeT: 0, flags: 0, finale: false, suppliesDone: false, escapeReady: false, humansAlive: 0, playersTotal: 0, restartT: 0, benches: [], parts: [] };
     this.self = { alive: 1, hp: 100, maxHp: 100, armor: 0, armorMax: 0, battery: 100, weapons: [0, 0, 0, 0, 0], mags: [0, 0], ammo: AMMO_ITEMS.map(() => 0) };
@@ -354,6 +355,9 @@ export class Game {
     ui.bestiary.onClose = () => this.toggleBestiary(false);
     ui.cards.onClose = () => this.toggleCards(false);
     ui.progress.onHide = () => this.togglePerks(false);
+    ui.pledge.onSend = (data) => this.conn.pledge(data);
+    ui.pledge.onClose = () => this.togglePledge(false);
+    ui.pledge.names = () => new Map([...this.players].map(([id, p]) => [id, p.name]));
     // the kit screens' tabs (ui/screentabs.js): in a run they are the game's; outside one, the UI swaps the two it has
     const tabGo = ui.screenGo.bind(ui);
     ui.screenGo = (id) => (this.screenRun() ? this.screenGo(id) : tabGo(id));
@@ -400,6 +404,7 @@ export class Game {
       progress: (r) => this.onProgress(r),
       board: (b) => this.ui.setBoard(b),
       cards: (m) => this.cards.onMessage(m), // (Dead Hand: game/cards.js)
+      pledge: (m) => this.onPledge(m), // the pledge window as a run begins (server/pledge.js)
       voice: (from, payload) => this.voice.onSignal(from, payload),
       // (ENDED_CODE: an admin closed the game or removed this player - the reason is said, and nothing rejoins)
       close: (code, reason) => this.onDisconnect(code, code === ENDED_CODE ? reason || 'This game was ended by an admin.' : ''),
@@ -1136,6 +1141,9 @@ export class Game {
     this.state = 'menu';
     this.perksUp = false; // (the panel itself may stay up over the splash: it is the splash's too)
     this.achUp = false;
+    this.ui.pledge.set({ open: false }); // (the window was the game's: it is gone with it)
+    this.ui.pledge.setOpen(false);
+    this.pledgeShown = false;
     this.input.enabled = false;
     this.input.exitLock();
     this.keyGuard.release();
@@ -2427,7 +2435,8 @@ export class Game {
     const ui = this.ui;
     const has = (a) => acts.includes(a);
     if (code === 'Escape') {
-      if (ui.rosterPinned) this.pinRoster(false);
+      if (ui.pledgeOpen) this.togglePledge(false);
+      else if (ui.rosterPinned) this.pinRoster(false);
       else if (ui.mapOpen) this.toggleMap(false);
       else if (ui.boardOpen) this.toggleBoard(false);
       else if (ui.bestiaryOpen) this.toggleBestiary(false);
@@ -2452,6 +2461,11 @@ export class Game {
     // (an admin's: it takes over the key from any bind on it)
     if (code === SPAWN_KEY && this.admin) {
       if (!ui.inventoryOpen && !ui.isTyping()) this.toggleSpawn(!ui.spawnOpen);
+      return;
+    }
+    if (has('pledge') && !ui.isTyping()) {
+      if (ui.pledgeOpen) this.togglePledge(false);
+      else if (ui.pledge.view.open && !ui.pauseOpen) this.togglePledge(true);
       return;
     }
     if (has('players')) {
@@ -2643,7 +2657,7 @@ export class Game {
   // the pinned player list): the pointer is free for it, and the game's keys and buttons are off
   screenUp() {
     const ui = this.ui;
-    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned || this.perksUp || this.achUp;
+    return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned || ui.pledgeOpen || this.perksUp || this.achUp;
   }
 
   resumeFromPause() {
@@ -2835,6 +2849,48 @@ export class Game {
     if (open) ui.progress.show();
     else if (ui.progress.visible) ui.progress.hide(); // (calls back here, and finds it shut already)
     // (shut over the end screen, after a leave: the input stays as they left it)
+    if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  }
+
+  // The pledge window (server/pledge.js) as the server sees it for us. Its panel opens by itself once a window, when
+  // there are Skulls to spend; the Pledge key [O] brings it back, and it goes when the window shuts.
+  onPledge(m) {
+    const ui = this.ui;
+    ui.pledge.set(m);
+    if (!m.open) {
+      this.pledgeShown = false;
+      if (ui.pledgeOpen) this.togglePledge(false);
+      return;
+    }
+    if (!this.pledgeShown && m.balance > 0 && !m.done) {
+      this.togglePledge(true);
+      this.pledgeShown = ui.pledgeOpen; // (not playing yet - still loading the world: the next one tries again)
+    }
+  }
+
+  // The pledge panel: it takes clicks, so it frees the pointer as the Perks panel does. relock: false when something
+  // else that needs the cursor is taking over
+  togglePledge(open, relock = true) {
+    const ui = this.ui;
+    if (open === ui.pledgeOpen || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
+    if (open && ui.mapOpen) this.toggleMap(false, false);
+    if (open && ui.boardOpen) this.toggleBoard(false, false);
+    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
+    if (open && ui.rosterPinned) this.pinRoster(false, false);
+    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open && ui.inventoryOpen) this.toggleInventory(false, false);
+    if (open && this.perksUp) this.togglePerks(false, false);
+    if (open && this.achUp) this.toggleAchievements(false, false);
+    ui.pledge.setOpen(open);
+    if (!open && ui.pledge.view.open) ui.notify(`Pledge & buy (${bindLabel('pledge')}) stays open until the window closes`, 'sub', 3);
     if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
     this.input.enabled = !open && !this.screenUp();
     this.input.releaseAll();
