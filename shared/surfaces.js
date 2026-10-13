@@ -130,7 +130,7 @@ export const markFor = (surf, blow) => MARKS[surf][blow];
 
 // A bullet's hole, by the gun: how big next to a rifle's (1), and `ragged` for the round that tears a hole the size
 // of a fist (the big cell on anything hard). A shotgun's pattern is its pellets': each leaves its own small hole.
-const SHOT = { [ITEM.PISTOL]: 0.75, [ITEM.MP5]: 0.75, [ITEM.AK47]: 1.05, [ITEM.M4A1]: 1, [ITEM.HUNTING_RIFLE]: 1.25, [ITEM.SHOTGUN]: 0.55, [ITEM.DB_SHOTGUN]: 0.6, [ITEM.CROSSBOW]: 0.5, [ITEM.AT_RIFLE]: 3.2, 16: 1.35 /* the mounted gun */ };
+const SHOT = { [ITEM.PISTOL]: 0.75, [ITEM.DEAGLE]: 1.15, [ITEM.MP5]: 0.75, [ITEM.AK47]: 1.05, [ITEM.M4A1]: 1, [ITEM.HUNTING_RIFLE]: 1.25, [ITEM.SHOTGUN]: 0.55, [ITEM.DB_SHOTGUN]: 0.6, [ITEM.CROSSBOW]: 0.5, [ITEM.AT_RIFLE]: 3.2, 16: 1.35 /* the mounted gun */ };
 export const shotScale = (weapon) => SHOT[weapon] ?? 1;
 export const SHOT_RAGGED = 2.5; // from this scale up the hole is the ragged one
 // An oblique shot leaves a graze: the hole drawn out along the way the bullet went, by 1 / cos of the angle, at most this
