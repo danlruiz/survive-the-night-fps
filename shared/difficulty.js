@@ -22,7 +22,7 @@ export const DIFFICULTIES = [
     name: 'Ember',
     rank: 'Easy',
     // The line under the choice on the new-game card.
-    blurb: 'Fewer dead, and they hit softer and move slower. Days and nights run long, near shots count, and you start with more rounds and bandages.',
+    blurb: 'Fewer dead, and they hit softer and move slower. Days and nights run long, near shots count, and you start with more rounds and bandages. The final stand at the car is smaller, with fewer Tanks.',
     day: 1.5, // day 1 is 9 min, was 6. The last days floor at 4½ min, was 3. The minute of horn stays a minute.
     night: 1.4, // 3½ min, was 2½. The three waves spread out with the night, so there is time to reload between them.
     zombies: 0.55, // night 1 alone is 9 of them, was 17. The day's wanderers, the road herd and a car alarm shrink the same way.
@@ -41,6 +41,13 @@ export const DIFFICULTIES = [
     loot: 1.35, // ground piles are almost always there, and a container gives one extra find.
     light: 0.6, // the flashlight lasts. New players leave it on.
     xp: 0.5, // every XP award, on top of the perks'. The blurbs count XP from Ember up (xpBonus).
+    // The final stand at the car, on top of the zombies, zombieHp and hurt above. A team of four still met over a
+    // hundred of the dead there, sixty-odd at once, a Tank each and the full share of specials: the levers above
+    // never reached the stand's own numbers (Game.finalStandSize, updateEscape).
+    stand: 0.75, // a quarter fewer of the dead in it.
+    standCrowd: 0.75, // at most 45% of them on their feet at once, was 60%.
+    standTanks: 0.5, // a Tank for every two survivors, was one each. A lone survivor still meets one.
+    standSpecials: 0.45, // spitters, boomers, leapers and dogs in it as rarely as on Ember's nights; the rest are runners.
   },
   {
     id: 'nightfall',
@@ -65,6 +72,10 @@ export const DIFFICULTIES = [
     loot: 1,
     light: 1,
     xp: 1,
+    stand: 1,
+    standCrowd: 1,
+    standTanks: 1,
+    standSpecials: 1,
   },
   {
     id: 'blackout',
@@ -90,6 +101,10 @@ export const DIFFICULTIES = [
     loot: 0.85, // fewer piles on the ground. Containers still pay what they paid.
     light: 1.15,
     xp: 1.5,
+    stand: 1,
+    standCrowd: 1,
+    standTanks: 1,
+    standSpecials: 1,
   },
 ];
 

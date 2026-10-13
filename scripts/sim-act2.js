@@ -537,7 +537,7 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
       g.game.day = g.game.checkpoint.day;
       return n;
     };
-    check("...and the runway stand is sized from it: 1.3 of what the car's would be, on each", rising(stand) && three.every((g) => Math.abs(stand(g) - 1.25 * RUNWAY.SIZE * g.game.hordeSize(4, g.game.humanCount())) <= 1), three.map(stand).join());
+    check("...and the runway stand is sized from it: 1.3 of what the car's would be, on each (Ember's a quarter smaller, as at the car)", rising(stand) && three.every((g) => Math.abs(stand(g) - 1.25 * g.game.diff.stand * RUNWAY.SIZE * g.game.hordeSize(4, g.game.humanCount())) <= 1), three.map(stand).join());
     const hp = (g) => g.game.zm.spawn(ZTYPE.WALKER, g.game.world.car.x, g.game.world.car.z - 40).maxHp;
     const hps = three.map(hp);
     check('one of the dead on the mainland has the health its difficulty gives it', hps[1] === ZOMBIE_DEFS[ZTYPE.WALKER].hp && Math.abs(hps[0] - hps[1] * E.d.zombieHp) < 1e-6 && Math.abs(hps[2] - hps[1] * B.d.zombieHp) < 1e-6, hps.join());
