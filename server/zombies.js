@@ -1511,7 +1511,10 @@ export class Zombies {
       if (!p || !p.alive || p.zombie) return;
       const s = p.state;
       const d = g.vehicles.reachTo(p, z.x, z.z, Math.hypot(s.x - z.x, s.z - z.z)); // (in a vehicle: to its body)
-      if (d > def.range + PLAYER_RADIUS + 0.9 || ((Math.abs(s.y - z.y) > 2.5 || !this.canReach(z, p)) && !this.canReachUp(z, p, 0.9))) return;
+      if (d > def.range + PLAYER_RADIUS + 0.9 || ((Math.abs(s.y - z.y) > 2.5 || !this.canReach(z, p)) && !this.canReachUp(z, p, 0.9))) {
+        if (def.whiffReel) this.reel(z, def.whiffReel); // (The Brute's swing at nobody leaves it stumbling)
+        return;
+      }
       g.damagePlayer(p, def.dmg * dmgMul, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
       g.impact(IMPACT.BLOOD, s.x, s.y + 1.2, s.z);
       if (def.fireproof) g.setAlight(p); // (the flammer's blow sets them burning: PLAYER_FIRE)
@@ -1665,6 +1668,16 @@ export class Zombies {
     z.stateAct = act;
     z.anim = ZANIM.SPECIAL;
     if (snd) this.g.sound(snd, z.x, z.y + z.def.headY, z.z, z.def.boss ? 120 : 45);
+  }
+
+  // z reels where it stands for time s after its big move (a boss's weak window, docs/bosses.md): it does nothing else
+  // until that runs out (the dazedT branch of updateOne), and takes def.stunHurt x damage meanwhile (Combat.damageZombie)
+  reel(z, time) {
+    z.dazedT = Math.max(z.dazedT, time);
+    z.attackCd = Math.max(z.attackCd, time);
+    z.pendingHit = 0;
+    z.anim = ZANIM.STAGGER;
+    z.animT = 0.2;
   }
 
   // through a windup, a rope's flight or a pull: it turns to its prey, and stands

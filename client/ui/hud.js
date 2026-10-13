@@ -278,11 +278,6 @@ export class Hud {
     const am = (this.ammo = el('div', 'ammo', wp));
     const wn = el('div', 'w-head', am);
     this.wIco = el('i', 'w-ico', wn);
-    // the drop key held: a ring filling up to the weapon going down (game/drophold.js), or, let go too soon, how
-    this.wDrop = el('span', 'w-drop', wn);
-    this.wDrop.hidden = true;
-    el('i', 'w-drop-ring', this.wDrop);
-    this.wDropT = el('span', 'w-drop-t', this.wDrop, '');
     this.wName = el('span', 'w-name', wn, '');
     const ar2 = (this.ammoRow = el('div', 'ammo-row', am));
     this.aMag = el('span', 'a-mag', ar2, '0');
@@ -777,24 +772,6 @@ export class Hud {
       if ((rl >= 0) !== (c.rl >= 0)) this.ammo.classList.toggle('reloading', rl >= 0);
       c.rl = rl;
     }
-    // the drop key: held, the ring fills; let go too soon, "Hold G to drop" for a moment
-    const dp = h.dropHold >= 0 ? Math.round(h.dropHold * 40) / 40 : -1;
-    const dh = dp < 0 ? h.dropHint || '' : '';
-    if (c.dp !== dp || c.dh !== dh) {
-      if ((c.dp >= 0 || c.dh) !== (dp >= 0 || !!dh)) this.wDrop.hidden = !(dp >= 0 || dh);
-      if (c.dh !== dh || (c.dp >= 0) !== (dp >= 0)) {
-        this.wDrop.classList.toggle('tap', !!dh);
-        this.wDropT.textContent = '';
-        if (dh) {
-          el('span', '', this.wDropT, 'Hold ');
-          el('span', 'kbd sm', this.wDropT, dh);
-          el('span', '', this.wDropT, ' to drop');
-        } else this.wDropT.textContent = 'Drop';
-      }
-      this.wDrop.style.setProperty('--p', Math.max(0, dp));
-      c.dp = dp;
-      c.dh = dh;
-    }
     const lab = rl >= 0 ? 'Reloading' : mode === 'radio' ? (h.radioKeyed ? 'On the air' : 'Hold fire to talk') : c.aTypeStr;
     if (c.aLab !== lab) this.aType.textContent = c.aLab = lab;
     const air = mode === 'radio' && !!h.radioKeyed;
@@ -854,12 +831,25 @@ export class Hud {
     // use progress ring
     const up = h.useProgress >= 0 ? Math.round(clamp(h.useProgress, 0, 1) * 200) / 200 : -1;
     if (c.use !== up) {
-      if ((up >= 0) !== (c.use >= 0)) this.useWrap.hidden = up < 0;
+      if ((up >= 0) !== (c.use >= 0)) {
+        this.useWrap.hidden = up < 0;
+        if (up >= 0) replay(this.useWrap, 'in'); // (a held key: up on the frame it went down, with a pop - holdring.js)
+      }
       c.use = up;
       if (up >= 0) this.useFg.style.strokeDashoffset = (100 - up * 100).toFixed(1);
     }
     const ul = up >= 0 ? h.useLabel || '' : '';
     if (c.useL !== ul) this.useLabel.textContent = c.useL = ul;
+    // ...broken off short of done: red, a shake, what happened under it (a moment: game/holdring.js CANCEL_SHOWN)
+    const ux = up >= 0 && h.useCancel > 0 ? h.useCancel : 0;
+    if ((c.useX > 0) !== (ux > 0)) {
+      this.useWrap.classList.toggle('cancel', ux > 0);
+      if (ux) {
+        this.useWrap.style.setProperty('--cancel-s', ux + 's');
+        replay(this.useWrap, 'shake');
+      }
+    }
+    c.useX = ux;
 
     // shove meter (pinned by a leaper)
     const sv = h.shove >= 0 ? Math.round(clamp(h.shove, 0, 1) * 100) / 100 : -1;

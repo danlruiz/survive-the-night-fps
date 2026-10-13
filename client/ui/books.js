@@ -61,7 +61,7 @@ export function kindFacts(t) {
   if (d.blastRadius) beat.push(`Kill it ${Math.ceil(d.blastRadius)} m+ away`);
   if (d.ropeRange) beat.push('Break its line of sight');
   if (d.leapRange) beat.push(`Mash ${bindLabel('jump')} to shove off`);
-  if (d.stunHurt) beat.push('Hit it while it reels');
+  if (d.stunHurt) beat.push(`While it reels ×${d.stunHurt}`); // (its weak window after its big move: docs/bosses.md)
   if (d.flying) beat.push('Shotgun or melee');
   if (d.spitRange && !d.boss) beat.push('Shoot it first');
   if (d.enrage) beat.push('Keep your distance');

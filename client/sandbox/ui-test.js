@@ -2,7 +2,7 @@
 // hud-finale|hud-live|inventory|players|board|build|death|gameover|victory|pause|settings|achievements|bestiary|
 // cards|hud-cards|chat|icons|picker|creator|auction|loadout
 // &bg=night|day|fire
-// &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=
+// &status=ok|full|offline   hud: &weapon=<item id>&mag=&reserve=&reload=&heals=&drinks=&hold=<0..1>&label=&cancel=<s>
 import { UI } from '../ui/ui.js';
 import { ITEM, ITEM_DEFS, RECIPES, STRUCT, STRUCT_ORDER, ZTYPE, ZOMBIE_DEFS } from '../../shared/defs.js';
 import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
@@ -499,6 +499,9 @@ switch (screen) {
     if (q.get('weapon')) Object.assign(h, { weapons: [+q.get('weapon'), ...baseHud.weapons.slice(1)], mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: q.get('reload') == null ? -1 : +q.get('reload') });
     // &sidearm=<item id>: the same in the pistol's slot (hotbar 2), in hand
     if (q.get('sidearm')) Object.assign(h, { weapons: baseHud.weapons.map((w, i) => (i === 1 ? +q.get('sidearm') : w)), slot: 1, mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: -1 });
+    // &hold=<0..1>&label=<text>: a held key's ring (game/holdring.js) that far filled; &cancel=<s>: broken off, red
+    // for that long
+    if (q.get('hold') != null) Object.assign(h, { useProgress: +q.get('hold'), useLabel: q.get('label') || 'Searching dumpster…', useCancel: +q.get('cancel') || 0, prompt: q.get('cancel') ? null : '[E] Hold to search Dumpster' });
     // &coach=<step id | tip id>: the first-run guide's card (#270), with the marker the step puts in the world
     if (q.get('coach')) {
       const id = q.get('coach');

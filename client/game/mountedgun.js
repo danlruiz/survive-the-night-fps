@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { BTN, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_BUILD } from '../../shared/constants.js';
 import { SOUND, AMMO } from '../../shared/defs.js';
-import { ACT, dqpos, dqangle16, dqpitch, unpackLookYaw, unpackLookPitch } from '../../shared/protocol.js';
+import { ACT, HOLD, dqpos, dqangle16, dqpitch, unpackLookYaw, unpackLookPitch } from '../../shared/protocol.js';
 import { shotDirections, canSelectSlot } from '../../shared/playersim.js';
 import { raycastWorld } from '../../shared/collision.js';
 import { GUN, GUN_FIRED, GUN_DRY, GUN_STANDS, GUN_CARRIED, GUN_LYING, atGrips, gunAim, gunMuzzle, gunShot, stepGun, setUpSpot, canLift } from '../../shared/mountedgun.js';
@@ -144,10 +144,12 @@ export class GunClient {
       return;
     }
     if (!this.ent || this.carrier) return;
-    if (this.mode === GUN_LYING) return g.beginHold(this.ent.id);
+    if (this.mode === GUN_LYING) return g.beginHold(this.ent.id, HOLD.GUN_LIFT);
     if (this.gunner) return;
     this.liftDown = g.time; // a tap mans it, held it lifts it: keyUp / update decide
     this.lifting = false;
+    // (the lift's ring is up from the press, the tap's moment in it: a tap lets it go quietly, Game.endHold)
+    g.startHoldRing(this.ent.id, HOLD.GUN_LIFT, { lead: HOLD_TO_LIFT });
   }
 
   // [G] or a weapon key with it in our arms: it goes down on its side where we stand
@@ -372,7 +374,7 @@ export class GunClient {
     // [E] held at a gun nobody mans: lift it (Game.endHold stops the hold when [E] comes up)
     if (this.liftDown >= 0 && !this.lifting && g.time - this.liftDown > HOLD_TO_LIFT) {
       this.lifting = true;
-      if (able && !this.gunner) g.beginHold(gun.id);
+      if (able && !this.gunner) g.beginHold(gun.id, HOLD.GUN_LIFT);
     }
     if (this.manning) {
       if (this.eDown >= 0 && g.time - this.eDown > HOLD_TO_FEED) {
