@@ -58,6 +58,7 @@ import {
   useWasted,
   PROJ,
   PLAYER_FIRE,
+  greenBlood,
 } from '../../shared/defs.js';
 import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
 import { trackedRecipe, trackedNeed } from './tracked.js';
@@ -2141,7 +2142,7 @@ export class Game {
     for (let k = 0; own && k < hits.length && k < pierce; k++) {
       const { t, e } = hits[k];
       const z = e.kind === ENT.ZOMBIE;
-      const green = z && (e.ztype === ZTYPE.SPITTER || e.ztype === ZTYPE.BOOMER || e.ztype === ZTYPE.BOSS_HIVEQUEEN || e.ztype === ZTYPE.BOSS_BLOATER);
+      const green = z && greenBlood(e.ztype);
       // (a shade pinned by light is stone: the bullet chips it)
       this.ownImpact(z && e.q[4] === ZANIM.FROZEN ? IMPACT.DIRT : green ? IMPACT.GREEN_BLOOD : IMPACT.BLOOD, ev.x + dx * t, ev.y + dy * t, ev.z + dz * t, -dx, -dy, -dz);
     }

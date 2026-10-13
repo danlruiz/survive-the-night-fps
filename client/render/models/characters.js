@@ -1955,7 +1955,7 @@ let buildDetail = 1;
 const LOD_DETAIL = 0.5;
 const LOD_FAR = 15, LOD_NEAR = 12; // (m: at 15 m a walker is some 140 px tall on a 1080p screen)
 // (types whose far copy is worth having: everything people.js builds whole)
-const LOD_TYPES = new Set([ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.SPITTER, ZTYPE.LEAPER, ZTYPE.ROPER, ZTYPE.BOOMER, ZTYPE.SHADE, ZTYPE.SMOKER, ZTYPE.SCREECHER, ZTYPE.FLAMMER, ZTYPE.MOTHER]);
+const LOD_TYPES = new Set(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].lod)); // (each kind's row's lod: shared/defs.js)
 function getRig(type, variant, far = false) {
   if (far && !LOD_TYPES.has(type)) return null;
   const key = type + ':' + variant + (far ? ':far' : '');
@@ -4307,6 +4307,20 @@ class ZombieInstance {
   }
 }
 
+// the kinds on the dog's rig (dog.js createZombieDog), and what it is built as: quadrupeds with their own rig + animation
+const DOG_RIGS = {
+  [ZTYPE.DOG]: false,
+  [ZTYPE.BOSS_ALPHA]: true, // the pack's leader: a dog, built heavier and drawn bigger
+  [ZTYPE.CRAWLER]: 'squirrel', // a flying squirrel, grown huge: on the dog's rig, drawn small
+};
+
+/** What the client has to draw a kind with (scripts/test-zombie-kinds.js): rig 'humanoid' (a builder here), 'dog'
+ *  (dog.js), or null (none: it would be drawn as a walker); style: it has its own animation style (ZS; a bat poses
+ *  itself). */
+export function zombieModelOf(ztype) {
+  return { rig: ztype in DOG_RIGS ? 'dog' : BUILDERS[ztype] ? 'humanoid' : null, style: !!ZS[ztype] };
+}
+
 /** Number of cached model variants for a zombie type (the seed passed to createZombie picks one). */
 export function zombieVariants(ztype) {
   return VARIANTS[ztype] || 1;
@@ -4316,9 +4330,7 @@ export function zombieVariants(ztype) {
  * Create a zombie of the given ZTYPE. seed picks the variant + per-instance randomness.
  */
 export function createZombie(ztype, seed = 0) {
-  if (ztype === ZTYPE.DOG) return createZombieDog(seed); // quadruped: its own rig + animation (dog.js)
-  if (ztype === ZTYPE.BOSS_ALPHA) return createZombieDog(seed, true); // the pack's leader: a dog, built heavier and drawn bigger
-  if (ztype === ZTYPE.CRAWLER) return createZombieDog(seed, 'squirrel'); // a flying squirrel, grown huge: on the dog's rig, drawn small
+  if (ztype in DOG_RIGS) return createZombieDog(seed, DOG_RIGS[ztype]);
   const type = BUILDERS[ztype] ? ztype : ZTYPE.WALKER;
   const nv = VARIANTS[type] || 1;
   const variant = nv > 1 ? ((seed >>> 0) * 2654435761 >>> 0) % nv : 0;

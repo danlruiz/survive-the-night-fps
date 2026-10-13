@@ -7,13 +7,13 @@
 // record. Each of PICK_LEVELS earns a perk point, PERK_POINTS in all, spent on the perk tree (PERKS): five branches
 // of three tiers, combinations that need a perk from two branches, and keystones. What the chosen perks do is perkMods,
 // read by the player simulation (s.perks, a bitmask of perk ids) and by the server's rules.
-import { ZTYPE } from './defs.js';
+import { ZTYPE, ZOMBIE_DEFS } from './defs.js';
 
 // ---------------------------------------------------------------- XP
 // What each thing a survivor does is worth. All first guesses: nobody has played them yet.
 export const XP = {
   kill: 5, // one of the rank and file (walkers, runners, dogs, bats)
-  kinds: { [ZTYPE.SPITTER]: 15, [ZTYPE.BOOMER]: 15, [ZTYPE.LEAPER]: 20, [ZTYPE.ROPER]: 20, [ZTYPE.SHADE]: 25, [ZTYPE.SMOKER]: 20, [ZTYPE.SCREECHER]: 25, [ZTYPE.CRAWLER]: 15, [ZTYPE.FLAMMER]: 20, [ZTYPE.MOTHER]: 20, [ZTYPE.TANK]: 30 },
+  kinds: Object.fromEntries(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].xp).map((t) => [t, ZOMBIE_DEFS[t].xp])), // each kind's row's xp (shared/defs.js)
   headshot: 2, // on top of the kill
   boss: 150,
   revive: 40,
