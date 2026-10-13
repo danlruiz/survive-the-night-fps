@@ -3,8 +3,9 @@
 // set where the world is built: worldkit.js), the kind of blow (from the weapon), and the mark, the burst of bits
 // and the sound that pair makes. Pure data and pure functions: the client draws from it (render/marks.js,
 // render/effects.js strike), scripts/test-wrecks.js holds it.
-import { ITEM, STRUCT_DEFS } from './defs.js';
+import { STRUCT_DEFS } from './defs.js';
 import { PROPS } from './props.js';
+import { WEAPON_LIST } from './weapons/index.js';
 import { COL } from './collision.js';
 
 export const SURF = { EARTH: 0, WOOD: 1, STONE: 2, METAL: 3, GLASS: 4, CLOTH: 5, RUBBER: 6 };
@@ -13,7 +14,8 @@ export const SURF_NAMES = ['earth', 'wood', 'stone', 'metal', 'glass', 'cloth', 
 // How a weapon strikes. A bullet and a blast are blows too: they leave marks by the same table.
 export const BLOW = { SLASH: 0, CHOP: 1, BLUNT: 2, HAMMER: 3, SHOT: 4, BLAST: 5 };
 export const BLOW_NAMES = ['slash', 'chop', 'blunt', 'hammer', 'shot', 'blast'];
-const BLOW_OF = { [ITEM.KNIFE]: BLOW.SLASH, [ITEM.MACHETE]: BLOW.CHOP, [ITEM.BAT]: BLOW.BLUNT, [ITEM.SPIKED_BAT]: BLOW.BLUNT, [ITEM.NUNCHAKU]: BLOW.BLUNT, [ITEM.HAMMER]: BLOW.HAMMER };
+// (a melee weapon's is `blow` in its file, shared/weapons/)
+const BLOW_OF = Object.fromEntries(WEAPON_LIST.filter((w) => w.blow).map((w) => [w.id, BLOW[w.blow]]));
 export const blowOf = (weapon) => BLOW_OF[weapon] ?? BLOW.BLUNT;
 // How hard it lands, 0..1: what a car rocks by, what a crate is nudged by, how far the bits fly. heavy: the slow swing
 const FORCE = [0.16, 0.55, 0.8, 0.62, 0.1, 1];
@@ -130,7 +132,11 @@ export const markFor = (surf, blow) => MARKS[surf][blow];
 
 // A bullet's hole, by the gun: how big next to a rifle's (1), and `ragged` for the round that tears a hole the size
 // of a fist (the big cell on anything hard). A shotgun's pattern is its pellets': each leaves its own small hole.
-const SHOT = { [ITEM.PISTOL]: 0.75, [ITEM.MP5]: 0.75, [ITEM.AK47]: 1.05, [ITEM.M4A1]: 1, [ITEM.HUNTING_RIFLE]: 1.25, [ITEM.SHOTGUN]: 0.55, [ITEM.DB_SHOTGUN]: 0.6, [ITEM.CROSSBOW]: 0.5, [ITEM.AT_RIFLE]: 3.2, 16: 1.35 /* the mounted gun */ };
+// (a weapon's is `hole` in its file, shared/weapons/)
+const SHOT = {
+  ...Object.fromEntries(WEAPON_LIST.filter((w) => w.hole != null).map((w) => [w.id, w.hole])),
+  16: 1.35, // the mounted gun
+};
 export const shotScale = (weapon) => SHOT[weapon] ?? 1;
 export const SHOT_RAGGED = 2.5; // from this scale up the hole is the ragged one
 // An oblique shot leaves a graze: the hole drawn out along the way the bullet went, by 1 / cos of the angle, at most this

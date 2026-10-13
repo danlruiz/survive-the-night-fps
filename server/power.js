@@ -12,7 +12,7 @@ import { mulberry32 } from '../shared/rng.js';
 import { eyeHeight } from '../shared/playersim.js';
 import { GEN_RANGE, GEN_FUEL_UNIT, GEN_TANK, GEN_LOW, GEN_HUM, GEN_HUM_EVERY, GEN_TOLD, FLOOD_RANGE, genState, genPour, floodAim, inFloodCone } from '../shared/power.js';
 
-const BODY_AT = [0.9, 0.55, 0.2]; // head, chest, shins: light on any of them counts (as for every other light, zombies.js)
+const BODY_AT = [0.9, 0.55, 0.2]; // head, chest, shins: light on any of them counts (as for every other light, specials/shade.js)
 const _aim = { x: 0, y: 0, z: 0, dx: 0, dy: 0, dz: 0 };
 
 export class Power {

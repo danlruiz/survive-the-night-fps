@@ -1,111 +1,25 @@
 // Game content definitions shared by client and server.
 // Numeric ids are part of the wire protocol - do not renumber.
 import { FLASHLIGHT_MAX, STAMINA_MAX } from './constants.js';
+import { BASE_ITEM } from './items.js';
+import { WEAPON_LIST } from './weapons/index.js';
 
 // ---------------------------------------------------------------- items
-export const ITEM = {
-  NONE: 0,
-  // resources
-  WOOD: 1,
-  STICK: 2,
-  CLOTH: 3,
-  SCRAP: 4,
-  NAILS: 5,
-  ROPE: 6,
-  TAPE: 7,
-  POWDER: 8,
-  CHEM: 9,
-  HERB: 10,
-  ALCOHOL: 11,
-  LEATHER: 12,
-  WIRE: 13,
-  PLATE: 14,
-  GUNPARTS: 15,
-  // (16 is no item: the mounted gun's shots and kills carry it as their weapon, MOUNTED_GUN in mountedgun.js)
-  STONE: 17, // broken off boulders and the quarry's faces with a melee weapon (Game.gatherHit)
-  // consumables
-  BANDAGE: 20,
-  MEDKIT: 21,
-  PAINKILLERS: 22,
-  BATTERY: 23,
-  TORCH: 24,
-  TUNA: 25,
-  // throwables
-  MOLOTOV: 30,
-  PIPEBOMB: 31,
-  FLARE: 32,
-  GRENADE: 33,
-  DECOY: 34,
-  // armor
-  JACKET: 40,
-  KEVLAR: 41,
-  // gear (works from the backpack, just by being carried)
-  WALKIE: 45,
-  // worn in an equipment slot of its own, like armor: more slots in the backpack grid (INVENTORY_SIZE in constants.js)
-  BACKPACK: 46,
-  // weapons
-  KNIFE: 50,
-  BAT: 51,
-  SPIKED_BAT: 52,
-  MACHETE: 53,
-  HAMMER: 54,
-  PISTOL: 55,
-  FLARE_GUN: 56, // a sidearm (the pistol's slot): one parachute flare at a time, up into the sky (shared/skyflare.js)
-  NUNCHAKU: 57, // melee with a moveset of its own: combos, a wound-up heavy, a simulated chain (shared/nunchaku.js)
-  SHOTGUN: 60,
-  AK47: 61,
-  HUNTING_RIFLE: 62,
-  M4A1: 63,
-  MP5: 64,
-  DB_SHOTGUN: 65,
-  CROSSBOW: 66,
-  FLAMETHROWER: 67,
-  RPG: 68,
-  AT_RIFLE: 69,
-  // ammunition (carried apart from the backpack, a reserve per calibre: state.ammo, AMMO below)
-  AMMO_9MM: 70,
-  AMMO_SHELLS: 71,
-  AMMO_762: 72,
-  AMMO_308: 73,
-  AMMO_556: 74,
-  AMMO_BOLTS: 75,
-  AMMO_FUEL: 76,
-  AMMO_ROCKET: 77,
-  AMMO_145: 78,
-  AMMO_FLARE: 79,
-  // car parts (quest)
-  CAR_BATTERY: 80,
-  SPARE_TIRE: 81,
-  SPARK_PLUGS: 82,
-  FUEL_CAN: 83,
-  FAN_BELT: 84,
-  // plane parts (act 2, the mainland: shared/acts.js)
-  PROPELLER: 85,
-  MAGNETO: 86,
-  HYDRAULIC_PUMP: 87,
-  FLIGHT_RADIO: 88,
-  AVGAS: 89,
-  // schematics (picked up -> unlocks recipes for the whole team)
-  SCHEM_SHOTGUN: 90,
-  SCHEM_RIFLE: 91,
-  SCHEM_KEVLAR: 92,
-  SCHEM_EXPLOSIVES: 93,
-  SCHEM_METAL: 94,
-  // the mainland's (shared/vehicles.js): a manual found beside its broken mopeds, and what a workbench makes with it.
-  // Nothing of these is on the island: the manual is not among SCHEMATICS (which the island hides in its lockers)
-  SCHEM_VEHICLES: 95,
-  MOPED_KIT: 96,
-  BIKE_KIT: 97,
-  // consumables: what a hunted deer gives (shared/deer.js)
-  VENISON_RAW: 26,
-  VENISON: 27,
-  // consumables: refills stamina, with a key of its own (ACTION_KEYS.drink in client/game/input.js)
-  ENERGY_DRINK: 28,
-  // card packs (Dead Hand, shared/cards.js): opened as they are picked up - the cards go into the finder's collection,
-  // which they keep across runs (server/cards.js), and the pack takes no room in the backpack
-  CARD_PACK: 98,
-  SEALED_PACK: 99,
-};
+// Every item's id: the ones in items.js, with each weapon's (shared/weapons/) put in after the backpack, in id order.
+// Two items on one id, or a weapon on a name that is taken, stop the game from loading
+export const ITEM = (() => {
+  const base = Object.entries(BASE_ITEM);
+  const weapons = WEAPON_LIST.map((w) => [w.key, w.id]);
+  const at = base.findIndex(([k]) => k === 'BACKPACK') + 1;
+  const out = Object.fromEntries([...base.slice(0, at), ...weapons, ...base.slice(at)]);
+  const ids = new Map();
+  for (const [k, id] of [...base, ...weapons]) {
+    if (ids.has(id)) throw new Error(`ITEM.${k} and ITEM.${ids.get(id)} are both item ${id}`);
+    ids.set(id, k);
+  }
+  if (Object.keys(out).length !== ids.size) throw new Error('a weapon in shared/weapons/ is named like an item that is already there');
+  return out;
+})();
 
 // ammo reserve indices: the rounds of a calibre a survivor carries (state.ammo). Ammunition is not kept in the
 // backpack: it is carried apart, in the inventory's Ammunition panel, and goes on the ground from there (ACT.DROP_AMMO)
@@ -155,24 +69,6 @@ export const ITEM_DEFS = {
 
   [ITEM.WALKIE]: { name: 'Walkie-Talkie', cat: 'gear', stack: 1, color: 0x3d4a3a, desc: 'Everyone carries one in slot [6]. Take it out and hold fire to talk to every survivor over it, however far apart you are.' },
 
-  [ITEM.KNIFE]: { name: 'Knife', cat: 'weapon', stack: 1, color: 0xaaaaaa, desc: 'Fast. Quiet.' },
-  [ITEM.BAT]: { name: 'Baseball Bat', cat: 'weapon', stack: 1, color: 0x9c7a4b, desc: 'Heavy swings, knockback.' },
-  [ITEM.SPIKED_BAT]: { name: 'Spiked Bat', cat: 'weapon', stack: 1, color: 0x8a5a3b, desc: 'A bat wrapped in nails and wire.' },
-  [ITEM.MACHETE]: { name: 'Machete', cat: 'weapon', stack: 1, color: 0x9aa3a8, desc: 'Cleaves through the horde.' },
-  [ITEM.HAMMER]: { name: 'Hammer', cat: 'weapon', stack: 1, color: 0x7a5c3a, desc: 'Build and repair structures.' },
-  [ITEM.NUNCHAKU]: { name: 'Nunchucks', cat: 'weapon', stack: 1, color: 0x7a4a2a, desc: 'Two hardwood handles on a chain. Keep swinging for a four-move combo whose last blow lands hardest; hold the heavy attack to spin it up. Short reach, one target, and every move costs stamina.' },
-  [ITEM.PISTOL]: { name: 'Pistol', cat: 'weapon', stack: 1, color: 0x333333, desc: 'Reliable 9mm sidearm.' },
-  [ITEM.SHOTGUN]: { name: 'Shotgun', cat: 'weapon', stack: 1, color: 0x4a3a2a, desc: 'Devastating up close.' },
-  [ITEM.AK47]: { name: 'AK-47', cat: 'weapon', stack: 1, color: 0x5a4632, desc: 'Full-auto 7.62 rifle.' },
-  [ITEM.HUNTING_RIFLE]: { name: 'Hunting Rifle', cat: 'weapon', stack: 1, color: 0x6b4f33, desc: 'Bolt-action .308. Pierces.' },
-  [ITEM.M4A1]: { name: 'M4A1', cat: 'weapon', stack: 1, color: 0x2e2f2c, desc: 'Full-auto 5.56 carbine. Accurate, soft recoil.' },
-  [ITEM.MP5]: { name: 'MP5', cat: 'weapon', stack: 1, color: 0x353535, desc: 'Full-auto 9mm submachine gun. Fast and quiet.' },
-  [ITEM.DB_SHOTGUN]: { name: 'Double-Barrel', cat: 'weapon', stack: 1, color: 0x5c4028, desc: 'Two barrels of buckshot back to back. Slow to reload.' },
-  [ITEM.CROSSBOW]: { name: 'Crossbow', cat: 'weapon', stack: 1, color: 0x5a4a34, desc: 'One heavy bolt, almost no noise. Slow to cock.' },
-  [ITEM.FLAMETHROWER]: { name: 'Flamethrower', cat: 'weapon', stack: 1, color: 0xb5651d, desc: 'A short cone of fire. Whatever it touches keeps burning.' },
-  [ITEM.AT_RIFLE]: { name: 'Anti-Tank Rifle', cat: 'weapon', stack: 1, color: 0x4f5232, desc: 'Single-shot 14.5mm. Goes through a whole line of them, and hits bosses and Tanks three times as hard. A very slow reload.' },
-  [ITEM.RPG]: { name: 'RPG', cat: 'weapon', stack: 1, color: 0x4b5320, desc: 'Fires one rocket grenade at a time. It bursts on impact and tears apart everything around it. Slow to reload, and very loud.' },
-  [ITEM.FLARE_GUN]: { name: 'Flare Gun', cat: 'weapon', stack: 1, color: 0xe0601c, desc: 'Fires a parachute flare high into the sky. It lights the ground for a minute as it drifts back down, and Shades cannot move under it. Takes the pistol\'s place.' },
 
   [ITEM.AMMO_9MM]: { name: '9mm Ammo', cat: 'ammo', stack: AMMO_MAX[0], color: 0xc9a227, ammo: 0, desc: 'Pistol rounds.' },
   [ITEM.AMMO_SHELLS]: { name: 'Shotgun Shells', cat: 'ammo', stack: AMMO_MAX[1], color: 0xb03a2e, ammo: 1, desc: '12 gauge.' },
@@ -198,7 +94,7 @@ export const ITEM_DEFS = {
   [ITEM.AVGAS]: { name: 'Avgas Drum', cat: 'part', stack: 3, color: 0x2f6fb0, desc: 'Aviation fuel for the plane. The tanks need three drums.' },
 
   [ITEM.SCHEM_SHOTGUN]: { name: 'Shotgun Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Shotgun and the Double-Barrel at the workbench for the whole team.' },
-  [ITEM.SCHEM_RIFLE]: { name: 'Rifle Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Hunting Rifle and the Anti-Tank Rifle at the workbench for the whole team.' },
+  [ITEM.SCHEM_RIFLE]: { name: 'Rifle Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Hunting Rifle, the AK-47, the M4A1 and the Anti-Tank Rifle at the workbench for the whole team.' },
   [ITEM.SCHEM_KEVLAR]: { name: 'Armor Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks the Kevlar Vest at the workbench for the whole team.' },
   [ITEM.SCHEM_EXPLOSIVES]: { name: 'Explosives Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks Pipe Bombs, Frag Grenades and the Flamethrower at the workbench for the whole team.' },
   [ITEM.SCHEM_METAL]: { name: 'Fortification Schematic', cat: 'schem', stack: 1, color: 0x6c8fb5, desc: 'Unlocks Metal Walls for the whole team.' },
@@ -211,6 +107,8 @@ export const ITEM_DEFS = {
   [ITEM.CARD_PACK]: { name: 'Card Pack', cat: 'card', stack: 1, color: 0x8e2a24, desc: 'A pack of Dead Hand cards. Opened as you pick it up: three cards for your collection, which you keep from run to run [K].' },
   [ITEM.SEALED_PACK]: { name: 'Sealed Pack', cat: 'card', stack: 1, color: 0xb0863a, desc: 'A sealed pack of Dead Hand cards, still in its foil: three cards, at least one of them rare, for your collection [K].' },
   [ITEM.ENERGY_DRINK]: { name: 'Energy Drink', cat: 'cons', stack: 5, color: 0x6fc23a, desc: 'A can of something fizzy and very sweet. Refills your stamina in one go, even on the run. Quick drink [B].' },
+  // the weapons: `def` in each one's file (shared/weapons/)
+  ...Object.fromEntries(WEAPON_LIST.map((w) => [w.id, w.def])),
 };
 
 // ---------------------------------------------------------------- talking
@@ -278,42 +176,25 @@ export function schematicRumours(hints, unlocked = 0) {
 // Melee: altDamage / altRate = the heavy attack (RMB instead of LMB). The blow lands at once like a light one, so
 // what it costs is the recovery: it must hit harder and keep up less damage per second than the light attack,
 // or one of the two buttons is never worth pressing. (The hammer sits in the build slot and is never swung.)
-export const WEAPONS = {
-  [ITEM.KNIFE]: { slot: 2, melee: true, damage: 38, rate: 0.42, range: 2.0, altDamage: 80, altRate: 1.0, headMul: 1.6, knock: 0.5, swing: 0.12 },
-  [ITEM.BAT]: { slot: 2, melee: true, damage: 60, rate: 0.72, range: 2.4, altDamage: 100, altRate: 1.3, headMul: 1.8, knock: 5, swing: 0.2 },
-  [ITEM.SPIKED_BAT]: { slot: 2, melee: true, damage: 95, rate: 0.72, range: 2.4, altDamage: 155, altRate: 1.3, headMul: 1.8, knock: 5, swing: 0.2 },
-  [ITEM.MACHETE]: { slot: 2, melee: true, damage: 75, rate: 0.55, range: 2.2, altDamage: 125, altRate: 1.0, headMul: 2.0, knock: 1.5, swing: 0.15 },
-  // Nunchucks: a moveset, not one swing (nunchaku: true; the moves, their timing and what each costs are NK_MOVES in
-  // shared/nunchaku.js). The numbers here are the opener's and the fully wound heavy's, for whatever reads a weapon's
-  // row. Against the others, on one target with the whole chain landed: 198 damage in 1.68 s, 118 a second - over the
-  // knife (90) and the bat (83), under the machete (136) and the spiked bat (132), which also strike two at once and
-  // cost nothing. The shortest reach there is, one target, and 27 stamina a combo: three and a half combos empty a
-  // full bar, and out of breath it is the opener alone at 0.7 of its damage (61 a second). The heavy: 70 on a tap,
-  // 165 after a full 0.95 s wind-up (87 a second either way, under the light chain as the rule above asks).
-  [ITEM.NUNCHAKU]: { slot: 2, melee: true, nunchaku: true, damage: 28, rate: 0.32, range: 1.9, altDamage: 165, altRate: 0.8, headMul: 1.7, knock: 0.6, swing: 0.1 },
-  [ITEM.HAMMER]: { slot: 4, melee: true, damage: 25, rate: 0.6, range: 2.0, altDamage: 25, altRate: 0.6, headMul: 1.5, knock: 1, swing: 0.15, build: true },
-  [ITEM.PISTOL]: { slot: 1, damage: 30, rate: 0.16, mag: 12, reload: 1.35, ammo: 0, pellets: 1, spread: 0.012, moveSpread: 0.02, recoil: 0.018, range: 120, headMul: 3.0, auto: false, noise: 45, sound: 'pistol' },
-  [ITEM.SHOTGUN]: { slot: 0, damage: 17, rate: 0.85, mag: 6, reload: 0.55, reloadEach: true, ammo: 1, pellets: 9, spread: 0.075, moveSpread: 0.02, recoil: 0.07, range: 45, headMul: 2.0, auto: false, noise: 80, sound: 'shotgun' },
-  // the AK-47: the hardest hitting automatic and the least accurate - a wider cone than the M4A1 in every stance and
-  // half again its climb, tight for a first aimed round or a short burst (scripts/test-spread.js holds its groups)
-  [ITEM.AK47]: { slot: 0, damage: 36, rate: 0.1, mag: 30, reload: 2.3, ammo: 2, pellets: 1, spread: 0.016, moveSpread: 0.034, recoil: 0.022, range: 150, headMul: 2.6, auto: true, sound: 'ak47' },
-  [ITEM.HUNTING_RIFLE]: { slot: 0, damage: 180, rate: 1.0, mag: 5, reload: 2.6, ammo: 3, pellets: 1, spread: 0.002, moveSpread: 0.03, recoil: 0.09, range: 220, headMul: 3.0, auto: false, noise: 100, pierce: 3, sound: 'rifle' },
-  [ITEM.M4A1]: { slot: 0, damage: 30, rate: 0.085, mag: 30, reload: 2.1, ammo: 4, pellets: 1, spread: 0.013, moveSpread: 0.032, recoil: 0.015, range: 170, headMul: 2.6, auto: true, sound: 'm4a1' },
-  [ITEM.MP5]: { slot: 0, damage: 25, rate: 0.075, mag: 30, reload: 1.9, ammo: 0, pellets: 1, spread: 0.017, moveSpread: 0.016, recoil: 0.011, range: 90, headMul: 2.4, auto: true, noise: 35, sound: 'mp5' },
-  [ITEM.DB_SHOTGUN]: { slot: 0, damage: 16, rate: 0.22, mag: 2, reload: 1.6, ammo: 1, pellets: 12, spread: 0.1, moveSpread: 0.02, recoil: 0.09, range: 38, headMul: 2.0, auto: false, noise: 90, sound: 'dbshotgun' },
-  [ITEM.CROSSBOW]: { slot: 0, damage: 160, rate: 0.4, mag: 1, reload: 2.2, autoReload: true, ammo: 5, pellets: 1, spread: 0.004, moveSpread: 0.02, recoil: 0.03, range: 110, headMul: 2.5, auto: false, noise: 6, quiet: true, sound: 'crossbow' },
-  [ITEM.FLAMETHROWER]: { slot: 0, damage: 6, rate: 0.08, mag: 100, reload: 2.8, ammo: 6, pellets: 1, spread: 0.02, moveSpread: 0.01, recoil: 0.003, range: 11, headMul: 1, auto: true, noise: 30, flame: { cone: 0.2 } },
-  // the anti-tank rifle: one round, a long reload, made for the big ones. It goes through five, and a boss or a Tank
-  // takes bossMul x of it. The loudest gun there is
-  [ITEM.AT_RIFLE]: { slot: 0, damage: 400, rate: 1.0, mag: 1, reload: 6.0, autoReload: true, ammo: 8, pellets: 1, spread: 0.015, moveSpread: 0.09, recoil: 0.2, range: 260, headMul: 3.0, auto: false, noise: 150, pierce: 5, bossMul: 3, sound: 'atrifle' },
-  [ITEM.RPG]: { slot: 0, damage: 360, rate: 0.5, mag: 1, reload: 3.4, autoReload: true, ammo: 7, pellets: 1, spread: 0.008, moveSpread: 0.03, recoil: 0.12, range: 200, headMul: 1, auto: false, noise: 90, sound: 'rpg', rocket: { speed: 48, grav: 3, radius: 5.5 } },
-  // a break-open single shot: it hurts nothing, the flare is the point. The pop carries about as far as a pistol shot
-  [ITEM.FLARE_GUN]: { slot: 1, damage: 0, rate: 0.6, mag: 1, reload: 1.7, autoReload: true, ammo: 9, pellets: 1, spread: 0.006, moveSpread: 0.02, recoil: 0.07, range: 0, headMul: 1, auto: false, noise: 50, sound: 'flaregun', skyflare: true },
-};
+// (each weapon's row is `stats` in its file, shared/weapons/)
+export const WEAPONS = Object.fromEntries(WEAPON_LIST.map((w) => [w.id, w.stats]));
 
 // Burning: a status any zombie can be given (Combat.ignite) - the flamethrower and molotov fires do. It takes `dps`
 // for `time` seconds after the fire that lit it; more fire tops the time back up, it does not stack.
 export const BURN = { time: 5, dps: 18 };
+
+// A fire on what the survivors built (the flammer sets them: ZOMBIE_DEFS fireproof / igniteRange, Game.updateStructures).
+// A piece that is not metal (nor a torch or a campfire, which are fires already: structBurns) burns at `dps` a second
+// until it is gone or somebody puts it out with the hammer in hand (a repair: free, and that is all the swing does).
+// Once it has burned `spreadAfter` s it may catch each piece within `gap` m of it, `spread` of a chance a second each.
+export const STRUCT_FIRE = { dps: 25, spreadAfter: 3, spread: 0.25, gap: 0.3 };
+export const structBurns = (stype) => !!STRUCT_DEFS[stype] && !STRUCT_DEFS[stype].metal && !STRUCT_DEFS[stype].burn;
+// A survivor set alight by a flammer's blow burns at `dps` a second until the fire is put out - it does not go out by
+// itself, and they cannot jump while it burns. Each press of [Space] beats it down (stop, drop and roll), and so does
+// each press of a teammate's within `reach` m (they beat the flames out): `presses` between them put it out, and it
+// creeps back `decay` of the way a second between presses. Going down, or into water deep enough to swim, puts it
+// out at once (Game.updateFire)
+export const PLAYER_FIRE = { dps: 5, presses: 5, reach: 2, decay: 0.3 };
 
 // Player-zombie claws (not an item)
 export const CLAWS = { damage: 22, rate: 0.6, range: 2.0, headMul: 1.0, leapCooldown: 4.5, leapSpeed: 12, leapUp: 5.5 };
@@ -433,57 +314,54 @@ export const CAMPFIRE_MAX_FUEL = 600;
 // ---------------------------------------------------------------- crafting
 // station: undefined = by hand anywhere, 'fire' = near a lit campfire, 'bench' = near a workbench.
 // schem: the team must have found this schematic first.
+// id: the item it makes (an item has one recipe at most). It is what C2S.CRAFT sends and what RECIPE_BY_ID is keyed
+// by, never a place in the list, so a recipe can go anywhere without renumbering any other (the list's order is only
+// the crafting panel's, where it breaks ties).
 export const STATION_NAMES = { fire: 'Campfire', bench: 'Workbench' };
-export const RECIPES = [
-  { id: 0, out: ITEM.TORCH, n: 1, cost: { [ITEM.STICK]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 1, out: ITEM.BANDAGE, n: 1, cost: { [ITEM.CLOTH]: 2 } },
-  { id: 2, out: ITEM.MEDKIT, n: 1, cost: { [ITEM.CLOTH]: 2, [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
-  { id: 3, out: ITEM.BAT, n: 1, cost: { [ITEM.WOOD]: 3 } },
-  { id: 4, out: ITEM.SPIKED_BAT, n: 1, cost: { [ITEM.WOOD]: 3, [ITEM.NAILS]: 8, [ITEM.WIRE]: 1 }, station: 'bench' },
-  { id: 5, out: ITEM.MACHETE, n: 1, cost: { [ITEM.SCRAP]: 4, [ITEM.LEATHER]: 1, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 6, out: ITEM.HAMMER, n: 1, cost: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 } },
-  { id: 7, out: ITEM.MOLOTOV, n: 1, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 8, out: ITEM.PIPEBOMB, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 9, out: ITEM.AMMO_9MM, n: 12, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 2 }, station: 'bench' },
-  { id: 10, out: ITEM.AMMO_SHELLS, n: 6, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 11, out: ITEM.AMMO_762, n: 20, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4 }, station: 'bench' },
-  { id: 12, out: ITEM.JACKET, n: 1, cost: { [ITEM.CLOTH]: 6, [ITEM.LEATHER]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 13, out: ITEM.KEVLAR, n: 1, cost: { [ITEM.PLATE]: 2, [ITEM.CLOTH]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_KEVLAR },
-  { id: 14, out: ITEM.HUNTING_RIFLE, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
-  { id: 15, out: ITEM.SHOTGUN, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 2 }, station: 'bench', schem: ITEM.SCHEM_SHOTGUN },
-  { id: 16, out: ITEM.AMMO_308, n: 5, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 17, out: ITEM.ROPE, n: 1, cost: { [ITEM.CLOTH]: 3 } },
-  { id: 18, out: ITEM.WOOD, n: 1, cost: { [ITEM.STICK]: 3 } },
-  { id: 19, out: ITEM.POWDER, n: 6, cost: { [ITEM.CHEM]: 1, [ITEM.STICK]: 2 }, station: 'fire' },
-  { id: 20, out: ITEM.PAINKILLERS, n: 1, cost: { [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
-  { id: 21, out: ITEM.NAILS, n: 10, cost: { [ITEM.SCRAP]: 1 }, station: 'bench' },
-  { id: 22, out: ITEM.FLARE, n: 2, cost: { [ITEM.POWDER]: 2, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 23, out: ITEM.BATTERY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
-  { id: 24, out: ITEM.AMMO_556, n: 15, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 25, out: ITEM.DB_SHOTGUN, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_SHOTGUN },
-  { id: 26, out: ITEM.CROSSBOW, n: 1, cost: { [ITEM.ROPE]: 1, [ITEM.STICK]: 4, [ITEM.SCRAP]: 3 }, station: 'bench' },
-  { id: 27, out: ITEM.AMMO_BOLTS, n: 4, cost: { [ITEM.STICK]: 2, [ITEM.SCRAP]: 1 }, station: 'bench' },
-  { id: 28, out: ITEM.FLAMETHROWER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 2, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 29, out: ITEM.AMMO_FUEL, n: 50, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
-  { id: 30, out: ITEM.VENISON, n: 1, cost: { [ITEM.VENISON_RAW]: 1 }, station: 'fire' },
-  { id: 31, out: ITEM.GRENADE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 32, out: ITEM.DECOY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.WIRE]: 1, [ITEM.BATTERY]: 1 }, station: 'bench' },
+const BASE_RECIPES = [
+  { out: ITEM.TORCH, n: 1, cost: { [ITEM.STICK]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.BANDAGE, n: 1, cost: { [ITEM.CLOTH]: 2 } },
+  { out: ITEM.MEDKIT, n: 1, cost: { [ITEM.CLOTH]: 2, [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
+  { out: ITEM.MOLOTOV, n: 1, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.PIPEBOMB, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.AMMO_9MM, n: 12, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 2 }, station: 'bench' },
+  { out: ITEM.AMMO_SHELLS, n: 6, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.AMMO_762, n: 20, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4 }, station: 'bench' },
+  { out: ITEM.JACKET, n: 1, cost: { [ITEM.CLOTH]: 6, [ITEM.LEATHER]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
+  { out: ITEM.KEVLAR, n: 1, cost: { [ITEM.PLATE]: 2, [ITEM.CLOTH]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_KEVLAR },
+  { out: ITEM.AMMO_308, n: 5, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.ROPE, n: 1, cost: { [ITEM.CLOTH]: 3 } },
+  { out: ITEM.WOOD, n: 1, cost: { [ITEM.STICK]: 3 } },
+  { out: ITEM.POWDER, n: 6, cost: { [ITEM.CHEM]: 1, [ITEM.STICK]: 2 }, station: 'fire' },
+  { out: ITEM.PAINKILLERS, n: 1, cost: { [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
+  { out: ITEM.NAILS, n: 10, cost: { [ITEM.SCRAP]: 1 }, station: 'bench' },
+  { out: ITEM.FLARE, n: 2, cost: { [ITEM.POWDER]: 2, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.BATTERY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
+  { out: ITEM.AMMO_556, n: 15, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.AMMO_BOLTS, n: 4, cost: { [ITEM.STICK]: 2, [ITEM.SCRAP]: 1 }, station: 'bench' },
+  { out: ITEM.AMMO_FUEL, n: 50, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
+  { out: ITEM.VENISON, n: 1, cost: { [ITEM.VENISON_RAW]: 1 }, station: 'fire' },
+  { out: ITEM.GRENADE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.DECOY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.WIRE]: 1, [ITEM.BATTERY]: 1 }, station: 'bench' },
   // a step past the Padded Jacket: the rope is 3 cloth apiece, and the leather is a trip out (barn, cabins, lodge, trunks)
-  { id: 33, out: ITEM.BACKPACK, n: 1, cost: { [ITEM.LEATHER]: 4, [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2 }, station: 'bench' },
-  { id: 34, out: ITEM.RPG, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 5, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 35, out: ITEM.AMMO_ROCKET, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 4, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 36, out: ITEM.AT_RIFLE, n: 1, cost: { [ITEM.GUNPARTS]: 4, [ITEM.SCRAP]: 6, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
-  { id: 37, out: ITEM.AMMO_145, n: 2, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 5 }, station: 'bench' },
-  // the flare gun is a pipe and a hammer; a shell is a road flare's makings with a little chute packed on top
-  { id: 38, out: ITEM.FLARE_GUN, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 3, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 39, out: ITEM.AMMO_FLARE, n: 1, cost: { [ITEM.POWDER]: 3, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 }, station: 'bench' },
-  // two turned handles, a chain cut out of scrap, tape for the grips
-  { id: 40, out: ITEM.NUNCHAKU, n: 1, cost: { [ITEM.WOOD]: 2, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
-  // vehicles, built (shared/vehicles.js; `vehicle`: the kind that stands beside the bench when it is made - nothing goes
-  // into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
-  { id: 41, out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
-  { id: 42, out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
+  { out: ITEM.BACKPACK, n: 1, cost: { [ITEM.LEATHER]: 4, [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2 }, station: 'bench' },
+  { out: ITEM.AMMO_ROCKET, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 4, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.AMMO_145, n: 2, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 5 }, station: 'bench' },
+  { out: ITEM.AMMO_FLARE, n: 1, cost: { [ITEM.POWDER]: 3, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 }, station: 'bench' },
 ];
+// vehicles, built (shared/vehicles.js; `vehicle`: the kind that stands beside the bench when it is made - nothing goes
+// into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
+const VEHICLE_RECIPES = [
+  { out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
+  { out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
+];
+// the weapons' (`recipe` in each one's file, shared/weapons/) after the others, the vehicles last
+export const RECIPES = [...BASE_RECIPES, ...WEAPON_LIST.filter((w) => w.recipe).map((w) => ({ out: w.id, ...w.recipe })), ...VEHICLE_RECIPES].map((r) => ({ id: r.out, ...r }));
+export const RECIPE_BY_ID = new Map();
+for (const r of RECIPES) {
+  if (RECIPE_BY_ID.has(r.id)) throw new Error(`two recipes make ${ITEM_DEFS[r.out]?.name ?? r.out}: a recipe's id is the item it makes`);
+  RECIPE_BY_ID.set(r.id, r);
+}
 
 // The order the backpack grid is sorted in after a pickup or a drop, by category: weapons, what is worn or carried for
 // what it does (armor, the backpack, the walkie-talkie), ammunition, medicine and the other consumables, throwables,
@@ -507,27 +385,11 @@ export const SALVAGE = {
   [ITEM.JACKET]: { [ITEM.CLOTH]: 3, [ITEM.LEATHER]: 1 },
   [ITEM.KEVLAR]: { [ITEM.PLATE]: 1, [ITEM.CLOTH]: 2 },
   [ITEM.WALKIE]: { [ITEM.BATTERY]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.KNIFE]: { [ITEM.SCRAP]: 1, [ITEM.LEATHER]: 1 },
-  [ITEM.BAT]: { [ITEM.WOOD]: 1 },
-  [ITEM.SPIKED_BAT]: { [ITEM.WOOD]: 1, [ITEM.NAILS]: 4 },
-  [ITEM.MACHETE]: { [ITEM.SCRAP]: 2, [ITEM.LEATHER]: 1 },
-  [ITEM.HAMMER]: { [ITEM.SCRAP]: 1 },
-  [ITEM.NUNCHAKU]: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.PISTOL]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1, [ITEM.WOOD]: 1 },
-  [ITEM.AK47]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 1 },
-  [ITEM.HUNTING_RIFLE]: { [ITEM.GUNPARTS]: 1, [ITEM.WOOD]: 1 },
-  [ITEM.M4A1]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2 },
-  [ITEM.MP5]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2 },
-  [ITEM.DB_SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.CROSSBOW]: { [ITEM.ROPE]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.FLAMETHROWER]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 },
-  [ITEM.AT_RIFLE]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3 },
-  [ITEM.RPG]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 },
-  [ITEM.FLARE_GUN]: { [ITEM.SCRAP]: 2 }, // (made of a gun part, 3 scrap and tape: the part is what is not got back)
   [ITEM.GRENADE]: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 1 },
   [ITEM.DECOY]: { [ITEM.BATTERY]: 1 },
   [ITEM.BACKPACK]: { [ITEM.LEATHER]: 2, [ITEM.CLOTH]: 3, [ITEM.ROPE]: 1 },
+  // the weapons: `salvage` in each one's file (shared/weapons/)
+  ...Object.fromEntries(WEAPON_LIST.filter((w) => w.salvage).map((w) => [w.id, w.salvage])),
 };
 // What worn gear (armor, the backpack) taken apart from its equipment row [Shift+LMB] gives back: its SALVAGE row
 // - a backpack 2 Leather, 3 Cloth and 1 Rope. -> { item: count }, or null for anything that is not worn or has none.
@@ -553,6 +415,12 @@ export const ZTYPE = {
   BOSS_BRUTE: 12,
   BOSS_ALPHA: 13,
   BOSS_BLOATER: 14,
+  SMOKER: 15,
+  SCREECHER: 16,
+  CRAWLER: 17,
+  FLAMMER: 18,
+  MOTHER: 19,
+  BABY: 20,
 };
 
 // speed m/s, hp, dmg per hit, attack rate s, radius, height (for hitboxes), headR, headY
@@ -560,53 +428,105 @@ export const ZTYPE = {
 // ahead of the body, bodyTop = top of the body cylinder (default headY - headR).
 // shade: only moves in darkness; while any light is on it, it is frozen and takes litResist x damage
 // legs: its legs can be shot (LEG_* in constants.js): a hit trips it, a leg can be blown off, with both gone it crawls
-// minNight: the night it joins the horde. One new kind a night (Game.startNight), save bats, which join the spitters on
-// night 3 and leave night 7 with none new; each said on the dawn card before it
-// and on the dusk card under the clock with its introBrief (the intro in a few words); by day the further a place is
-// from the car, the more of the specials it holds, whatever the night (ZombieManager.daySpecial). A boss's minNight is
-// the first night it can be drawn (BOSS_POOL)
+// When a kind joins: walkers and runners from the start, then one special a night in an order drawn from the seed
+// (shared/nights.js joinNight), each said on the dusk card under the clock with its introBrief (the intro in a few
+// words); from the day it joins it is out by day too, the further a place is from the car the more of the specials it
+// holds (server/spawns.js daySpecial). A boss's minNight is the first night it can be drawn (BOSS_POOL)
 // tip: a boss's one line on how to fight it, shown when it comes (tipBrief: in a few words, for the dusk card).
 // bossLoot: the rolls it drops (default 8)
+// What the rest of the code asks of a kind is read from its row, never from a list of kinds kept somewhere else
+// (scripts/test-zombie-kinds.js holds every kind to it):
+//   wave: (night, sp) => its weight in a night's waves (sp: 0 the first wave .. 1 the last; server/spawns.js
+//     nightWaves). Every kind that joins the horde has one (shared/nights.js STARTERS and SPECIALS), and no other does
+//   scaled: the difficulty's specials knob (shared/difficulty.js specials) thins it on Ember and brings more of it on Blackout
+//   xp: what killing one is worth (shared/progress.js XP.kinds; XP.kill without it). Every kind that is neither rank and
+//     file (common) nor a boss has one
+//   blood: 'green' for the ones that bleed bile and acid (the impact a bullet makes, the gore a blown-apart one leaves)
+//   lod: the client builds a far copy of its model (client/render/models/characters.js LOD_TYPES)
+//   sounds: { loop, growl, fast, fastChance } - SOUND keys and createLoop names (client/game/entities.js). loop: the
+//     loop it carries ('zombie_idle' when unset, null for none); growl: what it utters now and then (the moan or the
+//     growl when unset, a boss's roar); fast: what it utters instead on the run, fastChance of the time (default 1)
 export const ZOMBIE_DEFS = {
-  [ZTYPE.WALKER]: { name: 'Walker', hp: 110, speed: 1.9, dmg: 11, rate: 1.1, range: 1.55, radius: 0.38, height: 1.75, headY: 1.58, headR: 0.17, structDmg: 22, loot: 0.28, common: true, minNight: 1, legs: true },
-  [ZTYPE.RUNNER]: { name: 'Runner', hp: 75, speed: 5.6, dmg: 8, rate: 0.7, range: 1.5, radius: 0.34, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 12, loot: 0.25, common: true, minNight: 1, legs: true },
+  [ZTYPE.WALKER]: { name: 'Walker', hp: 110, speed: 1.9, dmg: 11, rate: 1.1, range: 1.55, radius: 0.38, height: 1.75, headY: 1.58, headR: 0.17, structDmg: 22, loot: 0.28, common: true, legs: true, wave: (n, sp) => 50 - sp * 12, lod: true },
+  [ZTYPE.RUNNER]: { name: 'Runner', hp: 75, speed: 5.6, dmg: 8, rate: 0.7, range: 1.5, radius: 0.34, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 12, loot: 0.25, common: true, legs: true, wave: (n, sp) => 16 + n * 2 + sp * 6, lod: true, sounds: { fast: 'RUNNER_SCREAM' } },
   // a boss from night 2 (BOSS_POOL, at TANK_BOSS_HP of this health), rank-and-file in the horde from night 9. One blow
   // breaks a wood barricade
   // moveR / moveH: the body it walks and charges into the world with. Smaller than radius / height (which stay the
   // size bullets, blows and the model go by) so that it fits a doorway (1.0-1.6 m wide, the lintel 2.08 m above the
   // floor): at its full size a survivor indoors is out of its reach for good. The model does not stoop: it clips
   // the door frame on the way through
-  [ZTYPE.TANK]: { name: 'Tank', hp: 2200, speed: 2.5, dmg: 38, rate: 1.6, range: 2.4, radius: 0.95, height: 2.8, headY: 2.45, headR: 0.3, moveR: 0.5, moveH: 1.9, structDmg: 520, loot: 1, knock: 11, minNight: 9, intro: 'Tanks join the horde: they charge, and no barricade holds them. Listen for their footsteps.', introBrief: 'Charge through any barricade. Listen for their steps.', tip: 'Listen for its footsteps. It charges, and it smashes straight through barricades.', tipBrief: 'Charges through any barricade. Listen for its steps.' },
-  [ZTYPE.SPITTER]: { name: 'Spitter', hp: 95, speed: 2.3, dmg: 8, rate: 1.1, range: 1.5, radius: 0.36, height: 1.85, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.5, spitRange: 22, spitRate: 3.5, minNight: 3, legs: true, intro: 'Spitters join the horde: acid from 20 m that eats barricades, not walls. Shoot them first.', introBrief: 'Acid from 20 m eats barricades. Shoot them first.' },
-  [ZTYPE.LEAPER]: { name: 'Leaper', hp: 90, speed: 4.2, dmg: 9, rate: 0.5, range: 1.5, radius: 0.36, height: 1.3, headY: 1.1, headR: 0.17, structDmg: 12, loot: 0.5, leapRange: 14, minNight: 5, intro: 'Leapers join the horde: they pounce and pin. Mash Space to shove one off, or stay close so someone can shoot it off you.', introBrief: 'Pounce and pin. Mash Space to shove one off.' },
-  [ZTYPE.ROPER]: { name: 'Roper', hp: 150, speed: 2.1, dmg: 6, rate: 0.5, range: 1.6, radius: 0.37, height: 1.9, headY: 1.72, headR: 0.17, structDmg: 15, loot: 0.6, ropeRange: 24, minNight: 8, legs: true, intro: 'Ropers join the horde: a rope needs line of sight, so keep to cover and shoot the roper to break it.', introBrief: 'Ropes need line of sight. Keep to cover.' },
+  [ZTYPE.TANK]: { name: 'Tank', hp: 2200, speed: 2.5, dmg: 38, rate: 1.6, range: 2.4, radius: 0.95, height: 2.8, headY: 2.45, headR: 0.3, moveR: 0.5, moveH: 1.9, structDmg: 520, loot: 1, knock: 11, intro: 'Tanks join the horde: they charge, and no barricade holds them. Listen for their footsteps.', introBrief: 'Charge through any barricade. Listen for their steps.', tip: 'Listen for its footsteps. It charges, and it smashes straight through barricades.', tipBrief: 'Charges through any barricade. Listen for its steps.', xp: 30, wave: (n, sp) => (1 + n * 0.3) * (0.5 + sp), sounds: { growl: 'TANK_ROAR' } },
+  [ZTYPE.SPITTER]: { name: 'Spitter', hp: 95, speed: 2.3, dmg: 8, rate: 1.1, range: 1.5, radius: 0.36, height: 1.85, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.5, spitRange: 22, spitRate: 3.5, legs: true, intro: 'Spitters join the horde: acid from 20 m that eats barricades, not walls. Shoot them first.', introBrief: 'Acid from 20 m eats barricades. Shoot them first.', blood: 'green', scaled: true, xp: 15, wave: (n, sp) => 6 + sp * 4, lod: true },
+  [ZTYPE.LEAPER]: { name: 'Leaper', hp: 90, speed: 4.2, dmg: 9, rate: 0.5, range: 1.5, radius: 0.36, height: 1.3, headY: 1.1, headR: 0.17, structDmg: 12, loot: 0.5, leapRange: 14, intro: 'Leapers join the horde: they pounce and pin. Mash Space to shove one off, or stay close so someone can shoot it off you.', introBrief: 'Pounce and pin. Mash Space to shove one off.', scaled: true, xp: 20, wave: (n, sp) => 6 + sp * 4, lod: true },
+  [ZTYPE.ROPER]: { name: 'Roper', hp: 150, speed: 2.1, dmg: 6, rate: 0.5, range: 1.6, radius: 0.37, height: 1.9, headY: 1.72, headR: 0.17, structDmg: 15, loot: 0.6, ropeRange: 24, legs: true, intro: 'Ropers join the horde: a rope needs line of sight, so keep to cover and shoot the roper to break it.', introBrief: 'Ropes need line of sight. Keep to cover.', scaled: true, xp: 20, wave: (n, sp) => 5 + sp * 3, lod: true },
   // cannot claw at a structure: held up by one for breachHold s with a survivor within breachRange m, it swells for
   // breachWindup s and bursts against it. That piece takes breachDmg on top of the blast (with it, any wood piece
   // goes; a metal wall loses about 40%) - unless the boomer is shot first, which leaves only the blast
-  [ZTYPE.BOOMER]: { name: 'Boomer', hp: 70, speed: 1.7, dmg: 0, rate: 1, range: 2.2, radius: 0.6, height: 1.8, headY: 1.62, headR: 0.2, structDmg: 0, loot: 0.6, blastRadius: 5.5, blastDmg: 45, breachHold: 0.8, breachWindup: 1.2, breachRange: 12, breachDmg: 750, minNight: 4, legs: true, intro: 'Boomers join the horde: they burst against your walls. Shoot them far off.', introBrief: 'Burst against your walls. Shoot them far off.' },
-  [ZTYPE.BAT]: { name: 'Bat', hp: 28, speed: 7.5, dmg: 5, rate: 0.9, range: 1.3, radius: 0.3, height: 0.4, headY: 0.2, headR: 0.2, structDmg: 0, loot: 0.08, flying: true, common: true, minNight: 3, intro: 'Bats join the horde: they fly over every wall. Shotguns and melee.', introBrief: 'Fly over every wall. Shotguns and melee.' },
+  [ZTYPE.BOOMER]: { name: 'Boomer', hp: 70, speed: 1.7, dmg: 0, rate: 1, range: 2.2, radius: 0.6, height: 1.8, headY: 1.62, headR: 0.2, structDmg: 0, loot: 0.6, blastRadius: 5.5, blastDmg: 45, breachHold: 0.8, breachWindup: 1.2, breachRange: 12, breachDmg: 750, legs: true, intro: 'Boomers join the horde: they burst against your walls. Shoot them far off.', introBrief: 'Burst against your walls. Shoot them far off.', blood: 'green', scaled: true, xp: 15, wave: (n, sp) => 6 + sp * 3, lod: true, sounds: { growl: 'BOOMER_GURGLE' } },
+  [ZTYPE.BAT]: { name: 'Bat', hp: 28, speed: 7.5, dmg: 5, rate: 0.9, range: 1.3, radius: 0.3, height: 0.4, headY: 0.2, headR: 0.2, structDmg: 0, loot: 0.08, flying: true, common: true, intro: 'Bats join the horde: they fly over every wall. Shotguns and melee.', introBrief: 'Fly over every wall. Shotguns and melee.', scaled: true, wave: () => 7, sounds: { loop: null, growl: 'BAT_SCREECH' } },
+  // stops where it sees a survivor within screamRange and screams (screamWindup s, then again every screamRate s while it
+  // lives): a horde of screamHorde (+ screamHordeEach a survivor past the first) comes running out of the dark at whoever
+  // it screamed at, and every survivor within ringRange m hears ringing (ringT s, or until it is dead). Breaks: hiding
+  // quietly behind walls - it brings the crowd to you (SCREECH_* in server/specials/screecher.js)
+  [ZTYPE.SCREECHER]: { name: 'Screecher', hp: 130, speed: 2.4, dmg: 7, rate: 1.0, range: 1.5, radius: 0.36, height: 1.78, headY: 1.6, headR: 0.17, structDmg: 12, loot: 0.6, screamRange: 30, screamWindup: 1.3, screamRate: 20, screamHorde: 6, screamHordeEach: 2, ringRange: 22, ringT: 6, legs: true, intro: 'Screechers join the horde: one scream and the dead come running. Kill them before they see you.', introBrief: 'One scream brings a horde. Kill them on sight.', scaled: true, xp: 25, wave: (n, sp) => 1.5 + sp * 2, lod: true },
   // night bosses: hp is what one survivor faces (+ BOSS_HP_PER_PLAYER of it per extra survivor, Game.spawnBosses),
   // sized so that the rounds a survivor has left once the horde has had its share can bring one down before sunrise
-  [ZTYPE.BOSS_ABOMINATION]: { name: 'The Abomination', hp: 4000, speed: 3.0, dmg: 55, rate: 1.8, range: 3.4, radius: 1.5, height: 4.2, headY: 3.7, headR: 0.5, structDmg: 600, loot: 1, knock: 16, boss: true, minNight: 4, tip: 'It slams the ground and throws boulders. Spread out and keep moving.', tipBrief: 'Slams and throws boulders. Spread out, keep moving.' },
-  [ZTYPE.BOSS_HIVEQUEEN]: { name: 'The Hive Queen', hp: 3400, speed: 2.4, dmg: 35, rate: 1.4, range: 3.0, radius: 1.3, height: 3.6, headY: 3.1, headR: 0.45, structDmg: 300, loot: 1, knock: 8, boss: true, spitRange: 30, spitRate: 1.6, minNight: 5, tip: 'Acid barrages, and bats from its back. Keep to cover and shoot the bats off whoever they catch.', tipBrief: 'Acid and bats. Keep to cover, shoot the bats.' },
+  [ZTYPE.BOSS_ABOMINATION]: { name: 'The Abomination', hp: 4000, speed: 3.0, dmg: 55, rate: 1.8, range: 3.4, radius: 1.5, height: 4.2, headY: 3.7, headR: 0.5, structDmg: 600, loot: 1, knock: 16, boss: true, minNight: 4, tip: 'It slams the ground and throws boulders. Spread out and keep moving.', tipBrief: 'Slams and throws boulders. Spread out, keep moving.', sounds: { loop: 'boss_breath' } },
+  [ZTYPE.BOSS_HIVEQUEEN]: { name: 'The Hive Queen', hp: 3400, speed: 2.4, dmg: 35, rate: 1.4, range: 3.0, radius: 1.3, height: 3.6, headY: 3.1, headR: 0.45, structDmg: 300, loot: 1, knock: 8, boss: true, spitRange: 30, spitRate: 1.6, minNight: 5, tip: 'Acid barrages, and bats from its back. Keep to cover and shoot the bats off whoever they catch.', tipBrief: 'Acid and bats. Keep to cover, shoot the bats.', blood: 'green', sounds: { loop: 'boss_breath' } },
   // hunts in packs: dens in the thick woods by day, with the horde from night 2. sense = scent range multiplier.
   // hitRun: it bites once and breaks off before it comes in again. Held up by what the survivors built it rams it:
   // ramDmg to the piece (a metal one takes less, and gives ramRecoil back), then it reels, taking stunHurt x damage.
-  // ramWindup: s it snarls before the ram (DOG_RAM_WINDUP when unset) (DOG_* in server/zombies.js)
-  [ZTYPE.DOG]: { name: 'Zombie Dog', hp: 60, speed: 6.2, dmg: 7, rate: 0.7, range: 1.3, radius: 0.36, height: 0.85, headY: 0.58, headR: 0.14, headFwd: 0.5, bodyTop: 0.66, structDmg: 5, loot: 0.15, leather: 0.3, lungeRange: 6, sense: 1.5, pack: true, common: true, minNight: 2, hitRun: true, ramDmg: 180, ramRecoil: 15, stunHurt: 1.5, intro: 'Zombie dogs join the horde: they bite and run. They cannot jump a barricade, but they ram one down. Shoot them as they come in.', introBrief: 'Ram barricades down. Shoot them as they come in.' },
-  [ZTYPE.SHADE]: { name: 'Shade', hp: 240, speed: 8.6, dmg: 55, rate: 0.9, range: 1.7, radius: 0.36, height: 2.0, headY: 1.82, headR: 0.17, structDmg: 30, loot: 0.8, shade: true, litResist: 0.25, minNight: 6, legs: true, intro: 'Shades join the horde: faster than you can run, and they hit hard, but only in the dark. Light your base, and keep a flashlight on them.', introBrief: 'Move only in the dark. Keep a light on them.' },
+  // ramWindup: s it snarls before the ram (DOG_RAM_WINDUP when unset) (DOG_* in server/specials/dog.js)
+  [ZTYPE.DOG]: { name: 'Zombie Dog', hp: 60, speed: 6.2, dmg: 7, rate: 0.7, range: 1.3, radius: 0.36, height: 0.85, headY: 0.58, headR: 0.14, headFwd: 0.5, bodyTop: 0.66, structDmg: 5, loot: 0.15, leather: 0.3, lungeRange: 6, sense: 1.5, pack: true, common: true, hitRun: true, ramDmg: 180, ramRecoil: 15, stunHurt: 1.5, intro: 'Zombie dogs join the horde: they bite and run. They cannot jump a barricade, but they ram one down. Shoot them as they come in.', introBrief: 'Ram barricades down. Shoot them as they come in.', wave: (n, sp) => 3 + sp * 2, sounds: { loop: null, growl: 'DOG_SNARL', fast: 'DOG_BARK', fastChance: 0.6 } },
+  [ZTYPE.SHADE]: { name: 'Shade', hp: 240, speed: 8.6, dmg: 55, rate: 0.9, range: 1.7, radius: 0.36, height: 2.0, headY: 1.82, headR: 0.17, structDmg: 30, loot: 0.8, shade: true, litResist: 0.25, legs: true, intro: 'Shades join the horde: faster than you can run, and they hit hard, but only in the dark. Light your base, and keep a flashlight on them.', introBrief: 'Move only in the dark. Keep a light on them.', scaled: true, xp: 25, wave: (n, sp) => 2.5 + sp * 2.5, lod: true, sounds: { loop: null, growl: 'SHADE_WHISPER' } },
   // night 1's boss: a hulking walker and nothing more, until it is badly hurt - below enrage of its health it roars and
   // comes on at enrageSpeed x its pace. Its body fits a doorway (moveR / moveH, as the Tank's)
-  [ZTYPE.BOSS_BRUTE]: { name: 'The Brute', hp: 750, speed: 1.7, dmg: 24, rate: 1.5, range: 2.3, radius: 0.75, height: 2.55, headY: 2.22, headR: 0.25, moveR: 0.5, moveH: 1.9, structDmg: 240, loot: 1, bossLoot: 4, knock: 7, boss: true, minNight: 1, enrage: 0.5, enrageSpeed: 2.1, tip: 'Slow, until it is badly hurt: then it roars and comes at a run. Keep your distance.', tipBrief: 'Runs once badly hurt. Keep your distance.' },
+  [ZTYPE.BOSS_BRUTE]: { name: 'The Brute', hp: 750, speed: 1.7, dmg: 24, rate: 1.5, range: 2.3, radius: 0.75, height: 2.55, headY: 2.22, headR: 0.25, moveR: 0.5, moveH: 1.9, structDmg: 240, loot: 1, bossLoot: 4, knock: 7, boss: true, minNight: 1, enrage: 0.5, enrageSpeed: 2.1, tip: 'Slow, until it is badly hurt: then it roars and comes at a run. Keep your distance.', tipBrief: 'Runs once badly hurt. Keep your distance.', sounds: { loop: 'boss_breath' } },
   // a dog the size of a pony that leads a pack: it hunts as the dogs do (fans out, lunges, bites and runs, rams down
   // what was built), and howls up summon dogs into its pack every summonRate s while it has a survivor to hunt
   // (summonMax of its pack alive at once). Its ram windup stays under the 0.38 s the client's crouch takes to become
   // its howl (client/render/models/dog.js poseCrouch)
-  [ZTYPE.BOSS_ALPHA]: { name: 'The Alpha', hp: 750, speed: 6.4, dmg: 20, rate: 0.9, range: 2.0, radius: 0.7, height: 1.65, headY: 1.2, headR: 0.26, headFwd: 1.0, bodyTop: 1.35, moveR: 0.5, moveH: 1.6, structDmg: 40, loot: 1, knock: 6, lungeRange: 9, sense: 2, pack: true, boss: true, minNight: 2, summon: 3, summonRate: 16, summonMax: 6, hitRun: true, ramDmg: 450, ramRecoil: 40, ramWindup: 0.35, stunHurt: 1.5, tip: 'It howls up more dogs, bites and runs, and rams down what you built. Shoot it while it reels.', tipBrief: 'Calls dogs, rams walls. Shoot it while it reels.' },
+  [ZTYPE.BOSS_ALPHA]: { name: 'The Alpha', hp: 750, speed: 6.4, dmg: 20, rate: 0.9, range: 2.0, radius: 0.7, height: 1.65, headY: 1.2, headR: 0.26, headFwd: 1.0, bodyTop: 1.35, moveR: 0.5, moveH: 1.6, structDmg: 40, loot: 1, knock: 6, lungeRange: 9, sense: 2, pack: true, boss: true, minNight: 2, summon: 3, summonRate: 16, summonMax: 6, hitRun: true, ramDmg: 450, ramRecoil: 40, ramWindup: 0.35, stunHurt: 1.5, tip: 'It howls up more dogs, bites and runs, and rams down what you built. Shoot it while it reels.', tipBrief: 'Calls dogs, rams walls. Shoot it while it reels.', sounds: { loop: null, growl: 'DOG_SNARL', fast: 'DOG_BARK', fastChance: 0.6 } },
   // a boomer three times over: it claws at what you built like any of the dead (it does not burst against it), heaves
   // bile in a fan at whoever is within spewRange every spewRate s, and when it dies it bursts: blastRadius, blastDmg
   // to survivors, blastStruct to what you built. Bring it down far from the walls
-  [ZTYPE.BOSS_BLOATER]: { name: 'The Bloater', hp: 2400, speed: 1.45, dmg: 22, rate: 1.4, range: 2.6, radius: 1.15, height: 2.9, headY: 2.55, headR: 0.32, moveR: 0.5, moveH: 1.9, structDmg: 160, loot: 1, knock: 6, boss: true, minNight: 3, spewRange: 13, spewRate: 7, blastRadius: 10, blastDmg: 70, blastStruct: 900, tip: 'When it dies it bursts and takes everything near it. Bring it down far from your walls.', tipBrief: 'Bursts when it dies. Kill it far from your walls.' },
+  [ZTYPE.BOSS_BLOATER]: { name: 'The Bloater', hp: 2400, speed: 1.45, dmg: 22, rate: 1.4, range: 2.6, radius: 1.15, height: 2.9, headY: 2.55, headR: 0.32, moveR: 0.5, moveH: 1.9, structDmg: 160, loot: 1, knock: 6, boss: true, minNight: 3, spewRange: 13, spewRate: 7, blastRadius: 10, blastDmg: 70, blastStruct: 900, tip: 'When it dies it bursts and takes everything near it. Bring it down far from your walls.', tipBrief: 'Bursts when it dies. Kill it far from your walls.', blood: 'green', sounds: { loop: 'boss_breath', growl: 'BOOMER_GURGLE' } },
+  // breaks: a team that holds one wall and shoots what it sees. Within smokeRange of a survivor it stops and breathes out
+  // a cloud of dark smoke (smokeRadius m, smokeLife s) every smokeRate s, and the dead come at them out of it. When it
+  // dies it bursts into one more (deathSmoke); killed among what the survivors built - baseCount pieces or more within
+  // baseRange m (Combat.inBase) - the cloud it lets go is big enough to fill the base (baseSmoke). Kill it out past the
+  // walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
+  [ZTYPE.SMOKER]: { name: 'Smoker', hp: 130, speed: 2.0, dmg: 8, rate: 1.1, range: 1.55, radius: 0.38, height: 1.86, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.6, smokeRange: 20, smokeRate: 11, smokeRadius: 4.5, smokeLife: 9, deathSmoke: { radius: 5, life: 10 }, baseSmoke: { radius: 14, life: 26 }, baseRange: 12, baseCount: 4, legs: true, intro: 'Smokers join the horde: they breathe out clouds you cannot see through. Kill them out past your walls, or their last breath fills the base.', introBrief: 'Smoke you cannot see through. Kill them past the walls.', scaled: true, xp: 20, wave: (n, sp) => 3 + sp * 3, lod: true },
+  // a flying squirrel the infection has grown to the size of a cat. It never claws or bites in passing (noMelee): it only
+  // hurts whoever it has by the face, a nibble of latchDmg every latchRate s (+5% a night). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/specials/crawler.js
+  // PERCH_*), and glides down on to the face of whoever comes under it (the leaper's pounce at the head, falling slower),
+  // clamping on with all four feet (s.pinned = PIN_FACE). Blind (client/game/facelatch.js: its belly and its membrane
+  // over their eyes) but on their feet, they shake it off by throwing their head about (SHAKE_*), or a teammate shoots
+  // or strikes it off, or it has had latchMax s. With no tree near, it springs from the ground (latchRange m)
+  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchDmg: 2, latchMax: 10, intro: 'Crawlers join the horde: they wait up trees, eyes glowing, and glide down onto your face to blind you. Keep away from the trees they chitter in, and shake your head hard to tear one off.', introBrief: 'Wait up trees, glide onto your face. Shake it off.', scaled: true, xp: 15, wave: (n, sp) => 5 + sp * 4, sounds: { loop: null, growl: 'CRAWLER_CHITTER' } },
+  // a firefighter who went into the fire and never came out: still smouldering inside its turnout coat, which no
+  // fire gets through (fireproof: fire does it no harm - a molotov, a campfire, the flamethrower - though the sun
+  // still does). What the survivors built catches from it: every igniteRate s it sets alight a piece within
+  // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
+  // metal does not burn, and a hammer puts a fire out
+  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.', scaled: true, xp: 20, wave: (n, sp) => 3 + sp * 3, lod: true },
+  // one walker in twenty spawns as her (ZombieManager.spawn's roll), from the first night: not a kind that joins the
+  // horde on a night of its own (rolled: Game.startNight never draws her in, and no dawn card names her). Shot in the
+  // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) -
+  // it bursts open (ZSTATUS.BURST) and twins, her brood of babies, crawl out of it after whoever shot her, crying as they
+  // come (Combat.burstBelly). Her head, her legs or her back and nothing comes out
+  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, broodSpread: 0.9, broodKick: 5, minNight: 1, legs: true, rolled: true, xp: 20, lod: true },
+  // a Mother's baby (crawl: on its front and its hands from birth, low and quick, crying as it comes). It never joins the
+  // horde on its own (born: it only comes out of her belly, Game.startNight passes it over); its minNight is hers, for the bestiary
+  [ZTYPE.BABY]: { name: 'Zombie Baby', hp: 28, speed: 2.6, dmg: 4, rate: 0.8, range: 1.1, radius: 0.22, height: 0.3, headY: 0.21, headR: 0.08, headFwd: 0.22, bodyTop: 0.2, structDmg: 2, loot: 0.05, crawl: true, born: true, common: true, minNight: 1 },
+};
+
+// a kind that bleeds green (its row's blood): the spitter's acid, a boomer's bile
+export const greenBlood = (t) => ZOMBIE_DEFS[t]?.blood === 'green';
+// the createLoop name a kind carries (its row's sounds.loop: 'zombie_idle' when unset, null for none)
+export const zombieLoop = (t) => {
+  const l = ZOMBIE_DEFS[t]?.sounds?.loop;
+  return l === undefined ? 'zombie_idle' : l;
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
@@ -620,7 +540,7 @@ export const ZANIM = {
   WALK: 1,
   RUN: 2,
   ATTACK: 3,
-  SPECIAL: 4, // spit / rope / leap-windup / slam
+  SPECIAL: 4, // spit / rope / leap-windup / slam / scream
   AIRBORNE: 5, // leaping / thrown
   STAGGER: 6,
   DEAD: 7,
@@ -658,6 +578,7 @@ export const PROJ_ITEM = { [PROJ.MOLOTOV]: ITEM.MOLOTOV, [PROJ.PIPEBOMB]: ITEM.P
 export const AREA = {
   ACID: 1,
   FIRE: 2,
+  SMOKE: 3, // a smoker's cloud: nothing but what it hides (shared/smoke.js)
 };
 
 // ---------------------------------------------------------------- events
@@ -762,8 +683,13 @@ export const SOUND = {
   DRINK: 121, // a can cracked open and gulped down (an energy drink)
   FLARE_GUN: 122, // a flare gun's shot (client-side, from EVT.SHOT)
   FLARE_POP: 123, // a parachute flare bursting alight at the top of its climb (client-side, from its flight)
+  SCREECHER_SCREAM: 126, // a screecher's scream: the dead hear it from far off, and come
   DEER_SCREAM: 124, // an undead deer (the mainland's): a rotten-throated bellow as it lowers its antlers, is hit, or dies
   CAT_PURR: 125, // the stray cat purring while it is stroked (client-side, from its CANIM.PET)
+  SMOKER_HISS: 143, // a smoker breathing out its cloud
+  DEAGLE: 144, // the Desert Eagle's shot
+  BABY_CRY: 151, // a Mother's baby crawling after you, wailing (client-side, from its own growl timer)
+  BELLY_BURST: 152, // a Mother's belly torn open by a shot (client-side, from ZSTATUS.BURST)
   // vehicles (shared/vehicles.js)
   VEH_START: 130, // an engine turned over and caught (somebody at the wheel of one that runs)
   VEH_STOP: 131, // ...and switched off, or run dry
@@ -778,6 +704,7 @@ export const SOUND = {
   BIKE_BELL: 140, // a bicycle's bell
   VEH_MOUNT: 141, // somebody swinging a leg over a moped or a bicycle
   VEH_SKID: 142, // tyres letting go (client-side, from the vehicle's replicated state)
+  CRAWLER_CHITTER: 150, // a crawler springing at a face, and chittering on it once it has it
 };
 
 export const EVT = {
@@ -827,6 +754,9 @@ export const EVT = {
   // carried (m, to 255), u8 n, n x u16 the entity ids of the ones it woke (the nearest HEARD_IDS). Sent to whoever
   // made it, each time it wakes HEARD_MIN or more
   HEARD: 39,
+  // (private) a screecher screamed close enough to leave the survivor's ears ringing: u16 its id, u8 tenths of a second
+  // the ringing lasts at most (it stops sooner if the screecher dies)
+  SCREECH: 40,
 };
 
 // EVT.HEARD: what made the noise, so the client can name it the first time ("Gunshot: heard 70 m")

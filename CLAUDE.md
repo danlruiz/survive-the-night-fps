@@ -15,3 +15,7 @@ The codebase is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 To open a pull request, follow [.claude/skills/create-pr/SKILL.md](.claude/skills/create-pr/SKILL.md): a short overview for a
 non-technical reader, screenshots of the change, a Risk section for server changes and a metrics table for tuning.
+
+To merge main into a branch or resolve merge conflicts, follow [.claude/skills/resolve-conflicts/SKILL.md](.claude/skills/resolve-conflicts/SKILL.md): which conflicts are
+id and list collisions, how to renumber wire ids safely, and what each conflict says about the code and the game's design
+([docs/merge-conflicts.md](docs/merge-conflicts.md)).

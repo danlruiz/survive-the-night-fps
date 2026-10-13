@@ -462,17 +462,38 @@ function server(name, port, env = {}) {
   procs.push(s);
   return s;
 }
+// the whole test has a deadline too (a normal run takes about 40 s): past it, every server is killed and the test fails
+// with what it was waiting on, rather than holding up every step of npm test after it
+const WATCHDOG_MS = 5 * 60_000;
+setTimeout(() => {
+  console.log(`FAIL the test finished within ${WATCHDOG_MS / 1000} s (it did not: killing its servers)`);
+  for (const s of procs) {
+    if (!s.exit) s.proc.kill('SIGKILL');
+    console.log(`\n--- ${s.name} ---\n${s.log.split('\n').slice(-30).join('\n')}`);
+  }
+  process.exit(1);
+}, WATCHDOG_MS).unref();
 const stop = (s) => (process.platform === 'win32' ? s.proc.send({ t: 'shutdown' }) : s.proc.kill('SIGTERM'));
 const text = async (s, path) => {
   const r = await fetch(`http://localhost:${s.port}${path}`, { headers: { 'accept-encoding': 'identity' } });
   return { status: r.status, body: await r.text() };
 };
-// one try at joining with the client's own Connection: true once in, else the Error
+// one try at joining with the client's own Connection: true once in, else the Error. A socket the server opens but
+// never answers (no WELCOME, no REJECT) is given up after JOIN_MS, so comeBack tries again instead of waiting forever
+// (it once hung the whole test after its last PASS)
+const JOIN_MS = 10_000;
 const tryJoin = (s, code, pid, into = {}) => {
   globalThis.location = { protocol: 'http:', host: `localhost:${s.port}` };
   const conn = new Connection({ close: (c) => (into.closed = c) });
   into.conn = conn;
-  return conn.connect('Ann', pid, code).then(
+  let timer;
+  const late = new Promise((done) => {
+    timer = setTimeout(() => {
+      conn.close();
+      done(new Error(`no answer to the join in ${JOIN_MS} ms`));
+    }, JOIN_MS);
+  });
+  const tried = conn.connect('Ann', pid, code).then(
     (info) => {
       into.id = info.id;
       into.seed = info.seed;
@@ -480,6 +501,7 @@ const tryJoin = (s, code, pid, into = {}) => {
     },
     (err) => err
   );
+  return Promise.race([tried, late]).finally(() => clearTimeout(timer));
 };
 const back = async (s, code, pid) => {
   const into = {};

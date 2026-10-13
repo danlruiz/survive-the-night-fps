@@ -3,9 +3,9 @@
 // one staging of the entities (each must get what quantizing for it alone would give; one that is skipped for a
 // tick catches up); then the varints, the command packets (writeInput / readInput) and Dead Hand's messages
 // (writeCards / readCards).
-import { Writer, Reader, ENT, MAX_CMDS, POS_SCALE, qpos, qangle8, qlookYaw, qlookPitch, writeInput, readInput, C2S, S2C, PROTOCOL_VERSION, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, writeCards, readCards } from '../shared/protocol.js';
+import { Writer, Reader, ENT, MAX_CMDS, POS_SCALE, qpos, qangle8, qlookYaw, qlookPitch, writeInput, readInput, C2S, S2C, PROTOCOL_VERSION, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, writeCards, readCards, PSTAT } from '../shared/protocol.js';
 import { Game } from '../server/game.js';
-import { ClientView, writeEntities, stageEntities, playerFlags } from '../server/snapshot.js';
+import { ClientView, writeEntities, stageEntities, playerFlags, SLOTS } from '../server/snapshot.js';
 import { readEntities } from '../client/net/decode.js';
 import { createPlayerState, snapPlayerState } from '../shared/playersim.js';
 import { LOD_NEAR, SERVER_TICK_RATE } from '../shared/constants.js';
@@ -115,16 +115,16 @@ function expectQ(e) {
   const q = [qpos(e.x), qpos(e.y), qpos(e.z)];
   switch (e.kind) {
     case ENT.PLAYER:
-      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255);
+      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, (e.state.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0));
       break;
     case ENT.ZOMBIE:
-      q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, e.burnT > 0 ? 1 : 0);
+      q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, (e.burnT > 0 ? 1 : 0) | (e.burst ? 2 : 0));
       break;
     case ENT.ITEM:
       q.push(e.count);
       break;
     case ENT.STRUCTURE:
-      q.push(Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state, (e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE) && e.burnLeft > 0 ? (stagedTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0);
+      q.push(Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state, e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE ? (e.burnLeft > 0 ? (stagedTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0) : e.fire > 0 ? 1 : 0);
       break;
     case ENT.CRATE:
     case ENT.CACHE:
@@ -178,22 +178,26 @@ for (let tick = 1; tick <= TICKS; tick++) {
       e.link = Math.random() < 0.1 ? irnd(1, 60000) : 0;
       if (Math.random() < 0.15) e.legs |= irnd(1, 2); // a leg shot off: it does not grow back
       e.burnT = Math.random() < 0.3 ? 3 : 0; // set alight / gone out
+      e.burst = Math.random() < 0.1; // a Mother's belly torn open (ZSTATUS.BURST)
     }
     if (e.kind === ENT.PLAYER && Math.random() < 0.3) {
       e.state.yaw = rnd(0, 6.28);
       e.state.pitch = rnd(-1.5, 1.5);
       e.state.fireCount = (e.state.fireCount + 1) & 255;
+      e.state.ears = Math.random() < 0.2 ? rnd(0.1, 3) : 0; // hands over the ears (a screecher close by), and down
       e.flashlight = Math.random() < 0.5;
       e.downed = Math.random() < 0.2;
       e.revivedBy = Math.random() < 0.1 ? 5 : 0;
       e.state.slot = irnd(0, 2);
       e.state.ride = Math.random() < 0.3 ? irnd(1, 16) : 0; // onto a ride at the fair, off it
+      e.burning = Math.random() < 0.2; // set alight by a flammer, put out
     }
     if (e.kind === ENT.ITEM && Math.random() < 0.05) e.count = irnd(1, 900);
     if (e.kind === ENT.STRUCTURE && Math.random() < 0.1) {
       e.hp = rnd(0, 500);
       e.state = irnd(0, 1);
       e.burnLeft = Math.random() < 0.5 ? rnd(0, 600) : 0; // (fed, relit or burnt out)
+      e.fire = Math.random() < 0.3 ? rnd(0.1, 30) : 0; // (any other piece: set alight by a flammer, put out)
     }
     if (e.kind === ENT.CRATE && Math.random() < 0.05) e.state = irnd(0, 3);
     if (e.kind === ENT.CACHE && Math.random() < 0.05) e.state = irnd(0, 1);
@@ -267,7 +271,7 @@ for (let tick = 1; tick <= TICKS; tick++) {
       const dz = e.z - viewer.state.z;
       const held = e.kind !== ENT.PLAYER && dx * dx + dz * dz > LOD_NEAR * LOD_NEAR && ((tick + id) & 1) === 1;
       for (let s = 0; s < exp.length; s++) {
-        if (c.q[s] !== view.base[id * 9 + s]) throw new Error(`tick ${tick}: entity ${id} kind ${e.kind} slot ${s}: client ${c.q[s]} != baseline ${view.base[id * 9 + s]}`);
+        if (c.q[s] !== view.base[id * SLOTS + s]) throw new Error(`tick ${tick}: entity ${id} kind ${e.kind} slot ${s}: client ${c.q[s]} != baseline ${view.base[id * SLOTS + s]}`);
         if (!held && c.q[s] !== exp[s]) throw new Error(`tick ${tick}: client ${viewer.id} has entity ${id} kind ${e.kind} slot ${s} at ${c.q[s]}, the server has ${exp[s]}`);
       }
       checks++;

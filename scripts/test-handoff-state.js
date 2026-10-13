@@ -218,7 +218,7 @@ const TRANSIENT = [
   /^game\.(armedT|trunkCols)\b/,
   /^game\.(ents|all|freeIds|gens|deer|cats|projectiles|areas)\b/, // (the registry is checked above; the deer, the cat and what was in flight start afresh)
   // a player: their connection, and what resume starts afresh for the client that comes back
-  /^players\.\*\.(session|rec|view|shadow|cmdQueue|cmdBudget|hx|hy|hz|selfSync|away|arriving|ts|invDirty|invSort|selfCache|globalCache|listVer|snapTick|ackSent|greeted)\b/,
+  /^players\.\*\.(session|rec|view|shadow|cmdQueue|cmdBudget|hx|hy|hz|selfSync|away|arriving|ts|invDirty|invSort|selfCache|globalCache|listVer|snapTick|ackSent|greeted|loadoutEntered)\b/,
   // a zombie: its position history (filled again), and what its spatial hash is
   /^zombies\.\*\.(hx|hy|hz)\b/,
   /^zm\.(head|next|humansCache|crowdList|lights|lightTick|treeGrid|dens|spawnPicks|spawnsScreened|spawnsInView|fieldRR)\b/,

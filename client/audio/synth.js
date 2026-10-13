@@ -274,6 +274,15 @@ export const GUNS = {
     tail: 0.13, tailLP: 720, tailDecay: 0.32,
     mech: [[0.05, 880, 0.15], [0.086, 1450, 0.08]], echoes: [[0.26, 0.09], [0.58, 0.05], [0.98, 0.028]], drive: 2.3,
   },
+  // the Desert Eagle: a magnum out of a short barrel. The pistol's crack with a rifle's weight under it: a lower,
+  // longer bark, a deep thump, and echoes that carry further than any handgun's
+  deagle: {
+    dur: 1.8, crack: 0.95, crackHP: 2600, crackDecay: 0.0013, nwave: 0.3,
+    bodyHP: 300, bodyLP0: 6400, bodyLP1: 650, lpSweep: 0.04, bodyDecay: 0.05, bark: [900, 1.2, 6],
+    thump: 1.05, thumpF0: 130, thumpF1: 40, thumpSweep: 0.028, thumpDecay: 0.08,
+    tail: 0.11, tailLP: 950, tailDecay: 0.3,
+    mech: [[0.04, 2000, 0.1], [0.08, 1500, 0.07]], echoes: [[0.26, 0.11], [0.6, 0.06], [1.02, 0.03]], drive: 2.1,
+  },
   // the anti-tank rifle: a 14.5 mm round out of a muzzle brake. Against the hunting rifle the crack is as hard but
   // the blast under it is an octave down and three times as long (the brake throws it out sideways), the thump is
   // the deepest of any gun, and it rolls round the valley for three seconds
@@ -798,6 +807,56 @@ export function shadeShriek(sr, rng) {
   return finish(out, sr, 0.9);
 }
 
+// the screecher: a sharp indrawn gasp, then one long scream torn out of a ruined throat - two voices a little apart,
+// climbing and cracking, with the rasp of the wound under it. Long enough to cover its windup (screamWindup) and more
+export function screecherScream(sr, rng) {
+  const inhale = 0.4;
+  const dur = rrange(rng, 3.5, 3.9);
+  const out = alloc(sr, inhale + dur + 0.2);
+  addNorm(out, noise(sr, rng, inhale, { bp: [1800, 1.2], sweep: [700, 2600], env: (u) => u * u * (1 - smoothstep((u - 0.85) / 0.15)) }), sr, 0, 0.35);
+  const b = rrange(rng, 610, 700);
+  for (const det of [1, 1.045, 0.5]) {
+    const v = voice(sr, rng, {
+      dur, pitch: [[0, b * det * 0.75], [0.08, b * det * 1.25], [0.3, b * det * 1.4], [0.42, b * det * 1.3], [0.55, b * det * 1.6], [0.75, b * det * 1.7], [0.9, b * det * 1.45], [1, b * det * 0.9]],
+      vowels: vowelPath(['a', 'ae', 'i', 'ae', 'i', 'ae', 'a'], rng), fscale: det < 1 ? 1.05 : 1.25, bw: 2.4, jitter: 0.12, jitterHz: 45, shimmer: 0.55, sub: 0.15,
+      rasp: det < 1 ? 1.2 : 0.7, raspHz: det < 1 ? 70 : 220, breath: 0.8, vib: 0.03, vibHz: 7, drive: 5, chest: det < 1 ? 0.4 : 0, a3: 0.9, a4: 0.7, hp: 300,
+      env: [[0, 0], [0.04, 0.85], [0.3, 1], [0.42, 0.9], [0.6, 1], [0.88, 0.9], [1, 0]],
+    });
+    addNorm(out, v, sr, inhale + (det > 1 ? 0.03 : 0), det > 1 ? 0.6 : det < 1 ? 0.45 : 1);
+  }
+  addNorm(out, whoosh(sr, rng, dur * 0.9, 900, 4200, 2200, 1.4, 0.5), sr, inhale, 0.3);
+  softclip(out, 3.6); // (driven harder than the other voices: it is meant to carry across the valley)
+  return finish(out, sr, 0.95);
+}
+
+// a Mother's baby: a newborn's wail out of a dead throat - two or three sobs, each a breath drawn in with a catch and
+// pushed out as a cracked, rising "waah", a rasp under it where no living baby has one. Short enough to come again
+// and again as it crawls (client: entities.js, every 1.6-2.8 s)
+export function babyCry(sr, rng) {
+  const sobs = rng() < 0.5 ? 2 : 3;
+  const lens = Array.from({ length: sobs }, (_, i) => (i === sobs - 1 ? rrange(rng, 0.65, 0.85) : rrange(rng, 0.38, 0.5)));
+  const gaps = lens.map(() => rrange(rng, 0.12, 0.2));
+  const out = alloc(sr, lens.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0) + 0.2);
+  let t = 0.02;
+  for (let i = 0; i < sobs; i++) {
+    const dur = lens[i];
+    const b = rrange(rng, 420, 520) * (i === sobs - 1 ? 1.08 : 1);
+    // the catch of breath before it
+    addNorm(out, noise(sr, rng, gaps[i] * 0.8, { bp: [2400, 1.5], sweep: [1600, 3200], env: (u) => u * (1 - u) * 4 }), sr, t, 0.12);
+    t += gaps[i];
+    const v = voice(sr, rng, {
+      dur, pitch: [[0, b * 0.8], [0.15, b * 1.15], [0.45, b * 1.25], [0.75, b * 1.1], [1, b * 0.7]],
+      vowels: vowelPath(['ae', 'a', 'a', 'uh'], rng), fscale: 1.35, bw: 1.8, jitter: 0.09, jitterHz: 38, shimmer: 0.45,
+      rasp: 0.55, raspHz: 160, breath: 0.4, vib: 0.04, vibHz: 9, drive: 3, chest: 0, a3: 0.6, a4: 0.4, hp: 250,
+      env: [[0, 0], [0.08, 0.9], [0.5, 1], [0.85, 0.7], [1, 0]],
+    });
+    addNorm(out, v, sr, t, i === sobs - 1 ? 1 : 0.85);
+    t += dur;
+  }
+  softclip(out, 2.2);
+  return finish(out, sr, 0.9);
+}
+
 export function zpGrowl(sr, rng, i) {
   const b = rrange(rng, 90, 118);
   return voice(sr, rng, {
@@ -902,6 +961,25 @@ export function dogSnarl(sr, rng, i) {
   });
   addNorm(out, g, sr, 0, 0.9);
   if (i % 3 !== 1) addNorm(out, noise(sr, rng, 0.03, { bp: [2600, 1.2], a: 0.0005, d: 0.012 }), sr, dur * 0.92, 0.7); // teeth clack
+  return finish(out, sr);
+}
+// the crawler (a flying squirrel, grown huge): a run of shrill, rasping chitters over a hiss through its teeth
+export function zCrawler(sr, rng, i) {
+  const out = alloc(sr, 0.9);
+  addNorm(out, noise(sr, rng, 0.55, { bp: [3800, 0.9], sweep: [4400, 2600], a: 0.03, d: 0.3 }), sr, 0, 0.35);
+  const count = 5 + Math.floor(rng() * 4);
+  let t = 0.02;
+  for (let k = 0; k < count && t < 0.75; k++) {
+    const b = rrange(rng, 900, 1300) * (i % 2 ? 1.1 : 1);
+    const len = rrange(rng, 0.045, 0.085);
+    const c = voice(sr, rng, {
+      dur: len, pitch: [[0, b * 0.85], [0.4, b * 1.25], [1, b * 0.9]], vowels: vowelPath(['i', 'e', 'i'], rng), fscale: 1.45, bw: 2.2,
+      jitter: 0.12, jitterHz: 60, shimmer: 0.5, rasp: 0.9, raspHz: 260, breath: 0.4, drive: 4, chest: 0, a3: 0.6, hp: 600,
+      env: [[0, 0], [0.15, 1], [0.6, 0.8], [1, 0]],
+    });
+    addNorm(out, c, sr, t, rrange(rng, 0.55, 0.9));
+    t += len + rrange(rng, 0.015, 0.05);
+  }
   return finish(out, sr);
 }
 // yelps when hit; the last variant is a dying whine
@@ -2120,6 +2198,7 @@ export const SFX_DEFS = [
   { bank: 'xbow_shot', n: 2, sr: HI, gen: (sr, r) => crossbowShot(sr, r, false) },
   { bank: 'gun_hmg', n: 3, sr: HI, gen: (sr, r) => gunshot(sr, r, G.hmg, false) },
   { bank: 'gun_atrifle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.atrifle, false) },
+  { bank: 'gun_deagle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.deagle, false) },
   // first-person (stereo)
   { bank: 'fp_pistol', n: 3, sr: HI, gen: (sr, r) => gunshot(sr, r, G.pistol, true) },
   { bank: 'fp_ak47', n: 4, sr: HI, gen: (sr, r) => gunshot(sr, r, G.ak47, true) },
@@ -2131,6 +2210,7 @@ export const SFX_DEFS = [
   { bank: 'fp_crossbow', n: 2, sr: HI, gen: (sr, r) => crossbowShot(sr, r, true) },
   { bank: 'fp_hmg', n: 4, sr: HI, gen: (sr, r) => gunshot(sr, r, G.hmg, true) },
   { bank: 'fp_atrifle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.atrifle, true) },
+  { bank: 'fp_deagle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.deagle, true) },
   // sub thump + tree-line echoes layered under the recorded first-person shots
   { bank: 'gsw_pistol', n: 2, sr: MID, gen: (sr, r) => gunshot(sr, r, G.pistol, true, true) },
   { bank: 'gsw_ak47', n: 2, sr: MID, gen: (sr, r) => gunshot(sr, r, G.ak47, true, true) },
@@ -2164,6 +2244,8 @@ export const SFX_DEFS = [
   { bank: 'z_shade_whisper', n: 3, sr: MID, gen: shadeWhisper },
   { bank: 'z_shade_freeze', n: 2, sr: HI, gen: shadeFreeze },
   { bank: 'z_shade_shriek', n: 2, sr: MID, gen: shadeShriek },
+  { bank: 'z_screecher', n: 2, sr: MID, gen: screecherScream },
+  { bank: 'z_baby_cry', n: 4, sr: MID, gen: babyCry },
   { bank: 'zp_growl', n: 3, sr: MID, gen: zpGrowl },
   { bank: 'cat_meow', n: 3, sr: HI, gen: catMeow },
   { bank: 'cat_purr', n: 3, sr: MID, gen: catPurr },
@@ -2171,6 +2253,7 @@ export const SFX_DEFS = [
   { bank: 'dog_howl', n: 2, sr: MID, gen: dogHowl },
   { bank: 'dog_snarl', n: 3, sr: MID, gen: dogSnarl },
   { bank: 'dog_yelp', n: 3, sr: MID, gen: dogYelp },
+  { bank: 'z_crawler', n: 2, sr: MID, gen: zCrawler },
   { bank: 'deer_snort', n: 3, sr: MID, gen: deerSnort },
   { bank: 'deer_bleat', n: 3, sr: MID, gen: deerBleat },
   { bank: 'deer_scream', n: 3, sr: MID, gen: deerScream },

@@ -28,20 +28,22 @@ export class Connection {
     this.held = null; // messages waiting for release() (hold)
   }
 
-  // code: the game to join; none for a quick join (the server picks a public game, or makes one)
-  url(code = '') {
+  // code: the game to join; none for a quick join (the server picks a public game, or makes one). back: this is the
+  // page coming back into a game it was just playing (main.js rejoin): the server gives it its body even while the
+  // old socket is still open there (Game.handleJoin), where a join without it is another tab, a player of its own
+  url(code = '', back = false) {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/ws${code ? `?game=${encodeURIComponent(code)}` : ''}`;
+    return `${proto}://${location.host}/ws${code ? `?game=${encodeURIComponent(code)}${back ? '&back=1' : ''}` : ''}`;
   }
 
   // pid: who this browser is to the leaderboard (identity.js). code: as for url. character: the survivor chosen (shared/
   // characters.js; CHARACTER_NONE: the server picks). look: a custom survivor's (shared/appearance.js values; null:
-  // none), with character the roster survivor most like it. -> the WELCOME's info; throws the
+  // none), with character the roster survivor most like it. back: as for url. -> the WELCOME's info; throws the
   // REJECT's reason, or 'Could not connect to server' once the retries (RETRY_MS) are spent
-  async connect(name, pid = '', code = '', character = CHARACTER_NONE, look = null) {
+  async connect(name, pid = '', code = '', character = CHARACTER_NONE, look = null, back = false) {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.attempt(name, pid, code, character, look);
+        return await this.attempt(name, pid, code, character, look, back);
       } catch (err) {
         if (!err.unanswered || attempt >= RETRY_MS.length) throw err;
         await new Promise((done) => setTimeout(done, RETRY_MS[attempt]));
@@ -50,7 +52,7 @@ export class Connection {
   }
 
   // one socket's try at it
-  attempt(name, pid, code, character = CHARACTER_NONE, look = null) {
+  attempt(name, pid, code, character = CHARACTER_NONE, look = null, back = false) {
     return new Promise((resolve, reject) => {
       let settled = false;
       let joined = false; // (WELCOME: this socket is the game's; one that was turned away goes without a word)
@@ -58,7 +60,7 @@ export class Connection {
       this.accounts = new Map();
       this.looks = new Map();
       const t0 = performance.now();
-      const ws = new WebSocket(this.url(code));
+      const ws = new WebSocket(this.url(code, back));
       ws.binaryType = 'arraybuffer';
       this.ws = ws;
       ws.onopen = () => {

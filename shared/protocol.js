@@ -2,7 +2,7 @@
 // Positions are quantized in int16: to 1/64 m on the island (range +-512 m) and to 1/32 m on the mainland, which is
 // 2048 m across (range +-1024 m: its edge). See usePos below.
 
-export const PROTOCOL_VERSION = 50; // 26: the frag grenade and the noisemaker (items 33-34, PROJ 7-8); 28: salvage, ammo reserve, unequip, RPG (PROJ 9); 29: carrying the mounted gun (ACT.GUN_PUT, HOLD.GUN_LIFT, ENT.GUN fields 6-7, s.hmg); 30: the flare gun (items 56, 79; ammo 9; PROJ 10); 31: the walkie-talkie in weapon slot 6 (SLOT_RADIO), PLF.ON_AIR; 32: achievements (EVT.ACHIEVE); 33: XP, levels and perks (S2C.PROGRESS, s.perks in SELF.RIDE, a level in S2C.PLAYERS and S2C.BOARD rows); 34: IN_PING carries u16 last measured RTT (ms) for the player list; 35: the bestiary (EVT.BESTIARY); 36: schematic rumours (a zone per schematic in the global state); 37: car supplies lying loose (item, x, z) in the global state; 38: the leaper shove meter (s.shove in the self state's fifth chunk); 39: a torch's or a campfire's burn-out tick (SF.BURN); 40: the mainland's undead deer (DEER_UNDEAD in a deer's variant, DANIM.ATTACK / CHARGE, SOUND.DEER_SCREAM, killfeed flag 8 and YOU_DIED 254 for a death by one); 41: the stray cat in a survivor's arms (ACT.CAT_PUT, ENT.CAT field HOLDER, CANIM.HELD / PET, s.pet in SELF.RIDE); 42: Dead Hand, the card game (C2S.CARDS, S2C.CARDS, card packs: items 98-99); 43: lobby Dead Hand tables; 44: Dead Hand loadout item wagers; 45: trees shot or blown apart (EVT.TREE_BREAK); 46: your noise woke the dead (EVT.HEARD); 47: the fresh-night XP bonus (XP_SRC 'fresh' in S2C.PROGRESS); 48: where each car supply is hidden and the help a team that has found none gets (global spots, help; NOTIFY.SUPPLY_HINT); 49: tonight's moon (MOON) in the global state; 50: the pledge window and its Skull buys (C2S.PLEDGE, S2C.PLEDGE)
+export const PROTOCOL_VERSION = 56; // 26: the frag grenade and the noisemaker (items 33-34, PROJ 7-8); 28: salvage, ammo reserve, unequip, RPG (PROJ 9); 29: carrying the mounted gun (ACT.GUN_PUT, HOLD.GUN_LIFT, ENT.GUN fields 6-7, s.hmg); 30: the flare gun (items 56, 79; ammo 9; PROJ 10); 31: the walkie-talkie in weapon slot 6 (SLOT_RADIO), PLF.ON_AIR; 32: achievements (EVT.ACHIEVE); 33: XP, levels and perks (S2C.PROGRESS, s.perks in SELF.RIDE, a level in S2C.PLAYERS and S2C.BOARD rows); 34: IN_PING carries u16 last measured RTT (ms) for the player list; 35: the bestiary (EVT.BESTIARY); 36: schematic rumours (a zone per schematic in the global state); 37: car supplies lying loose (item, x, z) in the global state; 38: the leaper shove meter (s.shove in the self state's fifth chunk); 39: a torch's or a campfire's burn-out tick (SF.BURN); 40: the mainland's undead deer (DEER_UNDEAD in a deer's variant, DANIM.ATTACK / CHARGE, SOUND.DEER_SCREAM, killfeed flag 8 and YOU_DIED 254 for a death by one); 41: the stray cat in a survivor's arms (ACT.CAT_PUT, ENT.CAT field HOLDER, CANIM.HELD / PET, s.pet in SELF.RIDE); 42: Dead Hand, the card game (C2S.CARDS, S2C.CARDS, card packs: items 98-99); 43: lobby Dead Hand tables; 44: Dead Hand loadout item wagers; 45: trees shot or blown apart (EVT.TREE_BREAK); 46: your noise woke the dead (EVT.HEARD); 47: the fresh-night XP bonus (XP_SRC 'fresh' in S2C.PROGRESS); 48: where each car supply is hidden and the help a team that has found none gets (global spots, help; NOTIFY.SUPPLY_HINT); 49: tonight's moon (MOON) in the global state; 50: the smoker (ZTYPE 15, AREA.SMOKE, SOUND.SMOKER_HISS); 51: the screecher (ZTYPE 16, SOUND.SCREECHER_SCREAM, EVT.SCREECH; s.ears in the self state's fourth chunk, PSTAT in a player's field 9), EVT.BESTIARY's mask a u32 (ZTYPE 16 is past a u16); 52: the crawler (ZTYPE 17, SOUND.CRAWLER_CHITTER) and its pin on the face (PIN_FACE: bit 2 of the pulled byte, self chunk 4); 53: the flammer (ZTYPE 18), fire on survivors (PSTAT.BURNING in a player's field 9; a burning bit and how far it is put out in the self status) and on what was built (SF.BURN on any other piece); 54: the Mother and her babies (ZTYPE 19-20, ZSTATUS.BURST); 55: a recipe's id (ACT.CRAFT) is the item it makes, not its place in RECIPES; 56: the pledge window and its Skull buys (C2S.PLEDGE, S2C.PLEDGE)
 
 // client -> server
 export const C2S = {
@@ -71,7 +71,7 @@ export const ACT = {
   INTERACT: 1, // u16 entityId (0 = look target resolved server-side)
   DROP_SLOT: 2, // u8 inventory index, u16 count (0 = all)
   DROP_WEAPON: 3, // u8 weapon slot
-  CRAFT: 4, // u8 recipe id
+  CRAFT: 4, // u8 recipe id (the item it makes: RECIPE_BY_ID)
   USE_ITEM: 5, // u8 inventory index
   BUILD: 6, // u8 struct type, i16 x, i16 z, u8 rot
   DEMOLISH: 7, // u16 entity id
@@ -623,7 +623,7 @@ export const UEXT = 0x80;
 export const UEXT_ABS = 0x40;
 
 // PLAYER fields
-export const PF = { POS: 0, ANG: 1, FLAGS: 2, WEAPON: 3, HP: 4, ACTION: 5, LINK: 6 };
+export const PF = { POS: 0, ANG: 1, FLAGS: 2, WEAPON: 3, HP: 4, ACTION: 5, STATUS: 6 };
 // player flag bits (u16 on the wire)
 export const PFLAG = {
   FLASHLIGHT: 1,
@@ -638,17 +638,21 @@ export const PFLAG = {
   REVIVING: 512, // being revived by a teammate
   BACKPACK: 1024, // wearing a backpack (ITEM.BACKPACK): the third-person model carries it
 };
+// PLAYER field 9: what else shows of them. EARS: both hands clapped over the ears (s.ears: a screecher's scream).
+// BURNING: set alight by a flammer (PLAYER_FIRE in defs.js), until it is put out
+export const PSTAT = { EARS: 1, BURNING: 2 };
 // ...and in the five bits above them, the seat of a ride the player sits in + 1 (fair.js; 0: on foot)
 export const PRIDE_SHIFT = 11;
 export const playerRide = (flags) => flags >> PRIDE_SHIFT;
 // ZOMBIE fields (LEGS: legs blown off, bit 0 left, bit 1 right)
 export const ZF = { POS: 0, YAW: 1, ANIM: 2, HP: 3, LINK: 4, LEGS: 5, STATUS: 6 };
-// zombie status bits (ZF.STATUS)
-export const ZSTATUS = { BURNING: 1 };
+// zombie status bits (ZF.STATUS). BURST: a Mother whose belly a shot has torn open (her babies are out)
+export const ZSTATUS = { BURNING: 1, BURST: 2 };
 // ITEM fields
 export const IF = { POS: 0, COUNT: 1 };
 // STRUCTURE fields
-// BURN (u16): a torch's or a campfire's flame, the server tick it burns out at (low 16 bits), 0 when it is out
+// BURN (u16): a torch's or a campfire's flame, the server tick it burns out at (low 16 bits), 0 when it is out. Any
+// other piece: 1 while it is on fire (STRUCT_FIRE in defs.js), 0 when it is not
 export const SF = { POS: 0, HP: 1, STATE: 2, BURN: 3 };
 // PROJECTILE fields
 export const JF = { POS: 0 };

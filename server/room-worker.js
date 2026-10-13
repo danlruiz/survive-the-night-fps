@@ -3,7 +3,8 @@
 // leaderboard lives there too, so a game's records are a stand-in that posts to it (RemoteRecords).
 //
 // From the network thread:
-//   { t: 'open', slot, ip, user }  a socket was put in this slot (user: its account { id, name, isAdmin }, null for a guest)
+//   { t: 'open', slot, ip, user, back } a socket was put in this slot (user: its account { id, name, isAdmin }, null for a
+//                                  guest; back: its page is coming back into this game, Game.handleJoin)
 //   { t: 'close', slot, code }     ...and closed (code: the socket's close code - 4001 the player left on purpose)
 //   { t: 'in', buf }               their messages (frames, in order)    { t: 'stop' }          shut down
 //   { t: 'finish' }                the server is going down: end the match being played, and say when it is
@@ -19,7 +20,8 @@
 //   { t: 'ready', seed }           the game is built and ticking        { t: 'out', buf }      messages for sockets
 //   { t: 'closed', slot }          done with that slot's socket: nothing more will go out for it
 //   { t: 'kick', slot }            close that socket: it took a seat and never joined (JOIN_WAIT)
-//   { t: 'kick', slot, code, why } ...or an admin removed its player (gameadmin.js): closed with that code and reason
+//   { t: 'kick', slot, code, why } ...or an admin removed its player (gameadmin.js), or the player joined again on
+//                                  another socket (Game.takeOver): closed with that code and reason
 //   { t: 'status', ... }           once a second, and when the number of players changes
 //   { t: 'rec', op, ... }          the leaderboard and XP (RemoteRecords) { t: 'board', ... }  a player asked for it
 //   { t: 'an', rec }               a record of the match being played (analytics.js), for the database (matchstore.js)
@@ -181,11 +183,12 @@ function queue(slot, bytes) {
 const sessions = [];
 const conns = [];
 const openedAt = []; // per slot: when its socket came (performance.now()); 0 once it joined or was kicked
-function makeConn(slot, ip, user) {
+function makeConn(slot, ip, user, back = false) {
   return {
     ip,
     slot,
     user, // the account it is signed in to ({ id, name, isAdmin }), or null (Game.handleJoin)
+    back, // its page is coming back into this game after a drop: it takes its player over (Game.handleJoin)
     closed: false,
     send(bytes) {
       if (!this.closed) queue(slot, bytes);
@@ -195,6 +198,15 @@ function makeConn(slot, ip, user) {
     },
     cork(fn) {
       fn(); // (the network thread corks each socket's share of a batch)
+    },
+    // the same player joined again on another socket (Game.takeOver): this one is let go, closed with the reason. What
+    // it still sends is for nobody; its slot is given back when its close comes (case 'close')
+    replace(why) {
+      if (this.closed) return;
+      this.closed = true;
+      if (conns[slot] === this) sessions[slot] = conns[slot] = null;
+      openedAt[slot] = 0;
+      post({ t: 'kick', slot, code: ENDED_CODE, why });
     },
   };
 }
@@ -215,7 +227,7 @@ function drop(slot, why) {
 function onMessage(m) {
   switch (m.t) {
     case 'open': {
-      const conn = makeConn(m.slot, m.ip, m.user || null);
+      const conn = makeConn(m.slot, m.ip, m.user || null, m.back === true);
       conns[m.slot] = conn;
       sessions[m.slot] = game.onOpen(conn);
       openedAt[m.slot] = performance.now();

@@ -5,7 +5,7 @@
 // Decodes every snapshot with the real client decoder. usage: node scripts/sim-smoke.js [seed]
 import { CRAFT_MAX, craftRun, copyInv } from '../client/game/bulkcraft.js';
 import { spawnCatalog } from '../client/ui/spawnmenu.js';
-import { RECIPES, AMMO_MAX } from '../shared/defs.js';
+import { RECIPE_BY_ID, AMMO_MAX } from '../shared/defs.js';
 import { Game } from '../server/game.js';
 import { treeHp } from '../server/trees.js';
 import { C2S, ACT, ENT, HOLD, CAR_ID, CHATF, PLF, WELCOMEF, REJECT_REASON, PROTOCOL_VERSION, Writer, Reader, S2C, qangle16, qpitch, ZSTATUS, writeInput } from '../shared/protocol.js';
@@ -19,7 +19,7 @@ import { HARVEST, harvestAt, harvestPrompt, strippedKey, needLines } from '../cl
 import { SLOT_PISTOL, SLOT_MELEE } from '../shared/constants.js';
 import { ITEM_DEFS, SCHEMATICS, SCHEM_BIT, schematicRumours } from '../shared/defs.js';
 import { raycastWorld, groundAt } from '../shared/collision.js';
-import { NIGHT_THEMES, nightTheme, nightBoss, BOSS_POOL, FIRST_BOSS } from '../shared/nights.js';
+import { NIGHT_THEMES, nightTheme, nightBoss, BOSS_POOL, FIRST_BOSS, SPECIALS, joinNight, kindsJoining } from '../shared/nights.js';
 
 const seed = +(process.argv[2] || 4242);
 // The checks must pass on any seed, so none of them may lean on what the ones before it happened to leave behind.
@@ -491,6 +491,11 @@ check('caches replicated', [...A.store.ents.values()].some((e) => e.kind === ENT
 // zombie dogs: packs den in the thick woods, hunt together, lunge and bite; the head sits ahead of the body
 {
   const car = game.world.car;
+  // (no dogs in the woods before the run has met them: the day they join, three packs come out)
+  const day0 = game.day;
+  game.day = Math.max(day0, joinNight(game.seed, ZTYPE.DOG));
+  for (let i = 0; i < 3 && game.zombies.filter((z) => z.ztype === ZTYPE.DOG && !z.dead).length < 6; i++) game.zm.spawnForestPack([]);
+  game.day = day0;
   const dogs = game.zombies.filter((z) => z.ztype === ZTYPE.DOG && !z.dead);
   const packs = new Set(dogs.map((d) => d.pack));
   check('dog packs roam the woods', dogs.length >= 4 && packs.size >= 2, `${dogs.length} dogs, ${packs.size} packs`);
@@ -1731,11 +1736,11 @@ const standOff = (c, e, d) => {
   }
   // craft at the fire: gunpowder needs chem
   game.giveItem(p, ITEM.CHEM, 2);
-  A.act(ACT.CRAFT, 19);
+  A.act(ACT.CRAFT, ITEM.POWDER);
   run(3);
   check('crafted at campfire', p.inv.some((x) => x && x.item === ITEM.POWDER));
   const nails0 = p.inv.reduce((n, x) => n + (x && x.item === ITEM.NAILS ? x.count : 0), 0);
-  A.act(ACT.CRAFT, 21); // nails at the bench
+  A.act(ACT.CRAFT, ITEM.NAILS); // nails at the bench
   run(3);
   check('crafted at workbench', p.inv.reduce((n, x) => n + (x && x.item === ITEM.NAILS ? x.count : 0), 0) === nails0 + 10);
   // Crafting in bulk (Shift / Ctrl+click): the client works out how many crafts the server will take (craftRun,
@@ -1752,7 +1757,7 @@ const standOff = (c, e, d) => {
       set();
       game.syncThrow(p);
       const model = copyInv({ slots: p.inv, ammo: s.ammo, weapons: s.weapons });
-      const n = craftRun(RECIPES[id], model, CRAFT_MAX);
+      const n = craftRun(RECIPE_BY_ID.get(id), model, CRAFT_MAX);
       A.notes.length = 0;
       for (let i = 0; i < n; i++) A.act(ACT.CRAFT, id);
       run(1);
@@ -1765,15 +1770,15 @@ const standOff = (c, e, d) => {
     };
     const count = (item) => p.inv.reduce((n, x) => n + (x && x.item === item ? x.count : 0), 0);
     // 60 sticks: twenty planks from twenty actions in one tick
-    const planks = bulk(18, [[ITEM.STICK, 20], [ITEM.STICK, 20], [ITEM.STICK, 20]]);
+    const planks = bulk(ITEM.WOOD, [[ITEM.STICK, 20], [ITEM.STICK, 20], [ITEM.STICK, 20]]);
     check('a bulk craft of 20 is 20 crafts in one tick', planks.n === CRAFT_MAX && planks.ok && count(ITEM.WOOD) === 20 && count(ITEM.STICK) === 0, `${planks.n} sent, ${count(ITEM.WOOD)} planks, ${count(ITEM.STICK)} sticks left`);
     // the materials run out (3 scrap); a full nail stack with nowhere else to go; the last scrap paid frees the slot
     // the nails need; bats with the melee slot taken and two free slots; a bat into the empty melee slot, then no room
-    const mats = bulk(9, [[ITEM.SCRAP, 3], [ITEM.POWDER, 20]]);
-    const stack = bulk(21, [[ITEM.SCRAP, 5], [ITEM.NAILS, 45], ...full(22)]);
-    const freed = bulk(21, [[ITEM.SCRAP, 1], [ITEM.NAILS, 55], ...full(22)]);
-    const bats = bulk(3, [[ITEM.WOOD, 9], ...full(21)]);
-    const bat = bulk(3, [[ITEM.WOOD, 6], ...full(23)], () => (s.weapons[2] = 0));
+    const mats = bulk(ITEM.AMMO_9MM, [[ITEM.SCRAP, 3], [ITEM.POWDER, 20]]);
+    const stack = bulk(ITEM.NAILS, [[ITEM.SCRAP, 5], [ITEM.NAILS, 45], ...full(22)]);
+    const freed = bulk(ITEM.NAILS, [[ITEM.SCRAP, 1], [ITEM.NAILS, 55], ...full(22)]);
+    const bats = bulk(ITEM.BAT, [[ITEM.WOOD, 9], ...full(21)]);
+    const bat = bulk(ITEM.BAT, [[ITEM.WOOD, 6], ...full(23)], () => (s.weapons[2] = 0));
     check(
       'a bulk craft stops where the server would refuse the next one',
       [mats, stack, freed, bats, bat].every((c) => c.ok) && [mats.n, stack.n, freed.n, bats.n, bat.n].join() === '3,1,1,2,1' && [mats.next, stack.next, freed.next, bats.next, bat.next].join() === [NOTIFY.NOT_ENOUGH, NOTIFY.INVENTORY_FULL, NOTIFY.NOT_ENOUGH, NOTIFY.INVENTORY_FULL, NOTIFY.INVENTORY_FULL].join(),
@@ -1784,8 +1789,8 @@ const standOff = (c, e, d) => {
     // batch that fits (120 + 2 x 12 of 150), so nothing is spilt - and every backpack slot taken does not matter
     const cap = AMMO_MAX[AMMO.P9];
     const had = s.ammo[AMMO.P9];
-    const ammo = bulk(9, [[ITEM.SCRAP, 10], [ITEM.POWDER, 30], ...full(22)], () => (s.ammo[AMMO.P9] = cap - 30), false);
-    check('bulk ammunition stops at the last whole batch the reserve takes', ammo.n === 2 && ammo.ok && s.ammo[AMMO.P9] === cap - 30 + 2 * RECIPES[9].n && count(ITEM.AMMO_9MM) === 0 && count(ITEM.SCRAP) === 8 && count(ITEM.POWDER) === 26, `${ammo.n} batches sent at ${cap - 30} of ${cap}: reserve ${s.ammo[AMMO.P9]}, ${count(ITEM.SCRAP)} scrap and ${count(ITEM.POWDER)} powder left`);
+    const ammo = bulk(ITEM.AMMO_9MM, [[ITEM.SCRAP, 10], [ITEM.POWDER, 30], ...full(22)], () => (s.ammo[AMMO.P9] = cap - 30), false);
+    check('bulk ammunition stops at the last whole batch the reserve takes', ammo.n === 2 && ammo.ok && s.ammo[AMMO.P9] === cap - 30 + 2 * RECIPE_BY_ID.get(ITEM.AMMO_9MM).n && count(ITEM.AMMO_9MM) === 0 && count(ITEM.SCRAP) === 8 && count(ITEM.POWDER) === 26, `${ammo.n} batches sent at ${cap - 30} of ${cap}: reserve ${s.ammo[AMMO.P9]}, ${count(ITEM.SCRAP)} scrap and ${count(ITEM.POWDER)} powder left`);
     s.ammo[AMMO.P9] = had;
     p.inv.splice(0, p.inv.length, ...keep[0]);
     keep[1].forEach((v, i) => (s.weapons[i] = v));
@@ -1794,7 +1799,7 @@ const standOff = (c, e, d) => {
   }
   // locked recipe
   A.notes.length = 0;
-  A.act(ACT.CRAFT, 15);
+  A.act(ACT.CRAFT, ITEM.SHOTGUN);
   run(3);
   check('schematic lock enforced', A.notes.some(([m]) => m === NOTIFY.LOCKED));
   // crossbow: a bench recipe that needs no schematic, bolts are their own reserve, it re-cocks itself,
@@ -1804,8 +1809,8 @@ const standOff = (c, e, d) => {
   game.giveItem(p, ITEM.ROPE, 1);
   game.giveItem(p, ITEM.SCRAP, 4);
   game.giveItem(p, ITEM.STICK, 6);
-  A.act(ACT.CRAFT, 26);
-  A.act(ACT.CRAFT, 27);
+  A.act(ACT.CRAFT, ITEM.CROSSBOW);
+  A.act(ACT.CRAFT, ITEM.AMMO_BOLTS);
   run(3);
   check('crafted crossbow + bolts at workbench', s.weapons[0] === ITEM.CROSSBOW && s.mags[0] === 1 && s.ammo[AMMO.BOLT] === 4, `bolts ${s.ammo[AMMO.BOLT]}`);
   // four more bolts with room for one in the reserve, and every backpack slot taken (ammunition needs none): the
@@ -1820,7 +1825,7 @@ const standOff = (c, e, d) => {
     for (let i = 2; i < p.inv.length; i++) p.inv[i] = { item: ITEM.LEATHER, count: 10 };
     s.ammo[AMMO.BOLT] = cap - 1;
     const before = new Set(game.items);
-    A.act(ACT.CRAFT, 27);
+    A.act(ACT.CRAFT, ITEM.AMMO_BOLTS);
     run(3);
     const spilt = game.items.filter((e) => !before.has(e) && e.item === ITEM.AMMO_BOLTS);
     const n = spilt.reduce((k, e) => k + e.count, 0);
@@ -3112,11 +3117,11 @@ check('ping broadcast', B.pings > 0);
     g.combat.killZombie(w, null, {});
     tick(2);
 
-    // only what walks on two has legs to lose
+    // only what walks on two has legs to lose (walkers, runners, spitters, ropers, boomers, shades, smokers, screechers, mothers)
     const legged = Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].legs);
     const dog = put(ZTYPE.DOG, 14);
     const dogHit = shoot(dog, 0.25);
-    check('a dog, a tank or a boss has no leg to shoot off', near(dogHit, pistol.damage) && dog.legHp === null && dog.legs === 0 && dog.anim !== ZANIM.STUMBLE && legged.length === 6 && [ZTYPE.DOG, ZTYPE.TANK, ZTYPE.LEAPER, ZTYPE.BAT, ZTYPE.BOSS_ABOMINATION, ZTYPE.BOSS_HIVEQUEEN].every((t) => !ZOMBIE_DEFS[t].legs), `dog -${dogHit.toFixed(0)}, legged: ${legged.map((t) => ZOMBIE_DEFS[t].name).join(' ')}`);
+    check('a dog, a tank or a boss has no leg to shoot off', near(dogHit, pistol.damage) && dog.legHp === null && dog.legs === 0 && dog.anim !== ZANIM.STUMBLE && legged.length === 10 && [ZTYPE.DOG, ZTYPE.TANK, ZTYPE.LEAPER, ZTYPE.BAT, ZTYPE.BOSS_ABOMINATION, ZTYPE.BOSS_HIVEQUEEN].every((t) => !ZOMBIE_DEFS[t].legs), `dog -${dogHit.toFixed(0)}, legged: ${legged.map((t) => ZOMBIE_DEFS[t].name).join(' ')}`);
     g.combat.killZombie(dog, null, {});
 
     // a shade pinned by light is stone in the leg too: it takes litResist of the hit there, and does not trip
@@ -3386,29 +3391,33 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
   check('the zombie cap holds through a stand of eight who do not shoot', eight.peak <= 120 && eight.sent > one.sent && eight.sent <= eight.size && eight.far === 0, `peak ${eight.peak} zombies, ${eight.sent} of ${eight.size} came`);
 }
 
-// one new kind of the dead a night, bats with the spitters on night 3 (ZOMBIE_DEFS minNight): none before its night, the new one there for certain on
-// its night, and from their night on at least one shade and never more than six
+// walkers and runners on night 1, then one new special a night in an order drawn from the seed (shared/nights.js
+// joinNight) until all are out: none before its night, the new one there for certain on its night, and from their
+// night on at least one shade and never more than six
 {
   const early = [];
   const missing = [];
   const shades = [];
-  for (let n = 1; n <= 10; n++) {
+  const all = SPECIALS.length + 1;
+  const shadeNight = joinNight(game.seed, ZTYPE.SHADE);
+  for (let n = 1; n <= all + 1; n++) {
     game.day = n;
     game.startNight();
     const q = game.waves.flatMap((wv) => wv.queue);
     const kinds = new Set(q);
-    for (const t of kinds) if (ZOMBIE_DEFS[t].minNight > n) early.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
-    for (const [t, d] of Object.entries(ZOMBIE_DEFS)) if (!d.boss && d.minNight === n && !kinds.has(+t)) missing.push(`${d.name} on night ${n}`);
+    for (const t of kinds) if (!ZOMBIE_DEFS[t].boss && joinNight(game.seed, t) > n) early.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
+    for (const t of kindsJoining(game.seed, n)) if (!kinds.has(t)) missing.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
     const k = q.filter((t) => t === ZTYPE.SHADE).length;
-    if (n >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight) shades.push(k);
+    if (n >= shadeNight) shades.push(k);
   }
   const fresh = [];
-  for (let n = 2; n <= 9; n++) fresh.push(Object.values(ZOMBIE_DEFS).filter((d) => !d.boss && d.minNight === n).length);
-  // bats join with the spitters on night 3, so night 7 brings no new kind
-  const want = [1, 2, 1, 1, 1, 0, 1, 1];
-  check('one new kind of the dead a night (two on night 3, none on 7), and none before its night', fresh.every((k, i) => k === want[i]) && !early.length, early.join(', ') || `new on nights 2-9: ${fresh.join('/')}`);
+  for (let n = 1; n <= all + 1; n++) fresh.push(kindsJoining(game.seed, n).length);
+  const want = Array.from({ length: all + 1 }, (_, i) => (i === 0 || i === all ? 0 : 1));
+  check(`one new special a night, from night 2 until all ${SPECIALS.length} are out, and none before its night`, fresh.every((k, i) => k === want[i]) && !early.length, early.join(', ') || `new on nights 1-${all + 1}: ${fresh.join('/')}`);
+  const orders = new Set(Array.from({ length: 20 }, (_, s) => SPECIALS.map((t) => joinNight(s + 1, t)).join()));
+  check('...in an order drawn from the seed', orders.size > 15, `${orders.size} orders over 20 seeds`);
   check('...each one in the horde on its night', !missing.length, missing.join(', '));
-  check('...and from their night on, one to six shades', shades.every((k) => k >= 1 && k <= 6), `nights ${ZOMBIE_DEFS[ZTYPE.SHADE].minNight}-10: ${shades.join('/')}`);
+  check('...and from their night on, one to six shades', shades.every((k) => k >= 1 && k <= 6), `nights ${shadeNight}-${all + 1}: ${shades.join('/')}`);
 }
 
 // a full entity registry: a join that cannot get an id is turned away and leaves nothing behind, what a survivor
@@ -3611,8 +3620,17 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
     while (nightTheme(s, n) !== th) s++;
     return s;
   };
-  const roll = (th, n) => {
-    game.seed = seedFor(th, n);
+  // a seed on which the theme comes on the night the last of its kinds joins (as on the night it was measured on)
+  const themeNight = (th) => {
+    for (let s = 1; ; s++) {
+      const n = Math.max(2, ...(th.needs || []).map((k) => joinNight(s, k)));
+      if (nightTheme(s, n) === th) return { s, n };
+    }
+  };
+  // themes: false rolls the same seed's night plain (the same kinds unlocked, the theme switched off)
+  const roll = (th, n, themes = true, seed = seedFor(th, n)) => {
+    game.seed = seed;
+    game.themes = themes;
     const r = { n: 0, hp: 0, by: new Map(), shades: 0 };
     const queued = game.events.length;
     for (let i = 0; i < 500; i++) {
@@ -3639,9 +3657,9 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
   let wrongBlend = 0;
   let wrongSize = 0;
   for (const th of NIGHT_THEMES) {
-    const n = th.from;
-    const plain = roll(null, n);
-    const r = roll(th, n);
+    const { s: seed, n } = themeNight(th);
+    const plain = roll(th, n, false, seed);
+    const r = roll(th, n, true, seed);
     // what it boosts is at least 1.3x as common as on a plain night, what it thins at most 0.85x
     for (const [t, mul] of Object.entries(th.mul)) {
       const k = share(r, +t) / share(plain, +t);
@@ -3653,22 +3671,18 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
     const kh = r.hp / plain.hp;
     if (Math.abs(kn - 1) > 0.04 || Math.abs(kh - 1) > 0.2) wrongSize++;
     size.push(`${th.id} x${kn.toFixed(2)}/x${kh.toFixed(2)}`);
-    for (const t of r.by.keys()) if (ZOMBIE_DEFS[t].minNight > n) early.push(`${th.id}: ${ZOMBIE_DEFS[t].name} on night ${n}`);
     if (r.shades > 6) early.push(`${th.id}: ${r.shades} shades`);
   }
   check('a themed night has its blend', wrongBlend === 0, `against a plain night: ${blend.join(', ')}`);
   check('...the same head count and about the same total health as a plain one', wrongSize === 0, `count/health: ${size.join(', ')}`);
-  check('...and no zombie the night has not unlocked', early.length === 0, early.join(', '));
+  check('...and no more than six shades', early.length === 0, early.join(', '));
   // switched off (tests, benchmarks), the same seed gives the plain night
   const pack = NIGHT_THEMES.find((th) => th.id === 'pack');
-  const plain = roll(null, 2);
-  game.themes = false;
-  const off = roll(pack, 2);
-  game.themes = true;
+  const off = roll(pack, 2, false);
   const on = roll(pack, 2);
   game.seed = kept;
-  const dogs = [plain, off, on].map((r) => share(r, ZTYPE.DOG));
-  check('themes can be switched off', dogs[1] < dogs[0] * 1.3 && dogs[2] > dogs[0] * 2, `dogs on night 2: plain ${(dogs[0] * 100).toFixed(0)}%, The Pack switched off ${(dogs[1] * 100).toFixed(0)}%, The Pack ${(dogs[2] * 100).toFixed(0)}%`);
+  const dogs = [off, on].map((r) => share(r, ZTYPE.DOG));
+  check('themes can be switched off', dogs[0] > 0 && dogs[1] > dogs[0] * 2, `dogs on night 2: The Pack switched off ${(dogs[0] * 100).toFixed(0)}%, The Pack ${(dogs[1] * 100).toFixed(0)}%`);
 }
 
 // a new playthrough is a new valley: the server rolls a fresh map and tells its clients the seed

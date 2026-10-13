@@ -1,29 +1,30 @@
 // The recipe a survivor is working towards (the crafting panel's "Track on HUD"): one at a time, kept in localStorage so
 // it lasts through closing the inventory, a reload and a rejoin. Client only. The HUD's checklist (hud2.js), the pickup
 // prompts (Game.updateLookTarget) and the inventory all read it from here. No DOM.
-import { RECIPES, ITEM_DEFS, STATION_NAMES, SCHEM_BIT } from '../../shared/defs.js';
+import { RECIPE_BY_ID, ITEM_DEFS, STATION_NAMES, SCHEM_BIT } from '../../shared/defs.js';
 import { foundIn } from './itemguide.js';
 import { planCost } from '../../shared/autocraft.js';
 
-const KEY = 'stn.tracked';
+// (.2: a recipe's id is the item it makes, where it was once its place in the list - an id kept from then is not read)
+const KEY = 'stn.tracked.2';
 const subs = new Set();
 let id = load();
 
 function load() {
   try {
     const v = localStorage.getItem(KEY);
-    return v != null && RECIPES[+v] ? +v : -1;
+    return v != null && RECIPE_BY_ID.has(+v) ? +v : -1;
   } catch {
     return -1;
   }
 }
 
 export const trackedId = () => id;
-export const trackedRecipe = () => (id >= 0 ? RECIPES[id] : null);
+export const trackedRecipe = () => (id >= 0 ? RECIPE_BY_ID.get(id) : null);
 
 // n: a recipe id, or -1 to track nothing
 export function setTracked(n) {
-  n = RECIPES[n] ? n : -1;
+  n = RECIPE_BY_ID.has(n) ? n : -1;
   if (n === id) return;
   id = n;
   try {

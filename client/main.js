@@ -19,11 +19,13 @@ import { linkedCode, inviteLink, showCodeInAddress, gameInfo, listGames } from '
 import { comeBack } from './net/comeback.js';
 import { moveBack as movedBack, joinVerdict, pageBuild, mayReload, reloadedInto, RELOAD_LOOP_TEXT } from './net/moveback.js';
 import { setMaxAnisotropy } from './render/textures.js';
+import { applyNewPlayer } from './ui/firstrun.js';
 import { setMaxAnisotropy as setCharAnisotropy } from './render/models/charTextures.js';
 
 let game = null;
 let lobbyCards = null;
 let joining = false;
+applyNewPlayer(); // ?newplayer: this tab plays as a brand-new player, to see the first run again (ui/firstrun.js)
 applyTouchSetting(loadSettings().touchControls); // a phone or a tablet: on-screen controls, and buttons named for keys (game/touchmode.js)
 installTouchGestures(); // ...and a finger's long press and double tap, a right click and a double-click on the screens
 loadBinds(); // the player's keybinds, as this browser keeps them (game/binds.js): before anything names a key
@@ -85,7 +87,7 @@ async function rejoin(code, name = lastName) {
       code,
       moved,
       ms: REJOIN_MS,
-      join: async () => (game.state === 'playing' ? true : (await callbacks.onJoin(name, code, { quiet: true })) || game.state === 'playing'),
+      join: async () => (game.state === 'playing' ? true : (await callbacks.onJoin(name, code, { quiet: true, back: true })) || game.state === 'playing'),
       waiting: (s) => ui.setJoinError(`${moved ? 'The game was updated' : 'Connection lost'} - getting you back into game ${code} (${s} s)...`),
     });
     if (why && game.state !== 'playing') {
@@ -222,9 +224,10 @@ function forgetPlaying() {
 
 const callbacks = {
   // code: the game to go into (an invite, a pick from the list, one just made); '' for a quick join. quiet: one try of
-  // several at getting back in (rejoin), whose failure is not shown: rejoin says how it ended. -> nothing once in the
+  // several at getting back in (rejoin), whose failure is not shown: rejoin says how it ended. back: that is what it
+  // is, back into the game this page was playing (Game.join). -> nothing once in the
   // game (or when no join could be tried), else the Error
-  async onJoin(name, code = '', { quiet = false } = {}) {
+  async onJoin(name, code = '', { quiet = false, back = false } = {}) {
     if (joining || !game) return;
     joining = true;
     lastName = name;
@@ -249,7 +252,7 @@ const callbacks = {
       // has no click of the player's to ask with: there the click on the game takes them.
       if (!quiet) game.holdForJoin();
       if (!(await canJoinHere(code, name))) return;
-      await game.join(name, code);
+      await game.join(name, code, { back });
       reloadedInto(tabStore(), game.room?.code || code);
       ui.hideSplash();
       document.activeElement?.blur?.(); // the name field must not keep eating gameplay keys

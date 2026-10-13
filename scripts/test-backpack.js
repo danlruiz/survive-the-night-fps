@@ -10,7 +10,7 @@ import { Game } from '../server/game.js';
 import { invCap, removeItem } from '../server/inventory.js';
 import { C2S, S2C, ACT, PFLAG, WORN, WORN_DO, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, INVENTORY_SIZE, INVENTORY_MAX, BACKPACK_SLOTS, SLOT_PISTOL, SLOT_BUILD } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, STRUCT, STRUCT_DEFS, CONT, CONT_DEFS, AMMO, AMMO_MAX, NOTIFY, salvageOf } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, STRUCT, STRUCT_DEFS, CONT, CONT_DEFS, AMMO, AMMO_MAX, NOTIFY, salvageOf } from '../shared/defs.js';
 import { readSnapshot } from '../client/net/decode.js';
 
 const seed = +(process.argv[2] || 4242);
@@ -146,7 +146,7 @@ run(5);
   const rec = RECIPES.find((r) => r.out === ITEM.BACKPACK);
   const def = ITEM_DEFS[ITEM.BACKPACK];
   check('the backpack is a worn item of its own category, one to a slot', ITEM.BACKPACK === 46 && def.cat === 'pack' && def.stack === 1);
-  check('...made at the workbench from 4 leather, 6 cloth and 2 rope (its id is its place in RECIPES)', !!rec && RECIPES[rec.id] === rec && rec.station === 'bench' && JSON.stringify(rec.cost) === JSON.stringify({ [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2, [ITEM.LEATHER]: 4 }), JSON.stringify(rec?.cost));
+  check('...made at the workbench from 4 leather, 6 cloth and 2 rope (its id the backpack)', !!rec && rec.id === ITEM.BACKPACK && RECIPE_BY_ID.get(rec.id) === rec && rec.station === 'bench' && JSON.stringify(rec.cost) === JSON.stringify({ [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2, [ITEM.LEATHER]: 4 }), JSON.stringify(rec?.cost));
   check('...and salvaged for about half: 2 leather, 3 cloth, 1 rope', JSON.stringify(salvageOf(ITEM.BACKPACK)) === JSON.stringify({ [ITEM.CLOTH]: 3, [ITEM.ROPE]: 1, [ITEM.LEATHER]: 2 }), JSON.stringify(salvageOf(ITEM.BACKPACK)));
 }
 
@@ -219,13 +219,13 @@ check('a survivor has 24 slots, and an inventory is always 34 long', invCap(a) =
 {
   pack(a, ...fill(23), [ITEM.CLOTH, 20]);
   A.notes.length = 0;
-  A.act(ACT.CRAFT, 1); // bandage: 2 cloth
+  A.act(ACT.CRAFT, ITEM.BANDAGE); // bandage: 2 cloth
   run(2);
   check('a craft with nowhere to go but a locked slot is refused', has(a, ITEM.BANDAGE) === 0 && has(a, ITEM.CLOTH) === 20 && A.told(NOTIFY.INVENTORY_FULL) === 1 && lockedClean(a));
   wear(A, 24 - 1);
   a.inv[23] = { item: ITEM.CLOTH, count: 20 };
   a.invDirty = true;
-  A.act(ACT.CRAFT, 1);
+  A.act(ACT.CRAFT, ITEM.BANDAGE);
   run(2);
   check('...and goes into slot 25 with a backpack worn', a.inv[INVENTORY_SIZE]?.item === ITEM.BANDAGE && has(a, ITEM.CLOTH) === 18, desc(a));
   unwear(a);

@@ -27,12 +27,13 @@ import {
   STAMINA_MAX,
   BTN,
   MOON,
+  PIN_FACE,
 } from '../../shared/constants.js';
 import {
   ITEM,
   ITEM_DEFS,
   WEAPONS,
-  RECIPES,
+  RECIPE_BY_ID,
   STRUCT,
   STRUCT_DEFS,
   STRUCT_ORDER,
@@ -56,9 +57,12 @@ import {
   CONSUMABLES,
   useWasted,
   PROJ,
+  PLAYER_FIRE,
+  greenBlood,
 } from '../../shared/defs.js';
-import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
+import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
 import { trackedRecipe, trackedNeed } from './tracked.js';
+import { WEAPON_LIST } from '../../shared/weapons/index.js';
 import { mayHold } from './itemguide.js';
 import { worldFor } from '../../shared/worlds.js';
 import { WORLD, CROSSING, TAKEOFF_TIME, PLANE_REACH, RUNWAY } from '../../shared/acts.js';
@@ -76,6 +80,7 @@ import { SPAWN_KEY } from '../ui/spawnmenu.js';
 import { treeAt, fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../../shared/felling.js';
 import { nightTheme } from '../../shared/nights.js';
 import { HomeSense, HOME_WALLS, HOMELESS_THEMES } from '../audio/home.js';
+import { MotifWatch, MOTIFS } from '../audio/motifs.js';
 import { shotDirections, shotSpread, shotClimb, aimingWith, currentWeapon, eyeHeight } from '../../shared/playersim.js';
 import { stepClimb, punchOf, punchAt, crosshairGap } from './aimview.js';
 import { pryWeapon } from '../../shared/trunk.js';
@@ -108,10 +113,12 @@ import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
 import { FairClient } from './fair.js';
 import { HandcarClient } from './handcar.js';
+import { FaceLatch } from './facelatch.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
 import { TouchPad } from '../ui/touchpad.js';
+import { touchMode } from './touchmode.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { mateDown } from './matedown.js';
 import { DropHold } from './drophold.js';
@@ -150,6 +157,8 @@ import { createPickup } from '../render/models/pickups.js';
 import { createSupplyCrate, createProjectile } from '../render/models/misc.js';
 import { itemIcon, glyph } from '../ui/icons.js';
 import { recordRun } from '../ui/records.js';
+import { isFirstRun, finishOnboarding, yawTowards } from '../ui/firstrun.js';
+import { Onboarding } from './onboarding.js';
 import { KeyHints } from '../ui/keyhints.js';
 import { radialIndex } from '../ui/build.js';
 import { screenLeft } from '../ui/screentabs.js';
@@ -157,6 +166,7 @@ import { MenuTour } from './menutour.js';
 import { KeyGuard } from './keyguard.js';
 import { CardsClient } from './cards.js';
 import { G } from '../render/globals.js';
+import { smokeCover } from '../../shared/smoke.js';
 // A world with mountains (the mainland) is seen far: the distance haze is whole up to HAZE_BASE m and thins over that
 // by e every HAZE_THIN m of the height the eye's ray runs at (globals.js uHaze), so a range stands up out of the haze
 // from across the map while the plain at its foot is lost in it; the camera's far plane goes out to FAR_BIG for it.
@@ -178,30 +188,10 @@ const WEATHER_TOAST = {
   storm: 'A storm is breaking',
 };
 
-const SHOT_SOUND = {
-  [ITEM.PISTOL]: SOUND.PISTOL,
-  [ITEM.SHOTGUN]: SOUND.SHOTGUN,
-  [ITEM.AK47]: SOUND.AK47,
-  [ITEM.HUNTING_RIFLE]: SOUND.RIFLE,
-  [ITEM.M4A1]: SOUND.M4A1,
-  [ITEM.MP5]: SOUND.MP5,
-  [ITEM.DB_SHOTGUN]: SOUND.DB_SHOTGUN,
-  [ITEM.CROSSBOW]: SOUND.CROSSBOW,
-  [ITEM.RPG]: SOUND.RPG,
-  [ITEM.AT_RIFLE]: SOUND.AT_RIFLE,
-  [ITEM.FLARE_GUN]: SOUND.FLARE_GUN,
-};
-// first-person muzzle flash scale + camera shake per shot (default [1, 0.06])
-const SHOT_KICK = {
-  [ITEM.SHOTGUN]: [1.4, 0.25],
-  [ITEM.DB_SHOTGUN]: [1.6, 0.3],
-  [ITEM.HUNTING_RIFLE]: [1.3, 0.3],
-  [ITEM.MP5]: [0.8, 0.04],
-  [ITEM.CROSSBOW]: [0, 0.1],
-  [ITEM.RPG]: [1.8, 0.45],
-  [ITEM.AT_RIFLE]: [2.2, 0.7],
-  [ITEM.FLARE_GUN]: [1.5, 0.12],
-};
+// the shot the others hear, by the gun (`shotSound` in its file, shared/weapons/)
+const SHOT_SOUND = Object.fromEntries(WEAPON_LIST.filter((w) => w.shotSound).map((w) => [w.id, SOUND[w.shotSound]]));
+// first-person muzzle flash scale + camera shake per shot (`kick` in the gun's file; default [1, 0.06])
+const SHOT_KICK = Object.fromEntries(WEAPON_LIST.filter((w) => w.kick).map((w) => [w.id, w.kick]));
 // the anti-tank rifle's long reload: how far into it the round goes home (its bolt opens at the start, closes at the end)
 const AT_ROUND_IN = 0.62;
 // what [H] reaches for when not badly hurt, in that order; the HUD counts these as the healing left
@@ -232,6 +222,8 @@ const mmss = (t) => {
   const n = Math.ceil(t);
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 };
+const FACE_CAR_NEAR = 80; // m: a first run's opening look turns to the car once we stand this near it (turnToCar)...
+const FACE_CAR_WAIT = 10; // ...within this many seconds of the run's start, or not at all
 // '1 Planks, 1 Nails': what a repair takes, for its prompt
 const costText = (cost) =>
   Object.entries(cost)
@@ -324,10 +316,12 @@ export class Game {
     this.localFlashT = 0;
     this.openness = 0;
     this.indoor = 0;
+    this.motifs = new MotifWatch(); // the specials' approach motifs (audio/motifs.js)
     this.homeSense = new HomeSense(); // inside the team's walls (the night's home bed: audio/home.js)
     this._homeStructs = [];
     this.under = 0; // how far down the mine the eye is (0..1)
-    this._envOver = { under: 0 };
+    this._envOver = { under: 0, smoke: 0 };
+    this.smoke = 0; // how deep in a smoker's cloud the eye is, eased (Environment's smoke override)
     this._wxDown = {};
     this.stepAcc = 0;
     this.swimming = false; // afloat in the lake or a pond (shared/swim.js), as of the last frame
@@ -399,6 +393,7 @@ export class Game {
     this.joinHold = false; // the mouse and the screen were asked for on the click on Join, and the join is not done (holdForJoin)
     this.input.onRequestLock = () => this.keyGuard.engage(this.joinHold);
     this.keyHints = new KeyHints(this); // names the key on the HUD at the moment it would help
+    this.onboarding = new Onboarding(this); // a new player's walkthrough, and the first-time tips (onboarding.js)
     this.conn = new Connection({
       snapshot: (r) => this.onSnapshot(r),
       world: (seed, act) => this.onWorld(seed, act),
@@ -1041,15 +1036,16 @@ export class Game {
   // code: the game to join (an invite, a pick from the list, one just made); none for a quick join. resume: back into
   // the game we were playing a moment ago on the server before a deploy (onMoving): the same run on the same valley,
   // so what this client knows of it - the places found, its waypoint, the run being recorded - stays, and there is no
-  // stinger or introduction
-  async join(name, code = '', { resume = false } = {}) {
+  // stinger or introduction. back: coming back into the game this page was just in, after a drop or a deploy
+  // (Connection.url): our own body, not a new player beside it
+  async join(name, code = '', { resume = false, back = resume } = {}) {
     if (!resume) this.audio.stinger?.('join');
     // who to be (the splash's picker): a roster survivor, or a custom one - its models built now, under the load, and
     // the roster survivor most like it sent beside it (who an older server makes us)
     const pick = chosenCharacter();
     if (pick.look) warmSurvivor(lookKey(pick.look));
     this.looks = new Map();
-    const info = await this.conn.connect(name, playerId(), code, pick.look ? nearestRoster(pick.look) : pick.character, pick.look);
+    const info = await this.conn.connect(name, playerId(), code, pick.look ? nearestRoster(pick.look) : pick.character, pick.look, back);
     this.room = info.room; // { code, name, inviteOnly }: what the invite link points at
     this.myId = info.id;
     this.admin = info.admin;
@@ -1272,6 +1268,7 @@ export class Game {
     if (g.phase === PHASE.DAY || g.phase === PHASE.NIGHT || g.phase === PHASE.CROSSING) {
       if (this.runOn) return;
       this.runOn = true;
+      this.onboarding.reset(); // (a new player's walkthrough looks at this run from its start: onboarding.js)
       // how much of the run was played before we saw it: nothing when it starts under us
       const gone = g.phase === PHASE.DAY && g.day === 1 ? g.phaseLen - g.timeLeft : Infinity;
       // kills0: our score when the run began. The server's count can carry over from the run before
@@ -1281,6 +1278,7 @@ export class Game {
       const run = this.run;
       this.run = null;
       if (g.phase !== PHASE.VICTORY && g.phase !== PHASE.GAMEOVER) return;
+      finishOnboarding(); // (a run played to its end: the walkthrough is not shown again, firstrun.js)
       if (!run) {
         this.runReport = { late: true };
         return;
@@ -1295,6 +1293,19 @@ export class Game {
         team: this.players.size,
       });
     }
+  }
+
+  // The first look of a player's first run (#270): at the car they came in, once our own state is at the start beside
+  // it. The look is ours to set: the server takes the yaw our commands send.
+  turnToCar(dt) {
+    this.faceCar -= dt;
+    if (!this.prediction.hasServerState || !this.self.alive) return;
+    const s = this.prediction.state;
+    const car = this.world.car;
+    if (Math.hypot(car.x - s.x, car.z - s.z) > FACE_CAR_NEAR) return;
+    this.faceCar = 0;
+    this.input.yaw = yawTowards(s.x, s.z, car.x, car.z);
+    this.input.pitch = 0;
   }
 
   onInventory(r) {
@@ -1461,6 +1472,7 @@ export class Game {
       if (now > before) {
         this.ui.notify(`LEVEL ${now}`, 'big', 3.5);
         this.ui.notify(picksEarned(now) > picksEarned(before) ? `A perk point to spend: Perks (${bindLabel('perks')})` : 'Keep going: more XP, more perk points.', 'sub', 3.5);
+        if (picksEarned(now) > picksEarned(before)) this.onboarding.levelUp(); // (the first time: a card with the perks key)
         this.audio.stinger?.('car_part');
       }
     }
@@ -1491,6 +1503,21 @@ export class Game {
 
   name(id) {
     return this.players.get(id)?.name || 'Someone';
+  }
+
+  // the teammate on fire within reach of our [Space] (PLAYER_FIRE: the server puts out the nearest), or null
+  burningMate(s) {
+    let best = null;
+    let bd = PLAYER_FIRE.reach;
+    for (const e of this.entities.ents.values()) {
+      if (e.kind !== ENT.PLAYER || e.id === this.myId || !(e.q[9] & PSTAT.BURNING) || e.q[5] & (PFLAG.DEAD | PFLAG.ZOMBIE)) continue;
+      const d = Math.hypot(e.rx - s.x, e.rz - s.z);
+      if (d < bd && Math.abs(e.ry - s.y) < 1.5) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
   }
 
   // a death now lasts until sunrise (DAWN_RETURN) - unless there is none to come: the final stand stops the clock,
@@ -1564,10 +1591,16 @@ export class Game {
       },
       pickup(item, count) {
         g.ui.pickup(item, count);
+        g.onboarding.pickup(item);
         g.audio.playLocal('pickup');
       },
       zombieDie(id, yaw, flags) {
         g.entities.zombieDie(id, yaw, flags);
+        if (id === g.ringFrom) {
+          // the screecher that left our ears ringing is dead: they clear
+          g.ringFrom = 0;
+          g.audio.stopRing?.();
+        }
       },
       zombieLeg(id, legs, yaw) {
         g.entities.zombieLeg(id, legs, yaw);
@@ -1601,6 +1634,12 @@ export class Game {
       },
       flyover(x, y, z, heading, eta) {
         g.flyover?.start(x, y, z, heading, eta, g.time, g.audio);
+      },
+      screech(id, secs) {
+        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/specials/screecher.js screech)
+        if (g.self?.zombie) return;
+        g.ringFrom = id;
+        g.audio.ring?.(secs);
       },
       grave(i) {
         g.graves?.stir(i);
@@ -1796,6 +1835,7 @@ export class Game {
       case NOTIFY.YOU_DIED:
         this.deathInfo = { killer: arg === 255 ? 'the wilderness' : arg === 254 ? 'an undead deer' : ZOMBIE_DEFS[arg]?.name || 'the dead', ztype: arg < 254 ? arg : -1, day: this.global.day, night: this.global.phase === PHASE.NIGHT, dawn: this.dawnAhead(), dawnIn: this.global.phase === PHASE.NIGHT ? this.global.timeLeft : 0 };
         ui.showDeath(this.deathInfo);
+        a.stopRing?.(); // (the screecher's ringing, if it was still going: screech)
         a.stinger?.('death');
         this.deathShown = true;
         break;
@@ -1920,6 +1960,9 @@ export class Game {
         this.introPending = false;
         ui.notify(`DAY ${arg}`, 'big', 5);
         ui.notify('Your car died on Route 9. Find the supplies to fix it - before the dark finds you.', 'sub', 6);
+        // a new player's first run opens on the goal (#270): turned to face the car, and the walkthrough's first
+        // card says what it needs (onboarding.js)
+        if (isFirstRun()) this.faceCar = FACE_CAR_WAIT;
         break;
       case NOTIFY.PLAYER_JOINED:
       case NOTIFY.PLAYER_LEFT:
@@ -2074,7 +2117,7 @@ export class Game {
       const rz = e.rz - ev.z;
       const along = rx * dx + ry * dy + rz * dz;
       if (along < -1 || along > wallT + 2 || rx * rx + ry * ry + rz * rz - along * along > 16) continue;
-      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
+      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim, e.perched) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
       _hbPos.x = e.rx;
       _hbPos.y = e.ry;
       _hbPos.z = e.rz;
@@ -2086,7 +2129,7 @@ export class Game {
     for (let k = 0; own && k < hits.length && k < pierce; k++) {
       const { t, e } = hits[k];
       const z = e.kind === ENT.ZOMBIE;
-      const green = z && (e.ztype === ZTYPE.SPITTER || e.ztype === ZTYPE.BOOMER || e.ztype === ZTYPE.BOSS_HIVEQUEEN || e.ztype === ZTYPE.BOSS_BLOATER);
+      const green = z && greenBlood(e.ztype);
       // (a shade pinned by light is stone: the bullet chips it)
       this.ownImpact(z && e.q[4] === ZANIM.FROZEN ? IMPACT.DIRT : green ? IMPACT.GREEN_BLOOD : IMPACT.BLOOD, ev.x + dx * t, ev.y + dy * t, ev.z + dz * t, -dx, -dy, -dz);
     }
@@ -2305,6 +2348,7 @@ export class Game {
         case 'shove':
           // a shove at the leaper on us: the hands thrust (the viewmodel), the palms thump into it, the HUD's key jolts
           this.vm.shove(ev.v);
+          this.faceLatch?.jolt(); // (a crawler on our face jolts off it)
           this.shoves = (this.shoves | 0) + 1;
           a.playLocal('hit', { volume: 0.3 + 0.25 * ev.v, rate: 0.75 });
           this.camShake = Math.min(1, (this.camShake || 0) + 0.05);
@@ -3279,7 +3323,7 @@ export class Game {
   uiCallbacks() {
     return {
       onCraft: (id) => {
-        this.askedCost = RECIPES[id]?.cost;
+        this.askedCost = RECIPE_BY_ID.get(id)?.cost;
         this.conn.action(ACT.CRAFT, id);
         this.audio.playLocal('craft', { volume: 0.6 });
       },
@@ -3517,7 +3561,7 @@ export class Game {
     this.vm.setVisible(self.alive && !cine && !this.ui.inventoryOpen && !this.ui.mapOpen && !this.ui.boardOpen && !this.ui.bestiaryOpen && !this.ui.cardsOpen && !this.debugCam && !this.gun.manning && !s.hmg && !this.handcar.handsOn && !this.vehicles.handsOn && !swim);
     const lk = this.settings.weaponSway === false ? 0 : 0.0022 * inp.sensitivity;
     const wallDist = self.alive ? this.weaponClearance(cam) : 99; // (the viewmodel tucks back off a wall in front)
-    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, shove: s.shove, pet: stroking };
+    const vmState = { speed: hspeed, sprint: !!s.sprinting, onGround: !!s.onGround, crouch: !!s.crouch, aiming, lookDX: ldx * lk, lookDY: ldy * lk, time, loaded: s.mags[0] > 0, talk: this.radio.keyed, wallDist, pinned: !!s.pinned && !!self.alive, ears: s.ears > 0 && !!self.alive, shove: s.shove, pet: stroking };
     const vmCam = this.renderer.vmCamera;
     if (Math.abs(vmCam.fov - this.vm.fov) > 0.01) {
       vmCam.fov = this.vm.fov; // (as of last frame: the aimed view of iron sights is narrowed onto them, cfg.adsFov)
@@ -3546,6 +3590,10 @@ export class Game {
     const prying = self.holdKind === HOLD.SEARCH && this.entities.ents.get(this.holding);
     vmState.pry = !!(prying && this.bootOf(prying)?.shut && pryWeapon(weaponNow));
     this.vm.update(dt, vmState);
+    // a crawler on our face: the animal itself over our eyes, its belly to them (built the first time one lands)
+    const latched = vmState.pinned && !s.zombie && !cine && !this.debugCam && !!this.latchedBy();
+    if (latched && !this.faceLatch) this.faceLatch = new FaceLatch(this.renderer.vmScene);
+    this.faceLatch?.update(dt, latched, s.shove, time);
     if (this.vm.itemId === ITEM.NUNCHAKU && this.vm.nk) nkSounds(this.audio, this.vm.nk.core, null, this.nkSt, time);
     this.updateSelfBody(dt, s, rp, time, hspeed);
     if (this.vmMuzzleT > 0) {
@@ -3660,6 +3708,12 @@ export class Game {
     // (the mainland's passage was kept lit to the end - its lamps every few metres: down it a little of the light stays,
     // so its timbers, rails and tubs read; the island's mine is as dark as it was)
     this._envOver.under = this.world.size > 1000 && deep > 0 ? this.under * 0.8 : this.under;
+    // in a smoker's cloud the haze closes in round the eye (shared/smoke.js): it thickens over a second, and clears a
+    // little slower once the cloud is gone or the eye is out of it
+    const smoke = cine ? 0 : smokeCover(cam.position.x, cam.position.y, cam.position.z, this.entities.smokes);
+    this.smoke += (smoke - this.smoke) * Math.min(1, dt * (smoke > this.smoke ? 2.5 : 1.2));
+    if (this.smoke < 0.002) this.smoke = 0;
+    this._envOver.smoke = this.smoke;
     this._envOver.moon = this.debugMoon ?? (cine ? 0 : g.moon || 0); // tonight's moon (MOON), from the dusk horn to dawn
     this._envOver.fogMul = this.debugFog ?? (cine ? cine.fogMul : 0); // (a cutscene's long shots see further than the day's haze lets a survivor; debugFog: a look-dev camera's)
     this.env.update(dt, cycle, cam.position, time, weather, this._envOver);
@@ -3719,6 +3773,25 @@ export class Game {
       if (d < 25) danger = Math.max(danger, 1 - d / 25);
     }
     this.danger = (this.danger || 0) + (danger - (this.danger || 0)) * Math.min(1, dt * 2);
+    // each special's motif as it comes into view and again as it closes on any survivor (audio/motifs.js). Not for a
+    // survivor who has risen as one of the dead, nor under a cutscene
+    if (this.settings?.motifs !== false && !cine && !s.zombie && this.motifs.due(time)) {
+      const zs = [];
+      const surv = self.alive ? [{ x: rp.x, z: rp.z }] : [];
+      for (const e of this.entities.ents.values()) {
+        if (e.kind === ENT.ZOMBIE) {
+          if (!e.dead && MOTIFS[e.ztype]) zs.push(e);
+        } else if (e.kind === ENT.PLAYER && e.id !== this.myId && !(e.q[5] & (PFLAG.DEAD | PFLAG.ZOMBIE))) surv.push({ x: e.rx, z: e.rz });
+      }
+      const yaw = inp.yaw;
+      this.motifs.update(time, zs, surv, (ztype, near, x, z) => {
+        // panned toward it: the listener's right is (cos yaw, -sin yaw)
+        const dx = x - cam.position.x;
+        const dz = z - cam.position.z;
+        const d = Math.hypot(dx, dz) || 1;
+        a.motif?.(ztype, near, (0.6 * (dx * Math.cos(yaw) - dz * Math.sin(yaw))) / d);
+      });
+    }
     const hpFrac = self.maxHp ? self.hp / self.maxHp : 1;
     a.setAmbience({
       night: this.env.night,
@@ -3746,7 +3819,9 @@ export class Game {
     this.cards.update(dt); // (Dead Hand: the practice table's clock and the computer's moves, the screen shut on a fall)
     // HUD
     this.updateHud(dt, s, aiming, wdef);
+    this.onboarding.update(dt);
     this.keyHints.update(dt);
+    if (this.faceCar > 0) this.turnToCar(dt);
     // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out)
     const canDrop = !!self.alive && !s.zombie && !s.downed && this.input.enabled;
     if (this.dropHold.update(dt, s.slot, canDrop) === 'drop' && s.weapons[s.slot] && s.slot !== SLOT_THROW) this.conn.action(ACT.DROP_WEAPON, s.slot);
@@ -4205,6 +4280,12 @@ export class Game {
     this.punchT = 0;
   }
 
+  // the crawler on our face, if one is (ZF.LINK: who it has hold of)
+  latchedBy() {
+    for (const e of this.entities.ents.values()) if (e.kind === ENT.ZOMBIE && e.ztype === ZTYPE.CRAWLER && e.q[6] === this.myId && !e.dead) return e;
+    return null;
+  }
+
   updateHud(dt, s, aiming, wdef) {
     const self = this.self;
     const g = this.global;
@@ -4231,8 +4312,29 @@ export class Game {
     h.dropHint = this.dropHold.hint > 0 ? bindLabel('drop') : ''; // (let go too soon: "Hold G to drop")
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
-    h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
-    h.shoves = this.shoves | 0;
+    const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
+    h.shoveText = face ? 'Thrash your head about to tear it off' : 'Mash to shove it off';
+    // ...or the same meter for a fire (a flammer's doing: PLAYER_FIRE): each press of [Space] beats it down - ours, or
+    // that of the teammate beside us we are beating the flames out on
+    const burning = !!self.burning && !!self.alive && !s.zombie && !s.downed;
+    if (this.frame % 6 === 1) this.fireMate = burning || !self.alive || s.zombie || s.downed ? null : this.burningMate(s);
+    const mate = !burning && this.fireMate && this.entities.ents.get(this.fireMate.id) === this.fireMate ? this.fireMate : null;
+    if (h.shove < 0 && (burning || mate)) {
+      h.shove = self.douse || 0;
+      h.shoveText = burning ? 'Mash to put the fire out' : `Mash to beat out the fire on ${this.name(mate.id)}`;
+    }
+    h.onFire = burning;
+    this.inputBuffer.passJump = burning || !!mate;
+    if (burning !== !!this.burnLoop) {
+      if (burning) this.burnLoop = this.audio.createLoop?.('burning', s.x, s.y + 1, s.z) || null;
+      else {
+        this.burnLoop?.stop();
+        this.burnLoop = null;
+      }
+    }
+    this.burnLoop?.setPosition(s.x, s.y + 1, s.z);
+    h.shoveKey = h.shove >= 0 ? (face ? (touchMode() ? 'Swipe' : 'Mouse') : bindLabel('jump')) : '';
+    h.shoves = (this.shoves | 0) + this.inputBuffer.firePresses;
     const w = currentWeapon(s);
     const def = WEAPONS[w];
     if (def && !def.melee) {
@@ -4476,6 +4578,8 @@ export class Game {
       cm.push({ kind: 'ping', bearing: bearing(p.x - rp.x, p.z - rp.z), icon: glyph('ping'), label: `${Math.round(d)}m`, cls: 'p' + p.kind, pinEdge: true });
       if (this.project(p.x, p.y + 0.4, p.z, sc)) wm.push({ kind: 'ping', x: sc.x, y: sc.y, icon: glyph('ping'), name: `${p.name}: ${PING_LABEL[p.kind]}`, sub: `${Math.round(d)}m`, cls: 'p' + p.kind + (fade < 1 ? ' fading' : ''), scale: 1 });
     }
+    // a new player's walkthrough: the zombie coming for them, the tree or rock to hit (onboarding.js, last frame's)
+    for (const m of this.onboarding.marks) wm.push(m);
     // the car when it matters (finale, or carrying supplies back)
     if ((g.finale || h.objective?.anyCarried || g.suppliesDone) && dCar > 10 && this.project(car.x, car.y + 2.2, car.z, sc)) {
       wm.push({ kind: 'car', x: sc.x, y: sc.y, icon: carIcon, name: g.finale ? (g.escapeReady ? 'GET IN' : g.escapeStalled ? 'Engine stalled' : `Defend the ${W.thing}`) : W.your, sub: `${Math.round(dCar)}m`, cls: g.finale ? 'urgent' : '', scale: 0.95 });

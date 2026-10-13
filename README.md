@@ -126,6 +126,7 @@ stops it, `/fair wheel` / `/fair carousel` seats you on a ride, `/fair shed` to 
 | Command | What it does |
 | --- | --- |
 | `npm test` | syntax-checks every module, fuzzes the delta encoder/decoder (all entity kinds) and the command packets, checks that prediction and server stay in step on a laggy link (`test-netsync`), checks the layout of every place (`test-world`), the mine under the valley (`test-mine`), Mercy Clinic's dark wards (`test-clinic`), St. Agnes Cemetery (`test-cemetery`) the deer (`test-deer`) the generator and its floodlights (`test-power`) and the railway (`test-rail`) and runs `sim-smoke` |
+| `npm run test:nightly` | the slow sweeps left out of `npm test`, for a nightly run: seats in vehicles for every team size on two dozen seeds (`test-vehicles`), the mainland on many seeds (`test-mainland`) and a full two-act playthrough (`sim-act2`). Run it before a PR that touches vehicles, the mainland or the acts. `npm run test:all` runs both sets, and `node scripts/run-tests.js <step>...` any steps by name. A step still running after 40 minutes is killed and counted as failed |
 | `node scripts/test-flaregun.js [seed]` | the flare gun against the real server in-process and decoded as a client does: its recipes, that it takes the pistol's slot, that a shot straight up climbs to the top of its arc, opens its chute, drifts down at its fall speed where the shared closed-form flight puts it and burns out at its minute still in the air, that its shell re-loads from the backpack by itself, that a shot fired flat comes down and burns on the ground, that a survivor 300 m away has it while the area of interest still holds for everything else, and that at night it pins a Shade 30 m out from under it and not one 55 m out (part of `npm test`) |
 | `node scripts/test-power.js [seed]` | the generator and its floodlights against the real server in-process and decoded as a client does, on the flattest open strip of the valley: what they cost, [E] pouring fuel and holding it for the switch, which lamps a generator feeds, the hum and the idle dead it draws (from a random stream of its own), the dead breaking it - and a Shade walking at a survivor that freezes as it enters a powered cone, moves again when the generator runs dry, walks free behind a wall inside the cone and freezes again when it steps out of the wall's shadow (part of `npm test`) |
 | `npm run bench:net` | network traffic benchmark: the real server against simulated clients (real encoder, prediction and decoder) through a seeded session - idle, roaming, a night's fight. Reports packets and bytes per client per second in both directions and where the snapshot bytes go (`--players 8`, `--seed n`, `--day n`, `--json out.json`) |
@@ -314,10 +315,26 @@ hints and controls lists name whatever the keys are now.
 
 The HUD names a key at the moment it answers something: the flashlight when night falls and the light is off,
 quick heal when you are under half health with something that heals in the pack, a quick drink when you
-run yourself out of stamina with an energy drink in the pack, the build slot at the dusk
-warning if you carry enough to build, and the map and the inventory once each in the first minute. Each hint
-stops for good once you have done the thing twice (remembered in the browser); Settings -> Key hints turns
-them off.
+run yourself out of stamina with an energy drink in the pack, attack when one of the dead closes in (and,
+once you have, sprint away when it gets close), the build slot at the dusk warning if you carry enough to
+build, and the map and the inventory once each in the first minute, after the opening card. The order is
+what a new player needs first: the goal (the opening card and the objective tracker say it), then the
+threat, then the map, the inventory and building. Each hint stops for good once you have done the thing
+twice (remembered in the browser); Settings -> Key hints turns them off.
+
+**First run.** A player who has not been through the survivor's guide yet starts their first run turned to face
+the car, on any difficulty (the new-game card suggests Ember). A card under the compass walks them through it one
+step at a time, naming the keys they have bound: the goal and the car, moving, the first zombie (with a red "Zombie
+· attack it!" marker bobbing over its head until it is dead), the first car part, trees and rocks (an amber "Chop:
+sticks & planks" / "Mine: stone" marker over the nearest one), searching, crafting, the dusk horn and the night.
+A threat takes over the card from a calmer step. Once every step is done, a first night is survived or a run
+ends, the guide is not shown again (a player with a run on record from before the guide counts as through it). Apart from the guide, a player sees each first-time tip once, when it first
+applies: the Perks key on the first level up, the Achievements key on the first unlock, and the Bestiary key on
+the first kind of zombie that is not a walker or runner. In every run, 20 seconds into day 1, one walker turns
+up about 38 m ahead of a survivor and shambles over, unless one of the dead is already within 45 m. Settings ->
+Interface -> Tutorial tips turns the guide and the tips off. To see it all again, open the game with `?newplayer`
+in the address (`http://localhost:5173/?newplayer` in dev): the guide, the tips, the key hints and the remembered
+difficulty start over in this browser. Your record of runs is kept.
 
 ## The game
 
@@ -506,7 +523,9 @@ them off.
 - **Arsenal:** pistol, pump shotgun, double-barrel (two heavier blasts back to back, then a break-open
   reload), MP5 (full-auto 9mm out of the pistol's reserve, the quietest gun that fires a bullet), AK-47,
   M4A1 (full-auto 5.56, accurate) and a scoped bolt-action hunting rifle (no bullet hits harder: one body
-  shot drops most of the dead and carries on through the ones behind), plus knife, bats, machete and
+  shot drops most of the dead and carries on through the ones behind), the **Desert Eagle** (workbench: 2 gun
+  parts, 4 scrap, 1 tape; a sidearm in the pistol's place that fires the hunting rifle's .308, seven rounds that
+  each hit well over twice as hard as a pistol's, with a heavy kick), plus knife, bats, machete and
   hammer. Knife, bats and machete have a heavy attack (RMB): a harder blow that can drop what a light swing
   only wounds, paid for with a longer recovery, so light swings still do more damage over time.
   **Nunchucks** (workbench: 2 planks, 2 scrap, 1 tape; now and then in a duffel bag, at the summer camp, at the

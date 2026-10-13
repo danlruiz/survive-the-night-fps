@@ -18,7 +18,6 @@ import {
   DUSK_WARNING,
   NIGHT_WAVES,
   WAVE_TIMES,
-  WAVE_SPREAD,
   TANK_BOSS_HP,
   BOSS_WAVE,
   BOSS_HP_PER_PLAYER,
@@ -78,12 +77,14 @@ import {
   TALK_CLEAR,
   TALK_RANGE,
   SLOT_RADIO,
+  BTN,
+  PIN_FACE,
 } from '../shared/constants.js';
 import {
   ITEM,
   ITEM_DEFS,
   WEAPONS,
-  RECIPES,
+  RECIPE_BY_ID,
   SALVAGE,
   STRUCT,
   STRUCT_DEFS,
@@ -117,11 +118,14 @@ import {
   isFirearm,
   salvageOf,
   HEARD,
+  STRUCT_FIRE,
+  PLAYER_FIRE,
+  structBurns,
 } from '../shared/defs.js';
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
-import { WORLD, nightRank, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
+import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
 import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
 import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from './trees.js';
 import { blowOf, BLOW } from '../shared/surfaces.js';
@@ -133,7 +137,7 @@ import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, c
 import { mulberry32, hash2 } from '../shared/rng.js';
 import { supplyHelpLevel, SUPPLY_HELP, SUPPLY_HELP_AT } from '../shared/supplyhelp.js';
 import { swimming, inRiver, DROWN_DPS, RIVER_DPS } from '../shared/swim.js';
-import { nightTheme, nightBoss } from '../shared/nights.js';
+import { nightBoss, hasJoined } from '../shared/nights.js';
 import * as Director from './director.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
@@ -141,6 +145,7 @@ import { ClientView, writeEntities, stageEntities } from './snapshot.js';
 import { createInventory, invCap, addItem, removeItem, takeFrom, tidyStacks, countItem, countsMap, payCost, canFit, freeSlot, sortInventory } from './inventory.js';
 import { planCost } from '../shared/autocraft.js';
 import { Zombies } from './zombies.js';
+import { nightWaves } from './spawns.js';
 import { Cats } from './cats.js';
 import { Deer } from './deer.js';
 import { Combat } from './combat.js';
@@ -645,6 +650,17 @@ export class Game {
     this.log(`hold ${p.name}: ${handoff ? 'from the last server' : 'dropped'}, ${grace} s to come back`);
   }
 
+  // A player's account or browser has joined again while their old socket is still open here: that socket is let go -
+  // closed, as one a newer join replaced, and nothing it still sends counts - and they are held for resume to take over.
+  takeOver(p) {
+    const old = p.session;
+    this.sessions.delete(old);
+    old.player = null;
+    old.conn.replace?.('You joined this game again from another page.');
+    this.hold(p, { quiet: true });
+    this.log(`take over ${p.name}: joined again while their old socket was still open`);
+  }
+
   // a held player is back (a JOIN from the same account or browser): this session takes over their body
   resume(session, p) {
     const moved = p.away?.handoff;
@@ -852,9 +868,23 @@ export class Game {
     // back from a drop inside the grace minute, or from a deploy: their own body (onClose / hold). (A guest by the
     // hash of their browser id, never the id: it is the key to their leaderboard record, and a deploy saves this.)
     const key = account ? `a:${account.id}` : UUID_RE.test(pid) ? `g:${idKey(pid)}` : '';
+    // ...or back before the game has even seen them go: their old link is dead but its socket has not closed here yet
+    // (the page notices a lost connection long before the server does: up to the socket's idle timeout). This one
+    // takes the body over, and the old socket is let go (takeOver). That is a page coming back into the game it was
+    // playing (conn.back: main.js rejoin), or anyone of theirs at a full game, where the old socket still fills their
+    // seat (Room.mayComeBack let it in). Otherwise the same browser in another tab is a player of its own, as ever.
+    // (Without conn.back a drop with a seat free made a second, new player with a starting kit beside the old body.)
     if (key) {
-      for (const q of this.players.values()) {
-        if (!q.away || q.rejoinKey !== key) continue;
+      const full = this.players.size >= this.maxPlayers;
+      const back = full || session.conn.back === true;
+      // (theirs in two tabs: a held one first, else the one heard from longest ago - its socket is the dead one)
+      let q = null;
+      for (const c of this.players.values()) {
+        if (c.rejoinKey !== key || (!c.away && !back)) continue;
+        if (!q || (c.away && !q.away) || (!c.away === !q.away && c.session.msgWindow < q.session.msgWindow)) q = c;
+      }
+      if (q) {
+        if (!q.away) this.takeOver(q);
         q.rec ||= this.records.enter(pid, q.name, account); // (one brought over from the last server has none here yet)
         return this.resume(session, q);
       }
@@ -1019,6 +1049,9 @@ export class Game {
       partFullT: -99, // ...and when that something was a car supply
       pinnedBy: 0,
       ropedBy: 0,
+      burning: false, // set alight by a flammer (PLAYER_FIRE, updateFire): until it is put out
+      douse: 0, // ...how far it has been put out (0-1)
+      firePresses: 0, // presses of [Space] since the last tick (each beats a fire down: theirs or a teammate's)
       ping: 0,
       ts: null, // the stint analytics.js is counting for them (null: none)
       rejoinKey: '', // 'a:<account id>' or 'g:<sha-256 of the browser id>': whose JOIN may take this player back after a drop (resume)
@@ -1686,7 +1719,7 @@ export class Game {
     this.supplyHints = items.flatMap((item, i) => new Array(need[i]).fill(i)).map((i, hint) => {
       const item = items[i];
       const hide = (sp) => {
-        this.spawnItem(item, 1, sp.x, sp.y, sp.z, { permanent: true, hint });
+        this.spawnItem(item, 1, sp.x, this.onFloor(sp.x, sp.y, sp.z), sp.z, { permanent: true, hint });
         this.supplySpots.push(sp);
         this.supplyHintSpots[hint] = this.world.partSpots.indexOf(sp);
         return sp.zone;
@@ -1896,8 +1929,14 @@ export class Game {
     return Math.max(NIGHT_WAVES, Math.round(base * this.diff.zombies));
   }
 
+  // has kind t of the dead joined the run yet (today, and tonight): walkers and runners from the start, then one more
+  // special a night in an order drawn from the seed (shared/nights.js joinNight)
+  joined(t) {
+    return hasJoined(this.seed, t, this.day, this.act);
+  }
+
   // Night N: the horde comes in waves to wherever the survivors are. Bigger and tougher every night, with one new kind
-  // of the dead in it (ZOMBIE_DEFS minNight) and a boss with the second wave.
+  // of the dead in it (shared/nights.js joinNight: drawn from the seed) and a boss with the second wave.
   startNight() {
     this.phase = PHASE.NIGHT;
     this.timeLeft = this.nightLen;
@@ -1912,70 +1951,9 @@ export class Game {
     const humans = Math.max(1, this.humanCount());
     // a blood moon brings more of them (and the director gives no breathers: Director.paceLimits)
     const total = Math.round(this.hordeSize(n, humans) * (this.moon === MOON.BLOOD ? BLOOD_MOON_HORDE : 1));
-    const shares = [0.3, 0.33, 0.37];
     const scale = this.nightLen / NIGHT_LENGTH;
-    // tonight's theme re-weights the blend below (the client works out the same theme from the seed to warn the team)
-    const theme = this.themes ? nightTheme(this.seed, n, this.act) : null;
-    const rank = nightRank(this.act, n); // (which kinds have joined the horde: on the mainland, those of night 4 at the least)
-    const shadeCap = Math.min(6, (1 + Math.floor((rank - ZOMBIE_DEFS[ZTYPE.SHADE].minNight) / 2) + Math.floor(humans / 2)) * (theme?.shadeCap ?? 1));
-    let shades = 0;
-    this.waves = [];
-    for (let k = 0; k < NIGHT_WAVES; k++) {
-      const count = Math.max(3, Math.round(total * shares[k]));
-      const sp = k / (NIGHT_WAVES - 1); // later waves bring more specials
-      const weights = [
-        [ZTYPE.WALKER, 50 - sp * 12],
-        [ZTYPE.RUNNER, 16 + n * 2 + sp * 6],
-        [ZTYPE.SPITTER, 6 + sp * 4],
-        [ZTYPE.BOOMER, 6 + sp * 3],
-        [ZTYPE.DOG, 3 + sp * 2], // each pick is a pack of 2-3
-        [ZTYPE.LEAPER, 6 + sp * 4],
-        [ZTYPE.BAT, 7],
-        [ZTYPE.ROPER, 5 + sp * 3],
-        [ZTYPE.TANK, (1 + n * 0.3) * (0.5 + sp)],
-        [ZTYPE.SHADE, 2.5 + sp * 2.5],
-      ];
-      // one new kind a night: each stays out of the horde until its night comes
-      for (const wt of weights) if (rank < ZOMBIE_DEFS[wt[0]].minNight) wt[1] = 0;
-      if (theme) for (const wt of weights) wt[1] *= theme.mul[wt[0]] ?? 1;
-      // Ember thins the kinds that punish movement. Blackout brings more of them. Walkers and tanks stay: one is
-      // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
-      if (this.diff.specials !== 1) {
-        for (const wt of weights) {
-          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT) wt[1] *= this.diff.specials;
-        }
-      }
-      const tot = weights.reduce((a, b) => a + b[1], 0);
-      const q = [];
-      for (let i = 0; i < count; i++) {
-        let r = this.rng() * tot;
-        for (const [t, wgt] of weights) {
-          r -= wgt;
-          if (r <= 0) {
-            // only so many shades a night: each one ties up a light (or a survivor holding a beam on it)
-            if (t === ZTYPE.SHADE && shades++ >= shadeCap) {
-              q.push(ZTYPE.RUNNER);
-              break;
-            }
-            const k = t === ZTYPE.DOG ? 2 + (this.rng() < 0.5 ? 1 : 0) : 1;
-            for (let j = 0; j < k; j++) q.push(t);
-            i += k - 1;
-            break;
-          }
-        }
-      }
-      this.waves.push({ start: WAVE_TIMES[k] * scale, queue: q, started: false, spawnT: 0, interval: (WAVE_SPREAD * scale) / Math.max(1, Math.ceil(count / 3.5)) });
-    }
-    // the night's new kind is in it for certain (the dawn card and the dusk horn said it would be), and from their
-    // night on there is always at least one shade out there. Both come with the second wave, in a walker's place
-    const fresh = [];
-    for (const t of Object.values(ZTYPE)) if (ZOMBIE_DEFS[t].minNight === rank && !ZOMBIE_DEFS[t].boss && !this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
-    if (rank >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight && !shades && !fresh.includes(ZTYPE.SHADE)) fresh.push(ZTYPE.SHADE);
-    for (const t of fresh) {
-      const q = this.waves[1].queue;
-      const at = q.indexOf(ZTYPE.WALKER);
-      q[at >= 0 ? at : Math.floor(this.rng() * q.length)] = t;
-    }
+    // what the waves are made of: tonight's theme, the kinds that have joined, the new one (server/spawns.js)
+    this.waves = nightWaves(this, n, humans, total);
     this.shadeWarned = false;
     this.wave = 0;
     this.hordeHpMul = 1 + 0.1 * (n - 1) + 0.12 * (humans - 1);
@@ -2113,7 +2091,12 @@ export class Game {
   // How many of the dead the final stand brings in all. It is read whenever a group is due (updateEscape), so it
   // follows the survivors still alive: a death shrinks what is still to come, a late joiner adds to it.
   finalStandSize() {
-    return Math.round(FINAL_STAND_SIZE * (this.act === WORLD.MAINLAND ? RUNWAY.SIZE : 1) * this.hordeSize(this.day, Math.max(1, this.humanCount())));
+    return Math.round(FINAL_STAND_SIZE * this.diff.stand * (this.act === WORLD.MAINLAND ? RUNWAY.SIZE : 1) * this.hordeSize(this.day, Math.max(1, this.humanCount())));
+  }
+
+  // How many Tanks the final stand may bring (the boss comes on top). At least one: Ember halves it, not to nothing.
+  finalStandTanks() {
+    return Math.max(1, Math.round(FINAL_STAND_TANKS * this.diff.standTanks * Math.max(1, this.humanCount())));
   }
 
   startEngine(p) {
@@ -2206,7 +2189,17 @@ export class Game {
 
   spawnLoot(lp) {
     const [item, count] = this.rollTable(lp.table);
-    lp.ent = this.spawnItem(item, count, lp.x, lp.y, lp.z, { point: lp });
+    lp.ent = this.spawnItem(item, count, lp.x, this.onFloor(lp.x, lp.y, lp.z), lp.z, { point: lp });
+  }
+
+  // The height something laid at an authored spot (floor loot, a hidden supply) lies at: on the floor it was meant to
+  // be on. The island's places put their spots 2 cm over a building's base, and the floor is a 12 cm slab laid on that
+  // base (Builder.room), so a fan belt or a box of spark plugs (3-4 cm tall) lay hidden under the floorboards and a
+  // battery or a tyre half sunk in them. Only ever up, onto a surface within 15 cm over the spot: one on a desk stays
+  // on the desk, and one outdoors stays where it is.
+  onFloor(x, y, z) {
+    const LIFT = 0.15;
+    return Math.max(y, groundAt(this.world, x, z, y + LIFT - STEP_HEIGHT - 0.02, 0) + 0.02);
   }
 
   spawnItem(item, count, x, y, z, opts = {}) {
@@ -2510,11 +2503,14 @@ export class Game {
         if (!samePlayerState(p.state, p.shadow)) p.selfSync = true;
         // an item asked for is in the hands from the client's first command after asking on (useItem)
         if (p.useItem && !p.state.using && ((cmd.seq - p.useItem.from) & 0xffff) < 0x8000) p.state.using = 1;
+        if (cmd.buttons & BTN.JUMP & ~p.state.lastBtn) p.firePresses++;
         simulatePlayer(p.state, cmd, this.world, events);
-        // pinned by a leaper: shoved all the way (the simulation's meter, s.shove), they throw it off (Zombies.throwOff)
-        if (p.state.pinned && p.state.shove >= 1 && this.zm.throwOff(p)) {
+        // pinned by a leaper (or a crawler on their face): shoved all the way (the simulation's meter, s.shove), they
+        // throw it off (Zombies.throwOff)
+        const off = p.state.pinned && p.state.shove >= 1 ? this.zm.throwOff(p) : null;
+        if (off) {
           p.selfSync = true;
-          this.ach.threwOff(p);
+          if (off.ztype === ZTYPE.LEAPER) this.ach.threwOff(p);
         }
         copyPlayerState(p.shadow, p.state);
         if (cmd.hash === NO_HASH || (cmd.hash >= 0 && cmd.hash !== hashPlayerState(p.state))) p.selfSync = true;
@@ -3174,7 +3170,7 @@ export class Game {
       const sp = this.pickCarAlarmSpawn(p, c, humans);
       if (!sp) break;
       const r = this.rng();
-      const type = r < 0.65 ? ZTYPE.WALKER : r < 0.9 ? ZTYPE.RUNNER : this.day >= 2 ? ZTYPE.SPITTER : ZTYPE.RUNNER;
+      const type = r < 0.65 ? ZTYPE.WALKER : r < 0.9 ? ZTYPE.RUNNER : this.joined(ZTYPE.SPITTER) ? ZTYPE.SPITTER : ZTYPE.RUNNER;
       const z = this.zm.spawn(type, sp.x + (this.rng() - 0.5) * 6, sp.z + (this.rng() - 0.5) * 6, { horde: true, hpMul: 1 + 0.04 * this.day });
       if (!z) continue;
       z.target = p.id;
@@ -3544,7 +3540,7 @@ export class Game {
   }
 
   craft(p, recipeId) {
-    const rec = RECIPES[recipeId];
+    const rec = RECIPE_BY_ID.get(recipeId);
     if (!rec) return;
     if (rec.schem && !(this.unlocked & (1 << SCHEM_BIT[rec.schem]))) return this.notify(NOTIFY.LOCKED, rec.schem, p.id);
     if (rec.station && !this.nearStation(p, rec.station)) return this.notify(rec.station === 'fire' ? NOTIFY.NEED_FIRE : NOTIFY.NEED_BENCH, 0, p.id);
@@ -3893,6 +3889,8 @@ export class Game {
       state: 1,
       owner: p.id,
       burnLeft: def.burn || 0,
+      fire: 0, // s it has been on fire (STRUCT_FIRE: igniteStructure); 0: not burning
+      fireDmg: 0,
       collider: null,
       trapTick: 0,
     };
@@ -3937,6 +3935,14 @@ export class Game {
       if (hammer) this.feedFire(p, e);
       return;
     }
+    if (e.fire > 0) {
+      // a piece on fire (STRUCT_FIRE): the swing beats the flames out, and costs nothing. Mending it is the next one's
+      if (this.time - p.actionT < 0.6) return;
+      if (!hammer || s.slot !== SLOT_BUILD) return this.notify(NOTIFY.NEED_HAMMER, 0, p.id);
+      p.actionT = this.time;
+      this.extinguish(e);
+      return;
+    }
     if (e.hp >= e.maxHp && !(e.stype === STRUCT.TORCH && e.burnLeft <= 0)) return;
     if (this.time - p.actionT < 0.6) return;
     if (!hammer || s.slot !== SLOT_BUILD) return this.notify(NOTIFY.NEED_HAMMER, 0, p.id); // (the hammer in hand, not just carried)
@@ -3970,6 +3976,108 @@ export class Game {
     if (!e || e.maxHp <= 0) return;
     const share = Math.max(0, Math.min(1, e.hp / e.maxHp));
     e.minHealth = Math.min(Number.isFinite(e.minHealth) ? e.minHealth : 1, share);
+  }
+
+  // ---------------------------------------------------------------- fire on what was built (STRUCT_FIRE)
+  // Sets a piece alight (a flammer came near it, or the fire next to it spread). false: it does not burn, or already is
+  igniteStructure(e) {
+    if (!e || e.removed || e.kind !== ENT.STRUCTURE || e.fire > 0 || !structBurns(e.stype)) return false;
+    e.fire = 1e-6;
+    e.fireDmg = 0;
+    this.sound(SOUND.FIRE_WHOOSH, e.x, e.y + 1, e.z, 40);
+    return true;
+  }
+
+  extinguish(e) {
+    if (!(e.fire > 0)) return;
+    e.fire = 0;
+    e.fireDmg = 0;
+    this.sound(SOUND.ACID_SIZZLE, e.x, e.y + 1, e.z, 30);
+  }
+
+  // A burning piece (updateStructures): it takes STRUCT_FIRE.dps (the night's hurt, as the dead's blows are), dealt
+  // a couple of times a second so it is not a hit sound every tick, and from spreadAfter s on may set what touches it
+  // alight. false: it burned down
+  burnStructure(e, dt) {
+    e.fire += dt;
+    e.fireDmg += STRUCT_FIRE.dps * this.diff.hurt * dt;
+    if (e.fireDmg >= 12) {
+      const d = e.fireDmg;
+      e.fireDmg = 0;
+      e.hp -= d;
+      this.noteStructureHealth(e);
+      if (e.hp <= 0) {
+        this.destroyStructure(e, true);
+        return false;
+      }
+    }
+    if (e.fire >= STRUCT_FIRE.spreadAfter && this.rng() < STRUCT_FIRE.spread * dt) {
+      const near = [];
+      this.world.structGrid.query(e.x, e.z, e.collider.r + STRUCT_FIRE.gap + 3.5, near);
+      const catches = near.filter((c) => c !== e.collider && overlapBoxes(e.collider, c, STRUCT_FIRE.gap / 2) && this.ents[c.id] && !(this.ents[c.id].fire > 0) && structBurns(this.ents[c.id].stype));
+      if (catches.length) this.igniteStructure(this.ents[catches[Math.floor(this.rng() * catches.length)].id]);
+    }
+    return true;
+  }
+
+  // ---------------------------------------------------------------- a survivor on fire (PLAYER_FIRE)
+  setAlight(p) {
+    if (!p || !p.alive || p.zombie || p.downed || p.burning || this.safe(p) || swimming(this.world, p.state)) return false;
+    p.burning = true;
+    p.state.burning = 1; // (no jumping: the simulation's)
+    p.douse = 0;
+    this.sound(SOUND.FIRE_WHOOSH, p.state.x, p.state.y + 1, p.state.z, 40);
+    return true;
+  }
+
+  putOut(p, loud = true) {
+    if (!p.burning) return;
+    p.burning = false;
+    p.state.burning = 0;
+    p.douse = 0;
+    if (loud) this.sound(SOUND.ACID_SIZZLE, p.state.x, p.state.y + 1, p.state.z, 25);
+  }
+
+  // Each tick for a survivor alight: in the water it is out; otherwise it burns them, and each press of [Space] - theirs,
+  // and every teammate's within reach who is up and not burning - beats it down, PLAYER_FIRE.presses of them putting it
+  // out. true: it killed them
+  updateFire(p, dt) {
+    const s = p.state;
+    if (swimming(this.world, s) || p.downed) {
+      this.putOut(p);
+      return false;
+    }
+    let presses = p.firePresses;
+    for (const q of this.players.values()) {
+      if (q === p || !q.firePresses || !q.alive || q.zombie || q.downed || q.burning || this.safe(q)) continue;
+      if (Math.hypot(q.state.x - s.x, q.state.z - s.z) < PLAYER_FIRE.reach && Math.abs(q.state.y - s.y) < 1.5) presses += q.firePresses;
+    }
+    p.douse = presses ? p.douse + presses / PLAYER_FIRE.presses : Math.max(0, p.douse - PLAYER_FIRE.decay * dt);
+    if (p.douse >= 0.999) {
+      this.putOut(p);
+      return false;
+    }
+    if ((p.fireT = (p.fireT || 0) + dt) >= 0.5) {
+      p.fireT -= 0.5;
+      this.damagePlayer(p, PLAYER_FIRE.dps * 0.5, { kind: KILLER.ZOMBIE, ztype: ZTYPE.FLAMMER, x: s.x, z: s.z, fire: true });
+    }
+    return !p.alive;
+  }
+
+  // the burning survivor a teammate's [Space] beats the flames out on (the nearest within reach), or null
+  dousing(q) {
+    if (!q.alive || q.zombie || q.downed || q.burning || this.safe(q)) return null;
+    let best = null;
+    let bd = PLAYER_FIRE.reach;
+    for (const p of this.players.values()) {
+      if (p === q || !p.burning || !p.alive) continue;
+      const d = Math.hypot(q.state.x - p.state.x, q.state.z - p.state.z);
+      if (d < bd && Math.abs(q.state.y - p.state.y) < 1.5) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best;
   }
 
   destroyStructure(e, broken) {
@@ -4061,6 +4169,7 @@ export class Game {
   }
 
   goDown(p) {
+    this.putOut(p, false); // (down on the ground, they roll the fire out)
     p.downed = true;
     p.hp = 0;
     p.bleed = DOWN_TIME * this.diff.down;
@@ -4104,6 +4213,7 @@ export class Game {
   }
 
   killPlayer(p, src, silent = false) {
+    this.putOut(p, false);
     this.track.death(p, src, silent); // (first: what they were when it came)
     this.ach.death(p, src);
     this.vehicles.drop(p); // (out of whatever they were in: it rolls on without them)
@@ -4317,6 +4427,11 @@ export class Game {
           if (z.dead || !z.legHp || Math.hypot(z.x - s.x, z.z - s.z) > 30) continue;
           for (let i = 0; i < n && z.legs !== 3; i++) this.combat.hitLeg(z, z.maxHp, 1, z.x - s.x, z.z - s.z);
         }
+        break;
+      }
+      case 'burst': {
+        // /burst: tear open the belly of every Mother within 30 m, as a shot in it does: her babies come for you
+        for (const z of [...this.zombies]) if (!z.dead && z.ztype === ZTYPE.MOTHER && Math.hypot(z.x - s.x, z.z - s.z) <= 30) this.combat.burstBelly(z, p);
         break;
       }
       case 'den': {
@@ -4716,6 +4831,7 @@ export class Game {
     this.cemetery.update(dt);
     ts.mark(T_PHASE);
     this.updatePlayers(dt);
+    for (const p of this.players.values()) p.firePresses = 0; // (each counted this tick: updateFire)
     this.gun.update(dt);
     ts.mark(T_PLAYERS);
     this.zm.update(dt);
@@ -4941,15 +5057,16 @@ export class Game {
     const size = e.spawnT <= 0 ? this.finalStandSize() : 0; // 0: no group is due
     // a warm engine goes on drawing them once the stand is spent, so every second the team lingers at the car costs
     const linger = e.ready && size > 0 && e.sent >= size;
-    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE))) {
+    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE * this.diff.standCrowd))) {
       const spread = plane ? RUNWAY.FUEL_TIME + RUNWAY.WARM_TIME - 30 : FINAL_STAND_SPREAD;
       e.spawnT = ((spread / Math.ceil(size / 3.5)) * (0.7 + this.rng() * 0.6)) / (linger ? ESCAPE_LINGER_PACE : 1); // groups of 3-5, as a wave's
-      const n = this.day;
-      const tanks = FINAL_STAND_TANKS * Math.max(1, this.humanCount());
+      const tanks = this.finalStandTanks();
       const q = [];
       for (let i = linger ? 5 : Math.min(5, size - e.sent); i > 0; i--) {
-        const r = this.rng();
-        const type = r < 0.45 ? ZTYPE.WALKER : r < 0.67 ? ZTYPE.RUNNER : r < 0.72 && n >= 2 ? ZTYPE.DOG : r < 0.8 && n >= 2 ? ZTYPE.SPITTER : r < 0.87 && n >= 2 ? ZTYPE.BOOMER : r < 0.93 && n >= 3 ? ZTYPE.LEAPER : r < 0.97 && n >= 3 && e.tanks < tanks ? ZTYPE.TANK : ZTYPE.RUNNER;
+        let r = this.rng();
+        if (r >= 0.67) r = 0.67 + (r - 0.67) / this.diff.standSpecials; // fewer specials: the share past 0.97 is a runner
+        let type = r < 0.45 ? ZTYPE.WALKER : r < 0.67 ? ZTYPE.RUNNER : r < 0.72 ? ZTYPE.DOG : r < 0.8 ? ZTYPE.SPITTER : r < 0.87 ? ZTYPE.BOOMER : r < 0.93 ? ZTYPE.LEAPER : r < 0.97 && e.tanks < tanks ? ZTYPE.TANK : ZTYPE.RUNNER;
+        if (!this.joined(type)) type = ZTYPE.RUNNER; // (only the kinds the run has met so far)
         if (type === ZTYPE.TANK) e.tanks++;
         q.push(type);
       }
@@ -5110,6 +5227,7 @@ export class Game {
           this.ach.drowning(p);
         }
       } else p.drownT = 0;
+      if (p.burning && this.updateFire(p, dt)) continue;
       if (p.downed) {
         if (!p.revivedBy && !this.safe(p)) p.bleed -= dt * playerMods(p).bleed; // (a held player's clock stops)
         if (p.bleed <= 0) this.killPlayer(p, p.lastSrc || { kind: KILLER.WORLD });
@@ -5147,6 +5265,7 @@ export class Game {
     this.power.update(dt); // generators burn their fuel, hum and feed the floodlights
     for (let i = this.structures.length - 1; i >= 0; i--) {
       const e = this.structures[i];
+      if (e.fire > 0 && !this.burnStructure(e, dt)) continue;
       if (e.stype === STRUCT.TORCH) {
         e.burnLeft -= dt;
         e.state = e.burnLeft > 0 ? 1 : 0;
@@ -5376,7 +5495,8 @@ export class Game {
             c.f32(s.leapCd);
             c.f32(s.stunT);
             c.f32(s.shove);
-            c.u8(s.pulled ? 1 : 0);
+            c.f32(s.ears);
+            c.u8((s.pulled ? 1 : 0) | (s.pinned === PIN_FACE ? 2 : 0)); // (2: what has them is a crawler on the face)
             if (s.pulled) {
               c.f32(s.pullX);
               c.f32(s.pullY);
@@ -5421,8 +5541,13 @@ export class Game {
           c.u8(p.armorMax);
           break;
         case 2:
-          c.u8((p.alive ? 1 : 0) | (p.flashlight ? 2 : 0) | (p.revivedBy ? 4 : 0));
+          c.u8((p.alive ? 1 : 0) | (p.flashlight ? 2 : 0) | (p.revivedBy ? 4 : 0) | (p.burning ? 8 : 0));
           c.u8(Math.round(p.battery));
+          {
+            // on fire: how far it is put out; beating it out on a teammate: how far theirs is (PLAYER_FIRE)
+            const mate = p.burning ? null : this.dousing(p);
+            c.u8(Math.round(Math.min(1, p.burning ? p.douse : mate ? mate.douse : 0) * 255));
+          }
           break;
         case 3:
           // (only once it is in the hands: this is also what the client has the simulation's `using` from, endUse)

@@ -36,8 +36,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('every entry has a name, a group, a vague line and a tip', BESTIARY.every((e) => e.name === ZOMBIE_DEFS[e.t].name && e.group && e.vague?.length > 10 && e.tip?.length > 20));
   const leaks = BESTIARY.filter((e) => e.vague.toLowerCase().includes(e.name.replace(/^The /, '').toLowerCase()));
   check("no vague line gives away the monster's name", !leaks.length, leaks.map((e) => e.name).join());
-  check('a record fits the u16 on the wire', BESTIARY_ALL < 1 << 16 && seenCount(BESTIARY_ALL) === BESTIARY.length);
-  check('a mask from anywhere keeps only kinds the book has', cleanSeen(1 << 20 | bit(ZTYPE.RUNNER)) === bit(ZTYPE.RUNNER) && cleanSeen('3') === 0 && cleanSeen(-1) === BESTIARY_ALL);
+  check('a record fits the u32 on the wire', BESTIARY_ALL >>> 0 < 2 ** 32 && Math.max(...BESTIARY.map((e) => e.t)) < 31 && seenCount(BESTIARY_ALL) === BESTIARY.length);
+  check('a mask from anywhere keeps only kinds the book has', cleanSeen(1 << 30 | bit(ZTYPE.RUNNER)) === bit(ZTYPE.RUNNER) && cleanSeen('3') === 0 && cleanSeen(-1) === BESTIARY_ALL);
 }
 
 // ---------------------------------------------------------------- in a game
@@ -109,6 +109,7 @@ function inTheOpen(game, p) {
 
 {
   const game = new Game({ seed: 4242, godMode: true, dayLength: 3600, themes: false, log: () => {} });
+  game.zm.motherRng = () => 1; // (no walker of the test's turns Mother: the kinds seen are the ones it put there)
   quiet(game);
   const got = watch(game);
   const pid = randomUUID();
@@ -201,6 +202,7 @@ function inTheOpen(game, p) {
 {
   const posted = [];
   const game = new Game({ seed: 4242, godMode: true, dayLength: 3600, themes: false, bestiary: (m) => posted.push(m), log: () => {} });
+  game.zm.motherRng = () => 1; // (no walker of the test's turns Mother: the kinds seen are the ones it put there)
   quiet(game);
   const got = watch(game);
   const user = { id: '7c9e6679-7425-40de-944b-000000000001', name: 'Acct' };

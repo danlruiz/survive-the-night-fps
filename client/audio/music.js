@@ -8,6 +8,8 @@
 //    Never repeats identically: every choice is random. Each generative layer gives way to the stem cast for it
 //    once that has loaded, and stands in for it until then (or for good, when the recordings are unavailable).
 
+import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
+
 const LOOK = 0.5; // seconds scheduled ahead of currentTime
 const ROOT = 38; // D2
 const SCALE = [0, 1, 3, 5, 6, 7, 8, 10]; // D phrygian + b5
@@ -188,6 +190,13 @@ export class Music {
     this.tensionG = layer(0, 0.3);
     this.hordeG = layer(0, 0.25);
     this.bossG = layer(0, 0.18);
+    // the specials' approach motifs (motifs.js): a bus of their own, after the duck and the low-health filter, so a
+    // warning is never the part of the score that gets pushed back
+    this.motifG = g(0.9);
+    this.motifG.connect(engine._musicIn);
+    const ms = g(0.7);
+    this.motifG.connect(ms);
+    ms.connect(this.verbIn);
     this.stems = {};
     for (const k in STEMS) this.stems[k] = new Stem(this, STEMS[k]);
     this.stemList = Object.values(this.stems);
@@ -388,7 +397,8 @@ export class Music {
   }
 
   // ---------------------------------------------------------------- note helpers
-  _note(t, midi, vel, box, bend = 0, dest = this.pianoG) {
+  // pan: where in the stereo field (-1..1); left out, somewhere at random
+  _note(t, midi, vel, box, bend = 0, dest = this.pianoG, pan = null) {
     const bases = box ? BOX_BASE : PIANO_BASE;
     let bi = 0;
     for (let k = 1; k < bases.length; k++) if (Math.abs(midi - bases[k]) < Math.abs(midi - bases[bi])) bi = k;
@@ -409,7 +419,7 @@ export class Music {
     let p = null;
     if (c.createStereoPanner) {
       p = c.createStereoPanner();
-      p.pan.value = rand(-0.6, 0.6);
+      p.pan.value = pan ?? rand(-0.6, 0.6);
       g.connect(p);
       p.connect(dest);
     } else g.connect(dest);
@@ -419,6 +429,68 @@ export class Music {
       if (p) p.disconnect();
     };
     src.start(t);
+  }
+
+  // one bowed note for a far-off motif: two detuned saws and a soft sub an octave down, darkened, swelling in and
+  // dying away over dur s
+  _string(t, midi, vel, dur, pan) {
+    const c = this.ctx;
+    const f = mtof(midi) * this.detune;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1500;
+    lp.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.value = 0;
+    lp.connect(g);
+    let p = null;
+    if (c.createStereoPanner) {
+      p = c.createStereoPanner();
+      p.pan.value = pan;
+      g.connect(p);
+      p.connect(this.motifG);
+    } else g.connect(this.motifG);
+    const end = t + dur + 0.7;
+    const oscs = [];
+    for (const [type, mul, det, lvl] of [['sawtooth', 1, -7, 0.5], ['sawtooth', 1, 7, 0.5], ['triangle', 0.5, 0, 0.35]]) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.value = f * mul;
+      o.detune.value = det;
+      const og = c.createGain();
+      og.gain.value = lvl;
+      o.connect(og);
+      og.connect(lp);
+      o.start(t);
+      o.stop(end);
+      oscs.push(o, og);
+    }
+    const a = g.gain;
+    a.setValueAtTime(0, t);
+    a.linearRampToValueAtTime(vel, t + Math.min(0.18, dur * 0.4));
+    a.setValueAtTime(vel, t + dur);
+    a.setTargetAtTime(0, t + dur, 0.18);
+    oscs[0].onended = () => {
+      for (const n of [...oscs, lp, g, p]) n?.disconnect();
+    };
+  }
+
+  // A special's approach motif (motifs.js): on the piano when near, on strings when far. pan: toward where it is.
+  motif(ztype, near, pan = 0) {
+    const phrase = MOTIFS[ztype];
+    if (!phrase) return;
+    const t0 = this.ctx.currentTime + 0.05;
+    const piano = near && !!this._buffer('mus_piano', 2); // (strings stand in until the piano has been rendered)
+    const beat = MOTIF_BEAT * (near ? 1 : MOTIF_FAR_SLOW);
+    let t = t0;
+    for (const [n, beats] of phrase) {
+      const midi = 62 + n;
+      if (piano) {
+        this._note(t, midi, 0.62, false, 0, this.motifG, pan);
+        if (n <= -5) this._note(t + 0.01, midi + 12, 0.25, false, 0, this.motifG, pan); // (low notes need their octave to read on small speakers)
+      } else this._string(t, midi, 0.14, beats * beat, pan);
+      t += beats * beat;
+    }
   }
 
   _hit(bank, idx, t, vel, dest, rate = 1, pan = 0) {

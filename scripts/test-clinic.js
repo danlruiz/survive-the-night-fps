@@ -14,6 +14,7 @@ import { ZONE, ZTYPE, ITEM, CONT, CONT_DEFS } from '../shared/defs.js';
 import { groundAt, resolveBody } from '../shared/collision.js';
 import { PHASE, SERVER_TICK_RATE, PLAYER_RADIUS } from '../shared/constants.js';
 import { Game } from '../server/game.js';
+import { joinNight } from '../shared/nights.js';
 import { Nav } from '../server/nav.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { countItem } from '../server/inventory.js';
@@ -182,7 +183,7 @@ if (worlds[0]?.clinic) {
   car();
   {
     const d = dwellers();
-    check(`${tag} on the first day three of the dead are in the wards, one of them a crawler, and no Shade`, d.length === 3 && d.every(inDark) && d.filter((z) => z.legs === 3).length === 1 && d.every((z) => z.ztype === ZTYPE.WALKER), `${d.length} of them, ${d.filter((z) => z.legs === 3).length} crawling`);
+    check(`${tag} on the first day three of the dead are in the wards, one of them a crawler, and no Shade`, d.length === 3 && d.every(inDark) && d.filter((z) => z.legs === 3).length === 1 && d.every((z) => z.ztype === ZTYPE.WALKER || z.ztype === ZTYPE.MOTHER), `${d.length} of them, ${d.filter((z) => z.legs === 3).length} crawling`);
     check(`${tag} ...on the floor, not on the roof`, d.every((z) => Math.abs(z.y - c.y) < 0.3));
     run(90);
     const still = dwellers();
@@ -269,12 +270,13 @@ if (worlds[0]?.clinic) {
     const outside = zm.spawn(ZTYPE.WALKER, ...at(8, -24), { horde: true });
     game.phase = PHASE.NIGHT;
     run(0.2);
-    game.day = 1;
+    const shadeDay = joinNight(game.seed, ZTYPE.SHADE); // (the day shades join this run)
+    game.day = shadeDay - 1;
     game.startDay();
     run(10);
     check(`${tag} at sunrise the horde outside burns, the horde in the wards does not`, outside.dead && !inWard.dead && inWard.burning <= 0 && !inWard.onFire);
     const d = dwellers();
-    check(`${tag} ...and the wards have their dead again, with a Shade from the second day`, game.day === 2 && d.length === 4 && d.filter((z) => z.ztype === ZTYPE.SHADE).length === 1 && d.filter((z) => z.legs === 3).length === 1, `day ${game.day}: ${d.length} of them, ${d.filter((z) => z.ztype === ZTYPE.SHADE).length} Shade`);
+    check(`${tag} ...and the wards have their dead again, with a Shade from the day shades join`, game.day === shadeDay && d.length === 4 && d.filter((z) => z.ztype === ZTYPE.SHADE).length === 1 && d.filter((z) => z.legs === 3).length === 1, `day ${game.day}: ${d.length} of them, ${d.filter((z) => z.ztype === ZTYPE.SHADE).length} Shade`);
     [inWard.x, inWard.z] = at(4, -9);
     inWard.y = groundAt(world, inWard.x, inWard.z, 200, 0.2, false);
     run(8);

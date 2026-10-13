@@ -36,6 +36,8 @@ const CATS = {
   bell: { ref: 30, max: 1000, roll: 0.6, air: 320, wet: 0.12, hrtf: 0, cap: 4, delay: true },
   // high overhead: a parachute flare bursting alight 40-90 m up, heard all round the place it went up over
   sky: { ref: 30, max: 380, roll: 0.9, air: 150, wet: 0.2, hrtf: 0, cap: 4, delay: true },
+  // a screecher's scream: loud at any range in the fight, and carrying most of the way across the valley
+  scream: { ref: 14, max: 300, roll: 0.85, air: 120, wet: 0.26, hrtf: 30, cap: 4, delay: true },
 };
 for (const k in CATS) CATS[k].sendExp = 0.45 * CATS[k].roll;
 
@@ -75,6 +77,7 @@ const R_ZP_GROWL = { key: 'zv_growl', vol: 1.6, pitch: [0.88, 1.0] };
 // feral dogs (real dogs, pitched down a little: bigger and meaner) and the stray cat
 const R_DOG_BARK = { key: 'dog_bark', vol: 1.3, pitch: [0.82, 0.95] };
 const R_DOG_SNARL = { key: 'dog_snarl', vol: 1.2, pitch: [0.8, 0.95] };
+const R_CRAWLER = { key: 'dog_snarl', vol: 0.9, pitch: [1.55, 1.8] }; // the crawler: a dog's snarl from a squirrel's throat
 const R_DOG_HOWL = { key: 'dog_howl', vol: 1.85, pitch: [0.85, 0.98] };
 const R_DOG_YELP = { key: 'dog_yelp', vol: 1.05, pitch: [0.9, 1.05] };
 const R_CAT_MEOW = { key: 'cat_meow', vol: 2.4, pitch: [0.95, 1.08] };
@@ -97,6 +100,8 @@ const R_GUN = {
   dbshotgun: gunRec('gun_dbshotgun', [0.9, 0.96], [0.74, 0.8]),
   // the anti-tank rifle: the hunting rifle's recording a long way down, over its own deeper procedural boom
   atrifle: { key: 'gun_rifle', vol: 1.35, pitch: [0.74, 0.79], far: { key: 'gun_far', vol: 1.3, pitch: [0.64, 0.7] }, layer: true, layerVol: 0.6 },
+  // the Desert Eagle: the pistol's recording well down, over its own heavier procedural shot
+  deagle: { key: 'gun_pistol', vol: 1.3, pitch: [0.76, 0.82], far: { key: 'gun_far', vol: 1.15, pitch: [0.86, 0.94] }, layer: true, layerVol: 0.6 },
 };
 // the survivors' voice (one performer for every grunt and scream)
 const R_P_HURT = { key: 'pv_hurt', vol: 1.5, pitch: [0.96, 1.04] };
@@ -139,6 +144,7 @@ const R_BOLT = { key: 'fol_bolt', vol: 1.4, pitch: [0.97, 1.04] };
 const R_DRY = { key: 'fol_dry', vol: 0.55, pitch: [0.96, 1.05] };
 const R_DRAW = { key: 'fol_draw', vol: 1.2, pitch: [0.94, 1.06] };
 R_GUN.atrifle.fp = { key: 'gun_rifle', vol: 1.4, pitch: [0.74, 0.78], layer: true, layerVol: 0.65 };
+R_GUN.deagle.fp = { key: 'gun_pistol', vol: 1.35, pitch: [0.76, 0.81], layer: true, layerVol: 0.6 };
 // the anti-tank rifle's bolt and its round: the same foley, heavier
 const R_AT_BOLT = { key: 'fol_bolt', vol: 1.6, pitch: [0.8, 0.86] };
 const R_AT_ROUND = { key: 'fol_shell', vol: 0.8, pitch: [0.7, 0.78] };
@@ -205,6 +211,7 @@ def(S.SPITTER_SPIT, 'z_spit', 'zombie', 0.9, 0.08, 0.15, R_Z_SPIT);
 def(S.LEAPER_SCREECH, 'z_leaper', 'zombie', 0.9, 0.08, 0.15, R_Z_SCREECH);
 def(S.ROPER_SHOOT, 'z_roper', 'zombie', 0.9, 0.06);
 def(S.BOOMER_GURGLE, 'z_boomer', 'zombie', 0.9, 0.08, 0.15, R_Z_GURGLE);
+def(S.SMOKER_HISS, 'tyre_hiss', 'zombie', 0.9, 0.1); // (a long breath of gas let out: the burst tyre's hiss)
 def(S.EXPLOSION, 'explosion', 'explosion', 1, 0.05, 0.15, R_EXPLOSION);
 def(S.BAT_SCREECH, 'z_bat', 'zombie', 0.7, 0.1);
 def(S.BOSS_ROAR, 'z_boss', 'big', 1, 0.05, 0.15, R_Z_BOSS);
@@ -220,6 +227,7 @@ def(S.CRAFT, 'craft', 'fx', 0.6, 0.05);
 def(S.RELOAD, 'reload', 'fx', 0.55, 0.04, 0.15, R_MAG_IN);
 def(S.CROSSBOW_COCK, 'xbow_cock', 'fx', 0.5, 0.03);
 def(S.AT_RIFLE, 'gun_atrifle', 'gun', 1, 0.03, 0.2, R_GUN.atrifle);
+def(S.DEAGLE, 'gun_deagle', 'gun', 0.95, 0.03, 0.18, R_GUN.deagle);
 def(S.AT_RELOAD, 'bolt', 'fx', 0.7, 0.03, 0.15, R_AT_BOLT);
 def(S.DRY_FIRE, 'dry', 'fx', 0.55, 0.05, 0.15, R_DRY);
 def(S.PLAYER_HURT, 'hurt', 'fx', 0.8, 0.06, 0.15, R_P_HURT);
@@ -254,10 +262,14 @@ def(S.CAT_PURR, 'cat_purr', 'fx', 0.45, 0.03, 0.1); // (in somebody else's arms,
 def(S.DOG_BARK, 'dog_bark', 'zombie', 0.95, 0.08, 0.15, R_DOG_BARK);
 def(S.DOG_HOWL, 'dog_howl', 'big', 0.8, 0.06, 0.15, R_DOG_HOWL);
 def(S.DOG_SNARL, 'dog_snarl', 'zombie', 0.85, 0.1, 0.15, R_DOG_SNARL);
+def(S.CRAWLER_CHITTER, 'z_crawler', 'zombie', 0.8, 0.1, 0.15, R_CRAWLER);
 def(S.DOG_YELP, 'dog_yelp', 'zombie', 0.8, 0.08, 0.15, R_DOG_YELP);
 def(S.SHADE_WHISPER, 'z_shade_whisper', 'zombie', 0.8, 0.1, 0.15, R_Z_WHISPER);
 def(S.SHADE_FREEZE, 'z_shade_freeze', 'zombie', 1, 0.06);
 def(S.SHADE_SHRIEK, 'z_shade_shriek', 'zombie', 1, 0.06);
+def(S.SCREECHER_SCREAM, 'z_screecher', 'scream', 1, 0.05, 0.25);
+def(S.BABY_CRY, 'z_baby_cry', 'zombie', 0.8, 0.08, 0.15);
+def(S.BELLY_BURST, 'flesh_heavy', 'fx', 1, 0.06, 0.15, R_FLESH); // (a Mother's belly torn open: the wettest of the flesh hits)
 def(S.EAT, 'eat', 'fx', 0.5, 0.05);
 def(S.DRINK, 'drink', 'fx', 0.4, 0.05); // (-2 dB: it measures that much hotter than can_open)
 def(S.BODY_FALL, 'land', 'fx', 0.9, 0.1, 0.15, R_BODY);
@@ -318,6 +330,7 @@ const LOCAL = {
   mp5: { bank: 'fp_mp5', vol: 0.8, jit: 0.035, send: 0.1, rec: R_GUN.mp5.fp },
   dbshotgun: { bank: 'fp_dbshotgun', vol: 1, jit: 0.025, send: 0.2, rec: R_GUN.dbshotgun.fp },
   atrifle: { bank: 'fp_atrifle', vol: 1, jit: 0.02, send: 0.22, rec: R_GUN.atrifle.fp },
+  deagle: { bank: 'fp_deagle', vol: 1, jit: 0.025, send: 0.18, rec: R_GUN.deagle.fp },
   crossbow: { bank: 'fp_crossbow', vol: 0.7, jit: 0.03, send: 0.05, rec: R_XBOW },
   flaregun: { bank: 'fp_flare', vol: 0.55, jit: 0.03, send: 0.16 },
   flare_open: { bank: 'flare_open', vol: 0.75 }, // the flare gun broken open, the spent case out, a shell in...
@@ -966,6 +979,11 @@ class VoiceSource {
   }
 }
 
+const RING_VOL = 0.085; // a screecher's ringing (ring): plainly there over the fight, not painful
+const RING_WORLD = 0.08; // the world and the music under it: all but gone while it rings (ring, _ringDuck)
+const RING_VOICE = 0.3; // the other survivors' voices: faint, but there
+const RING_FADE = 1.5; // s it takes to fade once it is over
+const RING_LP = 900; // Hz: the world through ringing ears
 const RADIO_STATIC_VOL = 0.28; // radioStatic(1) about -22 LUFS, a few dB under the forest and well under a voice; held (0.35), -31
 const NULL_LOOP = Object.freeze({ setPosition() {}, setVolume() {}, setRate() {}, stop() {} });
 const NULL_VOICE = Object.freeze({ setPosition() {}, setAbsent() {}, setRadio() {}, mode: () => 0, setVolume() {}, setMuffled() {}, disconnect() {} });
@@ -1005,7 +1023,7 @@ export class AudioEngine {
     this._lastResume = 0;
     this._timer = null;
     this._loopScratch = [];
-    this._mix = { world: -1, sfxLP: -1 };
+    this._mix = { world: -1, sfxLP: -1, ring: 0 };
     this._queue = null;
     this._foot = 1; // alternates the own footsteps a hair left / right
     this._gearT = 2; // steps until the next clothing rustle
@@ -1135,7 +1153,9 @@ export class AudioEngine {
     this._worldIn.connect(this._worldLP);
     this._worldDuck = g(1); // (voice chat ducking)
     this._worldLP.connect(this._worldDuck);
-    this._worldDuck.connect(this._pre);
+    this._ringDuck = g(1); // (ringing ears: the world and the music fade under the ring, _tick)
+    this._ringDuck.connect(this._pre);
+    this._worldDuck.connect(this._ringDuck);
 
     this._sfxIn = g(1); // user sfx volume
     this._sfxLP = c.createBiquadFilter(); // low-health muffle
@@ -1151,9 +1171,11 @@ export class AudioEngine {
     this._musicIn = g(1);
     this._musicDuck = g(1);
     this._musicIn.connect(this._musicDuck);
-    this._musicDuck.connect(this._pre);
+    this._musicDuck.connect(this._ringDuck);
     this._voiceIn = g(1);
-    this._voiceIn.connect(this._pre);
+    this._voiceRing = g(1);
+    this._voiceIn.connect(this._voiceRing);
+    this._voiceRing.connect(this._pre);
     this._voiceAn = c.createAnalyser(); // how loud the voices you can hear are right now: drives the ducking
     this._voiceAn.fftSize = 1024;
     this._voiceIn.connect(this._voiceAn);
@@ -1601,6 +1623,52 @@ export class AudioEngine {
     this._static.g.gain.setTargetAtTime(level * RADIO_STATIC_VOL, this._ctx.currentTime, 0.03);
   }
 
+  // A screecher's scream close by (EVT.SCREECH): the ears ring for secs - a thin, high tone right in the head, two
+  // pitches a few hertz apart so it beats, and the world dulled under it (_tick: the sfx low-pass) - or until
+  // stopRing() (the screecher is dead, or so is the survivor). It comes in at once and goes slowly; a second scream
+  // while it rings only makes it last. The tone is on the ui bus: it is in the head, not out in the world
+  ring(secs) {
+    if (!this._ready || this._state.menu || !(secs > 0)) return;
+    const c = this._ctx;
+    const now = c.currentTime;
+    if (!this._ring) {
+      const g = c.createGain();
+      g.gain.value = 0;
+      const osc = [3870, 3911, 7790].map((f, i) => {
+        const o = c.createOscillator();
+        o.frequency.value = f;
+        const k = c.createGain();
+        k.gain.value = i === 2 ? 0.12 : 0.5;
+        o.connect(k);
+        k.connect(g);
+        o.start(now);
+        return o;
+      });
+      g.connect(this._uiIn);
+      this._ring = { g, osc, end: now };
+    }
+    this._ring.end = Math.max(this._ring.end, now + secs);
+    this._ring.g.gain.setTargetAtTime(RING_VOL, now, 0.04);
+  }
+  stopRing() {
+    if (this._ring) this._ring.end = Math.min(this._ring.end, this._ctx.currentTime);
+  }
+  // how hard the ears still ring, 0..1 (fading over the last RING_FADE s), for the muffle in _tick
+  _ringing(now) {
+    const r = this._ring;
+    if (!r) return 0;
+    const left = r.end - now;
+    if (left > -RING_FADE) {
+      const k = Math.max(0, Math.min(1, (left + RING_FADE) / RING_FADE));
+      if (left < 0) r.g.gain.setTargetAtTime(RING_VOL * k * k, now, 0.1);
+      return left > 0 ? 1 : k;
+    }
+    for (const o of r.osc) o.stop();
+    r.g.disconnect();
+    this._ring = null;
+    return 0;
+  }
+
   // recorded foley (R_* defs): every layer must be decoded, otherwise false and the caller plays the procedural bank
   // (a recording that is only waiting to be decoded is asked for, so it is there the next time).
   // cat = positional category or null for 2D; pitch = the caller's own rate on top of the take's pitch range.
@@ -1918,7 +1986,17 @@ export class AudioEngine {
     const s = this._state;
     // low health: sfx muffle + heartbeat
     const lh = s.dead || s.menu ? 0 : s.lowHealth;
-    const lpf = lh > 0.02 ? Math.round(20000 * Math.pow(2600 / 20000, lh)) : 20000;
+    let lpf = lh > 0.02 ? Math.round(20000 * Math.pow(2600 / 20000, lh)) : 20000;
+    // ringing ears (ring): the world comes through dull, and clears as the ringing fades
+    const rk = this._ringing(now);
+    if (s.menu) this.stopRing();
+    if (rk > 0) lpf = Math.min(lpf, Math.round(RING_LP * Math.pow(20000 / RING_LP, 1 - rk)));
+    // and everything else fades under it, coming back as it fades
+    if (Math.abs(rk - this._mix.ring) > 0.01 || (rk === 0) !== (this._mix.ring === 0)) {
+      this._mix.ring = rk;
+      this._ringDuck.gain.setTargetAtTime(1 - (1 - RING_WORLD) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+      this._voiceRing.gain.setTargetAtTime(1 - (1 - RING_VOICE) * rk, now, rk > 0.99 ? 0.12 : 0.3);
+    }
     if (Math.abs(lpf - this._mix.sfxLP) > 50) {
       this._mix.sfxLP = lpf;
       this._sfxLP.frequency.setTargetAtTime(lpf, now, 0.4);
@@ -2011,6 +2089,13 @@ export class AudioEngine {
       return;
     }
     this._need(d.bank, () => go(null));
+  }
+
+  // a special's approach motif (music.js motif, motifs.js): near on the piano, far on strings; pan -1..1 toward it
+  motif(ztype, near, pan = 0) {
+    if (!this._ready || !this._music || this._state.menu) return;
+    this._resume();
+    this._music.motif(ztype, near, pan);
   }
 
   setVolumes(v = EMPTY) {

@@ -23,6 +23,7 @@ import {
   STRUCT_DEFS,
   GIB,
   BURN,
+  greenBlood,
 } from '../shared/defs.js';
 import { ENT, qpos, qangle16, qpitch } from '../shared/protocol.js';
 import { shotDirections, eyeHeight } from '../shared/playersim.js';
@@ -106,7 +107,7 @@ export class Combat {
   hitbox(e, isPlayer) {
     if (isPlayer) return playerHitbox(e.zombie, e.state.crouch);
     if (e.kind === ENT.DEER) return deerHitbox(e.yaw, e.anim);
-    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim);
+    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim, e.perched);
   }
 
   // ---------------------------------------------------------------- guns
@@ -175,14 +176,15 @@ export class Combat {
         const px = rx - dx * along;
         const py = ry - dy * along;
         const pz = rz - dz * along;
-        const lim = hb.r + hb.headY + 0.5;
+        const lim = hb.r + Math.abs(hb.headY) + 0.5; // (a crawler up a tree hangs its head below it: perched)
         if (px * px + py * py + pz * pz > lim * lim) return;
         const tt = rayHitbox(pos, hb, ox, oy, oz, dx, dy, dz, wallT);
         if (tt < 0) return;
         // below the hip it is in a leg: the left or the right by which side of the body it struck
         let leg = 0;
         if (!isPlayer && !headHit && this.legZone(e, pos.y, oy + dy * tt)) leg = (ox + dx * tt - pos.x) * Math.cos(e.yaw) - (oz + dz * tt - pos.z) * Math.sin(e.yaw) < 0 ? 1 : 2;
-        _hits.push({ e, isPlayer, t: tt, head: headHit, leg });
+        const belly = !isPlayer && !headHit && !leg && this.bellyHit(e, pos, ox + dx * tt, oy + dy * tt, oz + dz * tt);
+        _hits.push({ e, isPlayer, t: tt, head: headHit, leg, belly });
       });
       _hits.sort((a, b) => a.t - b.t);
       const maxPierce = Math.max(1, (def.pierce || 1) + (le.pierce || 0));
@@ -200,7 +202,7 @@ export class Combat {
         const hx = ox + dx * h.t;
         const hy = oy + dy * h.t;
         const hz = oz + dz * h.t;
-        const green = !h.isPlayer && (h.e.ztype === ZTYPE.SPITTER || h.e.ztype === ZTYPE.BOOMER || h.e.ztype === ZTYPE.BOSS_HIVEQUEEN || h.e.ztype === ZTYPE.BOSS_BLOATER);
+        const green = !h.isPlayer && greenBlood(h.e.ztype);
         // a shade frozen by light is hard as stone: bullets chip it instead of drawing blood
         g.impact(h.e.lit ? IMPACT.DIRT : green ? IMPACT.GREEN_BLOOD : IMPACT.BLOOD, hx, hy, hz, -dx, -dy, -dz);
         let killed;
@@ -218,6 +220,7 @@ export class Combat {
           const blow = lethal ? this.blastDamage(h.e, t, def, 0, n, ox, oy, oz) : d;
           const rest = lethal ? this.blastDamage(h.e, t, def, i + 1, n, ox, oy, oz) : 0;
           killed = this.damageZombie(h.e, d, p, { weapon: ev.weapon, headshot: h.head, leg: !!h.leg, dirX: dx, dirZ: dz, blow, rest });
+          if (h.belly) this.burstBelly(h.e, p, dx, dz);
           if (!killed && le.ignite && this.g.rng() < le.ignite) this.ignite(h.e, p, ev.weapon);
         }
         hitFlags |= 8 | (h.head ? 1 : 0) | (killed ? 2 : 0);
@@ -321,6 +324,48 @@ export class Combat {
     return off;
   }
 
+  // ---------------------------------------------------------------- a Mother's belly
+  // Does a bullet that struck this zombie at (x, y, z) (its feet at pos) go into a Mother's belly? Her front, above the
+  // legs (LEG_ZONE) and under bellyTop of her height, and only while it is still whole.
+  bellyHit(z, pos, x, y, zz) {
+    if (z.kind !== ENT.ZOMBIE || z.ztype !== ZTYPE.MOTHER || z.burst || z.legs === 3) return false;
+    const h = (y - pos.y) / z.def.height;
+    if (h < LEG_ZONE || h > z.def.bellyTop) return false;
+    // (her front: the side she faces, -sin / -cos of her yaw)
+    return -(x - pos.x) * Math.sin(z.yaw) - (zz - pos.z) * Math.cos(z.yaw) > 0;
+  }
+
+  // A shot (or anything else, by) tears a Mother's belly open: it shows torn (ZSTATUS.BURST) for as long as her body
+  // lies there, and her brood crawls out of it in front of her and comes for whoever did it. Once only.
+  burstBelly(z, by, dirX = 0, dirZ = 0) {
+    const g = this.g;
+    if (z.burst || z.ztype !== ZTYPE.MOTHER) return [];
+    z.burst = true;
+    g.impact(IMPACT.BLOOD, z.x, z.y + z.def.height * 0.55, z.z, -dirX, 0.3, -dirZ);
+    const babies = [];
+    const def = z.def;
+    for (let i = 0; i < def.brood; i++) {
+      // out of the front of her, each flung off to its own side (broodSpread rad off the way she faces) and tumbling on
+      // out that way (broodKick m/s, gone in a few ticks) before it turns on whoever shot her: they come at you apart
+      const a = z.yaw + (def.brood > 1 ? (i / (def.brood - 1) - 0.5) * 2 * def.broodSpread : 0);
+      const fx = -Math.sin(a), fz = -Math.cos(a);
+      const b = g.zm.spawn(ZTYPE.BABY, z.x + fx * 0.8, z.z + fz * 0.8, { horde: z.horde, y: z.under ? z.y : undefined, den: z.den, hpMul: z.horde ? g.hordeHpMul || 1 : 1 });
+      if (!b) continue;
+      b.yaw = a;
+      b.kx = fx * def.broodKick;
+      b.kz = fz * def.broodKick;
+      b.under = z.under;
+      if (by && by.kind === ENT.PLAYER) {
+        b.target = by.id;
+        b.aggroId = by.id;
+        b.aggroT = 30;
+      }
+      babies.push(b);
+    }
+    if (babies.length) g.globalDirty = true;
+    return babies;
+  }
+
   // ---------------------------------------------------------------- RPG
   // The grenade leaves the tube along the aim and flies on as a projectile (PROJ.ROCKET, updateProjectiles) until it
   // strikes something. The shooter's client flies its own from the moment of the shot (client/game/rockets.js), so
@@ -405,7 +450,7 @@ export class Combat {
   // Set a zombie alight (the BURN status): it burns for `time` seconds, the damage and the kill going to whoever
   // lit it. Fire on something already burning tops the time back up; it does not stack.
   ignite(z, attacker, weapon = 0, time = BURN.time) {
-    if (z.dead) return;
+    if (z.dead || z.def?.fireproof) return; // (the flammer's turnout gear)
     if (time > z.burnT) z.burnT = time;
     if (attacker && attacker.kind === ENT.PLAYER) {
       z.burnBy = attacker.id;
@@ -546,6 +591,7 @@ export class Combat {
     const g = this.g;
     if (z.dead) return false;
     if (z.kind === ENT.DEER) return g.dm.damage(z, amount, attacker, opts); // not one of the dead: nothing below is for it
+    if (opts.fire && z.def.fireproof && !z.onFire) return false; // the flammer: no fire hurts it but the sun's
     // a shade pinned by light shrugs off most of what hits it and cannot be shoved (the dawn sun still burns it)
     const solid = z.lit && !z.onFire;
     if (solid) amount *= z.def.litResist;
@@ -556,7 +602,7 @@ export class Combat {
     z.hp -= amount;
     if (z.link) {
       z.linkDmg += amount;
-      if (opts.melee && z.ztype === ZTYPE.LEAPER) g.zm.releaseLink(z);
+      if (opts.melee && (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER)) g.zm.releaseLink(z);
     }
     if (attacker) {
       z.aggroId = attacker.id;
@@ -664,11 +710,22 @@ export class Combat {
       // a dog's hide: its own chance, on top of the ordinary drop
       if (z.def.leather && g.rng() < z.def.leather) g.dropItem(ITEM.LEATHER, 1, z.x, z.y, z.z, { spread: 0.5, life: 150 });
     }
+    if (z.ztype === ZTYPE.SMOKER) {
+      // its last breath: one more cloud, and among what the survivors built, one that fills the base
+      const d = this.inBase(z.x, z.z) ? z.def.baseSmoke : z.def.deathSmoke;
+      this.spawnArea(AREA.SMOKE, z.x, z.y, z.z, d.radius, d.life);
+    }
     if (z.ztype === ZTYPE.BOOMER || opts.explode) {
       this.explode(z.x, z.y + 1, z.z, ZOMBIE_DEFS[ZTYPE.BOOMER].blastRadius, { humans: ZOMBIE_DEFS[ZTYPE.BOOMER].blastDmg, zombies: 80, structures: 260, kind: 2, source: z });
     } else if (z.def.blastStruct && !sunKill) {
       // The Bloater bursts, and takes what stands near it along: the dead too. (Burnt out by the dawn sun, it only falls)
       this.explode(z.x, z.y + 1.2, z.z, z.def.blastRadius, { humans: z.def.blastDmg, zombies: 160, structures: z.def.blastStruct, kind: 2, source: z });
+    }
+    // The Flammer goes down in a pool of burning fuel: a molotov's fire that also sets alight a survivor who walks in
+    if (z.def.deathFire) {
+      const f = z.def.deathFire;
+      const a = this.spawnArea(AREA.FIRE, z.x, groundAt(g.world, z.x, z.z, z.y + 0.3, 0.2), z.z, f.radius, f.time, null, f.dps);
+      if (a) a.setsAlight = true;
     }
   }
 
@@ -1108,11 +1165,25 @@ export class Combat {
     e.z = nz;
   }
 
+  // Is (x, z) in the survivors' base: baseCount or more of the pieces they built within baseRange m (ZOMBIE_DEFS
+  // SMOKER)? (Traps count: they are built where the dead come at the base)
+  inBase(x, z) {
+    const g = this.g;
+    const def = ZOMBIE_DEFS[ZTYPE.SMOKER];
+    let n = 0;
+    for (const s of g.structures) {
+      if (!s || s.removed || (s.x - x) ** 2 + (s.z - z) ** 2 > def.baseRange * def.baseRange) continue;
+      if (++n >= def.baseCount) return true;
+    }
+    return false;
+  }
+
   spawnArea(atype, x, y, z, radius, life, owner, dps) {
     const g = this.g;
     const e = { kind: ENT.AREA, atype, x, y, z, radius, until: g.time + life, owner: owner || null, dps: dps || 9 };
-    if (!g.spawnEntity(e)) return;
+    if (!g.spawnEntity(e)) return null;
     g.areas.push(e);
+    return e;
   }
 
   updateAreas(dt) {
@@ -1137,7 +1208,12 @@ export class Combat {
         });
         g.dm.scorch(a, dt);
         for (const h of g.players.values()) {
-          if (!h.alive || !h.zombie) continue;
+          if (!h.alive) continue;
+          if (!h.zombie) {
+            // (a flammer's: whoever stands in it catches fire - Game.setAlight - and catches again once put out)
+            if (a.setsAlight && Math.hypot(h.state.x - a.x, h.state.z - a.z) < a.radius && Math.abs(h.state.y - a.y) < 1.2) g.setAlight(h);
+            continue;
+          }
           if (Math.hypot(h.state.x - a.x, h.state.z - a.z) < a.radius) g.damagePlayer(h, a.dps * dt, { kind: KILLER.PLAYER, id: a.owner ? a.owner.id : 0, weapon: ITEM.MOLOTOV, x: a.x, z: a.z });
         }
       } else if (a.atype === AREA.ACID) {

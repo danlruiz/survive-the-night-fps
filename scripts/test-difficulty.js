@@ -2,7 +2,7 @@
 // night, the same horde, the same claw. Ember and Blackout move those numbers, and a length a test pins does not move.
 import { Game } from '../server/game.js';
 import { FIRST_DAY_LENGTH, NIGHT_LENGTH, dayLength } from '../shared/constants.js';
-import { ITEM, ZTYPE, ZOMBIE_DEFS, KILLER, AMMO } from '../shared/defs.js';
+import { ITEM, ZTYPE, ZOMBIE_DEFS, KILLER, AMMO, SUPPLY_NEED } from '../shared/defs.js';
 import { DIFFICULTIES, chosenDifficulty, xpBonus } from '../shared/difficulty.js';
 import { zombieHitbox } from '../shared/hitbox.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
@@ -135,6 +135,51 @@ p.nightKills = XP.killsFull;
 const freshAt = p.xpRun[XPS.fresh];
 night.killXp(p, { ztype: ZTYPE.WALKER, wedgeT: 0, boss: false }, true);
 check('past the night\'s first kills there is no bonus left to earn', p.xpRun[XPS.fresh] === freshAt);
+
+// The final stand at the car, four survivors on night 5 of the island. Ember's levers reach it: fewer of the dead, fewer
+// on their feet at once, half the Tanks and fewer specials. Nightfall and Blackout meet the stand they always met.
+function stand(id, shoot) {
+  const g = new Game({ seed: 11, difficulty: id, log: quiet });
+  for (const name of ['Ann', 'Ben', 'Cy', 'Dee']) join(g, name);
+  g.day = 5;
+  g.supplies = SUPPLY_NEED.slice();
+  g.startEngine(null);
+  const r = { size: g.finalStandSize(), tanks: g.finalStandTanks(), peak: 0, specials: 0, kinds: 0 };
+  const seen = new WeakSet();
+  for (let t = 0; t < 20 * 200 && !g.escape.ready; t++) {
+    g.update();
+    let up = 0;
+    for (const z of g.zombies) {
+      if (!z.horde || z.boss || z.dead) continue;
+      up++;
+      if (!seen.has(z)) {
+        seen.add(z);
+        r.kinds++;
+        if (z.ztype !== ZTYPE.WALKER && z.ztype !== ZTYPE.RUNNER) r.specials++;
+      }
+    }
+    r.peak = Math.max(r.peak, up);
+    if (shoot) for (const z of g.zombies) if (z.horde && !z.boss && !z.dead) g.combat.killZombie(z, null, {});
+  }
+  r.sent = g.escape.sent;
+  return r;
+}
+const fsN = stand('nightfall', true);
+const fsE = stand('ember', true);
+const fsB = stand('blackout', true);
+const crowdN = stand('nightfall', false);
+const crowdE = stand('ember', false);
+console.log(`      final stand, 4 survivors, night 5: Nightfall ${fsN.size} (${fsN.tanks} Tanks, ${fsN.specials}/${fsN.kinds} specials, ${crowdN.peak} at once), Ember ${fsE.size} (${fsE.tanks} Tanks, ${fsE.specials}/${fsE.kinds} specials, ${crowdE.peak} at once), Blackout ${fsB.size}`);
+const nt4 = new Game({ seed: 11, log: quiet });
+for (const name of ['Ann', 'Ben', 'Cy', 'Dee']) join(nt4, name);
+nt4.day = 5;
+check('Nightfall\'s final stand is the size it always was: 1.25 nights, a Tank a survivor', fsN.size === Math.round(1.25 * nt4.hordeSize(5, 4)) && fsN.tanks === 4, `${fsN.size} vs ${Math.round(1.25 * nt4.hordeSize(5, 4))}, ${fsN.tanks} Tanks`);
+check('Blackout\'s final stand is untouched too', fsB.size === Math.round(1.25 * Math.max(3, Math.round(Math.round((10 + 30 + 1.3 * 25) * 2.2) * 1.4))) && fsB.tanks === 4, `${fsB.size}, ${fsB.tanks} Tanks`);
+check('Ember\'s final stand is a quarter smaller than its nights would make it', fsE.size === Math.round(1.25 * 0.75 * new Game({ seed: 11, difficulty: 'ember', log: quiet }).hordeSize(5, 4)), String(fsE.size));
+check('Ember\'s stand brings a Tank for every two survivors, and a lone survivor still meets one', fsE.tanks === 2 && new Game({ seed: 11, difficulty: 'ember', log: quiet }).finalStandTanks() === 1, String(fsE.tanks));
+check('Ember\'s stand comes in full when the team shoots', fsE.sent >= fsE.size, `${fsE.sent} of ${fsE.size}`);
+check('Ember\'s stand keeps fewer of the dead on their feet at once', crowdE.peak <= Math.round(fsE.size * 0.45) + 5 && crowdE.peak < crowdN.peak, `${crowdE.peak} vs ${crowdN.peak}`);
+check('Ember\'s stand brings fewer specials, as its nights do', fsE.specials / fsE.kinds < fsN.specials / fsN.kinds, `${fsE.specials}/${fsE.kinds} vs ${fsN.specials}/${fsN.kinds}`);
 
 if (failed) {
   console.log(`${failed} failed`);

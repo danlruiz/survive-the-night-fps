@@ -20,6 +20,7 @@ import { PHASE, MAX_PLAYERS } from '../shared/constants.js';
 import { FramePacker, eachFrame } from './wire.js';
 import { HANDOFF_CLOSE } from './handoff.js';
 import { gameOutChannel } from './netmetrics.js';
+import { idKey } from './stats.js';
 
 // A WebSocket close frame's reason is at most 123 bytes of UTF-8: what fits of `text`, cut between two characters
 export function closeReason(text, max = 120) {
@@ -122,6 +123,7 @@ export class Room {
     // session cookie), and the name its player joined under ('' before the JOIN)
     this.users = new Array(this.socks.length).fill(null);
     this.names = new Array(this.socks.length).fill('');
+    this.keys = new Array(this.socks.length).fill(''); // per slot: who its player is, from its JOIN (keyOf, mayComeBack)
     this.match = null; // the id of the match being played in it, while one is (matchstore.js)
     this.open = 0; // live sockets (a seat each, joined or about to)
     this.inbox = new FramePacker();
@@ -199,8 +201,9 @@ export class Room {
 
   // ---------------------------------------------------------------- sockets
   // A seat for this socket: its slot, or -1 when the game is full.
-  attach(ws) {
-    if (this.closed || this.full) return -1;
+  // join: its JOIN, when the socket has sent it already (index.js seat waits for it at a full game: mayComeBack)
+  attach(ws, join = null) {
+    if (this.closed || (this.full && !this.mayComeBack(join && this.keyOf(join, ws.getUserData().user)))) return -1;
     const slot = this.socks.findIndex((s, i) => !s && !this.draining[i]);
     if (slot < 0) return -1;
     this.flushInbox(); // (in order with whatever is still on its way in)
@@ -212,8 +215,33 @@ export class Room {
     const user = d.user ? { id: d.user.id, name: d.user.name, isAdmin: d.user.isAdmin === true } : null;
     this.users[slot] = user;
     if (user) this.lobby.userIn(user.id, this);
-    this.worker.postMessage({ t: 'open', slot, ip: d.ip, user });
+    this.worker.postMessage({ t: 'open', slot, ip: d.ip, user, back: !!d.back });
     return slot;
+  }
+
+  // A full game still lets in a socket that is one of its own players coming back: its JOIN is from the same account,
+  // or a guest's same browser id, as a socket in here. A lost link is often noticed by the page long before the server
+  // sees its old socket go (idleTimeout), and that socket still fills its seat; the game gives the body to the new one
+  // and lets the stale one go (Game.handleJoin / takeOver). (A few over at most: the slots kept for closed sockets
+  // draining stay free)
+  mayComeBack(key) {
+    return !!key && this.open < 2 * this.maxPlayers && this.keys.includes(key);
+  }
+  // who a JOIN is from, as Game.handleJoin knows them: 'a:<account id>' signed in, 'g:<hash of the browser id>' a
+  // guest's, '' neither (or not a JOIN)
+  keyOf(bytes, user) {
+    if (user) return `a:${user.id}`;
+    try {
+      const { C2S, Reader } = this.proto;
+      const r = new Reader(bytes);
+      if (r.u8() !== C2S.JOIN) return '';
+      r.u8();
+      r.str();
+      const id = r.left > 0 ? idKey(r.str()) : '';
+      return id ? `g:${id}` : '';
+    } catch {
+      return '';
+    }
   }
 
   // code: the socket's close code (LEFT_CODE: the player left on purpose; anything else is a drop the game holds them through)
@@ -223,6 +251,7 @@ export class Room {
     const user = this.users[slot];
     this.users[slot] = null;
     this.names[slot] = '';
+    this.keys[slot] = '';
     if (user) this.lobby.userOut(user.id, this);
     this.open--;
     if (!this.open) this.emptySince = Date.now();
@@ -235,7 +264,10 @@ export class Room {
   // a message from a socket, for the game (copied: uWS reuses the buffer). first: it is the socket's first
   deliver(slot, bytes, first = false) {
     if (this.closed) return;
-    if (first) this.greet(slot, bytes);
+    if (first) {
+      this.keys[slot] = this.keyOf(bytes, this.users[slot]);
+      this.greet(slot, bytes);
+    }
     this.inbox.push(slot, bytes);
     this.lobby.queueFlush(this);
   }

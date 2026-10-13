@@ -11,6 +11,10 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   constants.js   tick rates, physics, map, timings
   defs.js        items, weapons, recipes (stations + schematics), structures, containers, car supplies,
                  zombie types, sounds, events (wire ids)
+  items.js       the ids of every item that is not a weapon (defs.js adds the weapons' to make ITEM)
+  weapons/       one file per weapon: its id, item def, WEAPONS row, recipe, salvage, kill feat, bullet hole,
+                 shot sound and kick. index.js lists them; defs.js, achievements.js, surfaces.js and the
+                 client's game.js build their tables from it (scripts/test-weapons.js holds every one to it)
   protocol.js    Writer/Reader, message ids, quantization, snapshot / command packet / entity update layouts
   layout.js      plans the valley for a seed: the course of Route 9, the lake and ponds, which named places
                  there are (PLACES: the core ones + a random draw) and where, and which the roads join
@@ -45,6 +49,10 @@ server/      authoritative game server (uWebSockets.js)
   room-worker.js one game server: a worker thread running one Game and its tick loop
   wire.js        the packed frames the two threads pass sockets' messages in
   game.js        the simulation of one game (Game), and everything it sends
+  zombies.js     the dead's AI: targeting, flow fields, melee, and what every special shares (the windup, the flight)
+  specials/      each special kind's own module: its numbers, when it starts its special and what it does (index.js
+                 says how zombies.js dispatches to them)
+  spawns.js      what the dead are made of: the kinds that come out by day, and each night's waves
   director.js    the pacing director (breathers after a peak, the next group early when it is quiet) and tonight's
                  moon: a blood moon now and then, a clear one for a team that is struggling (see Night waves)
 client/      three.js client (Vite root)
@@ -1387,7 +1395,7 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
 - **A crowd on its nose** holds a slow vehicle: the server only counts them (`s.dhold`, 0..3, two bits of the self
   state's vehicle byte) and `driveStep` takes the speed off, so the driver's own prediction creeps as the server's
   does and is rebased only when the count changes.
-- **Built as well as found**: `RECIPES` 41 and 42 (`vehicle`, `hide`) make a bicycle and a moped at a workbench
+- **Built as well as found**: the recipes of `ITEM.BIKE_KIT` and `ITEM.MOPED_KIT` (`vehicle`, `hide`) make a bicycle and a moped at a workbench
   (`Game.craft` -> `Vehicles.build`: it stands on the nearest clear ground, nothing goes into the pack). They want
   the Workshop Manual (`ITEM.SCHEM_VEHICLES`, bit 5 of the unlock mask and not one of `SCHEMATICS`, so nothing hides
   it on the island): two lie beside the mainland's first broken mopeds (`Vehicles.spawn`). Until the team has it the
@@ -1526,7 +1534,8 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
 
 - **No base.** Structures can be built anywhere (within 7 m of the builder). `STRUCT.DOOR` snaps into the
   doorways recorded by world generation (`world.openings`); campfires and workbenches are crafting stations
-  (`STRUCT_DEFS[t].station`), recipes name the station they need (`RECIPES[i].station`) and optionally a
+  (`STRUCT_DEFS[t].station`), recipes name the station they need (`RECIPES[i].station`; a recipe's id is the item it makes, looked up in
+  `RECIPE_BY_ID`) and optionally a
   schematic (`schem`, team-wide unlock bitmask in the global state).
 - **Demolishing structures** (`ACT.DEMOLISH`) has a 15 s undo window from `placedAt`: the whole build cost comes back,
   including one-off parts, so a misplaced piece is free to pick back up. After that, `demolishRefund` returns 75% of

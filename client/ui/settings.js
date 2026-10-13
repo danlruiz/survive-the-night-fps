@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sfxVolume: 0.9,
   voiceVolume: 1, // 100% = the level the mix is balanced at (audio.js VOICE_BUS); the slider runs to 200%
   voiceDuck: true,
+  motifs: true, // a short phrase in the music for each kind of special as it comes and again as it closes in (audio/motifs.js)
   quality: 'medium',
   grassDistance: 1, // x the quality preset's grass radius (0: no grass at all)
   renderScale: 1,
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   fullscreen: true,
   weaponSway: true,
   keyHints: true,
+  tutorial: true, // the onboarding coach on a player's first playthrough, and the first-time tips after it (game/onboarding.js)
   holdToDrop: true, // the drop key has to be held a moment (game/drophold.js), so a stray press keeps the gun
   showFps: true,
   achBanners: true, // a banner when an achievement unlocks (ui/achievements.js)...
@@ -83,7 +85,7 @@ export function sanitizeSettings(s) {
       if (Number.isFinite(v)) out[k] = clamp(v, NUM_RANGES[k][0], NUM_RANGES[k][1]);
     }
     for (const k in ENUMS) if (ENUMS[k].includes(s[k])) out[k] = s[k];
-    for (const k of ['pushToTalk', 'voiceDuck', 'invertY', 'rawMouse', 'fullscreen', 'weaponSway', 'keyHints', 'holdToDrop', 'showFps', 'ps1', 'achBanners', 'achSound', 'viewBob', 'reduceFlashes', 'heardRings']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    for (const k of ['pushToTalk', 'voiceDuck', 'invertY', 'rawMouse', 'fullscreen', 'weaponSway', 'keyHints', 'tutorial', 'holdToDrop', 'showFps', 'ps1', 'achBanners', 'achSound', 'viewBob', 'reduceFlashes', 'heardRings', 'motifs']) if (typeof s[k] === 'boolean') out[k] = s[k];
   }
   return out;
 }
@@ -155,7 +157,7 @@ const TABS = [
     id: 'audio',
     label: 'Audio & voice',
     icon: 'speaker',
-    sum: 'Volumes, push to talk',
+    sum: 'Volumes, motifs, push to talk',
     desc: 'How loud each part of the mix is, and how your voice goes out.',
     rows: [
       { head: 'Volume' },
@@ -163,6 +165,8 @@ const TABS = [
       { k: 'musicVolume', label: 'Music & ambience', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
       { k: 'sfxVolume', label: 'Effects', type: 'range', min: 0, max: 1, step: 0.01, fmt: pct },
       { k: 'voiceVolume', label: 'Voice chat', type: 'range', min: 0, max: 2, step: 0.01, fmt: pct },
+      { head: 'Music' },
+      { k: 'motifs', label: 'Special motifs', type: 'toggle', hint: 'A few notes in the music for each kind of special: strings as one appears, piano as it closes in. Learn them and you hear what is coming' },
       { head: 'Voice chat' },
       { k: 'pushToTalk', label: 'Push to talk', type: 'toggle', hint: 'Off = open mic' },
       { k: 'voiceDuck', label: 'Lower game for voices', type: 'toggle', hint: 'Music and effects step back while someone you can hear is talking' },
@@ -197,6 +201,7 @@ const TABS = [
       { head: 'On screen' },
       { k: 'highlight', label: 'Interaction highlight', type: 'seg', options: ['off', 'subtle', 'strong'], hint: 'A faint outline on what you can use, while you look at it up close' },
       { k: 'keyHints', label: 'Key hints', type: 'toggle', hint: 'Names a key when it would help, until you have used it twice' },
+      { k: 'tutorial', label: 'Tutorial tips', type: 'toggle', hint: 'Walks you through your first playthrough, and names the key for perks, achievements and the bestiary the first time each matters' },
       { k: 'showFps', label: 'Show FPS counter', type: 'toggle' },
       { k: 'hudScale', label: 'HUD size', type: 'range', min: 0.75, max: 1.5, step: 0.05, fmt: pct, hint: 'Text and blocks on screen while you play. On a small window the HUD folds to a compact layout' },
       { k: 'heardRings', label: 'Noise rings', type: 'toggle', hint: 'When your noise wakes the dead: a ring on the minimap as far as it carried, and the ones it woke lit up. Off: only the first time for each kind of noise' },
