@@ -8,6 +8,7 @@
 //   - the horde: none before night 10, at least one on night 10
 // usage: node scripts/test-smoker.js [seed]
 import { Game } from '../server/game.js';
+import { joinNight } from '../shared/nights.js';
 import { C2S, S2C, ENT, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { SERVER_TICK_RATE } from '../shared/constants.js';
 import { ZTYPE, ZOMBIE_DEFS, AREA, STRUCT } from '../shared/defs.js';
@@ -168,10 +169,11 @@ const lastBreath = (d) => {
     game.startNight();
     return game.waves.flatMap((wv) => wv.queue).filter((t) => t === ZTYPE.SMOKER).length;
   };
-  const before = [1, 4, 9].map(count);
-  const on = count(def.minNight);
-  check(`no smokers in the horde before night ${def.minNight}`, before.every((k) => k === 0), before.join('/'));
-  check(`...and smokers in it on night ${def.minNight}`, on >= 1, `${on}`);
+  const N = joinNight(game.seed, ZTYPE.SMOKER);
+  const before = Array.from({ length: N - 1 }, (_, i) => count(i + 1));
+  const on = count(N);
+  check(`no smokers in the horde before night ${N} (this seed's)`, before.every((k) => k === 0), before.join('/'));
+  check(`...and smokers in it on night ${N}`, on >= 1, `${on}`);
 }
 
 if (fails.length) {

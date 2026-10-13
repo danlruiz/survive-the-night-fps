@@ -11,8 +11,7 @@ import { ZTYPE, ZOMBIE_DEFS } from '../../shared/defs.js';
 import { WALK_SPEED, SPRINT_SPEED, LEG_HP, PHASE } from '../../shared/constants.js';
 import { BESTIARY, bit, seenCount } from '../../shared/bestiary.js';
 import { ACHIEVEMENTS, ACH_BY_ID, ACH_STATS, achProgress } from '../../shared/achievements.js';
-import { BOSS_POOL, FIRST_BOSS, nightBoss, nightTheme } from '../../shared/nights.js';
-import { nightRank } from '../../shared/acts.js';
+import { BOSS_POOL, FIRST_BOSS, STARTERS, nightBoss, nightTheme, hasJoined, kindsJoining } from '../../shared/nights.js';
 import { el, svgEl } from './dom.js';
 import { glyph, achIcon } from './icons.js';
 import { achievementsView, onAchievements, refreshAchievements } from '../net/achievements.js';
@@ -45,8 +44,10 @@ export function firstNight(t) {
   const d = ZOMBIE_DEFS[t];
   const pool = t === FIRST_BOSS ? 1 : BOSS_POOL.find((b) => b.type === t)?.from;
   if (d.boss) return [pool, `A night's boss from night ${pool}`];
-  if (pool && pool < d.minNight) return [pool, `A boss from night ${pool}, in the horde from night ${d.minNight}`];
-  return [d.minNight, `Joins the horde from night ${d.minNight}`];
+  if (STARTERS.includes(t)) return [1, 'In the horde from the first night'];
+  // (the specials join one a night from the second, in an order drawn for each run: shared/nights.js joinNight)
+  if (pool) return [pool, `A boss from night ${pool}, and joins the horde on a night drawn each run`];
+  return [2, 'Joins the horde on a night drawn each run'];
 }
 
 const pace = (s) => (s < WALK_SPEED ? 'Slower than your walk' : s < SPRINT_SPEED ? 'Faster than your walk' : s === SPRINT_SPEED ? 'As fast as your sprint' : 'Faster than your sprint');
@@ -399,7 +400,6 @@ export class FieldNotes {
     }
     const bv = bestiaryView();
     const night = c.day;
-    const rank = nightRank(c.act, night);
     this.title.textContent = c.phase === PHASE.NIGHT ? 'Out tonight' : 'Coming tonight';
     this.night.textContent = `Night ${night} · ${seenCount(bv.mask)} / ${BESTIARY.length} in the book`;
     const th = nightTheme(c.seed, night, c.act);
@@ -410,8 +410,9 @@ export class FieldNotes {
       el('span', '', this.theme, th.brief || th.warn);
     }
     this.kinds.textContent = '';
-    const kinds = BESTIARY.filter((e) => e.group !== 'boss' && ZOMBIE_DEFS[e.t].minNight <= rank);
-    for (const e of kinds) this.kindRow(e, bv, rank > 1 && ZOMBIE_DEFS[e.t].minNight === rank ? 'New tonight' : '');
+    const kinds = BESTIARY.filter((e) => e.group !== 'boss' && hasJoined(c.seed, e.t, night, c.act));
+    const fresh = kindsJoining(c.seed, night, c.act);
+    for (const e of kinds) this.kindRow(e, bv, fresh.includes(e.t) ? 'New tonight' : '');
     const boss = BESTIARY.find((e) => e.t === nightBoss(c.seed, night, c.act));
     if (boss) this.kindRow(boss, bv, "Tonight's boss", true);
 

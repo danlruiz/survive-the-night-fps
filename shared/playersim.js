@@ -27,6 +27,12 @@ import {
   SHOVE_PRESS,
   SHOVE_HOLD,
   SHOVE_SLIP,
+  PIN_FACE,
+  BLIND_SPEED,
+  SHAKE_MIN,
+  SHAKE_GAIN,
+  SHAKE_CAP,
+  SHAKE_SLIP,
   SLOT_THROW,
   SLOT_BUILD,
   SLOT_MELEE,
@@ -394,6 +400,9 @@ function putAwayItem(s, events) {
 export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   let b = cmd.buttons;
   let pressed = b & ~s.lastBtn;
+  // how fast the view turned this command (a crawler on the face is shaken off by it)
+  const dyaw = cmd.yaw - s.yaw;
+  const turn = Math.hypot(Math.atan2(Math.sin(dyaw), Math.cos(dyaw)), cmd.pitch - s.pitch) / dt;
   s.yaw = cmd.yaw;
   s.pitch = cmd.pitch;
 
@@ -470,7 +479,9 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
     pressed &= ~SWIM_HANDS;
   }
   const wade = swim || s.zombie ? 0 : wadeDepth(world, s.x, s.y, s.z);
-  const disabled = s.pinned || s.stunT > 0 || riding || carted || seated;
+  // (a crawler on the face blinds them but leaves them their feet: they stumble on, slowed)
+  const face = s.pinned === PIN_FACE && !s.zombie;
+  const disabled = (s.pinned && !face) || s.stunT > 0 || riding || carted || seated;
   let fwd = 0;
   let right = 0;
   if (!disabled) {
@@ -510,7 +521,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
       s.exhausted = 1;
     }
   } else {
-    sprint = b & BTN.SPRINT && fwd > 0 && !s.crouch && !s.exhausted && s.stamina > 0 && !aiming && !s.downed ? 1 : 0;
+    sprint = b & BTN.SPRINT && fwd > 0 && !s.crouch && !s.exhausted && s.stamina > 0 && !aiming && !s.downed && !face ? 1 : 0;
     if (sprint && moving) {
       s.stamina -= STAMINA_DRAIN * pm.staminaDrain * dt;
       s.staminaDelay = STAMINA_REGEN_DELAY;
@@ -531,6 +542,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   else if (wade > WADE_FROM) wishSpeed *= 1 - WADE_SLOW * Math.min(1, (wade - WADE_FROM) / (SWIM_DEPTH - WADE_FROM)); // wading in deeper
   if (aiming) wishSpeed *= 0.62;
   if (s.hmg) wishSpeed *= GUN_CARRY_SPEED;
+  if (face) wishSpeed *= BLIND_SPEED;
   if (!moving) wishSpeed = 0;
 
   if (s.stunT > 0) s.stunT -= dt;
@@ -540,9 +552,15 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
 
   // pinned by a leaper: both hands on it, shoving (SHOVE_*). Every press counts at once (the event: the client's early
-  // presses go into the first command they act in, inputbuffer.js); full, the server throws it off (Zombies.throwOff)
+  // presses go into the first command they act in, inputbuffer.js); full, the server throws it off (Zombies.throwOff).
+  // A crawler on the face is shaken off instead (SHAKE_*): each fifth of the meter is a jolt (the 'shove' event)
   const pinned = s.pinned && !s.zombie;
-  if (pinned) {
+  if (face) {
+    const m0 = s.shove;
+    if (turn > SHAKE_MIN) s.shove = Math.min(1, s.shove + SHAKE_GAIN * Math.min(turn - SHAKE_MIN, SHAKE_CAP) * dt);
+    else s.shove = Math.max(0, s.shove - SHAKE_SLIP * dt);
+    if (events && Math.floor(s.shove * 5) > Math.floor(m0 * 5)) events.push({ type: 'shove', v: s.shove });
+  } else if (pinned) {
     if (cmd.buttons & BTN.JUMP & ~s.lastBtn) {
       s.shove = Math.min(1, s.shove + SHOVE_PRESS);
       if (events) events.push({ type: 'shove', v: s.shove });
@@ -587,7 +605,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   }
 
   // jumping / zombie leap (not afloat: there is nothing to push off)
-  if (!disabled && s.onGround && !s.pulled && !s.downed && !swim) {
+  if (!disabled && !face && s.onGround && !s.pulled && !s.downed && !swim) {
     if (s.zombie && b & BTN.ALT && s.leapCd <= 0) {
       const cp = Math.cos(Math.max(-0.2, s.pitch));
       s.vx = -sy * CLAWS.leapSpeed * cp;

@@ -78,6 +78,7 @@ import {
   TALK_CLEAR,
   TALK_RANGE,
   SLOT_RADIO,
+  PIN_FACE,
 } from '../shared/constants.js';
 import {
   ITEM,
@@ -133,7 +134,7 @@ import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, c
 import { mulberry32, hash2 } from '../shared/rng.js';
 import { supplyHelpLevel, SUPPLY_HELP, SUPPLY_HELP_AT } from '../shared/supplyhelp.js';
 import { swimming, inRiver, DROWN_DPS, RIVER_DPS } from '../shared/swim.js';
-import { nightTheme, nightBoss } from '../shared/nights.js';
+import { nightTheme, nightBoss, joinNight, hasJoined, kindsJoining } from '../shared/nights.js';
 import * as Director from './director.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
@@ -1879,8 +1880,14 @@ export class Game {
     return Math.max(NIGHT_WAVES, Math.round(base * this.diff.zombies));
   }
 
+  // has kind t of the dead joined the run yet (today, and tonight): walkers and runners from the start, then one more
+  // special a night in an order drawn from the seed (shared/nights.js joinNight)
+  joined(t) {
+    return hasJoined(this.seed, t, this.day, this.act);
+  }
+
   // Night N: the horde comes in waves to wherever the survivors are. Bigger and tougher every night, with one new kind
-  // of the dead in it (ZOMBIE_DEFS minNight) and a boss with the second wave.
+  // of the dead in it (shared/nights.js joinNight: drawn from the seed) and a boss with the second wave.
   startNight() {
     this.phase = PHASE.NIGHT;
     this.timeLeft = this.nightLen;
@@ -1900,7 +1907,8 @@ export class Game {
     // tonight's theme re-weights the blend below (the client works out the same theme from the seed to warn the team)
     const theme = this.themes ? nightTheme(this.seed, n, this.act) : null;
     const rank = nightRank(this.act, n); // (which kinds have joined the horde: on the mainland, those of night 4 at the least)
-    const shadeCap = Math.min(6, (1 + Math.floor((rank - ZOMBIE_DEFS[ZTYPE.SHADE].minNight) / 2) + Math.floor(humans / 2)) * (theme?.shadeCap ?? 1));
+    const shadeNight = joinNight(this.seed, ZTYPE.SHADE);
+    const shadeCap = Math.min(6, (1 + Math.floor((rank - shadeNight) / 2) + Math.floor(humans / 2)) * (theme?.shadeCap ?? 1));
     let shades = 0;
     this.waves = [];
     for (let k = 0; k < NIGHT_WAVES; k++) {
@@ -1919,15 +1927,16 @@ export class Game {
         [ZTYPE.SHADE, 2.5 + sp * 2.5],
         [ZTYPE.SMOKER, 3 + sp * 3],
         [ZTYPE.SCREECHER, 1.5 + sp * 2], // (each one's scream brings a crowd of its own: SCREECH_* in zombies.js)
+        [ZTYPE.CRAWLER, 5 + sp * 4],
       ];
       // one new kind a night: each stays out of the horde until its night comes
-      for (const wt of weights) if (rank < ZOMBIE_DEFS[wt[0]].minNight) wt[1] = 0;
+      for (const wt of weights) if (!hasJoined(this.seed, wt[0], n, this.act)) wt[1] = 0;
       if (theme) for (const wt of weights) wt[1] *= theme.mul[wt[0]] ?? 1;
       // Ember thins the kinds that punish movement. Blackout brings more of them. Walkers and tanks stay: one is
       // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
       if (this.diff.specials !== 1) {
         for (const wt of weights) {
-          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER) wt[1] *= this.diff.specials;
+          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER || wt[0] === ZTYPE.CRAWLER) wt[1] *= this.diff.specials;
         }
       }
       const tot = weights.reduce((a, b) => a + b[1], 0);
@@ -1954,8 +1963,8 @@ export class Game {
     // the night's new kind is in it for certain (the dawn card and the dusk horn said it would be), and from their
     // night on there is always at least one shade out there. Both come with the second wave, in a walker's place
     const fresh = [];
-    for (const t of Object.values(ZTYPE)) if (ZOMBIE_DEFS[t].minNight === rank && !ZOMBIE_DEFS[t].boss && !this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
-    if (rank >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight && !shades && !fresh.includes(ZTYPE.SHADE)) fresh.push(ZTYPE.SHADE);
+    for (const t of kindsJoining(this.seed, n, this.act)) if (!this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
+    if (rank >= shadeNight && !shades && !fresh.includes(ZTYPE.SHADE)) fresh.push(ZTYPE.SHADE);
     for (const t of fresh) {
       const q = this.waves[1].queue;
       const at = q.indexOf(ZTYPE.WALKER);
@@ -2496,10 +2505,12 @@ export class Game {
         // an item asked for is in the hands from the client's first command after asking on (useItem)
         if (p.useItem && !p.state.using && ((cmd.seq - p.useItem.from) & 0xffff) < 0x8000) p.state.using = 1;
         simulatePlayer(p.state, cmd, this.world, events);
-        // pinned by a leaper: shoved all the way (the simulation's meter, s.shove), they throw it off (Zombies.throwOff)
-        if (p.state.pinned && p.state.shove >= 1 && this.zm.throwOff(p)) {
+        // pinned by a leaper (or a crawler on their face): shoved all the way (the simulation's meter, s.shove), they
+        // throw it off (Zombies.throwOff)
+        const off = p.state.pinned && p.state.shove >= 1 ? this.zm.throwOff(p) : null;
+        if (off) {
           p.selfSync = true;
-          this.ach.threwOff(p);
+          if (off.ztype === ZTYPE.LEAPER) this.ach.threwOff(p);
         }
         copyPlayerState(p.shadow, p.state);
         if (cmd.hash === NO_HASH || (cmd.hash >= 0 && cmd.hash !== hashPlayerState(p.state))) p.selfSync = true;
@@ -3159,7 +3170,7 @@ export class Game {
       const sp = this.pickCarAlarmSpawn(p, c, humans);
       if (!sp) break;
       const r = this.rng();
-      const type = r < 0.65 ? ZTYPE.WALKER : r < 0.9 ? ZTYPE.RUNNER : this.day >= 2 ? ZTYPE.SPITTER : ZTYPE.RUNNER;
+      const type = r < 0.65 ? ZTYPE.WALKER : r < 0.9 ? ZTYPE.RUNNER : this.joined(ZTYPE.SPITTER) ? ZTYPE.SPITTER : ZTYPE.RUNNER;
       const z = this.zm.spawn(type, sp.x + (this.rng() - 0.5) * 6, sp.z + (this.rng() - 0.5) * 6, { horde: true, hpMul: 1 + 0.04 * this.day });
       if (!z) continue;
       z.target = p.id;
@@ -4928,12 +4939,12 @@ export class Game {
     if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE))) {
       const spread = plane ? RUNWAY.FUEL_TIME + RUNWAY.WARM_TIME - 30 : FINAL_STAND_SPREAD;
       e.spawnT = ((spread / Math.ceil(size / 3.5)) * (0.7 + this.rng() * 0.6)) / (linger ? ESCAPE_LINGER_PACE : 1); // groups of 3-5, as a wave's
-      const n = this.day;
       const tanks = FINAL_STAND_TANKS * Math.max(1, this.humanCount());
       const q = [];
       for (let i = linger ? 5 : Math.min(5, size - e.sent); i > 0; i--) {
         const r = this.rng();
-        const type = r < 0.45 ? ZTYPE.WALKER : r < 0.67 ? ZTYPE.RUNNER : r < 0.72 && n >= 2 ? ZTYPE.DOG : r < 0.8 && n >= 2 ? ZTYPE.SPITTER : r < 0.87 && n >= 2 ? ZTYPE.BOOMER : r < 0.93 && n >= 3 ? ZTYPE.LEAPER : r < 0.97 && n >= 3 && e.tanks < tanks ? ZTYPE.TANK : ZTYPE.RUNNER;
+        let type = r < 0.45 ? ZTYPE.WALKER : r < 0.67 ? ZTYPE.RUNNER : r < 0.72 ? ZTYPE.DOG : r < 0.8 ? ZTYPE.SPITTER : r < 0.87 ? ZTYPE.BOOMER : r < 0.93 ? ZTYPE.LEAPER : r < 0.97 && e.tanks < tanks ? ZTYPE.TANK : ZTYPE.RUNNER;
+        if (!this.joined(type)) type = ZTYPE.RUNNER; // (only the kinds the run has met so far)
         if (type === ZTYPE.TANK) e.tanks++;
         q.push(type);
       }
@@ -5361,7 +5372,7 @@ export class Game {
             c.f32(s.stunT);
             c.f32(s.shove);
             c.f32(s.ears);
-            c.u8(s.pulled ? 1 : 0);
+            c.u8((s.pulled ? 1 : 0) | (s.pinned === PIN_FACE ? 2 : 0)); // (2: what has them is a crawler on the face)
             if (s.pulled) {
               c.f32(s.pullX);
               c.f32(s.pullY);

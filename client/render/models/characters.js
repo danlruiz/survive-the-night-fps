@@ -4154,6 +4154,7 @@ export function zombieVariants(ztype) {
 export function createZombie(ztype, seed = 0) {
   if (ztype === ZTYPE.DOG) return createZombieDog(seed); // quadruped: its own rig + animation (dog.js)
   if (ztype === ZTYPE.BOSS_ALPHA) return createZombieDog(seed, true); // the pack's leader: a dog, built heavier and drawn bigger
+  if (ztype === ZTYPE.CRAWLER) return createZombieDog(seed, 'squirrel'); // a flying squirrel, grown huge: on the dog's rig, drawn small
   const type = BUILDERS[ztype] ? ztype : ZTYPE.WALKER;
   const nv = VARIANTS[type] || 1;
   const variant = nv > 1 ? ((seed >>> 0) * 2654435761 >>> 0) % nv : 0;

@@ -27,6 +27,7 @@ import {
   STAMINA_MAX,
   BTN,
   MOON,
+  PIN_FACE,
 } from '../../shared/constants.js';
 import {
   ITEM,
@@ -108,10 +109,12 @@ import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
 import { FairClient } from './fair.js';
 import { HandcarClient } from './handcar.js';
+import { FaceLatch } from './facelatch.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
 import { TouchPad } from '../ui/touchpad.js';
+import { touchMode } from './touchmode.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { mateDown } from './matedown.js';
 import { DropHold } from './drophold.js';
@@ -2105,7 +2108,7 @@ export class Game {
       const rz = e.rz - ev.z;
       const along = rx * dx + ry * dy + rz * dz;
       if (along < -1 || along > wallT + 2 || rx * rx + ry * ry + rz * rz - along * along > 16) continue;
-      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
+      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim, e.perched) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
       _hbPos.x = e.rx;
       _hbPos.y = e.ry;
       _hbPos.z = e.rz;
@@ -2336,6 +2339,7 @@ export class Game {
         case 'shove':
           // a shove at the leaper on us: the hands thrust (the viewmodel), the palms thump into it, the HUD's key jolts
           this.vm.shove(ev.v);
+          this.faceLatch?.jolt(); // (a crawler on our face jolts off it)
           this.shoves = (this.shoves | 0) + 1;
           a.playLocal('hit', { volume: 0.3 + 0.25 * ev.v, rate: 0.75 });
           this.camShake = Math.min(1, (this.camShake || 0) + 0.05);
@@ -3529,6 +3533,10 @@ export class Game {
     const prying = self.holdKind === HOLD.SEARCH && this.entities.ents.get(this.holding);
     vmState.pry = !!(prying && this.bootOf(prying)?.shut && pryWeapon(weaponNow));
     this.vm.update(dt, vmState);
+    // a crawler on our face: the animal itself over our eyes, its belly to them (built the first time one lands)
+    const latched = vmState.pinned && !s.zombie && !cine && !this.debugCam && !!this.latchedBy();
+    if (latched && !this.faceLatch) this.faceLatch = new FaceLatch(this.renderer.vmScene);
+    this.faceLatch?.update(dt, latched, s.shove, time);
     if (this.vm.itemId === ITEM.NUNCHAKU && this.vm.nk) nkSounds(this.audio, this.vm.nk.core, null, this.nkSt, time);
     this.updateSelfBody(dt, s, rp, time, hspeed);
     if (this.vmMuzzleT > 0) {
@@ -4196,6 +4204,12 @@ export class Game {
     this.punchT = 0;
   }
 
+  // the crawler on our face, if one is (ZF.LINK: who it has hold of)
+  latchedBy() {
+    for (const e of this.entities.ents.values()) if (e.kind === ENT.ZOMBIE && e.ztype === ZTYPE.CRAWLER && e.q[6] === this.myId && !e.dead) return e;
+    return null;
+  }
+
   updateHud(dt, s, aiming, wdef) {
     const self = this.self;
     const g = this.global;
@@ -4222,7 +4236,9 @@ export class Game {
     h.dropHint = this.dropHold.hint > 0 ? bindLabel('drop') : ''; // (let go too soon: "Hold G to drop")
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
-    h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
+    const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
+    h.shoveKey = h.shove >= 0 ? (face ? (touchMode() ? 'Swipe' : 'Mouse') : bindLabel('jump')) : '';
+    h.shoveText = face ? 'Thrash your head about to tear it off' : 'Mash to shove it off';
     h.shoves = this.shoves | 0;
     const w = currentWeapon(s);
     const def = WEAPONS[w];
