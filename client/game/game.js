@@ -80,6 +80,7 @@ import { SPAWN_KEY } from '../ui/spawnmenu.js';
 import { treeAt, fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../../shared/felling.js';
 import { nightTheme } from '../../shared/nights.js';
 import { HomeSense, HOME_WALLS, HOMELESS_THEMES } from '../audio/home.js';
+import { MotifWatch, MOTIFS } from '../audio/motifs.js';
 import { shotDirections, shotSpread, shotClimb, aimingWith, currentWeapon, eyeHeight } from '../../shared/playersim.js';
 import { stepClimb, punchOf, punchAt, crosshairGap } from './aimview.js';
 import { pryWeapon } from '../../shared/trunk.js';
@@ -314,6 +315,7 @@ export class Game {
     this.localFlashT = 0;
     this.openness = 0;
     this.indoor = 0;
+    this.motifs = new MotifWatch(); // the specials' approach motifs (audio/motifs.js)
     this.homeSense = new HomeSense(); // inside the team's walls (the night's home bed: audio/home.js)
     this._homeStructs = [];
     this.under = 0; // how far down the mine the eye is (0..1)
@@ -3715,6 +3717,25 @@ export class Game {
       if (d < 25) danger = Math.max(danger, 1 - d / 25);
     }
     this.danger = (this.danger || 0) + (danger - (this.danger || 0)) * Math.min(1, dt * 2);
+    // each special's motif as it comes into view and again as it closes on any survivor (audio/motifs.js). Not for a
+    // survivor who has risen as one of the dead, nor under a cutscene
+    if (this.settings?.motifs !== false && !cine && !s.zombie && this.motifs.due(time)) {
+      const zs = [];
+      const surv = self.alive ? [{ x: rp.x, z: rp.z }] : [];
+      for (const e of this.entities.ents.values()) {
+        if (e.kind === ENT.ZOMBIE) {
+          if (!e.dead && MOTIFS[e.ztype]) zs.push(e);
+        } else if (e.kind === ENT.PLAYER && e.id !== this.myId && !(e.q[5] & (PFLAG.DEAD | PFLAG.ZOMBIE))) surv.push({ x: e.rx, z: e.rz });
+      }
+      const yaw = inp.yaw;
+      this.motifs.update(time, zs, surv, (ztype, near, x, z) => {
+        // panned toward it: the listener's right is (cos yaw, -sin yaw)
+        const dx = x - cam.position.x;
+        const dz = z - cam.position.z;
+        const d = Math.hypot(dx, dz) || 1;
+        a.motif?.(ztype, near, (0.6 * (dx * Math.cos(yaw) - dz * Math.sin(yaw))) / d);
+      });
+    }
     const hpFrac = self.maxHp ? self.hp / self.maxHp : 1;
     a.setAmbience({
       night: this.env.night,
