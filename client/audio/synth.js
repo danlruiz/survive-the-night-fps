@@ -274,6 +274,15 @@ export const GUNS = {
     tail: 0.13, tailLP: 720, tailDecay: 0.32,
     mech: [[0.05, 880, 0.15], [0.086, 1450, 0.08]], echoes: [[0.26, 0.09], [0.58, 0.05], [0.98, 0.028]], drive: 2.3,
   },
+  // the Desert Eagle: a magnum out of a short barrel. The pistol's crack with a rifle's weight under it: a lower,
+  // longer bark, a deep thump, and echoes that carry further than any handgun's
+  deagle: {
+    dur: 1.8, crack: 0.95, crackHP: 2600, crackDecay: 0.0013, nwave: 0.3,
+    bodyHP: 300, bodyLP0: 6400, bodyLP1: 650, lpSweep: 0.04, bodyDecay: 0.05, bark: [900, 1.2, 6],
+    thump: 1.05, thumpF0: 130, thumpF1: 40, thumpSweep: 0.028, thumpDecay: 0.08,
+    tail: 0.11, tailLP: 950, tailDecay: 0.3,
+    mech: [[0.04, 2000, 0.1], [0.08, 1500, 0.07]], echoes: [[0.26, 0.11], [0.6, 0.06], [1.02, 0.03]], drive: 2.1,
+  },
   // the anti-tank rifle: a 14.5 mm round out of a muzzle brake. Against the hunting rifle the crack is as hard but
   // the blast under it is an octave down and three times as long (the brake throws it out sideways), the thump is
   // the deepest of any gun, and it rolls round the valley for three seconds
@@ -2161,6 +2170,7 @@ export const SFX_DEFS = [
   { bank: 'xbow_shot', n: 2, sr: HI, gen: (sr, r) => crossbowShot(sr, r, false) },
   { bank: 'gun_hmg', n: 3, sr: HI, gen: (sr, r) => gunshot(sr, r, G.hmg, false) },
   { bank: 'gun_atrifle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.atrifle, false) },
+  { bank: 'gun_deagle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.deagle, false) },
   // first-person (stereo)
   { bank: 'fp_pistol', n: 3, sr: HI, gen: (sr, r) => gunshot(sr, r, G.pistol, true) },
   { bank: 'fp_ak47', n: 4, sr: HI, gen: (sr, r) => gunshot(sr, r, G.ak47, true) },
@@ -2172,6 +2182,7 @@ export const SFX_DEFS = [
   { bank: 'fp_crossbow', n: 2, sr: HI, gen: (sr, r) => crossbowShot(sr, r, true) },
   { bank: 'fp_hmg', n: 4, sr: HI, gen: (sr, r) => gunshot(sr, r, G.hmg, true) },
   { bank: 'fp_atrifle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.atrifle, true) },
+  { bank: 'fp_deagle', n: 2, sr: HI, group: 'late', gen: (sr, r) => gunshot(sr, r, G.deagle, true) },
   // sub thump + tree-line echoes layered under the recorded first-person shots
   { bank: 'gsw_pistol', n: 2, sr: MID, gen: (sr, r) => gunshot(sr, r, G.pistol, true, true) },
   { bank: 'gsw_ak47', n: 2, sr: MID, gen: (sr, r) => gunshot(sr, r, G.ak47, true, true) },
