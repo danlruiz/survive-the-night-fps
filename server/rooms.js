@@ -215,7 +215,7 @@ export class Room {
     const user = d.user ? { id: d.user.id, name: d.user.name, isAdmin: d.user.isAdmin === true } : null;
     this.users[slot] = user;
     if (user) this.lobby.userIn(user.id, this);
-    this.worker.postMessage({ t: 'open', slot, ip: d.ip, user });
+    this.worker.postMessage({ t: 'open', slot, ip: d.ip, user, back: !!d.back });
     return slot;
   }
 

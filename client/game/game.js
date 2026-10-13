@@ -1051,15 +1051,16 @@ export class Game {
   // code: the game to join (an invite, a pick from the list, one just made); none for a quick join. resume: back into
   // the game we were playing a moment ago on the server before a deploy (onMoving): the same run on the same valley,
   // so what this client knows of it - the places found, its waypoint, the run being recorded - stays, and there is no
-  // stinger or introduction
-  async join(name, code = '', { resume = false } = {}) {
+  // stinger or introduction. back: coming back into the game this page was just in, after a drop or a deploy
+  // (Connection.url): our own body, not a new player beside it
+  async join(name, code = '', { resume = false, back = resume } = {}) {
     if (!resume) this.audio.stinger?.('join');
     // who to be (the splash's picker): a roster survivor, or a custom one - its models built now, under the load, and
     // the roster survivor most like it sent beside it (who an older server makes us)
     const pick = chosenCharacter();
     if (pick.look) warmSurvivor(lookKey(pick.look));
     this.looks = new Map();
-    const info = await this.conn.connect(name, playerId(), code, pick.look ? nearestRoster(pick.look) : pick.character, pick.look);
+    const info = await this.conn.connect(name, playerId(), code, pick.look ? nearestRoster(pick.look) : pick.character, pick.look, back);
     this.room = info.room; // { code, name, inviteOnly }: what the invite link points at
     this.myId = info.id;
     this.admin = info.admin;
