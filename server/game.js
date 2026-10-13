@@ -1919,7 +1919,6 @@ export class Game {
         [ZTYPE.SHADE, 2.5 + sp * 2.5],
         [ZTYPE.SMOKER, 3 + sp * 3],
         [ZTYPE.SCREECHER, 1.5 + sp * 2], // (each one's scream brings a crowd of its own: SCREECH_* in zombies.js)
-        [ZTYPE.MOTHER, 2.5 + sp * 2.5],
       ];
       // one new kind a night: each stays out of the horde until its night comes
       for (const wt of weights) if (rank < ZOMBIE_DEFS[wt[0]].minNight) wt[1] = 0;
@@ -1928,7 +1927,7 @@ export class Game {
       // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
       if (this.diff.specials !== 1) {
         for (const wt of weights) {
-          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER || wt[0] === ZTYPE.MOTHER) wt[1] *= this.diff.specials;
+          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER) wt[1] *= this.diff.specials;
         }
       }
       const tot = weights.reduce((a, b) => a + b[1], 0);
@@ -1955,7 +1954,7 @@ export class Game {
     // the night's new kind is in it for certain (the dawn card and the dusk horn said it would be), and from their
     // night on there is always at least one shade out there. Both come with the second wave, in a walker's place
     const fresh = [];
-    for (const t of Object.values(ZTYPE)) if (ZOMBIE_DEFS[t].minNight === rank && !ZOMBIE_DEFS[t].boss && !ZOMBIE_DEFS[t].born && !this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
+    for (const t of Object.values(ZTYPE)) if (ZOMBIE_DEFS[t].minNight === rank && !ZOMBIE_DEFS[t].boss && !ZOMBIE_DEFS[t].born && !ZOMBIE_DEFS[t].rolled && !this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
     if (rank >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight && !shades && !fresh.includes(ZTYPE.SHADE)) fresh.push(ZTYPE.SHADE);
     for (const t of fresh) {
       const q = this.waves[1].queue;

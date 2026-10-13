@@ -3398,7 +3398,7 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
     const q = game.waves.flatMap((wv) => wv.queue);
     const kinds = new Set(q);
     for (const t of kinds) if (ZOMBIE_DEFS[t].minNight > n) early.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
-    for (const [t, d] of Object.entries(ZOMBIE_DEFS)) if (!d.boss && d.minNight === n && !kinds.has(+t)) missing.push(`${d.name} on night ${n}`);
+    for (const [t, d] of Object.entries(ZOMBIE_DEFS)) if (!d.boss && !d.born && !d.rolled && d.minNight === n && !kinds.has(+t)) missing.push(`${d.name} on night ${n}`);
     const k = q.filter((t) => t === ZTYPE.SHADE).length;
     if (n >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight) shades.push(k);
   }

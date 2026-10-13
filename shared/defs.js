@@ -622,14 +622,15 @@ export const ZOMBIE_DEFS = {
   // baseRange m (Combat.inBase) - the cloud it lets go is big enough to fill the base (baseSmoke). Kill it out past the
   // walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
   [ZTYPE.SMOKER]: { name: 'Smoker', hp: 130, speed: 2.0, dmg: 8, rate: 1.1, range: 1.55, radius: 0.38, height: 1.86, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.6, smokeRange: 20, smokeRate: 11, smokeRadius: 4.5, smokeLife: 9, deathSmoke: { radius: 5, life: 10 }, baseSmoke: { radius: 14, life: 26 }, baseRange: 12, baseCount: 4, minNight: 10, legs: true, intro: 'Smokers join the horde: they breathe out clouds you cannot see through. Kill them out past your walls, or their last breath fills the base.', introBrief: 'Smoke you cannot see through. Kill them past the walls.' },
-  // breaks: a team that sprays at the middle of the body. Shot in the belly - a bullet that strikes her front between the
-  // hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) - it bursts open (ZSTATUS.BURST) and twins, her brood
-  // of babies, crawl out of it after whoever shot her, crying as they come (Combat.burstBelly). Her head, her legs or
-  // her back and nothing comes out
-  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, minNight: 12, legs: true, intro: 'Mothers join the horde: shoot one in the belly and her twins crawl out after you. Aim for the head.', introBrief: 'A shot in the belly lets her twins out. Aim high.' },
+  // one walker in twenty spawns as her (ZombieManager.spawn's roll), from the first night: not a kind that joins the
+  // horde on a night of its own (rolled: Game.startNight never draws her in, and no dawn card names her). Shot in the
+  // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) -
+  // it bursts open (ZSTATUS.BURST) and twins, her brood of babies, crawl out of it after whoever shot her, crying as they
+  // come (Combat.burstBelly). Her head, her legs or her back and nothing comes out
+  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, minNight: 1, legs: true, rolled: true },
   // a Mother's baby (crawl: on its front and its hands from birth, low and quick, crying as it comes). It never joins the
   // horde on its own (born: it only comes out of her belly, Game.startNight passes it over); its minNight is hers, for the bestiary
-  [ZTYPE.BABY]: { name: 'Zombie Baby', hp: 28, speed: 2.6, dmg: 4, rate: 0.8, range: 1.1, radius: 0.22, height: 0.3, headY: 0.21, headR: 0.08, headFwd: 0.22, bodyTop: 0.2, structDmg: 2, loot: 0.05, crawl: true, born: true, common: true, minNight: 12 },
+  [ZTYPE.BABY]: { name: 'Zombie Baby', hp: 28, speed: 2.6, dmg: 4, rate: 0.8, range: 1.1, radius: 0.22, height: 0.3, headY: 0.21, headR: 0.08, headFwd: 0.22, bodyTop: 0.2, structDmg: 2, loot: 0.05, crawl: true, born: true, common: true, minNight: 1 },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far

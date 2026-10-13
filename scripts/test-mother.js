@@ -1,5 +1,6 @@
-// The Mother and her babies, in-process against a real Game and decoded as a client does: she joins the horde on her
-// own night and not before, and her babies never join it on their own; a bullet in her belly - her front, between the
+// The Mother and her babies, in-process against a real Game and decoded as a client does: one walker in twenty spawns
+// as her (never an admin's forced one), she is never drawn into a night's waves as a kind of her own, and her babies
+// never join the horde on their own; a bullet in her belly - her front, between the
 // hips and bellyTop of her height - bursts it (ZSTATUS.BURST, seen by a client) and her twins crawl out after whoever
 // shot her; a bullet in her head, her legs or her back does not, nor does a second one in the hole; one shot dead
 // through the belly still lets them out; the babies keep low (a shot over one misses) and come on faster than the walking
@@ -24,25 +25,47 @@ const def = ZOMBIE_DEFS[ZTYPE.MOTHER];
 const bdef = ZOMBIE_DEFS[ZTYPE.BABY];
 
 // ---------------------------------------------------------------- the kinds
-check('the Mother is a special of her own, with a belly and a brood of two', !!def && !def.boss && !def.common && def.legs && def.bellyTop > LEG_ZONE && def.bellyTop < def.headY / def.height && def.brood === 2);
+check('the Mother has a belly and a brood of two', !!def && !def.boss && !def.common && def.legs && def.bellyTop > LEG_ZONE && def.bellyTop < def.headY / def.height && def.brood === 2);
 check('...her babies crawl, low and frail, and are born, not sent', !!bdef && bdef.crawl && bdef.born && bdef.height < 0.5 && bdef.hp < ZOMBIE_DEFS[ZTYPE.WALKER].hp && bdef.speed > ZOMBIE_DEFS[ZTYPE.WALKER].speed && bdef.speed < WALK_SPEED);
 check('...both in the bestiary', BESTIARY.some((e) => e.t === ZTYPE.MOTHER) && BESTIARY.some((e) => e.t === ZTYPE.BABY));
-check('...and her own night, after the screecher\'s', def.minNight > ZOMBIE_DEFS[ZTYPE.SCREECHER].minNight && Object.values(ZOMBIE_DEFS).every((d) => d.boss || d === def || d === bdef || d.minNight !== def.minNight));
+check('...and no night of her own: she comes from the walkers, not on a dawn card', def.rolled === true && def.minNight === 1 && !def.intro);
 {
   const kinds = (n) => {
     game.day = n;
     game.startNight();
     return game.waves.flatMap((wv) => wv.queue);
   };
-  const before = kinds(def.minNight - 1).filter((t) => t === ZTYPE.MOTHER).length;
-  const on = kinds(def.minNight).filter((t) => t === ZTYPE.MOTHER).length;
-  check(`none in the horde before night ${def.minNight}, at least one on it`, before === 0 && on >= 1, `${before} / ${on}`);
+  let drawn = 0;
+  for (let n = 1; n <= 14; n++) drawn += kinds(n).filter((t) => t === ZTYPE.MOTHER).length;
+  check('never drawn into a night\'s waves as a kind', drawn === 0, `${drawn}`);
   let babies = 0;
-  for (let n = 1; n <= def.minNight + 3; n++) babies += kinds(n).filter((t) => t === ZTYPE.BABY).length;
+  for (let n = 1; n <= 14; n++) babies += kinds(n).filter((t) => t === ZTYPE.BABY).length;
   check('no baby ever comes with the horde on its own', babies === 0, `${babies}`);
   game.waves = [];
   game.startDay?.();
   game.day = 1;
+}
+
+// ---------------------------------------------------------------- one walker in twenty
+{
+  let made = 0, mothers = 0, forced = 0;
+  for (let i = 0; i < 2000; i++) {
+    const x = (i % 40) * 4 - 80, z = Math.floor(i / 40) * 4 - 40;
+    const w = game.zm.spawn(ZTYPE.WALKER, x, z);
+    if (w) {
+      made++;
+      if (w.ztype === ZTYPE.MOTHER) mothers++;
+      game.removeEntity(w);
+    }
+    const f = game.zm.spawn(ZTYPE.WALKER, x + 0.5, z + 0.5, { force: true });
+    if (f) {
+      if (f.ztype === ZTYPE.WALKER) forced++;
+      game.removeEntity(f);
+    }
+  }
+  const share = mothers / Math.max(1, made);
+  check('one walker in twenty spawns as a Mother', share > 0.03 && share < 0.07, `${mothers} of ${made} = ${(share * 100).toFixed(1)}%`);
+  check('...but an admin\'s forced walker is a walker', forced === made, `${forced} of ${made}`);
 }
 
 // ---------------------------------------------------------------- a client
