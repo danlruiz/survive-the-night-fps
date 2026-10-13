@@ -100,7 +100,7 @@ function quant(e) {
       q[5] = Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255)));
       q[6] = e.link || 0;
       q[7] = e.legs;
-      q[8] = e.onFire || e.burnT > 0 || ZOMBIE_DEFS[e.ztype]?.fireproof ? ZSTATUS.BURNING : 0; // (the flammer is never not)
+      q[8] = (e.onFire || e.burnT > 0 || ZOMBIE_DEFS[e.ztype]?.fireproof ? ZSTATUS.BURNING : 0) | (e.burst ? ZSTATUS.BURST : 0); // (the flammer is never not burning)
       break;
     case ENT.ITEM:
       q[3] = e.count;

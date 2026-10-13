@@ -404,6 +404,8 @@ export class Entities {
           this.scene.add(v.object);
           if (v.member) g.crowd?.add(v.member); // (drawn with every other of its kind in one call: render/crowd.js)
           v.setLegs?.(e.q[7]); // legs it lost before it came into view
+          e.burst = !!(e.q[8] & ZSTATUS.BURST); // a Mother's belly, torn open before it came into view
+          v.setBurst?.(e.burst);
           e.growlT = e.ztype === ZTYPE.SHADE ? 0.5 + Math.random() * 2 : 2 + Math.random() * 8;
           e.voice = 0.92 + ((((e.id * 2654435761) >>> 0) % 997) / 997) * 0.2; // its own throat: everything it utters is pitched by this
           e.stepT = Math.random();
@@ -629,6 +631,7 @@ export class Entities {
           }
         }
         if (mask & 0b100000 && !initial) e.view?.setLegs?.(e.q[7], true); // ZF.LEGS: a leg has just been shot off
+        if (mask & 0b1000000 && !initial && e.q[8] & ZSTATUS.BURST && !e.burst) this.bellyBurst(e); // ZF.STATUS
         break;
       case ENT.PLAYER:
         if (!initial && mask & 0b11) this.pushSample(e, t);
@@ -941,6 +944,21 @@ export class Entities {
     if ((e.q[7] | bits) === 3 && !e.dead) g.audio.play(SOUND.BODY_FALL, { x: e.rx, y: e.ry + 0.2, z: e.rz, delay: 0.3, volume: 0.9 });
   }
 
+  // A Mother's belly torn open by a shot (ZSTATUS.BURST): the bump bursts in blood and gore, and the model shows the
+  // hole it leaves. Her babies come over the wire as zombies of their own.
+  bellyBurst(e) {
+    e.burst = true;
+    const g = this.g;
+    const v = e.view;
+    v?.setBurst?.(true);
+    v?.hurt();
+    const def = ZOMBIE_DEFS[e.ztype];
+    const y = e.ry + def.height * 0.55, f = 0.25;
+    const x = e.rx - Math.sin(e.ryaw) * f, z = e.rz - Math.cos(e.ryaw) * f;
+    g.effects.gib(x, y, z, false);
+    g.audio.play(SOUND.BELLY_BURST, { x, y, z });
+  }
+
   // ---------------------------------------------------------------- per frame
   update(dt, renderTick, time, camPos) {
     const g = this.g;
@@ -1049,7 +1067,12 @@ export class Entities {
               if (frozen) e.growlT = Math.max(e.growlT, 1.5);
             }
             e.growlT -= dt;
-            if (e.growlT <= 0) {
+            if (e.growlT <= 0 && e.ztype === ZTYPE.BABY) {
+              // a Mother's baby wails all the way: one cry runs into the next, each a little apart from its twin's
+              e.growlT = 1.6 + Math.random() * 1.2;
+              g.audio.play(SOUND.BABY_CRY, { x: e.rx, y: e.ry + 0.3, z: e.rz, volume: 0.95, rate: e.voice });
+              v.vocalize?.(1);
+            } else if (e.growlT <= 0) {
               e.growlT = shade ? 1.8 + Math.random() * 2.2 : 4 + Math.random() * 9;
               const alpha = e.ztype === ZTYPE.BOSS_ALPHA; // a dog's bark and snarl, from a chest the size of a pony's
               const dog = e.ztype === ZTYPE.DOG || alpha;
@@ -1069,7 +1092,7 @@ export class Entities {
             }
             // a tank's (or a boss's) footfalls thump: they carry as far as its voice, and close by they shake the ground
             const heavy = e.ztype === ZTYPE.TANK || (!!ZOMBIE_DEFS[e.ztype].boss && e.ztype !== ZTYPE.BOSS_ALPHA); // (the Alpha runs on pads: no quake)
-            if (e.speed > 0.4 && !ZOMBIE_DEFS[e.ztype].flying && e.q[7] !== 3 && (heavy || distC < 22 * 22)) {
+            if (e.speed > 0.4 && !ZOMBIE_DEFS[e.ztype].flying && !ZOMBIE_DEFS[e.ztype].crawl && e.q[7] !== 3 && (heavy || distC < 22 * 22)) {
               // a visible planted-foot gait sounds its steps as the feet land; otherwise keep a cadence timer
               const dog = e.ztype === ZTYPE.DOG || e.ztype === ZTYPE.BOSS_ALPHA || e.ztype === ZTYPE.CRAWLER;
               const stepVol = heavy ? 1 : e.ztype === ZTYPE.BOSS_ALPHA ? 0.7 : e.ztype === ZTYPE.CRAWLER ? 0.12 : dog ? 0.25 : shade ? 0.2 : 0.45;

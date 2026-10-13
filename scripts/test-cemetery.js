@@ -132,7 +132,7 @@ for (const seed of SEEDS) {
     run(3, () => (z = living().find((q) => q.riseT > 0 && Math.hypot(q.x - gr.x, q.z - gr.z) < 0.5)));
     const warned = (game.tick - stirAt) / SERVER_TICK_RATE;
     const h = z ? z.def.height : 0;
-    check(`${tag} ...and ${CEMETERY.STIR} s later a walker starts up out of it, all of it still under the grass`, !!z && z.ztype === ZTYPE.WALKER && !z.horde && Math.abs(warned - CEMETERY.STIR) < 0.25 && Math.hypot(z.x - gr.x, z.z - gr.z) < 0.01 && z.riseY - z.y > h * 0.9 && z.anim === ZANIM.RISE, z ? `after ${warned.toFixed(2)} s, feet ${(z.riseY - z.y).toFixed(2)} m down` : 'nothing came');
+    check(`${tag} ...and ${CEMETERY.STIR} s later a walker starts up out of it, all of it still under the grass`, !!z && (z.ztype === ZTYPE.WALKER || z.ztype === ZTYPE.MOTHER) && !z.horde && Math.abs(warned - CEMETERY.STIR) < 0.25 && Math.hypot(z.x - gr.x, z.z - gr.z) < 0.01 && z.riseY - z.y > h * 0.9 && z.anim === ZANIM.RISE, z ? `after ${warned.toFixed(2)} s, feet ${(z.riseY - z.y).toFixed(2)} m down` : 'nothing came');
     if (z) {
       run(0.1);
       const seen = A.store.ents.get(z.id);
@@ -332,7 +332,7 @@ for (const seed of SEEDS) {
       const inner = all.filter((r) => r.inside);
       check(`${tag} the night runs its three waves`, night < 0 && waves === 3);
       // (a share of each of three waves, each rounded to a whole zombie)
-      check(`${tag} the dead come up out of the graves, wave after wave: about ${CEMETERY.SHARE * 100}% of the horde`, Math.abs(all.length - rank * CEMETERY.SHARE) <= 1.5 && all.every((r) => r.type === ZTYPE.WALKER || r.type === ZTYPE.RUNNER) && [...risers.keys()].every((z) => z.horde), `${all.length} of ${rank}`);
+      check(`${tag} the dead come up out of the graves, wave after wave: about ${CEMETERY.SHARE * 100}% of the horde`, Math.abs(all.length - rank * CEMETERY.SHARE) <= 1.5 && all.every((r) => r.type === ZTYPE.WALKER || r.type === ZTYPE.MOTHER || r.type === ZTYPE.RUNNER) && [...risers.keys()].every((z) => z.horde), `${all.length} of ${rank}`);
       check(`${tag} ...some of them inside the ring of walls`, inner.length >= 2, `${inner.length} inside, ${all.length - inner.length} in the cemetery behind it`);
       const got = inner.filter((r) => r.near < 2.4);
       check(`${tag} ...and those reach the survivors with every wall still standing`, got.length >= Math.max(2, inner.length - 1), `${got.length} of ${inner.length} got within reach${inner.length ? `, the others to ${inner.filter((r) => r.near >= 2.4).map((r) => r.near.toFixed(1)).join(', ')} m` : ''}`);

@@ -4453,6 +4453,11 @@ export class Game {
         }
         break;
       }
+      case 'burst': {
+        // /burst: tear open the belly of every Mother within 30 m, as a shot in it does: her babies come for you
+        for (const z of [...this.zombies]) if (!z.dead && z.ztype === ZTYPE.MOTHER && Math.hypot(z.x - s.x, z.z - s.z) <= 30) this.combat.burstBelly(z, p);
+        break;
+      }
       case 'den': {
         // teleport 15 m from the nearest zombie dog pack's den (dense forest)
         let best = null;
