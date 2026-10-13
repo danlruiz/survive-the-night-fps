@@ -5,6 +5,10 @@
 //     bites and breaks off, and rams its way out of a pen of barricades
 //   - The Bloater: heaves a fan of bile at whoever is in front of it; dies in a burst that takes the dead around it
 //     and what was built beside it - unless the dawn sun burnt it out
+//   - every boss's weak window (docs/bosses.md): after its big move it reels where it stands, lands no blow, and takes
+//     stunHurt x damage - The Brute after a swing at nobody, The Alpha after a ram, a Tank after a charge that missed
+//     (and not after one that got someone), The Bloater after its bile, The Abomination after a slam, The Hive Queen
+//     as its bats tear out
 //   - by day the further from the car, the more of the specials, and the nastier: none near the car, leapers and
 //     ropers only well out (server/spawns.js daySpecial); and never a boss, a Tank, a bat or a shade
 // usage: node scripts/test-bosses.js [seed = 1]
@@ -86,6 +90,34 @@ const build = (type, x, z, rot8 = 0) => {
 const unbuild = () => {
   for (const e of [...game.structures]) game.destroyStructure(e, false);
 };
+// what a hit of n does to z just now (its health is put back)
+const hurtBy = (z, n) => {
+  const hp = z.hp;
+  game.combat.damageZombie(z, n, p, {});
+  const d = hp - z.hp;
+  z.hp = hp;
+  return d;
+};
+// z's weak window, once provoke() has set it off: it starts within ticks, lasts about want s, z stays put through it
+// and takes stunHurt x damage
+const weakWindow = (name, z, want, provoke, ticks = 60) => {
+  const calm = hurtBy(z, 10);
+  let i = 0;
+  provoke();
+  while (z.dazedT <= 0 && i++ < ticks) run(1);
+  const open = z.dazedT > 0 ? hurtBy(z, 10) : 0;
+  const x0 = z.x;
+  const z0 = z.z;
+  let n = 0;
+  while (z.dazedT > 0 && n < 10 * SERVER_TICK_RATE) {
+    run(1);
+    n++;
+  }
+  const moved = Math.hypot(z.x - x0, z.z - z0);
+  const len = n / SERVER_TICK_RATE;
+  check(`${name}: its weak window opens, it stays put, and takes ×${z.def.stunHurt}`, open > 0 && Math.abs(open - calm * z.def.stunHurt) < 1e-6 && Math.abs(len - want) < 0.2 && moved < 1, `${calm} then ${open} damage for a hit of 10, ${len.toFixed(2)} s (want ${want}), moved ${moved.toFixed(2)} m`);
+  return open > 0;
+};
 game.startNight();
 game.bossPending = null;
 for (const wv of game.waves) wv.queue.length = 0;
@@ -116,6 +148,17 @@ clear();
   game.combat.damageZombie(z, z.hp + 1, p, {});
   const loot = game.items.slice(before).filter((e) => e.item !== ITEM.SEALED_PACK).length; // (a sealed pack of cards is on top, now and then: Cards.bossDrop)
   check('...and drops its bossLoot, not a full boss\'s', z.dead && loot === def.bossLoot, `${loot} items`);
+  clear();
+  // stands up to it: it swings; steps back out of the swing: it stumbles
+  place();
+  const b = boss(ZTYPE.BOSS_BRUTE, 2);
+  let swung = false;
+  run(40, () => (swung = swung || b.pendingHit > 0));
+  check('...swings at a survivor in reach, and lands it', swung && b.dazedT <= 0);
+  weakWindow('The Brute, after a swing at nobody', b, def.whiffReel, () => {
+    while (b.pendingHit <= 0) run(1);
+    s.x = spot.x - 6;
+  });
   clear();
 }
 
@@ -179,13 +222,17 @@ clear();
   let wasRam = false;
   let out = -1;
   const t0 = game.time;
+  const calm = hurtBy(a, 10);
+  let open = 0;
   run(40 * SERVER_TICK_RATE, () => {
+    if (!open && a.dazedT > 0) open = hurtBy(a, 10);
     if (out >= 0) return;
     if (a.state === 9 && !wasRam) rams++;
     wasRam = a.state === 9;
     if (pen.some((e) => e.removed)) out = game.time - t0;
   });
   check('...and shut in a pen of wood barricades rams its way out', out >= 0 && rams >= 1 && rams <= 3, out >= 0 ? `out after ${out.toFixed(1)} s and ${rams} rams` : `still in after ${rams} rams`);
+  check(`The Alpha, after a ram: its weak window opens, and it takes ×${def.stunHurt}`, Math.abs(open - calm * def.stunHurt) < 1e-6, `${calm} then ${open} damage for a hit of 10`);
   unbuild();
   clear();
 }
@@ -220,6 +267,89 @@ clear();
   game.combat.damageZombie(z2, z2.hp + 1, null, {});
   run(2);
   check('...but one the dawn sun burns out only falls', z2.dead && near.every((o) => !o.dead), `${near.filter((o) => o.dead).length} walkers killed`);
+  clear();
+  place();
+  const zb = boss(ZTYPE.BOSS_BLOATER, 10);
+  zb.specialCd = 99;
+  run(10);
+  weakWindow('The Bloater, once it has heaved', zb, def.spewReel, () => (zb.specialCd = 0));
+  clear();
+}
+
+// ---------------------------------------------------------------- A Tank: a charge that missed leaves it reeling
+{
+  const def = ZOMBIE_DEFS[ZTYPE.TANK];
+  place();
+  const z = boss(ZTYPE.TANK, 16);
+  z.specialCd = 99;
+  run(10);
+  weakWindow('A Tank, after a charge that got nobody', z, def.chargeReel, () => {
+    z.specialCd = 0;
+    while (z.state !== 6) run(1);
+    s.z = spot.z + 10; // (the survivor sidesteps)
+  });
+  clear();
+  // one that gets its survivor carries on at them
+  place();
+  const t = boss(ZTYPE.TANK, 16);
+  t.specialCd = 99;
+  run(10);
+  t.specialCd = 0;
+  let charged = false;
+  let i = 0;
+  while (t.state !== 6 && i++ < 60) run(1);
+  charged = t.state === 6;
+  i = 0;
+  while (t.state === 6 && i++ < 60) {
+    place();
+    run(1);
+  }
+  check('...but not after one that got someone', charged && t.chargeHit && t.dazedT <= 0, `charged: ${charged}, hit: ${t.chargeHit}`);
+  clear();
+}
+
+// ---------------------------------------------------------------- The Abomination: stuck after a slam
+{
+  const def = ZOMBIE_DEFS[ZTYPE.BOSS_ABOMINATION];
+  place();
+  const z = boss(ZTYPE.BOSS_ABOMINATION, 5);
+  z.specialCd = 99;
+  z.rockCd = 99;
+  run(10);
+  const damagePlayer = game.damagePlayer;
+  let slams = 0;
+  let blows = 0;
+  game.damagePlayer = (pl, amount, src) => {
+    if (src?.ztype !== ZTYPE.BOSS_ABOMINATION) return;
+    if (z.dazedT > 0) blows++; // (a blow while it reels)
+    else slams++;
+  };
+  weakWindow('The Abomination, after a slam', z, def.slamReel, () => {
+    z.specialCd = 0;
+    place();
+  });
+  game.damagePlayer = damagePlayer;
+  check('...and no blow follows the slam while it is stuck', slams >= 1 && blows === 0, `${slams} slam hits, ${blows} blows in the window`);
+  clear();
+}
+
+// ---------------------------------------------------------------- The Hive Queen: open as its bats tear out
+{
+  const def = ZOMBIE_DEFS[ZTYPE.BOSS_HIVEQUEEN];
+  place();
+  const z = boss(ZTYPE.BOSS_HIVEQUEEN, 20);
+  z.specialCd = 99;
+  z.summonCd = 99;
+  run(10);
+  const bats = () => game.zombies.filter((o) => !o.dead && o.ztype === ZTYPE.BAT).length;
+  let shrieked = false;
+  weakWindow('The Hive Queen, as its bats tear out', z, def.broodReel, () => {
+    z.summonCd = 0;
+    z.specialCd = 99;
+    run(1);
+    shrieked = z.state === 1 && z.stateAct === 15;
+  });
+  check('...after a shriek, with its brood of bats', shrieked && bats() === def.brood, `shrieked: ${shrieked}, ${bats()} bats`);
   clear();
 }
 

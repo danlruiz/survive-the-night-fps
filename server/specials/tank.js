@@ -76,6 +76,8 @@ export const states = {
       z.state = 0;
       z.vx = z.vz = 0;
       z.specialCd = 8 + g.rng() * 4;
+      // a charge that got nobody leaves it reeling (its weak window): sidestep it, then shoot
+      if (!z.chargeHit) this.reel(z, def.chargeReel);
     }
     return true;
   },
