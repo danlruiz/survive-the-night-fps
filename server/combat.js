@@ -342,13 +342,17 @@ export class Combat {
     z.burst = true;
     g.impact(IMPACT.BLOOD, z.x, z.y + z.def.height * 0.55, z.z, -dirX, 0.3, -dirZ);
     const babies = [];
-    const fx = -Math.sin(z.yaw), fz = -Math.cos(z.yaw);
-    for (let i = 0; i < z.def.brood; i++) {
-      const side = i ? 1 : -1;
-      // out of the front of her and a step to either side, born facing the way she does
-      const b = g.zm.spawn(ZTYPE.BABY, z.x + fx * 0.6 - fz * side * 0.35, z.z + fz * 0.6 + fx * side * 0.35, { horde: z.horde, y: z.under ? z.y : undefined, den: z.den, hpMul: z.horde ? g.hordeHpMul || 1 : 1 });
+    const def = z.def;
+    for (let i = 0; i < def.brood; i++) {
+      // out of the front of her, each flung off to its own side (broodSpread rad off the way she faces) and tumbling on
+      // out that way (broodKick m/s, gone in a few ticks) before it turns on whoever shot her: they come at you apart
+      const a = z.yaw + (def.brood > 1 ? (i / (def.brood - 1) - 0.5) * 2 * def.broodSpread : 0);
+      const fx = -Math.sin(a), fz = -Math.cos(a);
+      const b = g.zm.spawn(ZTYPE.BABY, z.x + fx * 0.8, z.z + fz * 0.8, { horde: z.horde, y: z.under ? z.y : undefined, den: z.den, hpMul: z.horde ? g.hordeHpMul || 1 : 1 });
       if (!b) continue;
-      b.yaw = z.yaw;
+      b.yaw = a;
+      b.kx = fx * def.broodKick;
+      b.kz = fz * def.broodKick;
       b.under = z.under;
       if (by && by.kind === ENT.PLAYER) {
         b.target = by.id;

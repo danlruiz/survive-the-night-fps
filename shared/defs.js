@@ -627,7 +627,7 @@ export const ZOMBIE_DEFS = {
   // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) -
   // it bursts open (ZSTATUS.BURST) and twins, her brood of babies, crawl out of it after whoever shot her, crying as they
   // come (Combat.burstBelly). Her head, her legs or her back and nothing comes out
-  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, minNight: 1, legs: true, rolled: true },
+  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, broodSpread: 0.9, broodKick: 5, minNight: 1, legs: true, rolled: true },
   // a Mother's baby (crawl: on its front and its hands from birth, low and quick, crying as it comes). It never joins the
   // horde on its own (born: it only comes out of her belly, Game.startNight passes it over); its minNight is hers, for the bestiary
   [ZTYPE.BABY]: { name: 'Zombie Baby', hp: 28, speed: 2.6, dmg: 4, rate: 0.8, range: 1.1, radius: 0.22, height: 0.3, headY: 0.21, headR: 0.08, headFwd: 0.22, bodyTop: 0.2, structDmg: 2, loot: 0.05, crawl: true, born: true, common: true, minNight: 1 },
