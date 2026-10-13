@@ -620,7 +620,9 @@ async function dropsAfterHandoff() {
   const owner = `g:${createHash('sha256').update(pid).digest('hex')}`;
   const before = join(gameA, 'Mover', pid);
   await settle();
-  const buf = encode(envelope(gameA));
+  const env = envelope(gameA);
+  for (const sp of env.game.players) sp.loadoutEntered = true; // (as a save from a build before the fix has it)
+  const buf = encode(env);
   gameA.loadouts.link.gone(true);
   const link = new LocalLoadouts(service);
   const gameB = new Game({ cards: null, loadouts: link, dayLength: 999, nightLength: 999, log: () => {}, restore: decode(buf) });

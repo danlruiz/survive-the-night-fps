@@ -175,6 +175,7 @@ export function loadGame(g, s) {
     if (!p) continue;
     const { state, splitKeep, ...rest } = sp;
     over(p, rest);
+    p.loadoutEntered = false; // (a save from a build before PLAYER_SKIP had it says true)
     p.state = over(createPlayerState(), state);
     copyPlayerState(p.shadow, p.state);
     p.splitKeep = new Map(splitKeep);
