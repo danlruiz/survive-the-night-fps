@@ -18,7 +18,6 @@ import {
   DUSK_WARNING,
   NIGHT_WAVES,
   WAVE_TIMES,
-  WAVE_SPREAD,
   TANK_BOSS_HP,
   BOSS_WAVE,
   BOSS_HP_PER_PLAYER,
@@ -126,7 +125,7 @@ import {
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
-import { WORLD, nightRank, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
+import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
 import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
 import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from './trees.js';
 import { blowOf, BLOW } from '../shared/surfaces.js';
@@ -138,7 +137,7 @@ import { makeBox, COL, footprintContains, groundAt, resolveBody, overlapBoxes, c
 import { mulberry32, hash2 } from '../shared/rng.js';
 import { supplyHelpLevel, SUPPLY_HELP, SUPPLY_HELP_AT } from '../shared/supplyhelp.js';
 import { swimming, inRiver, DROWN_DPS, RIVER_DPS } from '../shared/swim.js';
-import { nightTheme, nightBoss, joinNight, hasJoined, kindsJoining } from '../shared/nights.js';
+import { nightBoss, hasJoined } from '../shared/nights.js';
 import * as Director from './director.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
@@ -146,6 +145,7 @@ import { ClientView, writeEntities, stageEntities } from './snapshot.js';
 import { createInventory, invCap, addItem, removeItem, takeFrom, tidyStacks, countItem, countsMap, payCost, canFit, freeSlot, sortInventory } from './inventory.js';
 import { planCost } from '../shared/autocraft.js';
 import { Zombies } from './zombies.js';
+import { nightWaves } from './spawns.js';
 import { Cats } from './cats.js';
 import { Deer } from './deer.js';
 import { Combat } from './combat.js';
@@ -1934,75 +1934,9 @@ export class Game {
     const humans = Math.max(1, this.humanCount());
     // a blood moon brings more of them (and the director gives no breathers: Director.paceLimits)
     const total = Math.round(this.hordeSize(n, humans) * (this.moon === MOON.BLOOD ? BLOOD_MOON_HORDE : 1));
-    const shares = [0.3, 0.33, 0.37];
     const scale = this.nightLen / NIGHT_LENGTH;
-    // tonight's theme re-weights the blend below (the client works out the same theme from the seed to warn the team)
-    const theme = this.themes ? nightTheme(this.seed, n, this.act) : null;
-    const rank = nightRank(this.act, n); // (which kinds have joined the horde: on the mainland, those of night 4 at the least)
-    const shadeNight = joinNight(this.seed, ZTYPE.SHADE);
-    const shadeCap = Math.min(6, (1 + Math.floor((rank - shadeNight) / 2) + Math.floor(humans / 2)) * (theme?.shadeCap ?? 1));
-    let shades = 0;
-    this.waves = [];
-    for (let k = 0; k < NIGHT_WAVES; k++) {
-      const count = Math.max(3, Math.round(total * shares[k]));
-      const sp = k / (NIGHT_WAVES - 1); // later waves bring more specials
-      const weights = [
-        [ZTYPE.WALKER, 50 - sp * 12],
-        [ZTYPE.RUNNER, 16 + n * 2 + sp * 6],
-        [ZTYPE.SPITTER, 6 + sp * 4],
-        [ZTYPE.BOOMER, 6 + sp * 3],
-        [ZTYPE.DOG, 3 + sp * 2], // each pick is a pack of 2-3
-        [ZTYPE.LEAPER, 6 + sp * 4],
-        [ZTYPE.BAT, 7],
-        [ZTYPE.ROPER, 5 + sp * 3],
-        [ZTYPE.TANK, (1 + n * 0.3) * (0.5 + sp)],
-        [ZTYPE.SHADE, 2.5 + sp * 2.5],
-        [ZTYPE.SMOKER, 3 + sp * 3],
-        [ZTYPE.SCREECHER, 1.5 + sp * 2], // (each one's scream brings a crowd of its own: SCREECH_* in zombies.js)
-        [ZTYPE.CRAWLER, 5 + sp * 4],
-        [ZTYPE.FLAMMER, 3 + sp * 3],
-      ];
-      // one new kind a night: each stays out of the horde until its night comes
-      for (const wt of weights) if (!hasJoined(this.seed, wt[0], n, this.act)) wt[1] = 0;
-      if (theme) for (const wt of weights) wt[1] *= theme.mul[wt[0]] ?? 1;
-      // Ember thins the kinds that punish movement. Blackout brings more of them. Walkers and tanks stay: one is
-      // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
-      if (this.diff.specials !== 1) {
-        for (const wt of weights) {
-          if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER || wt[0] === ZTYPE.CRAWLER || wt[0] === ZTYPE.FLAMMER) wt[1] *= this.diff.specials;
-        }
-      }
-      const tot = weights.reduce((a, b) => a + b[1], 0);
-      const q = [];
-      for (let i = 0; i < count; i++) {
-        let r = this.rng() * tot;
-        for (const [t, wgt] of weights) {
-          r -= wgt;
-          if (r <= 0) {
-            // only so many shades a night: each one ties up a light (or a survivor holding a beam on it)
-            if (t === ZTYPE.SHADE && shades++ >= shadeCap) {
-              q.push(ZTYPE.RUNNER);
-              break;
-            }
-            const k = t === ZTYPE.DOG ? 2 + (this.rng() < 0.5 ? 1 : 0) : 1;
-            for (let j = 0; j < k; j++) q.push(t);
-            i += k - 1;
-            break;
-          }
-        }
-      }
-      this.waves.push({ start: WAVE_TIMES[k] * scale, queue: q, started: false, spawnT: 0, interval: (WAVE_SPREAD * scale) / Math.max(1, Math.ceil(count / 3.5)) });
-    }
-    // the night's new kind is in it for certain (the dawn card and the dusk horn said it would be), and from their
-    // night on there is always at least one shade out there. Both come with the second wave, in a walker's place
-    const fresh = [];
-    for (const t of kindsJoining(this.seed, n, this.act)) if (!this.waves.some((wv) => wv.queue.includes(t))) fresh.push(t);
-    if (rank >= shadeNight && !shades && !fresh.includes(ZTYPE.SHADE)) fresh.push(ZTYPE.SHADE);
-    for (const t of fresh) {
-      const q = this.waves[1].queue;
-      const at = q.indexOf(ZTYPE.WALKER);
-      q[at >= 0 ? at : Math.floor(this.rng() * q.length)] = t;
-    }
+    // what the waves are made of: tonight's theme, the kinds that have joined, the new one (server/spawns.js)
+    this.waves = nightWaves(this, n, humans, total);
     this.shadeWarned = false;
     this.wave = 0;
     this.hordeHpMul = 1 + 0.1 * (n - 1) + 0.12 * (humans - 1);

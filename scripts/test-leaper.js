@@ -1,4 +1,4 @@
-// The leaper's pounce (server/zombies.js: LEAP_*, fireSpecial case 2, special states 2 and 3), against the real server
+// The leaper's pounce (server/specials/leaper.js: LEAP_*, act 2, special state 3; the flight, state 2, in server/zombies.js special), against the real server
 // in-process with a survivor driven by real input. Leapers are put down 6-14 m from the survivor on open ground of a
 // few valleys, already wound up to go, and each is watched until it pins them or 10 s are up:
 //   - a survivor who stands still, on flat ground and on rough ground, is pinned by every one of them
@@ -22,7 +22,7 @@ const seeds = process.argv.slice(2).map(Number).filter((n) => n > 0);
 if (!seeds.length) seeds.push(1, 2, 3);
 const TRIALS = 12;
 const DT = 1 / SERVER_TICK_RATE;
-const GRAV = 16; // (server/zombies.js)
+const GRAV = 16; // (server/specials/util.js)
 const fails = [];
 const check = (name, ok, info = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${info}`);

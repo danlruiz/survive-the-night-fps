@@ -91,7 +91,7 @@ export function createPlayerState() {
     shove: 0, // pinned by a leaper: how far they have shoved it off (SHOVE_*), 0-1
     burning: 0, // set alight by a flammer (PLAYER_FIRE): no jumping, [Space] beats the flames out (set by the server)
     stunT: 0,
-    ears: 0, // s left with both hands clapped over the ears (a screecher's scream, close: EARS_* in server/zombies.js)
+    ears: 0, // s left with both hands clapped over the ears (a screecher's scream, close: EARS_* in server/specials/screecher.js)
     downed: 0, // incapacitated: crawl, pistol only, waiting for a teammate to revive
     using: 0, // an item in the hands being used (a medkit, a tin: Game.useItem): set by the server, put away here
     lastBtn: 0,

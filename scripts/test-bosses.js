@@ -6,7 +6,7 @@
 //   - The Bloater: heaves a fan of bile at whoever is in front of it; dies in a burst that takes the dead around it
 //     and what was built beside it - unless the dawn sun burnt it out
 //   - by day the further from the car, the more of the specials, and the nastier: none near the car, leapers and
-//     ropers only well out (ZombieManager.daySpecial); and never a boss, a Tank, a bat or a shade
+//     ropers only well out (server/spawns.js daySpecial); and never a boss, a Tank, a bat or a shade
 // usage: node scripts/test-bosses.js [seed = 1]
 import { Game } from '../server/game.js';
 import { SPECIALS } from '../shared/nights.js';
