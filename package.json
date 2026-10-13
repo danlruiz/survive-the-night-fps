@@ -21,6 +21,8 @@
     "report": "node scripts/analytics-report.js",
     "check": "node scripts/check.js",
     "test": "node scripts/run-tests.js",
+    "test:nightly": "node scripts/run-tests.js --nightly",
+    "test:all": "node scripts/run-tests.js --all",
     "test:bots": "node scripts/bot.js 4 20",
     "bench:net": "node scripts/net-bench.js",
     "test:e2e": "node scripts/e2e-gameplay.js",
