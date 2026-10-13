@@ -53,6 +53,7 @@ export const ITEM = {
   FLARE_GUN: 56, // a sidearm (the pistol's slot): one parachute flare at a time, up into the sky (shared/skyflare.js)
   NUNCHAKU: 57, // melee with a moveset of its own: combos, a wound-up heavy, a simulated chain (shared/nunchaku.js)
   REVOLVER: 58, // a sidearm (the pistol's slot): six heavy 9mm rounds, a slow reload
+  DEAGLE: 59, // a sidearm (the pistol's slot) that hits like a rifle, on the hunting rifle's .308
   SHOTGUN: 60,
   AK47: 61,
   HUNTING_RIFLE: 62,
@@ -174,6 +175,7 @@ export const ITEM_DEFS = {
   [ITEM.FLAMETHROWER]: { name: 'Flamethrower', cat: 'weapon', stack: 1, color: 0xb5651d, desc: 'A short cone of fire. Whatever it touches keeps burning.' },
   [ITEM.AT_RIFLE]: { name: 'Anti-Tank Rifle', cat: 'weapon', stack: 1, color: 0x4f5232, desc: 'Single-shot 14.5mm. Goes through a whole line of them, and hits bosses and Tanks three times as hard. A very slow reload.' },
   [ITEM.RPG]: { name: 'RPG', cat: 'weapon', stack: 1, color: 0x4b5320, desc: 'Fires one rocket grenade at a time. It bursts on impact and tears apart everything around it. Slow to reload, and very loud.' },
+  [ITEM.DEAGLE]: { name: 'Desert Eagle', cat: 'weapon', stack: 1, color: 0x9a9ca0, desc: 'A steel hand cannon. Seven rounds of .308 that hit like a rifle and kick like one. Takes the pistol\'s place.' },
   [ITEM.FLARE_GUN]: { name: 'Flare Gun', cat: 'weapon', stack: 1, color: 0xe0601c, desc: 'Fires a parachute flare high into the sky. It lights the ground for a minute as it drifts back down, and Shades cannot move under it. Takes the pistol\'s place.' },
 
   [ITEM.AMMO_9MM]: { name: '9mm Ammo', cat: 'ammo', stack: AMMO_MAX[0], color: 0xc9a227, ammo: 0, desc: 'Pistol rounds.' },
@@ -299,6 +301,9 @@ export const WEAPONS = {
   // to reload (a speedloader), so a cylinder does about what a pistol magazine does (330 vs 360) in a longer time;
   // it is the sidearm for picking off heads (110 x 3 kills a walker outright), not for holding off a crowd
   [ITEM.REVOLVER]: { slot: 1, damage: 55, rate: 0.4, mag: 6, reload: 2.4, ammo: 0, pellets: 1, spread: 0.008, moveSpread: 0.024, recoil: 0.04, range: 140, headMul: 3.0, auto: false, noise: 60, sound: 'pistol' },
+  // the Desert Eagle: the pistol's slot, the hunting rifle's rounds. Over twice the pistol's hit for half its rate and
+  // magazine, a wide first shot and a hard climb: one at a time, aimed, for the heads that matter. Loud as a rifle
+  [ITEM.DEAGLE]: { slot: 1, damage: 72, rate: 0.3, mag: 7, reload: 1.8, ammo: 3, pellets: 1, spread: 0.014, moveSpread: 0.03, recoil: 0.05, range: 140, headMul: 2.8, auto: false, noise: 70, sound: 'deagle' },
   [ITEM.SHOTGUN]: { slot: 0, damage: 17, rate: 0.85, mag: 6, reload: 0.55, reloadEach: true, ammo: 1, pellets: 9, spread: 0.075, moveSpread: 0.02, recoil: 0.07, range: 45, headMul: 2.0, auto: false, noise: 80, sound: 'shotgun' },
   // the AK-47: the hardest hitting automatic and the least accurate - a wider cone than the M4A1 in every stance and
   // half again its climb, tight for a first aimed round or a short burst (scripts/test-spread.js holds its groups)
@@ -502,8 +507,10 @@ export const RECIPES = [
   // into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
   { id: 41, out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
   { id: 42, out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
+  // the Desert Eagle: more gun parts than a pistol is made of and a lot more steel; no schematic
+  { id: 43, out: ITEM.DEAGLE, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 1 }, station: 'bench' },
   // two gun parts for the lockwork, scrap for the frame and cylinder, wood for the grips
-  { id: 43, out: ITEM.REVOLVER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 1 }, station: 'bench' },
+  { id: 44, out: ITEM.REVOLVER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 1 }, station: 'bench' },
 ];
 
 // The order the backpack grid is sorted in after a pickup or a drop, by category: weapons, what is worn or carried for
@@ -536,6 +543,7 @@ export const SALVAGE = {
   [ITEM.NUNCHAKU]: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 },
   [ITEM.PISTOL]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
   [ITEM.REVOLVER]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
+  [ITEM.DEAGLE]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2 },
   [ITEM.SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1, [ITEM.WOOD]: 1 },
   [ITEM.AK47]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 1 },
   [ITEM.HUNTING_RIFLE]: { [ITEM.GUNPARTS]: 1, [ITEM.WOOD]: 1 },
@@ -816,6 +824,7 @@ export const SOUND = {
   DEER_SCREAM: 124, // an undead deer (the mainland's): a rotten-throated bellow as it lowers its antlers, is hit, or dies
   CAT_PURR: 125, // the stray cat purring while it is stroked (client-side, from its CANIM.PET)
   SMOKER_HISS: 143, // a smoker breathing out its cloud
+  DEAGLE: 144, // the Desert Eagle's shot
   // vehicles (shared/vehicles.js)
   VEH_START: 130, // an engine turned over and caught (somebody at the wheel of one that runs)
   VEH_STOP: 131, // ...and switched off, or run dry
