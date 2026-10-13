@@ -19,7 +19,8 @@
 //   { t: 'ready', seed }           the game is built and ticking        { t: 'out', buf }      messages for sockets
 //   { t: 'closed', slot }          done with that slot's socket: nothing more will go out for it
 //   { t: 'kick', slot }            close that socket: it took a seat and never joined (JOIN_WAIT)
-//   { t: 'kick', slot, code, why } ...or an admin removed its player (gameadmin.js): closed with that code and reason
+//   { t: 'kick', slot, code, why } ...or an admin removed its player (gameadmin.js), or the player joined again on
+//                                  another socket (Game.takeOver): closed with that code and reason
 //   { t: 'status', ... }           once a second, and when the number of players changes
 //   { t: 'rec', op, ... }          the leaderboard and XP (RemoteRecords) { t: 'board', ... }  a player asked for it
 //   { t: 'an', rec }               a record of the match being played (analytics.js), for the database (matchstore.js)
@@ -195,6 +196,15 @@ function makeConn(slot, ip, user) {
     },
     cork(fn) {
       fn(); // (the network thread corks each socket's share of a batch)
+    },
+    // the same player joined again on another socket (Game.takeOver): this one is let go, closed with the reason. What
+    // it still sends is for nobody; its slot is given back when its close comes (case 'close')
+    replace(why) {
+      if (this.closed) return;
+      this.closed = true;
+      if (conns[slot] === this) sessions[slot] = conns[slot] = null;
+      openedAt[slot] = 0;
+      post({ t: 'kick', slot, code: ENDED_CODE, why });
     },
   };
 }
