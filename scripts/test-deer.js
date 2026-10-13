@@ -7,7 +7,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, ENT, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { MAP_HALF, PHASE, SPRINT_SPEED, SERVER_DT } from '../shared/constants.js';
-import { ITEM, ZTYPE, ZONE, STRUCT, SOUND, NOTIFY, RECIPES, CONSUMABLES, WEAPONS, EVT } from '../shared/defs.js';
+import { ITEM, ZTYPE, ZONE, STRUCT, SOUND, NOTIFY, RECIPES, RECIPE_BY_ID, CONSUMABLES, WEAPONS, EVT } from '../shared/defs.js';
 import { groundAt, deepWaterAt } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { DEER, DANIM, DEER_LOOT, DEER_HEAD, deerHitbox } from '../shared/deer.js';
@@ -524,7 +524,7 @@ function run(seed) {
   {
     far();
     const rec = RECIPES.find((r) => r.out === ITEM.VENISON);
-    check('cooked venison is recipe 30: one raw cut, at a campfire', !!rec && RECIPES[30] === rec && rec.station === 'fire' && rec.cost[ITEM.VENISON_RAW] === 1 && rec.n === 1);
+    check('cooked venison: one raw cut, at a campfire', !!rec && RECIPE_BY_ID.get(ITEM.VENISON) === rec && rec.station === 'fire' && rec.cost[ITEM.VENISON_RAW] === 1 && rec.n === 1);
     a.inv.fill(null);
     game.giveItem(a, ITEM.VENISON_RAW, 3);
     A.notes.length = 0;

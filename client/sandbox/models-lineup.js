@@ -108,7 +108,26 @@ function addZombie(type, seed, x, z, y = 0) {
   return zb;
 }
 
-const survWeapons = [ITEM.AK47, ITEM.SHOTGUN, ITEM.HUNTING_RIFLE, ITEM.PISTOL, ITEM.BAT, ITEM.MACHETE, ITEM.KNIFE, ITEM.SPIKED_BAT, ITEM.HAMMER, ITEM.NUNCHAKU, ITEM.MOLOTOV, 0, ITEM.PIPEBOMB, ITEM.FLARE, ITEM.GRENADE, ITEM.DECOY, ITEM.FLARE_GUN, ITEM.DEAGLE];
+const survWeapons = [
+  ITEM.AK47,
+  ITEM.SHOTGUN,
+  ITEM.HUNTING_RIFLE,
+  ITEM.PISTOL,
+  ITEM.BAT,
+  ITEM.MACHETE,
+  ITEM.KNIFE,
+  ITEM.SPIKED_BAT,
+  ITEM.HAMMER,
+  ITEM.NUNCHAKU,
+  ITEM.MOLOTOV,
+  0,
+  ITEM.PIPEBOMB,
+  ITEM.FLARE,
+  ITEM.GRENADE,
+  ITEM.DECOY,
+  ITEM.FLARE_GUN,
+  ITEM.DEAGLE,
+];
 function addSurvivor(seed, item, x, z, zombie) {
   const s = createSurvivor(seed);
   s.setWeapon(item);
@@ -284,7 +303,20 @@ if (q.has('deer')) {
   addZombie(ZTYPE.SHADE, 12, 9.2, -1.5);
   addZombie(ZTYPE.CRAWLER, 16, 8.4, 2.6);
   // front row: a survivor holding each weapon
-  const wl = [ITEM.KNIFE, ITEM.BAT, ITEM.SPIKED_BAT, ITEM.MACHETE, ITEM.HAMMER, ITEM.NUNCHAKU, ITEM.PISTOL, ITEM.SHOTGUN, ITEM.AK47, ITEM.HUNTING_RIFLE, ITEM.MOLOTOV, ITEM.PIPEBOMB];
+  const wl = [
+    ITEM.KNIFE,
+    ITEM.BAT,
+    ITEM.SPIKED_BAT,
+    ITEM.MACHETE,
+    ITEM.HAMMER,
+    ITEM.NUNCHAKU,
+    ITEM.PISTOL,
+    ITEM.SHOTGUN,
+    ITEM.AK47,
+    ITEM.HUNTING_RIFLE,
+    ITEM.MOLOTOV,
+    ITEM.PIPEBOMB,
+  ];
   wl.forEach((it, i) => addSurvivor(i + 1, it, (i - (wl.length - 1) / 2) * 1.05, -4.2, false));
   target.set(0, 1.4, -0.5);
   dist = 16;

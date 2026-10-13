@@ -1,4 +1,4 @@
-// The leaper hunts whoever has strayed (server/zombies.js: LONE_NEAR, LONE_WEIGHT, chooseTarget, alone), #299. The
+// The leaper hunts whoever has strayed (server/specials/leaper.js: LONE_NEAR, LONE_WEIGHT, alone; server/zombies.js chooseTarget), #299. The
 // target choice is run on its own with survivors put where each case needs them:
 //   - two survivors together and one alone: leapers all round them go for the lone one most of the time, and far more
 //     often than walkers in the same spots do (they take whoever is nearest)

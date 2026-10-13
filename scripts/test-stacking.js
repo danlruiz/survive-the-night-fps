@@ -16,7 +16,7 @@ import { Game } from '../server/game.js';
 import { invCap } from '../server/inventory.js';
 import { C2S, S2C, ACT, LEFT_CODE, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { INVENTORY_SIZE, INVENTORY_MAX } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, RECIPES, CONT, CONT_DEFS, SALVAGE } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, RECIPE_BY_ID, CONT, CONT_DEFS, SALVAGE } from '../shared/defs.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { craftRun, copyInv } from '../client/game/bulkcraft.js';
 
@@ -310,15 +310,15 @@ const s = a.state;
   A.act(ACT.SPLIT_INV, 1, 2);
   A.act(ACT.SPLIT_INV, 2, 5);
   run(2);
-  A.act(ACT.CRAFT, 1); // a bandage, for 2 cloth
+  A.act(ACT.CRAFT, ITEM.BANDAGE); // a bandage, for 2 cloth
   run(2);
   check('a craft merges the part stacks of what it makes and of what it pays with', of(a, ITEM.BANDAGE).join('/') === '5/5' && broken(a.inv).length === 0 && cnt(a, ITEM.CLOTH) === 38, `${show(a, ITEM.BANDAGE)}; ${show(a, ITEM.CLOTH)}`);
   // a bulk craft (Ctrl+click): the client's model of it ends where the server does, merging included
   pack(a, [ITEM.CLOTH, 3], [ITEM.BANDAGE, 2], [ITEM.CLOTH, 3], [ITEM.BANDAGE, 1], ...Array.from({ length: 20 }, () => [ITEM.LEATHER, 10]));
   run(2);
   const model = copyInv({ slots: a.inv, ammo: s.ammo, weapons: s.weapons, cap: invCap(a) });
-  const n = craftRun(RECIPES[1], model, 20);
-  for (let k = 0; k < n; k++) A.act(ACT.CRAFT, 1);
+  const n = craftRun(RECIPE_BY_ID.get(ITEM.BANDAGE), model, 20);
+  for (let k = 0; k < n; k++) A.act(ACT.CRAFT, ITEM.BANDAGE);
   run(2);
   const at = (x) => (x ? x.item * 65536 + x.count : 0);
   check('a bulk craft: the client\'s model (bulkcraft.js) is what the server ends with', n === 3 && a.inv.every((x, i) => at(x) === at(model.slots[i])) && broken(a.inv).length === 0, `${n} crafts; ${show(a, ITEM.BANDAGE)}`);
@@ -440,8 +440,8 @@ const s = a.state;
       a.state.stamina = 0;
       use(A, i);
     } else if (op === 7) {
-      const id = pick([0, 1]); // a torch, a bandage
-      what = `craft ${ITEM_DEFS[RECIPES[id].out].name}`;
+      const id = pick([ITEM.TORCH, ITEM.BANDAGE]);
+      what = `craft ${ITEM_DEFS[id].name}`;
       A.act(ACT.CRAFT, id);
       run(1);
     } else if (op === 8) {

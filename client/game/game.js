@@ -33,7 +33,7 @@ import {
   ITEM,
   ITEM_DEFS,
   WEAPONS,
-  RECIPES,
+  RECIPE_BY_ID,
   STRUCT,
   STRUCT_DEFS,
   STRUCT_ORDER,
@@ -62,6 +62,7 @@ import {
 } from '../../shared/defs.js';
 import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
 import { trackedRecipe, trackedNeed } from './tracked.js';
+import { WEAPON_LIST } from '../../shared/weapons/index.js';
 import { mayHold } from './itemguide.js';
 import { worldFor } from '../../shared/worlds.js';
 import { WORLD, CROSSING, TAKEOFF_TIME, PLANE_REACH, RUNWAY } from '../../shared/acts.js';
@@ -186,34 +187,10 @@ const WEATHER_TOAST = {
   storm: 'A storm is breaking',
 };
 
-const SHOT_SOUND = {
-  [ITEM.PISTOL]: SOUND.PISTOL,
-  [ITEM.REVOLVER]: SOUND.PISTOL,
-  [ITEM.DEAGLE]: SOUND.DEAGLE,
-  [ITEM.SHOTGUN]: SOUND.SHOTGUN,
-  [ITEM.AK47]: SOUND.AK47,
-  [ITEM.HUNTING_RIFLE]: SOUND.RIFLE,
-  [ITEM.M4A1]: SOUND.M4A1,
-  [ITEM.MP5]: SOUND.MP5,
-  [ITEM.DB_SHOTGUN]: SOUND.DB_SHOTGUN,
-  [ITEM.CROSSBOW]: SOUND.CROSSBOW,
-  [ITEM.RPG]: SOUND.RPG,
-  [ITEM.AT_RIFLE]: SOUND.AT_RIFLE,
-  [ITEM.FLARE_GUN]: SOUND.FLARE_GUN,
-};
-// first-person muzzle flash scale + camera shake per shot (default [1, 0.06])
-const SHOT_KICK = {
-  [ITEM.SHOTGUN]: [1.4, 0.25],
-  [ITEM.DB_SHOTGUN]: [1.6, 0.3],
-  [ITEM.HUNTING_RIFLE]: [1.3, 0.3],
-  [ITEM.DEAGLE]: [1.4, 0.22],
-  [ITEM.MP5]: [0.8, 0.04],
-  [ITEM.CROSSBOW]: [0, 0.1],
-  [ITEM.RPG]: [1.8, 0.45],
-  [ITEM.AT_RIFLE]: [2.2, 0.7],
-  [ITEM.FLARE_GUN]: [1.5, 0.12],
-  [ITEM.REVOLVER]: [1.3, 0.14],
-};
+// the shot the others hear, by the gun (`shotSound` in its file, shared/weapons/)
+const SHOT_SOUND = Object.fromEntries(WEAPON_LIST.filter((w) => w.shotSound).map((w) => [w.id, SOUND[w.shotSound]]));
+// first-person muzzle flash scale + camera shake per shot (`kick` in the gun's file; default [1, 0.06])
+const SHOT_KICK = Object.fromEntries(WEAPON_LIST.filter((w) => w.kick).map((w) => [w.id, w.kick]));
 // the anti-tank rifle's long reload: how far into it the round goes home (its bolt opens at the start, closes at the end)
 const AT_ROUND_IN = 0.62;
 // what [H] reaches for when not badly hurt, in that order; the HUD counts these as the healing left
@@ -1649,7 +1626,7 @@ export class Game {
         g.flyover?.start(x, y, z, heading, eta, g.time, g.audio);
       },
       screech(id, secs) {
-        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/zombies.js screech)
+        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/specials/screecher.js screech)
         if (g.self?.zombie) return;
         g.ringFrom = id;
         g.audio.ring?.(secs);
@@ -3288,7 +3265,7 @@ export class Game {
   uiCallbacks() {
     return {
       onCraft: (id) => {
-        this.askedCost = RECIPES[id]?.cost;
+        this.askedCost = RECIPE_BY_ID.get(id)?.cost;
         this.conn.action(ACT.CRAFT, id);
         this.audio.playLocal('craft', { volume: 0.6 });
       },

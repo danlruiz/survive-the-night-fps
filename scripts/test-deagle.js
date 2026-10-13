@@ -6,7 +6,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { SLOT_PRIMARY, SLOT_PISTOL } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO, AMMO_ITEMS, SOUND, NOTIFY, LOOT_TABLES, CONT_TABLES, ZOMBIE_LOOT, SPECIAL_LOOT } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, SALVAGE, AMMO, AMMO_ITEMS, SOUND, NOTIFY, LOOT_TABLES, CONT_TABLES, ZOMBIE_LOOT, SPECIAL_LOOT } from '../shared/defs.js';
 import { KILL_FEATS } from '../shared/achievements.js';
 import { worldWeaponTris, viewModelTris, VM_DEBUG } from '../client/render/models/weapons.js';
 import { hasItemIcon } from '../client/ui/icons.js';
@@ -32,7 +32,7 @@ check("a sidearm (the pistol's slot), semi-automatic, firing the hunting rifle's
 // ---------------------------------------------------------------- the recipe
 const rec = RECIPES.find((r) => r.out === ITEM.DEAGLE);
 const cost = Object.entries(rec?.cost || {}).map(([it, n]) => [+it, n]);
-check('made at the workbench, one at a time, no schematic: its id its place in the list', !!rec && rec.n === 1 && rec.station === 'bench' && !rec.schem && !rec.hide && !rec.vehicle && RECIPES[rec.id] === rec && RECIPES.every((r, i) => r.id === i), JSON.stringify(rec?.cost));
+check('made at the workbench, one at a time, no schematic: its id the gun itself', !!rec && rec.n === 1 && rec.station === 'bench' && !rec.schem && !rec.hide && !rec.vehicle && rec.id === ITEM.DEAGLE && RECIPE_BY_ID.get(rec.id) === rec, JSON.stringify(rec?.cost));
 check('...from real ingredients: raw materials only, a whole number of each, none of it the gun itself', cost.length >= 2 && cost.every(([it, n]) => ITEM_DEFS[it]?.cat === 'res' && Number.isInteger(n) && n > 0 && it !== ITEM.DEAGLE), cost.map(([it, n]) => `${n} ${ITEM_DEFS[it]?.name}`).join(', '));
 const tables = [...Object.values(LOOT_TABLES), ...Object.values(CONT_TABLES), ZOMBIE_LOOT, SPECIAL_LOOT];
 const found = (it) => tables.some((t) => t.some((row) => row[0] === it)) || RECIPES.some((r) => r.out === it && r.out !== ITEM.DEAGLE);

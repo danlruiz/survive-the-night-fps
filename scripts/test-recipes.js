@@ -4,7 +4,7 @@
 // usage: node scripts/test-recipes.js [seed]
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
-import { ITEM_DEFS, WEAPONS, THROWABLES, RECIPES, SCHEM_BIT } from '../shared/defs.js';
+import { ITEM_DEFS, WEAPONS, THROWABLES, RECIPES, RECIPE_BY_ID, SCHEM_BIT } from '../shared/defs.js';
 import { sourcesOf } from '../client/game/itemguide.js';
 
 const seed = +(process.argv[2] || 4242);
@@ -20,7 +20,7 @@ const weapons = [...Object.keys(WEAPONS), ...Object.keys(THROWABLES)].map(Number
 const unmade = weapons.filter((w) => !RECIPES.some((r) => r.out === w));
 check('every weapon and throwable has a recipe', weapons.length > 20 && unmade.length === 0, unmade.map(nameOf).join(', ') || `${weapons.length} weapons`);
 
-check('recipe ids are their places in the list', RECIPES.every((r, i) => r.id === i));
+check("each recipe's id is the item it makes, and RECIPE_BY_ID finds it by that", RECIPES.every((r) => r.id === r.out && RECIPE_BY_ID.get(r.id) === r) && RECIPE_BY_ID.size === RECIPES.length);
 
 const fake = [];
 for (const r of RECIPES) for (const k in r.cost) if (!ITEM_DEFS[k] || !(r.cost[k] >= 1) || r.cost[k] % 1) fake.push(`${nameOf(r.out)} takes ${r.cost[k]} of ${k}`);

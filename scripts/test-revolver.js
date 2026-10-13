@@ -6,7 +6,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { SLOT_PISTOL } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO_ITEMS, NOTIFY, slotForItem, isFirearm } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, SALVAGE, AMMO_ITEMS, NOTIFY, slotForItem, isFirearm } from '../shared/defs.js';
 import { KILL_FEATS } from '../shared/achievements.js';
 
 const seed = +(process.argv[2] || 4242);
@@ -31,7 +31,7 @@ const real = (cost) => Object.keys(cost).length > 0 && Object.entries(cost).ever
 const weaponRecipes = RECIPES.filter((r) => ITEM_DEFS[r.out]?.cat === 'weapon');
 const bad = weaponRecipes.filter((r) => !real(r.cost));
 check('every weapon recipe takes real materials', !bad.length, bad.map((r) => ITEM_DEFS[r.out].name).join(', '));
-check('every recipe sits at its own id (the client and server look them up by it)', RECIPES.every((r, i) => r.id === i));
+check('every recipe is found by its id, the item it makes (the client and server look them up by it)', RECIPES.every((r) => r.id === r.out && RECIPE_BY_ID.get(r.id) === r));
 
 const rec = RECIPES.find((r) => r.out === ITEM.REVOLVER);
 check('the revolver has a recipe', !!rec);
