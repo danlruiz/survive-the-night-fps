@@ -760,14 +760,25 @@ BUILD.heli_wreck = (b, r) => {
     const [px, py] = prof(t);
     return [px * w * 0.5 * out, py * h * 0.5 * out + y, z];
   };
+  // a patch on the skin, cut where the skin bends (at its sections and its loft's edges) so that no flat piece of it
+  // cuts a chord under the curve and is hidden by the skin
+  const AROUND = 14;
+  const cuts = (a, b0, at) => [a, ...at.filter((v) => v > a + 1e-6 && v < b0 - 1e-6), b0];
   const panel = (mat, z0, z1, t0, t1, out = 1.012) => {
-    const zm = (z0 + z1) / 2;
-    const c = fus(zm, (t0 + t1) / 2, 0);
-    b.quadOut(mat, [fus(z0, t0, out), fus(z1, t0, out), fus(z1, t1, out), fus(z0, t1, out)], [0, c[1], zm], mat === 'canopy' ? { c: paneLook(0.6, t0 * 9) } : {});
+    const o = mat === 'canopy' ? { c: paneLook(0.6, t0 * 9) } : {};
+    const zs = cuts(z0, z1, secs.map((s) => s.z));
+    const ts = cuts(t0, t1, Array.from({ length: 2 * AROUND + 1 }, (_, k) => k / AROUND - 1));
+    for (let i = 0; i < zs.length - 1; i++)
+      for (let j = 0; j < ts.length - 1; j++) {
+        const [za, zb, ta, tb] = [zs[i], zs[i + 1], ts[j], ts[j + 1]];
+        const zm = (za + zb) / 2;
+        const c = fus(zm, (ta + tb) / 2, 0);
+        b.quadOut(mat, [fus(za, ta, out), fus(zb, ta, out), fus(zb, tb, out), fus(za, tb, out)], [0, c[1], zm], o);
+      }
   };
   // ---- fuselage, rolled onto its side (local +y now faces +X/up, local -x faces up-left)
   b.push([0.15, 1.28, 0], [0, 0, -0.95]);
-  b.loft('olive', secs, prof, 14);
+  b.loft('olive', secs, prof, AROUND, { flip: true });
   b.sphere('olive', 0.26, 6, 4, { p: [0, -0.35, -5.2], s: [1, 1, 0.6] });
   b.cyl('charred', 0.47, 0.47, 0.04, 10, { p: [0, 0.55, 2.3], r: [PI / 2, 0, 0] });
   // cockpit glass (windshields, chin windows, doors): `canopy` - the hull is a closed skin, with nothing behind them
@@ -795,13 +806,13 @@ BUILD.heli_wreck = (b, r) => {
   for (const z of [-2.4, 0.1]) b.cylBetween('steel', [-0.95, -1.05, z], [-1.25, -1.4, z], 0.045, 0.045, 5);
   b.cylBetween('steel', [1.0, -1.1, -2.2], [1.15, -1.3, 0.2], 0.05, 0.05, 5);
   // attached tail boom (thin), broken at z~5
-  b.loft('olive', [{ z: 2.2, w: 0.72, h: 0.8, y: 0.55 }, { z: 5.0, w: 0.46, h: 0.52, y: 0.5 }], prof, 8);
+  b.loft('olive', [{ z: 2.2, w: 0.72, h: 0.8, y: 0.55 }, { z: 5.0, w: 0.46, h: 0.52, y: 0.5 }], prof, 8, { flip: true });
   b.cyl('charred', 0.24, 0.24, 0.03, 8, { p: [0, 0.5, 5.0], r: [PI / 2, 0, 0], s: [1, 1, 1.1] });
   label(b, 'stencil', 'army', 1.3, 0.5, fus(0.35, 0.5, 1.02), 'x-');
   b.pop();
   // ---- broken tail section lying on the ground, fin + tail rotor
   b.group({ p: [0.6, 0.0, 5.35], r: [-0.22, 0.16, 0] }, () => {
-    b.loft('olive', [{ z: 0, w: 0.44, h: 0.5, y: 0.35 }, { z: 2.4, w: 0.32, h: 0.38, y: 0.35 }], prof, 8);
+    b.loft('olive', [{ z: 0, w: 0.44, h: 0.5, y: 0.35 }, { z: 2.4, w: 0.32, h: 0.38, y: 0.35 }], prof, 8, { flip: true });
     b.cyl('charred', 0.22, 0.22, 0.03, 8, { p: [0, 0.35, 0], r: [PI / 2, 0, 0] });
     b.hull('olive', [[-0.03, 0.4, 2.0], [0.03, 0.4, 2.0], [-0.03, 1.6, 2.6], [0.03, 1.6, 2.6], [-0.03, 0.4, 2.6], [0.03, 0.4, 2.6], [-0.03, 1.6, 2.95], [0.03, 1.6, 2.95]]);
     b.cyl('steel', 0.07, 0.07, 0.14, 6, { p: [0.1, 1.25, 2.6], r: [0, 0, PI / 2] });
@@ -1371,7 +1382,7 @@ BUILD.body_bag = (b, r) => {
     { z: 0.88, w: 0.36, h: 0.26, y: 0.13 },
     { z: 0.95, w: 0.2, h: 0.16, y: 0.09 },
   ];
-  b.loft('plastic', secs, prof, 10, {});
+  b.loft('plastic', secs, prof, 10, { flip: true });
   b.box('steel', 0.015, 0.012, 1.6, { p: [0.04, 0.3, -0.05], r: [0, 0.02, 0] });
   b.box('cloth', 0.06, 0.005, 0.1, { p: [0.08, 0.28, 0.9], c: [0.8, 0.7, 0.3] });
 };
@@ -1581,13 +1592,13 @@ BUILD.duffel_bag = (b, r, v) => {
   });
   const N = 10;
   b.push([0, 0, 0], [0, PI / 2, 0]);
-  b.loft('cloth', secs, prof, N, { c: col });
+  b.loft('cloth', secs, prof, N, { c: col, flip: true });
   loftCap(b, 'cloth', secs[0], prof, N, -0.012, { c: trim });
   loftCap(b, 'cloth', secs[secs.length - 1], prof, N, 0.012, { c: trim });
   // two webbing bands around the body
   for (const t of [0.3, 0.7]) {
     const s = secs[ts.indexOf(t)];
-    b.loft('cloth', [-0.022, 0.022].map((dz) => ({ ...s, z: s.z + dz, w: s.w * 1.04, h: s.h * 1.04 })), prof, N, { c: trim });
+    b.loft('cloth', [-0.022, 0.022].map((dz) => ({ ...s, z: s.z + dz, w: s.w * 1.04, h: s.h * 1.04 })), prof, N, { c: trim, flip: true });
   }
   const topAt = (t) => {
     const s = secs.reduce((a, c) => (Math.abs(c.z - (-L / 2 + t * L)) < Math.abs(a.z - (-L / 2 + t * L)) ? c : a));
@@ -3731,7 +3742,7 @@ BUILD.airliner_wreck = (b, r) => {
   const D = R * 2;
   // a length of fuselage along Z in the builder's current frame, with its cheat line and windows; c: its colour
   const tube = (secs, c, wins) => {
-    b.loft('aircraft', secs, roundProf, 14, { c });
+    b.loft('aircraft', secs, roundProf, 14, { c, flip: true });
     if (!wins) return;
     for (const sx of [-1, 1]) {
       for (let z = wins[0]; z < wins[1]; z += 0.56) b.box('dark', 0.02, 0.3, 0.24, { p: [sx * (R - 0.012), Y + 0.42, z] });
@@ -3756,7 +3767,7 @@ BUILD.airliner_wreck = (b, r) => {
   planeLinerScorch(b, soot, R, Y, -2.5, 1.4);
   // the left wing, on it, drooped to the ground at its tip; its engine under it
   slab(b, 'aircraft', { at: [-R + 0.3, Y - 0.55, -4.4], c: 3.6, t: 0.5 }, { at: [-12.4, 0.5, -1.6], c: 1.3, t: 0.2 }, { c: white });
-  b.loft('aircraft', [{ z: -6.4, w: 1.3, h: 1.3, y: 0.66, x: -4.6 }, { z: -5.9, w: 1.44, h: 1.44, y: 0.72, x: -4.6 }, { z: -3.6, w: 1.2, h: 1.2, y: 0.66, x: -4.6 }, { z: -3.0, w: 0.5, h: 0.5, y: 0.62, x: -4.6 }], roundProf, 12, { c: white });
+  b.loft('aircraft', [{ z: -6.4, w: 1.3, h: 1.3, y: 0.66, x: -4.6 }, { z: -5.9, w: 1.44, h: 1.44, y: 0.72, x: -4.6 }, { z: -3.6, w: 1.2, h: 1.2, y: 0.66, x: -4.6 }, { z: -3.0, w: 0.5, h: 0.5, y: 0.62, x: -4.6 }], roundProf, 12, { c: white, flip: true });
   b.cyl('dark', 0.56, 0.56, 0.04, 12, { p: [-4.6, 0.68, -6.38], r: [PI / 2, 0, 0] });
   b.cyl('steel', 0.2, 0.2, 0.3, 8, { p: [-4.6, 0.68, -6.3], r: [PI / 2, 0, 0] });
   // ---- the tail section, slewed: cabin, the cone, the fin and tailplane
@@ -3774,7 +3785,7 @@ BUILD.airliner_wreck = (b, r) => {
     for (let k = 0; k < 5; k++) b.cylBetween('rust', [-4.6, 0.3, -1.2 + k * 0.6], [-5.0 - r() * 0.3, 0.1 + r() * 0.4, -1.3 + k * 0.6], 0.02, 0.02, 4);
   });
   b.group({ p: [6.2, 0, -9.4], r: [0, 1.1, 0.2] }, () => {
-    b.loft('aircraft', [{ z: -1.5, w: 1.3, h: 1.3, y: 0.62 }, { z: -1.0, w: 1.44, h: 1.44, y: 0.66 }, { z: 1.0, w: 1.2, h: 1.2, y: 0.62 }, { z: 1.5, w: 0.5, h: 0.5, y: 0.6 }], roundProf, 12, { c: soot });
+    b.loft('aircraft', [{ z: -1.5, w: 1.3, h: 1.3, y: 0.62 }, { z: -1.0, w: 1.44, h: 1.44, y: 0.66 }, { z: 1.0, w: 1.2, h: 1.2, y: 0.62 }, { z: 1.5, w: 0.5, h: 0.5, y: 0.6 }], roundProf, 12, { c: soot, flip: true });
     b.cyl('dark', 0.56, 0.56, 0.04, 12, { p: [0, 0.64, -1.48], r: [PI / 2, 0, 0] });
     for (let k = 0; k < 8; k++) b.box('steel', 0.08, 0.5, 0.02, { p: [Math.cos((k / 8) * PI * 2) * 0.3, 0.64 + Math.sin((k / 8) * PI * 2) * 0.3, -1.44], r: [0, 0.3, (k / 8) * PI * 2 + PI / 2], order: 'ZYX' });
   });

@@ -192,7 +192,7 @@ const sharedGame = new Game({ seed: 4242, godMode: true, dayLength: 3600, stats:
     for (let i = 0; i < n; i++) game.update();
   };
   const kill = (c, type = ZTYPE.WALKER, head = false) => {
-    const z = game.zm.spawn(type, c.p().x + 3, c.p().z + 3);
+    const z = game.zm.spawn(type, c.p().x + 3, c.p().z + 3, { force: true }); // (force: exactly this kind, never rolled a Mother)
     game.combat.killZombie(z, c.p(), { headshot: head });
     return z;
   };
@@ -213,7 +213,7 @@ const sharedGame = new Game({ seed: 4242, godMode: true, dayLength: 3600, stats:
   const kept = half(XP.kill) * 2 + half(30);
   check('kills earn XP by kind, a headshot on top, on the run and on the record', A.xpRun[XPS.kills] + A.xpRun[XPS.headshots] + A.xpRun[XPS.fresh] === want + XP.headshot && store.recs.get(sha(uid(1))).xp === want + XP.headshot, `${A.xpRun} / ${store.recs.get(sha(uid(1))).xp}`);
   check('...half of it as the kill, the rest as the fresh-night bonus', A.xpRun[XPS.kills] === kept && A.xpRun[XPS.headshots] === half(XP.headshot) && A.xpRun[XPS.fresh] === want - kept + XP.headshot - half(XP.headshot), `${A.xpRun}`);
-  const z = game.zm.spawn(ZTYPE.WALKER, A.x + 3, A.z + 3);
+  const z = game.zm.spawn(ZTYPE.WALKER, A.x + 3, A.z + 3, { force: true });
   z.wedgeT = 60;
   const before = game.xpOf(A);
   game.combat.killZombie(z, A);

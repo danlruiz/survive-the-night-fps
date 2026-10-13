@@ -10,6 +10,7 @@ import { ENT, qpos } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
 import { flareReach } from '../shared/skyflare.js';
+import { mulberry32 } from '../shared/rng.js';
 import { inFloodCone } from '../shared/power.js';
 import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH } from './herd.js';
@@ -26,6 +27,7 @@ const _pos = { x: 0, y: 0, z: 0 };
 const _dir = { x: 0, z: 0, cost: 0 };
 const _ray = { t: -1, col: null, terrain: false };
 const _wq = []; // (wedgedOn)
+const MOTHER_ODDS = 0.05; // one walker in twenty spawns as a Mother (spawn)
 const SHADE_THAW = 0.15; // unbroken darkness (s) before a lit shade moves again, so a beam flickering across it still holds it
 // A shade keeps out of the survivors' lit bases: it does not step to within SHADE_EDGE m past the reach of a burning
 // torch or campfire they built, or into a powered floodlight's cone, and one that finds itself inside heads back out
@@ -244,6 +246,8 @@ export class Zombies {
   // ---------------------------------------------------------------- spawning
   spawn(type, x, z, opts = {}) {
     const g = this.g;
+    // one walker in twenty is a Mother. An admin's /spawn (force) is exactly what it asked for
+    if (type === ZTYPE.WALKER && !opts.force && this.motherRng() < MOTHER_ODDS) type = ZTYPE.MOTHER;
     const def = ZOMBIE_DEFS[type];
     if (!def) return null;
     const w = g.world;
@@ -402,6 +406,7 @@ export class Zombies {
       lit: false, // shade: frozen by light
       darkT: 1,
       trapSlow: 1,
+      burst: false, // a Mother whose belly has been torn open (Combat.burstBelly): her babies are out
       legs: 0, // legs shot off (Combat.hitLeg): bit 0 the left, bit 1 the right. One gone it hobbles, both gone it crawls
       legHp: def.legs ? [hp * LEG_HP, hp * LEG_HP] : null, // what each leg still takes (left, right)
       stumbleT: 0, // tripped by a shot in the leg: seconds until it has caught itself
@@ -573,6 +578,8 @@ export class Zombies {
     this.fn = Math.ceil(size / FCELL);
     this.head = new Int32Array(this.hn * this.hn).fill(-1);
     this.treeGrid = this.dens = null; // (per-world caches)
+    // the Mother's roll (spawn) has its own stream: nothing else the game draws moves for it
+    this.motherRng = mulberry32((this.g.seed ^ 0x307e4) >>> 0);
   }
 
   // ---------------------------------------------------------------- forest

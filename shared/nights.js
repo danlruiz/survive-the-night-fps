@@ -10,7 +10,8 @@ import { WORLD, nightRank } from './acts.js';
 // kind that has joined is out by day too, from the day before the night it joins. Bosses keep their own pool (BOSS_POOL).
 // Like the theme and the boss, the server and the client each work the order out from the seed.
 export const STARTERS = [ZTYPE.WALKER, ZTYPE.RUNNER];
-export const SPECIALS = Object.values(ZTYPE).filter((t) => !ZOMBIE_DEFS[t].boss && !STARTERS.includes(t));
+// (not the Mother, who is rolled from the walkers from the first night, nor her babies, born only of her belly)
+export const SPECIALS = Object.values(ZTYPE).filter((t) => !ZOMBIE_DEFS[t].boss && !ZOMBIE_DEFS[t].rolled && !ZOMBIE_DEFS[t].born && !STARTERS.includes(t));
 let _order = null;
 let _orderSeed = null;
 export function joinOrder(seed) {
@@ -27,7 +28,7 @@ export function joinOrder(seed) {
 }
 // the night kind t joins the horde in this run (1: from the start)
 export function joinNight(seed, t) {
-  if (STARTERS.includes(t)) return 1;
+  if (STARTERS.includes(t) || ZOMBIE_DEFS[t].rolled || ZOMBIE_DEFS[t].born) return 1;
   if (ZOMBIE_DEFS[t].boss) return ZOMBIE_DEFS[t].minNight;
   return 2 + joinOrder(seed).indexOf(t);
 }

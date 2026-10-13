@@ -118,7 +118,7 @@ function expectQ(e) {
       q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, (e.state.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0));
       break;
     case ENT.ZOMBIE:
-      q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, e.burnT > 0 ? 1 : 0);
+      q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, (e.burnT > 0 ? 1 : 0) | (e.burst ? 2 : 0));
       break;
     case ENT.ITEM:
       q.push(e.count);
@@ -178,6 +178,7 @@ for (let tick = 1; tick <= TICKS; tick++) {
       e.link = Math.random() < 0.1 ? irnd(1, 60000) : 0;
       if (Math.random() < 0.15) e.legs |= irnd(1, 2); // a leg shot off: it does not grow back
       e.burnT = Math.random() < 0.3 ? 3 : 0; // set alight / gone out
+      e.burst = Math.random() < 0.1; // a Mother's belly torn open (ZSTATUS.BURST)
     }
     if (e.kind === ENT.PLAYER && Math.random() < 0.3) {
       e.state.yaw = rnd(0, 6.28);

@@ -183,7 +183,7 @@ if (worlds[0]?.clinic) {
   car();
   {
     const d = dwellers();
-    check(`${tag} on the first day three of the dead are in the wards, one of them a crawler, and no Shade`, d.length === 3 && d.every(inDark) && d.filter((z) => z.legs === 3).length === 1 && d.every((z) => z.ztype === ZTYPE.WALKER), `${d.length} of them, ${d.filter((z) => z.legs === 3).length} crawling`);
+    check(`${tag} on the first day three of the dead are in the wards, one of them a crawler, and no Shade`, d.length === 3 && d.every(inDark) && d.filter((z) => z.legs === 3).length === 1 && d.every((z) => z.ztype === ZTYPE.WALKER || z.ztype === ZTYPE.MOTHER), `${d.length} of them, ${d.filter((z) => z.legs === 3).length} crawling`);
     check(`${tag} ...on the floor, not on the roof`, d.every((z) => Math.abs(z.y - c.y) < 0.3));
     run(90);
     const still = dwellers();

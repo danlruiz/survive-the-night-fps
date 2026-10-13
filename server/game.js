@@ -1677,7 +1677,7 @@ export class Game {
     this.supplyHints = items.flatMap((item, i) => new Array(need[i]).fill(i)).map((i, hint) => {
       const item = items[i];
       const hide = (sp) => {
-        this.spawnItem(item, 1, sp.x, sp.y, sp.z, { permanent: true, hint });
+        this.spawnItem(item, 1, sp.x, this.onFloor(sp.x, sp.y, sp.z), sp.z, { permanent: true, hint });
         this.supplySpots.push(sp);
         this.supplyHintSpots[hint] = this.world.partSpots.indexOf(sp);
         return sp.zone;
@@ -2213,7 +2213,17 @@ export class Game {
 
   spawnLoot(lp) {
     const [item, count] = this.rollTable(lp.table);
-    lp.ent = this.spawnItem(item, count, lp.x, lp.y, lp.z, { point: lp });
+    lp.ent = this.spawnItem(item, count, lp.x, this.onFloor(lp.x, lp.y, lp.z), lp.z, { point: lp });
+  }
+
+  // The height something laid at an authored spot (floor loot, a hidden supply) lies at: on the floor it was meant to
+  // be on. The island's places put their spots 2 cm over a building's base, and the floor is a 12 cm slab laid on that
+  // base (Builder.room), so a fan belt or a box of spark plugs (3-4 cm tall) lay hidden under the floorboards and a
+  // battery or a tyre half sunk in them. Only ever up, onto a surface within 15 cm over the spot: one on a desk stays
+  // on the desk, and one outdoors stays where it is.
+  onFloor(x, y, z) {
+    const LIFT = 0.15;
+    return Math.max(y, groundAt(this.world, x, z, y + LIFT - STEP_HEIGHT - 0.02, 0) + 0.02);
   }
 
   spawnItem(item, count, x, y, z, opts = {}) {
@@ -4441,6 +4451,11 @@ export class Game {
           if (z.dead || !z.legHp || Math.hypot(z.x - s.x, z.z - s.z) > 30) continue;
           for (let i = 0; i < n && z.legs !== 3; i++) this.combat.hitLeg(z, z.maxHp, 1, z.x - s.x, z.z - s.z);
         }
+        break;
+      }
+      case 'burst': {
+        // /burst: tear open the belly of every Mother within 30 m, as a shot in it does: her babies come for you
+        for (const z of [...this.zombies]) if (!z.dead && z.ztype === ZTYPE.MOTHER && Math.hypot(z.x - s.x, z.z - s.z) <= 30) this.combat.burstBelly(z, p);
         break;
       }
       case 'den': {

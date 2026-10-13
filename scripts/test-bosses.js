@@ -235,11 +235,11 @@ clear();
   for (let i = 0; i < 400; i++) {
     const z = game.zm.spawnRoamer([]);
     if (!z) continue;
-    if (z.ztype !== ZTYPE.WALKER && z.ztype !== ZTYPE.RUNNER) first++;
+    if (z.ztype !== ZTYPE.WALKER && z.ztype !== ZTYPE.RUNNER && z.ztype !== ZTYPE.MOTHER) first++; // (a Mother is a walker's roll)
     game._listRemove(game.zombies, z);
     game.removeEntity(z);
   }
-  check('on the first day the roaming dead are walkers and runners alone', first === 0, `${first} others`);
+  check('on the first day the roaming dead are walkers (one in twenty a Mother) and runners alone', first === 0, `${first} others`);
   // ...and the rest on a day every special is out
   game.day = SPECIALS.length + 1;
   const NEVER = new Set([ZTYPE.TANK, ZTYPE.BAT, ZTYPE.SHADE]);

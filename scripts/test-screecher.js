@@ -157,7 +157,7 @@ check(`...the horde comes once its windup (${def.screamWindup} s) is through`, s
 const called = fresh(before);
 const want = def.screamHorde + def.screamHordeEach; // two survivors
 check(`it calls ${want} of the dead (two survivors)`, called.length === want, `${called.length}`);
-check('...runners and walkers', called.every((z) => z.ztype === ZTYPE.RUNNER || z.ztype === ZTYPE.WALKER) && called.some((z) => z.ztype === ZTYPE.RUNNER));
+check('...runners and walkers (a walker now and then a Mother)', called.every((z) => z.ztype === ZTYPE.RUNNER || z.ztype === ZTYPE.WALKER || z.ztype === ZTYPE.MOTHER) && called.some((z) => z.ztype === ZTYPE.RUNNER));
 check('...of the horde, all set on the one it screamed at', called.every((z) => z.horde && z.target === a.id && z.aggroId === a.id && z.aggroT > 10));
 const dmin = Math.min(...called.map(near));
 check('...coming from out of reach, 30 m off at the nearest', dmin >= 30, `${dmin.toFixed(1)} m`);

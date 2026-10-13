@@ -13,6 +13,7 @@
 //   &t=S             the clock (default 1.3 s)
 //   &item=ID         what the survivors hold (default nothing)
 //   &night=1         dim moonlight and a torch from the camera instead of the studio lights
+//   &burst=1         a Mother's belly torn open (ZSTATUS.BURST)
 //   &label=0         no subject labels
 // window.__turn = { subjects: [{ label, tris }], done: true } once drawn.
 import * as THREE from 'three';
@@ -97,6 +98,7 @@ for (const spec of subjects) {
       for (seed = 1; (((seed >>> 0) * 2654435761) >>> 0) % nv !== +b % nv; seed++);
     }
     const z = CHARS.createZombie(type, seed);
+    if (q.get('burst') === '1') z.setBurst?.(true);
     obj = z.object;
     const speed = anim === ZANIM.WALK ? Math.min(def.speed, 2.2) : anim === ZANIM.RUN ? def.speed * 1.4 : 0;
     update = (dt, time) => z.update(dt, anim, speed, time, true);

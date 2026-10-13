@@ -595,6 +595,8 @@ export const ZTYPE = {
   SCREECHER: 16,
   CRAWLER: 17,
   FLAMMER: 18,
+  MOTHER: 19,
+  BABY: 20,
 };
 
 // speed m/s, hp, dmg per hit, attack rate s, radius, height (for hitboxes), headR, headY
@@ -672,6 +674,15 @@ export const ZOMBIE_DEFS = {
   // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
   // metal does not burn, and a hammer puts a fire out
   [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.' },
+  // one walker in twenty spawns as her (ZombieManager.spawn's roll), from the first night: not a kind that joins the
+  // horde on a night of its own (rolled: Game.startNight never draws her in, and no dawn card names her). Shot in the
+  // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) -
+  // it bursts open (ZSTATUS.BURST) and twins, her brood of babies, crawl out of it after whoever shot her, crying as they
+  // come (Combat.burstBelly). Her head, her legs or her back and nothing comes out
+  [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, broodSpread: 0.9, broodKick: 5, minNight: 1, legs: true, rolled: true },
+  // a Mother's baby (crawl: on its front and its hands from birth, low and quick, crying as it comes). It never joins the
+  // horde on its own (born: it only comes out of her belly, Game.startNight passes it over); its minNight is hers, for the bestiary
+  [ZTYPE.BABY]: { name: 'Zombie Baby', hp: 28, speed: 2.6, dmg: 4, rate: 0.8, range: 1.1, radius: 0.22, height: 0.3, headY: 0.21, headR: 0.08, headFwd: 0.22, bodyTop: 0.2, structDmg: 2, loot: 0.05, crawl: true, born: true, common: true, minNight: 1 },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
@@ -833,6 +844,8 @@ export const SOUND = {
   CAT_PURR: 125, // the stray cat purring while it is stroked (client-side, from its CANIM.PET)
   SMOKER_HISS: 143, // a smoker breathing out its cloud
   DEAGLE: 144, // the Desert Eagle's shot
+  BABY_CRY: 151, // a Mother's baby crawling after you, wailing (client-side, from its own growl timer)
+  BELLY_BURST: 152, // a Mother's belly torn open by a shot (client-side, from ZSTATUS.BURST)
   // vehicles (shared/vehicles.js)
   VEH_START: 130, // an engine turned over and caught (somebody at the wheel of one that runs)
   VEH_STOP: 131, // ...and switched off, or run dry
