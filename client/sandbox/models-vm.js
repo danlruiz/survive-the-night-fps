@@ -13,6 +13,7 @@
 //   ?ww=1        world weapon lineup (&item=ID one of them, &view=back)
 //   ?vm=hands    the hand poses side by side (&poses=a,b,.. which, &yaw= &pitch= &cd= the camera)
 //   &ts=a,b,c    a grid of the same item frozen at several times
+//   &latch=SHOVE a crawler on the face (facelatch.js) and the hands pinned under it, the shove meter at SHOVE (0..1)
 //   &act=talk    the walkie-talkie keyed;  &wall=M  a wall that far ahead of the eye (the tuck off it, Game.weaponClearance)
 // clip checking (docs/object-clipping.md):
 //   &clip=1      measure how far the hands, the sleeves and the item pass into each other: window.__clip, one per view:
@@ -35,6 +36,7 @@ import { ITEM, ITEM_DEFS, WEAPONS } from '../../shared/defs.js';
 import { ViewModel, createWorldWeapon, worldWeaponTris, viewModelTris, handTris, VM_DEBUG } from '../render/models/weapons.js';
 import { createCat } from '../render/models/cat.js';
 import { nkScript } from './nk-script.js';
+import { FaceLatch } from '../game/facelatch.js';
 // tuning overrides: &hip=x,y,z,rx,ry,rz (current item hip pose) / &claw=x,y,z,rx,ry,rz / &cq=rx,ry,rz
 const params = new URLSearchParams(location.search);
 if (params.has('ads')) {
@@ -295,7 +297,8 @@ if (params.get('vm') === 'hands') {
         o.renderOrder = 5;
       }
     }
-    return { id, scene, cam, vm, acted: false, stopAt: times ? times[vi] : null };
+    const latch = params.has('latch') ? new FaceLatch(scene) : null;
+    return { id, scene, cam, vm, latch, acted: false, stopAt: times ? times[vi] : null };
   });
 
   const state = { speed: 0, sprint: false, onGround: true, crouch: false, aiming: false, lookDX: 0, lookDY: 0, time: 0 };
@@ -307,6 +310,10 @@ if (params.get('vm') === 'hands') {
   if (act === 'ads') state.aiming = true;
   if (act === 'talk') state.talk = true; // (the walkie-talkie keyed)
   if (act === 'pet') state.pet = true; // (the cat in our arms, stroked)
+  if (params.has('latch')) {
+    state.pinned = true;
+    state.shove = +params.get('latch') || 0;
+  }
   if (params.has('wall')) state.wallDist = +params.get('wall'); // &wall=m: a wall that far ahead (the tuck)
   if (act === 'crouch') {
     state.crouch = true;
@@ -376,6 +383,7 @@ if (params.get('vm') === 'hands') {
         state.nkWind = nk.wind(t);
       }
       v.vm.update(dt, state);
+      v.latch?.update(dt, true, state.shove, simT);
     }
     void lastTrig;
   }

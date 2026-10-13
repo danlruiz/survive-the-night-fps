@@ -102,7 +102,7 @@ export class BestiaryTracker {
       (w) => {
         w.u8(EVT.BESTIARY);
         w.u8(flags);
-        w.u32(mask);
+        w.u32(mask >>> 0); // (a bit a kind: there are more than 16 of them)
       },
       { to: p.id },
     );
