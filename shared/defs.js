@@ -566,7 +566,10 @@ export const ZTYPE = {
   BOSS_BRUTE: 12,
   BOSS_ALPHA: 13,
   BOSS_BLOATER: 14,
-  FLAMMER: 15,
+  SMOKER: 15,
+  SCREECHER: 16,
+  CRAWLER: 17,
+  FLAMMER: 18,
 };
 
 // speed m/s, hp, dmg per hit, attack rate s, radius, height (for hitboxes), headR, headY
@@ -574,31 +577,35 @@ export const ZTYPE = {
 // ahead of the body, bodyTop = top of the body cylinder (default headY - headR).
 // shade: only moves in darkness; while any light is on it, it is frozen and takes litResist x damage
 // legs: its legs can be shot (LEG_* in constants.js): a hit trips it, a leg can be blown off, with both gone it crawls
-// minNight: the night it joins the horde. One new kind a night (Game.startNight), save bats, which join the spitters on
-// night 3 and leave night 7 with none new; each said on the dawn card before it
-// and on the dusk card under the clock with its introBrief (the intro in a few words); by day the further a place is
-// from the car, the more of the specials it holds, whatever the night (ZombieManager.daySpecial). A boss's minNight is
-// the first night it can be drawn (BOSS_POOL)
+// When a kind joins: walkers and runners from the start, then one special a night in an order drawn from the seed
+// (shared/nights.js joinNight), each said on the dusk card under the clock with its introBrief (the intro in a few
+// words); from the day it joins it is out by day too, the further a place is from the car the more of the specials it
+// holds (ZombieManager.daySpecial). A boss's minNight is the first night it can be drawn (BOSS_POOL)
 // tip: a boss's one line on how to fight it, shown when it comes (tipBrief: in a few words, for the dusk card).
 // bossLoot: the rolls it drops (default 8)
 export const ZOMBIE_DEFS = {
-  [ZTYPE.WALKER]: { name: 'Walker', hp: 110, speed: 1.9, dmg: 11, rate: 1.1, range: 1.55, radius: 0.38, height: 1.75, headY: 1.58, headR: 0.17, structDmg: 22, loot: 0.28, common: true, minNight: 1, legs: true },
-  [ZTYPE.RUNNER]: { name: 'Runner', hp: 75, speed: 5.6, dmg: 8, rate: 0.7, range: 1.5, radius: 0.34, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 12, loot: 0.25, common: true, minNight: 1, legs: true },
+  [ZTYPE.WALKER]: { name: 'Walker', hp: 110, speed: 1.9, dmg: 11, rate: 1.1, range: 1.55, radius: 0.38, height: 1.75, headY: 1.58, headR: 0.17, structDmg: 22, loot: 0.28, common: true, legs: true },
+  [ZTYPE.RUNNER]: { name: 'Runner', hp: 75, speed: 5.6, dmg: 8, rate: 0.7, range: 1.5, radius: 0.34, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 12, loot: 0.25, common: true, legs: true },
   // a boss from night 2 (BOSS_POOL, at TANK_BOSS_HP of this health), rank-and-file in the horde from night 9. One blow
   // breaks a wood barricade
   // moveR / moveH: the body it walks and charges into the world with. Smaller than radius / height (which stay the
   // size bullets, blows and the model go by) so that it fits a doorway (1.0-1.6 m wide, the lintel 2.08 m above the
   // floor): at its full size a survivor indoors is out of its reach for good. The model does not stoop: it clips
   // the door frame on the way through
-  [ZTYPE.TANK]: { name: 'Tank', hp: 2200, speed: 2.5, dmg: 38, rate: 1.6, range: 2.4, radius: 0.95, height: 2.8, headY: 2.45, headR: 0.3, moveR: 0.5, moveH: 1.9, structDmg: 520, loot: 1, knock: 11, minNight: 9, intro: 'Tanks join the horde: they charge, and no barricade holds them. Listen for their footsteps.', introBrief: 'Charge through any barricade. Listen for their steps.', tip: 'Listen for its footsteps. It charges, and it smashes straight through barricades.', tipBrief: 'Charges through any barricade. Listen for its steps.' },
-  [ZTYPE.SPITTER]: { name: 'Spitter', hp: 95, speed: 2.3, dmg: 8, rate: 1.1, range: 1.5, radius: 0.36, height: 1.85, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.5, spitRange: 22, spitRate: 3.5, minNight: 3, legs: true, intro: 'Spitters join the horde: acid from 20 m that eats barricades, not walls. Shoot them first.', introBrief: 'Acid from 20 m eats barricades. Shoot them first.' },
-  [ZTYPE.LEAPER]: { name: 'Leaper', hp: 90, speed: 4.2, dmg: 9, rate: 0.5, range: 1.5, radius: 0.36, height: 1.3, headY: 1.1, headR: 0.17, structDmg: 12, loot: 0.5, leapRange: 14, minNight: 5, intro: 'Leapers join the horde: they pounce and pin. Mash Space to shove one off, or stay close so someone can shoot it off you.', introBrief: 'Pounce and pin. Mash Space to shove one off.' },
-  [ZTYPE.ROPER]: { name: 'Roper', hp: 150, speed: 2.1, dmg: 6, rate: 0.5, range: 1.6, radius: 0.37, height: 1.9, headY: 1.72, headR: 0.17, structDmg: 15, loot: 0.6, ropeRange: 24, minNight: 8, legs: true, intro: 'Ropers join the horde: a rope needs line of sight, so keep to cover and shoot the roper to break it.', introBrief: 'Ropes need line of sight. Keep to cover.' },
+  [ZTYPE.TANK]: { name: 'Tank', hp: 2200, speed: 2.5, dmg: 38, rate: 1.6, range: 2.4, radius: 0.95, height: 2.8, headY: 2.45, headR: 0.3, moveR: 0.5, moveH: 1.9, structDmg: 520, loot: 1, knock: 11, intro: 'Tanks join the horde: they charge, and no barricade holds them. Listen for their footsteps.', introBrief: 'Charge through any barricade. Listen for their steps.', tip: 'Listen for its footsteps. It charges, and it smashes straight through barricades.', tipBrief: 'Charges through any barricade. Listen for its steps.' },
+  [ZTYPE.SPITTER]: { name: 'Spitter', hp: 95, speed: 2.3, dmg: 8, rate: 1.1, range: 1.5, radius: 0.36, height: 1.85, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.5, spitRange: 22, spitRate: 3.5, legs: true, intro: 'Spitters join the horde: acid from 20 m that eats barricades, not walls. Shoot them first.', introBrief: 'Acid from 20 m eats barricades. Shoot them first.' },
+  [ZTYPE.LEAPER]: { name: 'Leaper', hp: 90, speed: 4.2, dmg: 9, rate: 0.5, range: 1.5, radius: 0.36, height: 1.3, headY: 1.1, headR: 0.17, structDmg: 12, loot: 0.5, leapRange: 14, intro: 'Leapers join the horde: they pounce and pin. Mash Space to shove one off, or stay close so someone can shoot it off you.', introBrief: 'Pounce and pin. Mash Space to shove one off.' },
+  [ZTYPE.ROPER]: { name: 'Roper', hp: 150, speed: 2.1, dmg: 6, rate: 0.5, range: 1.6, radius: 0.37, height: 1.9, headY: 1.72, headR: 0.17, structDmg: 15, loot: 0.6, ropeRange: 24, legs: true, intro: 'Ropers join the horde: a rope needs line of sight, so keep to cover and shoot the roper to break it.', introBrief: 'Ropes need line of sight. Keep to cover.' },
   // cannot claw at a structure: held up by one for breachHold s with a survivor within breachRange m, it swells for
   // breachWindup s and bursts against it. That piece takes breachDmg on top of the blast (with it, any wood piece
   // goes; a metal wall loses about 40%) - unless the boomer is shot first, which leaves only the blast
-  [ZTYPE.BOOMER]: { name: 'Boomer', hp: 70, speed: 1.7, dmg: 0, rate: 1, range: 2.2, radius: 0.6, height: 1.8, headY: 1.62, headR: 0.2, structDmg: 0, loot: 0.6, blastRadius: 5.5, blastDmg: 45, breachHold: 0.8, breachWindup: 1.2, breachRange: 12, breachDmg: 750, minNight: 4, legs: true, intro: 'Boomers join the horde: they burst against your walls. Shoot them far off.', introBrief: 'Burst against your walls. Shoot them far off.' },
-  [ZTYPE.BAT]: { name: 'Bat', hp: 28, speed: 7.5, dmg: 5, rate: 0.9, range: 1.3, radius: 0.3, height: 0.4, headY: 0.2, headR: 0.2, structDmg: 0, loot: 0.08, flying: true, common: true, minNight: 3, intro: 'Bats join the horde: they fly over every wall. Shotguns and melee.', introBrief: 'Fly over every wall. Shotguns and melee.' },
+  [ZTYPE.BOOMER]: { name: 'Boomer', hp: 70, speed: 1.7, dmg: 0, rate: 1, range: 2.2, radius: 0.6, height: 1.8, headY: 1.62, headR: 0.2, structDmg: 0, loot: 0.6, blastRadius: 5.5, blastDmg: 45, breachHold: 0.8, breachWindup: 1.2, breachRange: 12, breachDmg: 750, legs: true, intro: 'Boomers join the horde: they burst against your walls. Shoot them far off.', introBrief: 'Burst against your walls. Shoot them far off.' },
+  [ZTYPE.BAT]: { name: 'Bat', hp: 28, speed: 7.5, dmg: 5, rate: 0.9, range: 1.3, radius: 0.3, height: 0.4, headY: 0.2, headR: 0.2, structDmg: 0, loot: 0.08, flying: true, common: true, intro: 'Bats join the horde: they fly over every wall. Shotguns and melee.', introBrief: 'Fly over every wall. Shotguns and melee.' },
+  // stops where it sees a survivor within screamRange and screams (screamWindup s, then again every screamRate s while it
+  // lives): a horde of screamHorde (+ screamHordeEach a survivor past the first) comes running out of the dark at whoever
+  // it screamed at, and every survivor within ringRange m hears ringing (ringT s, or until it is dead). Breaks: hiding
+  // quietly behind walls - it brings the crowd to you (SCREECH_* in server/zombies.js)
+  [ZTYPE.SCREECHER]: { name: 'Screecher', hp: 130, speed: 2.4, dmg: 7, rate: 1.0, range: 1.5, radius: 0.36, height: 1.78, headY: 1.6, headR: 0.17, structDmg: 12, loot: 0.6, screamRange: 30, screamWindup: 1.3, screamRate: 20, screamHorde: 6, screamHordeEach: 2, ringRange: 22, ringT: 6, legs: true, intro: 'Screechers join the horde: one scream and the dead come running. Kill them before they see you.', introBrief: 'One scream brings a horde. Kill them on sight.' },
   // night bosses: hp is what one survivor faces (+ BOSS_HP_PER_PLAYER of it per extra survivor, Game.spawnBosses),
   // sized so that the rounds a survivor has left once the horde has had its share can bring one down before sunrise
   [ZTYPE.BOSS_ABOMINATION]: { name: 'The Abomination', hp: 4000, speed: 3.0, dmg: 55, rate: 1.8, range: 3.4, radius: 1.5, height: 4.2, headY: 3.7, headR: 0.5, structDmg: 600, loot: 1, knock: 16, boss: true, minNight: 4, tip: 'It slams the ground and throws boulders. Spread out and keep moving.', tipBrief: 'Slams and throws boulders. Spread out, keep moving.' },
@@ -607,8 +614,8 @@ export const ZOMBIE_DEFS = {
   // hitRun: it bites once and breaks off before it comes in again. Held up by what the survivors built it rams it:
   // ramDmg to the piece (a metal one takes less, and gives ramRecoil back), then it reels, taking stunHurt x damage.
   // ramWindup: s it snarls before the ram (DOG_RAM_WINDUP when unset) (DOG_* in server/zombies.js)
-  [ZTYPE.DOG]: { name: 'Zombie Dog', hp: 60, speed: 6.2, dmg: 7, rate: 0.7, range: 1.3, radius: 0.36, height: 0.85, headY: 0.58, headR: 0.14, headFwd: 0.5, bodyTop: 0.66, structDmg: 5, loot: 0.15, leather: 0.3, lungeRange: 6, sense: 1.5, pack: true, common: true, minNight: 2, hitRun: true, ramDmg: 180, ramRecoil: 15, stunHurt: 1.5, intro: 'Zombie dogs join the horde: they bite and run. They cannot jump a barricade, but they ram one down. Shoot them as they come in.', introBrief: 'Ram barricades down. Shoot them as they come in.' },
-  [ZTYPE.SHADE]: { name: 'Shade', hp: 240, speed: 8.6, dmg: 55, rate: 0.9, range: 1.7, radius: 0.36, height: 2.0, headY: 1.82, headR: 0.17, structDmg: 30, loot: 0.8, shade: true, litResist: 0.25, minNight: 6, legs: true, intro: 'Shades join the horde: faster than you can run, and they hit hard, but only in the dark. Light your base, and keep a flashlight on them.', introBrief: 'Move only in the dark. Keep a light on them.' },
+  [ZTYPE.DOG]: { name: 'Zombie Dog', hp: 60, speed: 6.2, dmg: 7, rate: 0.7, range: 1.3, radius: 0.36, height: 0.85, headY: 0.58, headR: 0.14, headFwd: 0.5, bodyTop: 0.66, structDmg: 5, loot: 0.15, leather: 0.3, lungeRange: 6, sense: 1.5, pack: true, common: true, hitRun: true, ramDmg: 180, ramRecoil: 15, stunHurt: 1.5, intro: 'Zombie dogs join the horde: they bite and run. They cannot jump a barricade, but they ram one down. Shoot them as they come in.', introBrief: 'Ram barricades down. Shoot them as they come in.' },
+  [ZTYPE.SHADE]: { name: 'Shade', hp: 240, speed: 8.6, dmg: 55, rate: 0.9, range: 1.7, radius: 0.36, height: 2.0, headY: 1.82, headR: 0.17, structDmg: 30, loot: 0.8, shade: true, litResist: 0.25, legs: true, intro: 'Shades join the horde: faster than you can run, and they hit hard, but only in the dark. Light your base, and keep a flashlight on them.', introBrief: 'Move only in the dark. Keep a light on them.' },
   // night 1's boss: a hulking walker and nothing more, until it is badly hurt - below enrage of its health it roars and
   // comes on at enrageSpeed x its pace. Its body fits a doorway (moveR / moveH, as the Tank's)
   [ZTYPE.BOSS_BRUTE]: { name: 'The Brute', hp: 750, speed: 1.7, dmg: 24, rate: 1.5, range: 2.3, radius: 0.75, height: 2.55, headY: 2.22, headR: 0.25, moveR: 0.5, moveH: 1.9, structDmg: 240, loot: 1, bossLoot: 4, knock: 7, boss: true, minNight: 1, enrage: 0.5, enrageSpeed: 2.1, tip: 'Slow, until it is badly hurt: then it roars and comes at a run. Keep your distance.', tipBrief: 'Runs once badly hurt. Keep your distance.' },
@@ -621,12 +628,25 @@ export const ZOMBIE_DEFS = {
   // bile in a fan at whoever is within spewRange every spewRate s, and when it dies it bursts: blastRadius, blastDmg
   // to survivors, blastStruct to what you built. Bring it down far from the walls
   [ZTYPE.BOSS_BLOATER]: { name: 'The Bloater', hp: 2400, speed: 1.45, dmg: 22, rate: 1.4, range: 2.6, radius: 1.15, height: 2.9, headY: 2.55, headR: 0.32, moveR: 0.5, moveH: 1.9, structDmg: 160, loot: 1, knock: 6, boss: true, minNight: 3, spewRange: 13, spewRate: 7, blastRadius: 10, blastDmg: 70, blastStruct: 900, tip: 'When it dies it bursts and takes everything near it. Bring it down far from your walls.', tipBrief: 'Bursts when it dies. Kill it far from your walls.' },
+  // breaks: a team that holds one wall and shoots what it sees. Within smokeRange of a survivor it stops and breathes out
+  // a cloud of dark smoke (smokeRadius m, smokeLife s) every smokeRate s, and the dead come at them out of it. When it
+  // dies it bursts into one more (deathSmoke); killed among what the survivors built - baseCount pieces or more within
+  // baseRange m (Combat.inBase) - the cloud it lets go is big enough to fill the base (baseSmoke). Kill it out past the
+  // walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
+  [ZTYPE.SMOKER]: { name: 'Smoker', hp: 130, speed: 2.0, dmg: 8, rate: 1.1, range: 1.55, radius: 0.38, height: 1.86, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.6, smokeRange: 20, smokeRate: 11, smokeRadius: 4.5, smokeLife: 9, deathSmoke: { radius: 5, life: 10 }, baseSmoke: { radius: 14, life: 26 }, baseRange: 12, baseCount: 4, legs: true, intro: 'Smokers join the horde: they breathe out clouds you cannot see through. Kill them out past your walls, or their last breath fills the base.', introBrief: 'Smoke you cannot see through. Kill them past the walls.' },
+  // a flying squirrel the infection has grown to the size of a cat. It never claws or bites in passing (noMelee): it only
+  // hurts whoever it has by the face, a nibble of latchDmg every latchRate s (+5% a night). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/zombies.js
+  // PERCH_*), and glides down on to the face of whoever comes under it (the leaper's pounce at the head, falling slower),
+  // clamping on with all four feet (s.pinned = PIN_FACE). Blind (client/game/facelatch.js: its belly and its membrane
+  // over their eyes) but on their feet, they shake it off by throwing their head about (SHAKE_*), or a teammate shoots
+  // or strikes it off, or it has had latchMax s. With no tree near, it springs from the ground (latchRange m)
+  [ZTYPE.CRAWLER]: { name: 'Crawler', hp: 40, speed: 5.2, dmg: 0, rate: 0.6, range: 1.1, radius: 0.3, height: 0.42, headY: 0.29, headR: 0.13, headFwd: 0.27, bodyTop: 0.33, structDmg: 0, noMelee: true, loot: 0.2, latchRange: 8, latchRate: 0.6, latchDmg: 2, latchMax: 10, intro: 'Crawlers join the horde: they wait up trees, eyes glowing, and glide down onto your face to blind you. Keep away from the trees they chitter in, and shake your head hard to tear one off.', introBrief: 'Wait up trees, glide onto your face. Shake it off.' },
   // a firefighter who went into the fire and never came out: still smouldering inside its turnout coat, which no
   // fire gets through (fireproof: fire does it no harm - a molotov, a campfire, the flamethrower - though the sun
   // still does). What the survivors built catches from it: every igniteRate s it sets alight a piece within
   // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
   // metal does not burn, and a hammer puts a fire out
-  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, minNight: 10, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.' },
+  [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.' },
 };
 
 // Overkill: a zombie killed by one heavy blow (a rifle round, a point-blank blast, an explosion) that drives it far
@@ -640,7 +660,7 @@ export const ZANIM = {
   WALK: 1,
   RUN: 2,
   ATTACK: 3,
-  SPECIAL: 4, // spit / rope / leap-windup / slam
+  SPECIAL: 4, // spit / rope / leap-windup / slam / scream
   AIRBORNE: 5, // leaping / thrown
   STAGGER: 6,
   DEAD: 7,
@@ -678,6 +698,7 @@ export const PROJ_ITEM = { [PROJ.MOLOTOV]: ITEM.MOLOTOV, [PROJ.PIPEBOMB]: ITEM.P
 export const AREA = {
   ACID: 1,
   FIRE: 2,
+  SMOKE: 3, // a smoker's cloud: nothing but what it hides (shared/smoke.js)
 };
 
 // ---------------------------------------------------------------- events
@@ -782,8 +803,10 @@ export const SOUND = {
   DRINK: 121, // a can cracked open and gulped down (an energy drink)
   FLARE_GUN: 122, // a flare gun's shot (client-side, from EVT.SHOT)
   FLARE_POP: 123, // a parachute flare bursting alight at the top of its climb (client-side, from its flight)
+  SCREECHER_SCREAM: 126, // a screecher's scream: the dead hear it from far off, and come
   DEER_SCREAM: 124, // an undead deer (the mainland's): a rotten-throated bellow as it lowers its antlers, is hit, or dies
   CAT_PURR: 125, // the stray cat purring while it is stroked (client-side, from its CANIM.PET)
+  SMOKER_HISS: 143, // a smoker breathing out its cloud
   // vehicles (shared/vehicles.js)
   VEH_START: 130, // an engine turned over and caught (somebody at the wheel of one that runs)
   VEH_STOP: 131, // ...and switched off, or run dry
@@ -798,6 +821,7 @@ export const SOUND = {
   BIKE_BELL: 140, // a bicycle's bell
   VEH_MOUNT: 141, // somebody swinging a leg over a moped or a bicycle
   VEH_SKID: 142, // tyres letting go (client-side, from the vehicle's replicated state)
+  CRAWLER_CHITTER: 150, // a crawler springing at a face, and chittering on it once it has it
 };
 
 export const EVT = {
@@ -847,6 +871,9 @@ export const EVT = {
   // carried (m, to 255), u8 n, n x u16 the entity ids of the ones it woke (the nearest HEARD_IDS). Sent to whoever
   // made it, each time it wakes HEARD_MIN or more
   HEARD: 39,
+  // (private) a screecher screamed close enough to leave the survivor's ears ringing: u16 its id, u8 tenths of a second
+  // the ringing lasts at most (it stops sooner if the screecher dies)
+  SCREECH: 40,
 };
 
 // EVT.HEARD: what made the noise, so the client can name it the first time ("Gunshot: heard 70 m")

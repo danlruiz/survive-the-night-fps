@@ -3,7 +3,7 @@
 // one staging of the entities (each must get what quantizing for it alone would give; one that is skipped for a
 // tick catches up); then the varints, the command packets (writeInput / readInput) and Dead Hand's messages
 // (writeCards / readCards).
-import { Writer, Reader, ENT, MAX_CMDS, POS_SCALE, qpos, qangle8, qlookYaw, qlookPitch, writeInput, readInput, C2S, S2C, PROTOCOL_VERSION, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, writeCards, readCards } from '../shared/protocol.js';
+import { Writer, Reader, ENT, MAX_CMDS, POS_SCALE, qpos, qangle8, qlookYaw, qlookPitch, writeInput, readInput, C2S, S2C, PROTOCOL_VERSION, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, writeCards, readCards, PSTAT } from '../shared/protocol.js';
 import { Game } from '../server/game.js';
 import { ClientView, writeEntities, stageEntities, playerFlags, SLOTS } from '../server/snapshot.js';
 import { readEntities } from '../client/net/decode.js';
@@ -115,7 +115,7 @@ function expectQ(e) {
   const q = [qpos(e.x), qpos(e.y), qpos(e.z)];
   switch (e.kind) {
     case ENT.PLAYER:
-      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, e.burning ? 1 : 0);
+      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, (e.state.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0));
       break;
     case ENT.ZOMBIE:
       q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, e.burnT > 0 ? 1 : 0);
@@ -183,6 +183,7 @@ for (let tick = 1; tick <= TICKS; tick++) {
       e.state.yaw = rnd(0, 6.28);
       e.state.pitch = rnd(-1.5, 1.5);
       e.state.fireCount = (e.state.fireCount + 1) & 255;
+      e.state.ears = Math.random() < 0.2 ? rnd(0.1, 3) : 0; // hands over the ears (a screecher close by), and down
       e.flashlight = Math.random() < 0.5;
       e.downed = Math.random() < 0.2;
       e.revivedBy = Math.random() < 0.1 ? 5 : 0;

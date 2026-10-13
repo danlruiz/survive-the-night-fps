@@ -14,11 +14,12 @@
 //     a burning piece's BURN field
 // usage: node scripts/test-flammer.js [seed]
 import { Game } from '../server/game.js';
-import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT, PSTATUS, qangle16, qpitch, writeInput } from '../shared/protocol.js';
+import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT, PSTAT, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, SLOT_BUILD, PHASE } from '../shared/constants.js';
 import { ZTYPE, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, ITEM, AREA, STRUCT_FIRE, PLAYER_FIRE, structBurns } from '../shared/defs.js';
 import { makeBox, COL } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
+import { joinNight } from '../shared/nights.js';
 
 const seed = +(process.argv[2] || 4242);
 const DT = 1 / SERVER_TICK_RATE;
@@ -85,6 +86,7 @@ function clearZombies() {
   }
   game.zm.herds.reset();
   game.zm.maintainT = game.zm.herds.spawnT = 1e9;
+  game.zm.opener = true; // (and no opening walker for a first run: ZombieManager.spawnOpener)
 }
 // a piece put up as Game.build puts one, without the builder's checks (a test puts it exactly where it wants it)
 function place(type, x, z, rot8 = 0) {
@@ -136,7 +138,7 @@ put(B.p, X + 34, Z + 30);
 
 // ---------------------------------------------------------------- the definition
 const def = ZOMBIE_DEFS[ZTYPE.FLAMMER];
-check('the flammer: a special of a night of its own, fireproof, that sets things alight', def && def.fireproof && def.igniteRange > 0 && def.igniteRate > 0 && !def.boss && Object.values(ZOMBIE_DEFS).filter((d) => !d.boss && d.minNight === def.minNight).length === 1, `night ${def?.minNight}`);
+check('the flammer: a special of a night of its own, fireproof, that sets things alight', def && def.fireproof && def.igniteRange > 0 && def.igniteRate > 0 && !def.boss && joinNight(game.seed, ZTYPE.FLAMMER) >= 2, `night ${joinNight(game.seed, ZTYPE.FLAMMER)}`);
 check('wood burns, metal and the fires themselves do not', structBurns(STRUCT.WALL) && structBurns(STRUCT.BARRICADE) && structBurns(STRUCT.DOOR) && !structBurns(STRUCT.METAL_WALL) && !structBurns(STRUCT.TORCH) && !structBurns(STRUCT.CAMPFIRE) && !structBurns(STRUCT.GENERATOR));
 
 // ---------------------------------------------------------------- setting what was built alight
@@ -239,7 +241,7 @@ run(0.2);
   game.removeEntity(f);
 }
 run(0.2);
-check('the burning survivor hears it (self status) and the others see it (STATUS field)', A.self.burning === 1 && (B.store.ents.get(pa.id)?.q[9] & PSTATUS.BURNING) > 0 && !(B.store.ents.get(pb.id)?.q[9] & PSTATUS.BURNING));
+check('the burning survivor hears it (self status) and the others see it (STATUS field)', A.self.burning === 1 && (B.store.ents.get(pa.id)?.q[9] & PSTAT.BURNING) > 0 && !(B.store.ents.get(pb.id)?.q[9] & PSTAT.BURNING));
 {
   pa.hp = pa.maxHp;
   const hp = pa.hp;
@@ -280,7 +282,7 @@ check('the burning survivor hears it (self status) and the others see it (STATUS
   check('mashing Space puts it out in about PLAYER_FIRE.presses presses', !pa.burning && Math.abs(n - PLAYER_FIRE.presses) <= 1, `${n} presses`);
   check('...and they watched it go out (the douse in their status)', half >= 0.35, `${half}`);
   run(0.2);
-  check('...which everyone hears', A.self.burning === 0 && !(B.store.ents.get(pa.id)?.q[9] & PSTATUS.BURNING));
+  check('...which everyone hears', A.self.burning === 0 && !(B.store.ents.get(pa.id)?.q[9] & PSTAT.BURNING));
   // put out, they jump again
   put(pa, X, Z);
   run(0.6, () => put(pa, X, Z));

@@ -9,6 +9,7 @@
 //     ropers only well out (ZombieManager.daySpecial); and never a boss, a Tank, a bat or a shade
 // usage: node scripts/test-bosses.js [seed = 1]
 import { Game } from '../server/game.js';
+import { SPECIALS } from '../shared/nights.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT } from '../shared/protocol.js';
 import { ITEM, ZTYPE, ZOMBIE_DEFS, PROJ, STRUCT, STRUCT_DEFS } from '../shared/defs.js';
 import { PHASE, SERVER_TICK_RATE } from '../shared/constants.js';
@@ -227,6 +228,20 @@ clear();
   game.phase = PHASE.DAY;
   const car = game.world.car;
   const SPECIAL = new Set([ZTYPE.SPITTER, ZTYPE.BOOMER, ZTYPE.LEAPER, ZTYPE.ROPER]);
+  // on the first day the run has met none of them (shared/nights.js joinNight)...
+  const day0 = game.day;
+  game.day = 1;
+  let first = 0;
+  for (let i = 0; i < 400; i++) {
+    const z = game.zm.spawnRoamer([]);
+    if (!z) continue;
+    if (z.ztype !== ZTYPE.WALKER && z.ztype !== ZTYPE.RUNNER) first++;
+    game._listRemove(game.zombies, z);
+    game.removeEntity(z);
+  }
+  check('on the first day the roaming dead are walkers and runners alone', first === 0, `${first} others`);
+  // ...and the rest on a day every special is out
+  game.day = SPECIALS.length + 1;
   const NEVER = new Set([ZTYPE.TANK, ZTYPE.BAT, ZTYPE.SHADE]);
   const rows = [];
   let never = 0;
@@ -249,6 +264,7 @@ clear();
   check('by day no specials near the car, and more of them further out', near.sp === 0 && share(far) > share(mid) && share(far) > 0.2 && never === 0, `under 90 m ${near.sp}/${near.n}, 90-200 m ${(share(mid) * 100).toFixed(0)}% of ${mid.n}, past 260 m ${(share(far) * 100).toFixed(0)}% of ${far.n}; bosses, Tanks, bats, shades: ${never}`);
   const early = rows.filter(([d, t]) => (t === ZTYPE.LEAPER && d < 168) || (t === ZTYPE.ROPER && d < 238)).length;
   check('...leapers and ropers only well out', early === 0 && far.leap > 0 && far.rope > 0, `past 260 m: ${far.leap} leapers, ${far.rope} ropers; too near: ${early}`);
+  game.day = day0;
 }
 
 if (fails.length) {

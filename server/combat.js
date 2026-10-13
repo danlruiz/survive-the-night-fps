@@ -106,7 +106,7 @@ export class Combat {
   hitbox(e, isPlayer) {
     if (isPlayer) return playerHitbox(e.zombie, e.state.crouch);
     if (e.kind === ENT.DEER) return deerHitbox(e.yaw, e.anim);
-    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim);
+    return zombieHitbox(e.def, e.yaw, e.legs, e.anim === ZANIM.AIRBORNE || e.state === 3, this.g.diff.aim, e.perched);
   }
 
   // ---------------------------------------------------------------- guns
@@ -175,7 +175,7 @@ export class Combat {
         const px = rx - dx * along;
         const py = ry - dy * along;
         const pz = rz - dz * along;
-        const lim = hb.r + hb.headY + 0.5;
+        const lim = hb.r + Math.abs(hb.headY) + 0.5; // (a crawler up a tree hangs its head below it: perched)
         if (px * px + py * py + pz * pz > lim * lim) return;
         const tt = rayHitbox(pos, hb, ox, oy, oz, dx, dy, dz, wallT);
         if (tt < 0) return;
@@ -557,7 +557,7 @@ export class Combat {
     z.hp -= amount;
     if (z.link) {
       z.linkDmg += amount;
-      if (opts.melee && z.ztype === ZTYPE.LEAPER) g.zm.releaseLink(z);
+      if (opts.melee && (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER)) g.zm.releaseLink(z);
     }
     if (attacker) {
       z.aggroId = attacker.id;
@@ -664,6 +664,11 @@ export class Combat {
       }
       // a dog's hide: its own chance, on top of the ordinary drop
       if (z.def.leather && g.rng() < z.def.leather) g.dropItem(ITEM.LEATHER, 1, z.x, z.y, z.z, { spread: 0.5, life: 150 });
+    }
+    if (z.ztype === ZTYPE.SMOKER) {
+      // its last breath: one more cloud, and among what the survivors built, one that fills the base
+      const d = this.inBase(z.x, z.z) ? z.def.baseSmoke : z.def.deathSmoke;
+      this.spawnArea(AREA.SMOKE, z.x, z.y, z.z, d.radius, d.life);
     }
     if (z.ztype === ZTYPE.BOOMER || opts.explode) {
       this.explode(z.x, z.y + 1, z.z, ZOMBIE_DEFS[ZTYPE.BOOMER].blastRadius, { humans: ZOMBIE_DEFS[ZTYPE.BOOMER].blastDmg, zombies: 80, structures: 260, kind: 2, source: z });
@@ -1113,6 +1118,19 @@ export class Combat {
     e.x = nx;
     e.y = fl + 0.08;
     e.z = nz;
+  }
+
+  // Is (x, z) in the survivors' base: baseCount or more of the pieces they built within baseRange m (ZOMBIE_DEFS
+  // SMOKER)? (Traps count: they are built where the dead come at the base)
+  inBase(x, z) {
+    const g = this.g;
+    const def = ZOMBIE_DEFS[ZTYPE.SMOKER];
+    let n = 0;
+    for (const s of g.structures) {
+      if (!s || s.removed || (s.x - x) ** 2 + (s.z - z) ** 2 > def.baseRange * def.baseRange) continue;
+      if (++n >= def.baseCount) return true;
+    }
+    return false;
   }
 
   spawnArea(atype, x, y, z, radius, life, owner, dps) {

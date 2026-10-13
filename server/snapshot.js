@@ -4,12 +4,12 @@
 // previous update, positions as 1-3 byte deltas when small; layout in shared/protocol.js), far entities update at
 // half rate, and irrelevant/destroyed entities get a remove. Sections with nothing in them are not written at all.
 import { SERVER_TICK_RATE, MAX_ENTITIES, LOD_NEAR, AOI_RADIUS, AOI_ITEM_RADIUS, AOI_STRUCTURE_RADIUS, AOI_CACHE_RADIUS } from '../shared/constants.js';
-import { ENT, SNAP, UPOS, UEXT, UEXT_ABS, qpos, qangle8, qangle16, qlookYaw, qlookPitch, packLook, PFLAG, PRIDE_SHIFT, ZSTATUS, PSTATUS, HCAR_AT } from '../shared/protocol.js';
+import { ENT, SNAP, UPOS, UEXT, UEXT_ABS, qpos, qangle8, qangle16, qlookYaw, qlookPitch, packLook, PFLAG, PSTAT, PRIDE_SHIFT, ZSTATUS, HCAR_AT } from '../shared/protocol.js';
 import { ZOMBIE_DEFS, PROJ, STRUCT } from '../shared/defs.js';
 import { GUN_CARRIED } from '../shared/mountedgun.js';
 import { currentWeapon } from '../shared/playersim.js';
 
-export const SLOTS = 10;
+export const SLOTS = 10; // (the most fields a kind has: a player's, with PSTAT)
 
 export class ClientView {
   constructor() {
@@ -91,7 +91,7 @@ function quant(e) {
       q[6] = e.zombie ? 0 : currentWeapon(s); // (the walkie-talkie slot: ITEM.WALKIE)
       q[7] = Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255)));
       q[8] = s.fireCount & 255;
-      q[9] = e.burning ? PSTATUS.BURNING : 0;
+      q[9] = (s.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0);
       break;
     }
     case ENT.ZOMBIE:

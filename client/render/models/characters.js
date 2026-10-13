@@ -397,6 +397,78 @@ function buildRoper() {
 }
 
 /**
+ * The smoker: a big man gone grey-black with what he breathes out, in a stoker's boiler shirt open over a chest swollen
+ * with it. Sacs of smoke bulge from his throat, over his shoulders and down his back, and the vents it seeps out of -
+ * pits rimmed with a dull ember glow - pock the skin between them: what shows of one from behind, in the dark.
+ */
+function buildSmoker() {
+  const P = humanP({ hipY: 0.99, thighLen: 0.46, shinLen: 0.46, spineLen: 0.14, chestLen: 0.22, neckOff: 0.19, neckLen: 0.09, headR: 0.112, shoulderW: 0.195, uarmLen: 0.32, farmLen: 0.29, handLen: 0.19 });
+  const far = buildDetail < 0.7;
+  // soot: blackest round the vents, the throat and the mouth, streaked down the front where it leaks
+  const soot = (p, n, c) => {
+    const m = fbm3(p.x * 10, p.y * 10, p.z * 10, 2, 41);
+    c.lerp(color(0x161412), clamp((m - 0.35) * 1.4, 0, 0.55));
+    if (p.y > 1.3 && p.z < 0) c.lerp(color(0x0e0c0a), clamp((1.55 - Math.abs(p.y - 1.45) * 8) * 0.3, 0, 0.4));
+  };
+  const L = {
+    dead: true, skin: 0x6a645c, eye: 0xd88a40, eyeGlow: 0.45, noBrows: true,
+    face: { sockets: 1.6, gaunt: 0.4, rot: 0.7, w: 1.06, jaw: 1.2, chin: 1.1, lips: 0.3, nose: 0.8 },
+    gaunt: 0.25, build: { w: 1.12, d: 1.14, arm: 1.08, leg: 1.04, neck: 1.35, belly: 0.9 },
+    top: { kind: 'shirt', color: 0x3c3a34, region: CR.CANVAS, sleeves: 'rolled', tear: 0.3, open: 0.4, under: { color: 0x4a4640, region: CR.COTTON }, collar: 'shirt', hem: 0.05, tint: bloodied(13, 0.35, (p, n, c) => c.lerp(color(0x1a1816), clamp(fbm3(p.x * 8, p.y * 8, p.z * 8, 2, 7) - 0.3, 0, 0.6))) },
+    pants: { color: 0x2a2826, region: CR.TWILL, tear: 0.12, tearY: 0.16, tint: bloodied(17, 0.3) },
+    shoes: { kind: 'work', color: 0x221c16 }, hair: { style: 'balding', color: 0x1a1612 },
+    jawScale: 1.15, missingTeeth: 0x24, curl: 0.55, claws: 0.01,
+    blood: [[[0, 1.58, -0.13], 0.1, 0.5]], dirt: { y0: 0.5, k: 0.8 }, skinTint: soot,
+  };
+  const mb = new MeshBuilder();
+  const built = standardHumanoid(mb, P, L);
+  const T = built.T, nY = P.neckY, yC = P.chestY;
+  const sac = { color: 0x3e3934, glow: 0, region: CR.TUMOR, rim: 0x1c1814, mottle: 0.25, ws: far ? 6 : 9, hs: far ? 4 : 6 };
+  const vent = { color: 0x1a120c, glow: 0.35, region: CR.GLOW, rim: 0xa04a18, ws: far ? 5 : 6, hs: 4 };
+  // the throat swollen with it, and the chest under the open shirt
+  blister(mb, T, 0, nY + 0.01, 0.068, 0.8, { ...sac, tall: 1.15 });
+  blister(mb, T, -0.25, yC + 0.06, 0.06, 0.6, sac);
+  // sacs over the shoulders and down the back
+  blister(mb, T, PI + 0.55, P.shoulderY - 0.03, 0.075, 0.75, sac);
+  blister(mb, T, PI - 0.4, yC + 0.02, 0.085, 0.7, { ...sac, tall: 1.2 });
+  if (!far) {
+    blister(mb, T, PI + 0.15, P.spineY + 0.04, 0.06, 0.6, sac);
+    // the vents it seeps out of
+    const rnd = mulberry32(53);
+    for (let i = 0; i < 8; i++) blister(mb, T, PI + (rnd() - 0.5) * 2.6, P.spineY + rnd() * (P.shoulderY - P.spineY), 0.014 + rnd() * 0.01, 0.35, vent);
+    blister(mb, T, 0.5, yC + 0.12, 0.016, 0.35, vent);
+  }
+  return { mb, P, A: { jawHang: 0.2 } };
+}
+
+/**
+ * The screecher: a woman in what is left of a hospital gown, barefoot, long hair hanging in strings. Her throat has
+ * swollen into a raw red sac on either side of the windpipe, lit from inside, and her jaw hangs open wide enough to
+ * scream with: that and the white of her eyes is what shows of her in the dark.
+ */
+function buildScreecher() {
+  const P = humanP({ hipY: 0.95, hipW: 0.1, thighLen: 0.44, shinLen: 0.43, spineLen: 0.13, chestLen: 0.19, neckOff: 0.17, neckLen: 0.13, headR: 0.098, shoulderW: 0.165, uarmLen: 0.3, farmLen: 0.27, handLen: 0.18 });
+  const far = buildDetail < 0.7;
+  const L = {
+    dead: true, sex: 'f', skin: 0xa8a49a, eye: 0xf4f0e0, eyeGlow: 0.8, noBrows: true,
+    face: { sockets: 1.9, gaunt: 0.9, rot: 0.5, w: 0.95, h: 1.1, jaw: 1.25, chin: 1.1, lips: 0.3, fem: 1 },
+    gaunt: 0.8, build: { w: 0.9, arm: 0.86, leg: 0.88, neck: 1.15 },
+    top: { kind: 'tee', color: 0x8ea4aa, region: CR.COTTON, sleeves: 'short', hem: 0.4, tear: 0.4, collar: 'v', tint: bloodied(13, 0.8) },
+    pants: null, shoes: null, hair: { style: 'long', color: 0x1a1612, ragged: 0.35, length: 0.3 },
+    fingerMul: 1.15, claws: 0.02, curl: 0.5, jawScale: 1.35, missingTeeth: 0x14, cheekTear: 1,
+    blood: [[[0, 1.5, -0.1], 0.12, 1], [[0, 1.3, -0.14], 0.12, 0.9]], dirt: { y0: 0.4, k: 0.7 },
+  };
+  const mb = new MeshBuilder();
+  const built = standardHumanoid(mb, P, L);
+  // the sacs either side of the windpipe, and the wound across the throat they bulge out of
+  const nY = P.neckY;
+  const raw = { color: 0xa83a30, glow: 0.35, region: CR.TUMOR, rim: 0x5a1010, ws: far ? 6 : 9, hs: far ? 4 : 6 };
+  for (const t of [-0.45, 0.45]) blister(mb, built.T, t, nY - 0.005, 0.042, 0.8, { ...raw, tall: 1.4 });
+  if (!far) blister(mb, built.T, 0, nY - 0.03, 0.03, 0.5, { ...raw, glow: 0.2, tall: 0.6 });
+  return { mb, P, A: { jawHang: 0.55 } };
+}
+
+/**
  * The Shade: a starved, ash-dark silhouette that the night swallows whole (a beam shows it grey as a statue). What
  * gives it away in the dark are the pale eyes, the veins of cold light under its skin - faint while it stalks, flaring
  * when a light pins it (ZombieInstance.hold) - and the same light in the cage of its ribs, where its chest has opened.
@@ -1796,6 +1868,8 @@ const BUILDERS = {
   [ZTYPE.SHADE]: buildShade,
   [ZTYPE.BOSS_BRUTE]: buildBrute,
   [ZTYPE.BOSS_BLOATER]: buildBloater,
+  [ZTYPE.SMOKER]: buildSmoker,
+  [ZTYPE.SCREECHER]: buildScreecher,
   [ZTYPE.FLAMMER]: buildFlammer,
 };
 const VARIANTS = { [ZTYPE.WALKER]: WALKER_VARIANTS, [ZTYPE.RUNNER]: 3, [ZTYPE.DOG]: DOG_COATS };
@@ -1807,7 +1881,7 @@ let buildDetail = 1;
 const LOD_DETAIL = 0.5;
 const LOD_FAR = 15, LOD_NEAR = 12; // (m: at 15 m a walker is some 140 px tall on a 1080p screen)
 // (types whose far copy is worth having: everything people.js builds whole)
-const LOD_TYPES = new Set([ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.SPITTER, ZTYPE.LEAPER, ZTYPE.ROPER, ZTYPE.BOOMER, ZTYPE.SHADE, ZTYPE.FLAMMER]);
+const LOD_TYPES = new Set([ZTYPE.WALKER, ZTYPE.RUNNER, ZTYPE.SPITTER, ZTYPE.LEAPER, ZTYPE.ROPER, ZTYPE.BOOMER, ZTYPE.SHADE, ZTYPE.SMOKER, ZTYPE.SCREECHER, ZTYPE.FLAMMER]);
 function getRig(type, variant, far = false) {
   if (far && !LOD_TYPES.has(type)) return null;
   const key = type + ':' + variant + (far ? ':far' : '');
@@ -1873,6 +1947,11 @@ const ZS = {
     limp: 0.35, sway: 0.8, armWalk: 0.25, armDroop: 0.1, armSwing: 0.22, armRun: 0.7, elbow: 0.3, headPitch: -0.1, headTilt: 0.35, jaw: 0.35,
     idleLean: -0.15,
   },
+  [ZTYPE.SMOKER]: {
+    walkLean: -0.22, runLean: -0.32, cycleWalk: 1.55, cycleRun: 2.2, walkStride: 0.36, walkKnee: 0.5, runStride: 0.48, runKnee: 0.85,
+    limp: 0.3, sway: 1.0, armWalk: 0.25, armDroop: 0.12, armSwing: 0.2, armRun: 0.6, elbow: 0.3, headPitch: 0.05, headTilt: 0.25, jaw: 0.3,
+    idleLean: -0.2,
+  },
   [ZTYPE.BOOMER]: {
     walkLean: 0.08, runLean: -0.02, cycleWalk: 1.0, cycleRun: 1.5, walkStride: 0.3, walkKnee: 0.45, runStride: 0.38, runKnee: 0.6,
     limp: 0, sway: 2.2, waddle: 1, armWalk: 0.15, armDroop: 0.1, armSwing: 0.2, armRun: 0.4, armOut: 0.35, elbow: 0.25, headPitch: 0.0, headTilt: 0.1, jaw: 0.25,
@@ -1897,6 +1976,12 @@ const ZS = {
     walkLean: -0.32, runLean: -0.6, cycleWalk: 1.7, cycleRun: 3.3, walkStride: 0.42, walkKnee: 0.6, runStride: 0.75, runKnee: 1.1,
     limp: 0, sway: 0.5, armWalk: 0.55, armDroop: 0.35, armSwing: 0.1, armRun: 1.05, armOut: 0.22, elbow: 0.4, headPitch: 0.3, headTilt: 0.3, jaw: 0.45, neckFwd: 0.45,
     idleLean: -0.28, shoulderRoll: 0.2,
+  },
+  [ZTYPE.SCREECHER]: {
+    // a stiff, hurried stagger with the head thrown about on its long neck, arms hanging
+    walkLean: -0.25, runLean: -0.45, cycleWalk: 1.35, cycleRun: 2.4, walkStride: 0.4, walkKnee: 0.55, runStride: 0.62, runKnee: 1.0,
+    limp: 0.2, sway: 0.9, armWalk: 0.3, armDroop: 0.2, armSwing: 0.2, armRun: 0.6, elbow: 0.3, headPitch: 0.1, headTilt: 0.4, jaw: 0.4, neckFwd: 0.3,
+    idleLean: -0.2, twitchy: 1,
   },
   [ZTYPE.BOSS_BRUTE]: {
     // a heavy, rolling waddle under the gut, fists swinging wide of it; enraged (RUN) it lumbers in bent forward
@@ -2810,6 +2895,23 @@ function poseSpecial(z, p) {
       z.sacPulse = 0.18 * back + 0.1 * fwd;
       return;
     }
+    case ZTYPE.SMOKER: {
+      // breathing out its cloud: draws itself up, chest swelling (0..0.5), then doubles over and lets it out, jaw wide
+      clearPose(p, z.nb);
+      legsStatic(z, p, 0.25, -0.3, -0.1, -0.12, 0.08);
+      z.standOn = true;
+      const draw = smooth(Math.min(1, t / 0.5));
+      const out = smooth(clamp((t - 0.5) / 0.3, 0, 1));
+      const q = Math.sin(t * 30) * 0.02 * out;
+      R(p, SPINE, -0.1 + draw * 0.25 - out * 0.5 + q, 0, 0);
+      R(p, CHEST, draw * 0.2 - out * 0.3, 0, 0);
+      R(p, NECK, draw * 0.25 - out * 0.4, 0, 0);
+      R(p, HEAD, draw * 0.3 - out * 0.2 + q, 0, 0);
+      R(p, JAW, -0.15 - draw * 0.15 - out * 0.8, 0, 0);
+      arm(p, 0, 0.25 + draw * 0.2, 0.35 + draw * 0.35, 0, 0.5, 0.3);
+      arm(p, 1, 0.25 + draw * 0.2, 0.35 + draw * 0.35, 0, 0.5, 0.3);
+      return;
+    }
     case ZTYPE.LEAPER: {
       // deep crouch windup, trembling
       clearPose(p, z.nb);
@@ -2838,6 +2940,20 @@ function poseSpecial(z, p) {
       R(p, JAW, -1.1 * k, 0, 0);
       arm(p, 1, 1.5 * k + 0.1, 0.05, -0.2, 0.05, 0.1);
       arm(p, 0, 0.3, 0.3, 0, 0.8 * k, 0.3);
+      return;
+    }
+    case ZTYPE.SCREECHER: {
+      // rears back with the arms flung out, head thrown back and the jaw wide, shaking with the scream
+      clearPose(p, z.nb);
+      const k = smooth(t / 0.45);
+      const q = Math.sin(t * 45) * 0.04 * k;
+      legsStatic(z, p, 0.15 * k, -0.2 * k, -0.15 * k, -0.15 * k, 0.12);
+      R(p, SPINE, 0.15 * k, 0, 0);
+      R(p, CHEST, 0.2 * k + q, 0, 0);
+      arm(p, 0, 0.5 * k, 0.9 * k, 0.2, 0.3, 0.4 * k);
+      arm(p, 1, 0.5 * k, 0.9 * k, 0.2, 0.3, 0.4 * k);
+      headLook(p, 0.55 * k + q, 0, 0, 0.5);
+      R(p, JAW, -0.25 - 0.95 * k, 0, 0);
       return;
     }
     case ZTYPE.BOOMER: {
@@ -4105,6 +4221,7 @@ export function zombieVariants(ztype) {
 export function createZombie(ztype, seed = 0) {
   if (ztype === ZTYPE.DOG) return createZombieDog(seed); // quadruped: its own rig + animation (dog.js)
   if (ztype === ZTYPE.BOSS_ALPHA) return createZombieDog(seed, true); // the pack's leader: a dog, built heavier and drawn bigger
+  if (ztype === ZTYPE.CRAWLER) return createZombieDog(seed, 'squirrel'); // a flying squirrel, grown huge: on the dog's rig, drawn small
   const type = BUILDERS[ztype] ? ztype : ZTYPE.WALKER;
   const nv = VARIANTS[type] || 1;
   const variant = nv > 1 ? ((seed >>> 0) * 2654435761 >>> 0) % nv : 0;
@@ -4861,6 +4978,14 @@ class SurvivorInstance {
       arm(p, 0, CRADLE[0], CRADLE[1], CRADLE[2], CRADLE[3], 0);
       if (s.pet) arm(p, 1, PET_ARM[0], PET_ARM[1], PET_ARM[2], PET_ARM[3], 0); // (solvePet puts the hand on it)
       else arm(p, 1, CRADLE[0], CRADLE[1], CRADLE[2], CRADLE[3], 0);
+    }
+    // ...or both hands clapped over the ears (s.ears: a screecher screamed right by them), the head ducked into it
+    else if (s.ears) {
+      const sh = Math.sin(t * 31) * 0.03;
+      arm(p, 0, 0.35 + sh, 1.05, -0.6, 2.35, 0.3);
+      arm(p, 1, 0.35 - sh, 1.05, -0.6, 2.35, 0.3);
+      A(p, NECK, -0.25, 0, 0);
+      A(p, HEAD, -0.15, 0, 0.12 * Math.sin(t * 4));
     }
     // throw pulse without IK hold
     if (this.hold === HOLD_NONE && this.pulseMelee < 0.4) {

@@ -1,6 +1,6 @@
 // Snapshot / message decoding. Pure JS (no DOM, no three.js) so it also runs in Node test bots.
 import { ENT, SNAP, SELF, PFLAG, UPOS, UEXT, UEXT_ABS, dqpos, dqangle16, dqangle8, dqpitch, unpackLookYaw, unpackLookPitch } from '../../shared/protocol.js';
-import { CMDS_PER_PACKET, EYE_HEIGHT, EYE_HEIGHT_CROUCH, EYE_HEIGHT_DOWNED, SERVER_DT } from '../../shared/constants.js';
+import { CMDS_PER_PACKET, EYE_HEIGHT, EYE_HEIGHT_CROUCH, EYE_HEIGHT_DOWNED, SERVER_DT, PIN_FACE } from '../../shared/constants.js';
 import { EVT, AMMO_ITEMS, PROJ } from '../../shared/defs.js';
 import { ACH_STATS } from '../../shared/achievements.js';
 
@@ -147,7 +147,7 @@ export function readSelf(r, out, flags) {
     out.exhausted = f & 4 ? 1 : 0;
     out.zombie = f & 8 ? 1 : 0;
     out.pulled = f & 16 ? 1 : 0;
-    out.pinned = f & 32 ? 1 : 0;
+    out.pinned = f & 32 ? (out.pinned === PIN_FACE ? PIN_FACE : 1) : 0; // (which kind of pin: chunk 4's)
     out.sprinting = f & 64 ? 1 : 0;
     out.downed = f & 128 ? 1 : 0;
     out.stamina = r.f32();
@@ -173,7 +173,10 @@ export function readSelf(r, out, flags) {
     out.leapCd = r.f32();
     out.stunT = r.f32();
     out.shove = r.f32();
-    if (r.u8()) {
+    out.ears = r.f32();
+    const pf = r.u8();
+    if (out.pinned) out.pinned = pf & 2 ? PIN_FACE : 1;
+    if (pf & 1) {
       out.pullX = r.f32();
       out.pullY = r.f32();
       out.pullZ = r.f32();
@@ -482,9 +485,14 @@ export function readEvents(r, handler, flags, ents) {
         handler.achieve?.(flags, add, ids);
         break;
       }
+      case EVT.SCREECH: {
+        const id = r.u16(), secs = r.u8() / 10;
+        handler.screech?.(id, secs);
+        break;
+      }
       case EVT.BESTIARY: {
         const flags = r.u8();
-        const mask = r.u16();
+        const mask = r.u32(); // (a bit a kind: there are more than 16 of them)
         handler.bestiary?.(flags, mask);
         break;
       }
