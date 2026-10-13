@@ -8,6 +8,7 @@ import { openDb } from '../server/db/index.js';
 import { migrate } from '../server/db/migrate.js';
 import { Loadouts, LocalLoadouts, clearLoadoutRun, loadoutCombatEffect, LOADOUT_BOSS_CHANCE, LOADOUT_BOSS_PITY, LOADOUT_STRONGBOX_CHANCE, LOADOUT_STRONGBOX_PITY, pityChance, pityStreak } from '../server/loadouts.js';
 import { Game } from '../server/game.js';
+import { envelope, encode, decode } from '../server/handoff.js';
 import { AMMO, ITEM, ZTYPE } from '../shared/defs.js';
 import { ACT, C2S, PROTOCOL_VERSION, SALVAGE_FROM, WORN, WORN_DO, Writer } from '../shared/protocol.js';
 import { PHASE } from '../shared/constants.js';
@@ -608,6 +609,35 @@ async function bossTeam() {
   check('the boss\'s Zombie Skulls go to the killer and the helper alike, not to the idle one', balances[0] > 0 && balances[1] === balances[0] && balances[2] === 0, JSON.stringify(balances));
 }
 
+// a server update in the middle of a run: the game is saved and loaded on the next server, whose loadout service has
+// never heard of the players. Coming back has to tell it, or every drop of theirs from then on is refused there
+async function dropsAfterHandoff() {
+  console.log('\n-- loadout drops after a server update');
+  const service = new LoadoutService({ store: new MemoryLoadoutStore() });
+  const gameA = new Game({ seed: 14, cards: null, loadouts: new LocalLoadouts(service), dayLength: 999, nightLength: 999, godMode: true, log: () => {} });
+  gameA.code = 'OLDSRV';
+  const pid = randomUUID();
+  const owner = `g:${createHash('sha256').update(pid).digest('hex')}`;
+  const before = join(gameA, 'Mover', pid);
+  await settle();
+  const buf = encode(envelope(gameA));
+  gameA.loadouts.link.gone(true);
+  const link = new LocalLoadouts(service);
+  const gameB = new Game({ cards: null, loadouts: link, dayLength: 999, nightLength: 999, log: () => {}, restore: decode(buf) });
+  gameB.code = 'NEWSRV';
+  const p = join(gameB, 'Mover', pid);
+  await settle();
+  check('a survivor back after a server update is back in their own body', p?.id === before.id);
+  check('...and the new server has asked for their loadout collection', !!service.rooms.get(link.room)?.has(owner) && gameB.loadouts.own.get(owner)?.loaded === true);
+  const rng = gameB.rng;
+  gameB.rng = () => 0; // (every roll comes up)
+  gameB.loadouts.bossDrop({ id: 2000, ztype: ZTYPE.BOSS_BRUTE, boss: true }, [p]);
+  gameB.rng = rng;
+  await service.queue;
+  await settle();
+  check('...so a boss item that drops there lands in their collection', (await service.collection(owner)).items.length === 1);
+}
+
 catalogRules();
 await persistence();
 await inRunRules();
@@ -618,6 +648,7 @@ await leaveDuringWagerLock();
 await guestMergeTwice();
 await pityStore();
 await pityInRun();
+await dropsAfterHandoff();
 await bossTeam();
 
 if (fails.length) {
