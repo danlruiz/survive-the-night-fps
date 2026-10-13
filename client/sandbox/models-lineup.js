@@ -98,12 +98,17 @@ function addZombie(type, seed, x, z, y = 0) {
   if (q.get('headless') === '1') zb.setHeadless(true);
   if (q.has('legs')) zb.setLegs?.(+q.get('legs')); // &legs=1|2|3: legs shot off (types that have them to lose)
   if (q.get('burst') === '1') zb.setBurst?.(true); // &burst=1: a Mother's belly torn open
+  if (q.get('latch') === '1') zb.setLatched?.(true); // &latch=1: a crawler as it clings to a face (with &anim=3)
+  if (q.get('perch') === '1') {
+    zb.setPerched?.(1); // &perch=1: a crawler up a tree (head down, facing out of the trunk: towards the camera at yaw 0)
+    zb.object.position.y += 0.75;
+  }
   if (showHit) hitbox(type, x, z).position.y = y ? y - ZOMBIE_DEFS[type].headY : 0;
   actors.push({ kind: 'z', type, obj: zb, x, z });
   return zb;
 }
 
-const survWeapons = [ITEM.AK47, ITEM.SHOTGUN, ITEM.HUNTING_RIFLE, ITEM.PISTOL, ITEM.BAT, ITEM.MACHETE, ITEM.KNIFE, ITEM.SPIKED_BAT, ITEM.HAMMER, ITEM.NUNCHAKU, ITEM.MOLOTOV, 0, ITEM.PIPEBOMB, ITEM.FLARE, ITEM.GRENADE, ITEM.DECOY, ITEM.FLARE_GUN];
+const survWeapons = [ITEM.AK47, ITEM.SHOTGUN, ITEM.HUNTING_RIFLE, ITEM.PISTOL, ITEM.BAT, ITEM.MACHETE, ITEM.KNIFE, ITEM.SPIKED_BAT, ITEM.HAMMER, ITEM.NUNCHAKU, ITEM.MOLOTOV, 0, ITEM.PIPEBOMB, ITEM.FLARE, ITEM.GRENADE, ITEM.DECOY, ITEM.FLARE_GUN, ITEM.DEAGLE];
 function addSurvivor(seed, item, x, z, zombie) {
   const s = createSurvivor(seed);
   s.setWeapon(item);
@@ -277,6 +282,7 @@ if (q.has('deer')) {
   for (let i = 0; i < 2; i++) addZombie(ZTYPE.DOG, i * 3 + 1, 6.4 + i * 1.3, -1.5);
   addZombie(ZTYPE.BOSS_ALPHA, 15, 11.5, 2.0);
   addZombie(ZTYPE.SHADE, 12, 9.2, -1.5);
+  addZombie(ZTYPE.CRAWLER, 16, 8.4, 2.6);
   // front row: a survivor holding each weapon
   const wl = [ITEM.KNIFE, ITEM.BAT, ITEM.SPIKED_BAT, ITEM.MACHETE, ITEM.HAMMER, ITEM.NUNCHAKU, ITEM.PISTOL, ITEM.SHOTGUN, ITEM.AK47, ITEM.HUNTING_RIFLE, ITEM.MOLOTOV, ITEM.PIPEBOMB];
   wl.forEach((it, i) => addSurvivor(i + 1, it, (i - (wl.length - 1) / 2) * 1.05, -4.2, false));

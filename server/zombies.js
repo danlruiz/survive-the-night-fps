@@ -4,8 +4,8 @@
 // whose scream calls a horde).
 // The herd that wanders the roads by day is in herd.js.
 import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, EYE_HEIGHT, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, FLASHLIGHT_RANGE, FLASHLIGHT_CONE, FIRE_LIGHT_MARGIN, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
-import { HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEIGHT, CRAWL_HEAD_Y } from '../shared/constants.js';
-import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, PROJ, AREA, EVT, IMPACT, ITEM, STRUCT_DEFS, THROWABLES, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
+import { EYE_HEIGHT_CROUCH, HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEIGHT, CRAWL_HEAD_Y, PIN_FACE } from '../shared/constants.js';
+import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, PROJ, AREA, EVT, IMPACT, ITEM, STRUCT_DEFS, THROWABLES, ZONE, BURN, HEARD_MIN, HEARD_IDS, structBurns } from '../shared/defs.js';
 import { ENT, qpos } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
@@ -65,6 +65,48 @@ export const LONE_NEAR = 12;
 export const LONE_WEIGHT = 3;
 const PIN_NEAR = 0.55; // m in front of the survivor it has pinned...
 const PIN_SHOVED = 0.3; // ...and this much further at the end of their shove (s.shove: SHOVE_* in constants.js)
+// The crawler (ZTYPE.CRAWLER) springs with the leaper's pounce, aimed LATCH_AIM m above its prey's feet (their face, not
+// their chest), and clamps on there: LATCH_DROP m under their eyes (the middle of its body over them), LATCH_NEAR m in
+// front of them (+ PIN_SHOVED as they shove)
+const LATCH_AIM = 1.45;
+const LATCH_DROP = 0.1;
+const LATCH_NEAR = 0.12;
+const LEAP_AIM = 0.6; // (the leaper's: at the chest, to bear them down)
+// ...and it is a flying squirrel: it does not run its prey down, it waits for it up a tree (perch). On the ground it
+// makes for a standing tree PERCH_FIND m or less from its prey, best one PERCH_AT m off it and never nearer than
+// PERCH_NEAR, that no other crawler has; it runs up the trunk at CLIMB_SPEED m/s and clings there PERCH_UP of the tree's
+// height up (PERCH_LOW-PERCH_HIGH m), working round the trunk to face whoever is nearest, its eyes glowing (the
+// client's) and chittering every PERCH_CALL s, so it can be seen and heard, and its tree given a wide berth. A
+// survivor coming within PERCH_DROP m of the trunk, in its sight, and it chitters once more and drops (PERCH_WIND s
+// later), gliding down on to their face: the leaper's pounce at GLIDE_G of the fall, so slower and flatter, over
+// GLIDE_T0 + GLIDE_TK s a metre (to GLIDE_TMAX). Nobody near for PERCH_BORED s, it comes down and finds another tree.
+// With no tree near its prey it runs at them and springs from the ground as a leaper does
+const PERCH_FIND = 96; // (x3 the reach: every perch distance below is x3)
+const PERCH_AT = 36;
+const PERCH_NEAR = 18;
+const PERCH_UP = 0.4;
+const PERCH_LOW = 3.5;
+const PERCH_HIGH = 6.5;
+const PERCH_DROP = 21; // (was 7: x3 the glide's reach)
+const PERCH_WIND = 0.4;
+const PERCH_CALL = [2.5, 6];
+const PERCH_BORED = 45;
+const PERCH_STRAY = 90; // (m: nobody nearer than this counts as near, for PERCH_BORED)
+// Off a face (shaken, struck or let go: releaseLink) it does not come straight back: for FLEE_T s it runs for a tree
+// FLEE_FAR m or more from whoever it had, and straight away from them while it has none, and it drops on nobody till
+// FLEE_T + FLEE_REST s have passed
+const FLEE_T = 8;
+const FLEE_FAR = 14;
+const FLEE_REST = 3;
+const CLIMB_SPEED = 4;
+const GLIDE_G = 0.3;
+const GLIDE_T0 = 0.55;
+const GLIDE_TK = 0.07;
+const GLIDE_TMAX = 1.6;
+const CRAWLER_FLIGHT = 1.5; // x how fast a crawler flies through the air: its pounce and its glide take 1/this as long
+const _trees = [];
+// the fall it makes in the air: a crawler gliding down from a tree falls at a fraction of it
+const leapG = (z) => (z.glide ? GRAV * GLIDE_G : GRAV);
 const WEDGE_MOVE = 1.5; // m a zombie after a survivor has to get from where it was to count as getting anywhere (z.wedgeT)
 const _leap = { x: 0, y: 0, z: 0 };
 // The zombie dog's hunt (def.hitRun). It runs in, bites once (a snap or a lunge), and breaks off (special state 7,
@@ -285,6 +327,19 @@ export class Zombies {
       attackCd: 0.5 + g.rng(),
       specialCd: 2 + g.rng() * 3,
       pounce: false, // a leaper in the air on a pounce (not hopping off whoever it had pinned): it steers, and pins on landing
+      glide: false, // a crawler's pounce is a glide down from a tree (leapG)
+      tree: null, // a crawler: the tree it is making for (a collider of the world's), or clinging to (perched)
+      perched: false,
+      climb: false, // going up its tree's trunk
+      perchA: 0, // where round the trunk it clings (rad, from the trunk's centre), and how high
+      perchY: 0,
+      perchT: 0, // how long it has had nobody near (PERCH_BORED)
+      callT: 0, // to its next chitter
+      windT: 0, // dropping on to windOn (PERCH_WIND)
+      windOn: 0,
+      treeT: 0, // to its next look for a tree
+      fleeT: 0, // a crawler off a face: running for a tree away from fleeFrom (FLEE_*)
+      fleeFrom: 0,
       rockCd: 3,
       summonCd: 8,
       howlN: 0, // dogs The Alpha's howl brings
@@ -347,6 +402,7 @@ export class Zombies {
       burnT: 0, // set alight (Combat.ignite): seconds of burning left
       burnBy: 0, // player who lit it (gets the kill)
       burnWeapon: 0,
+      igniteT: def.igniteRate || 0, // flammer: s until it may set the next piece of what was built alight (igniteNear)
       lit: false, // shade: frozen by light
       darkT: 1,
       trapSlow: 1,
@@ -373,14 +429,15 @@ export class Zombies {
   }
 
   // One of the specials for a day zombie standing at (x, z), or -1 for the plain dead: the further from the car, the
-  // likelier and the nastier (DAY_SPECIAL_*)
+  // likelier and the nastier (DAY_SPECIAL_*), of the kinds the run has met so far (Game.joined)
   daySpecial(x, z) {
     const g = this.g;
     const car = g.world.car;
     const k = Math.min(1, (Math.hypot(x - car.x, z - car.z) - DAY_SPECIAL_NEAR) / (DAY_SPECIAL_FAR - DAY_SPECIAL_NEAR));
     if (k <= 0 || g.rng() >= DAY_SPECIAL_MAX * k * g.diff.specials) return -1;
     const r = g.rng() * (k >= DAY_ROPER ? 4 : k >= DAY_LEAPER ? 3 : 2);
-    return r < 1 ? ZTYPE.SPITTER : r < 2 ? ZTYPE.BOOMER : r < 3 ? ZTYPE.LEAPER : ZTYPE.ROPER;
+    const t = r < 1 ? ZTYPE.SPITTER : r < 2 ? ZTYPE.BOOMER : r < 3 ? ZTYPE.LEAPER : ZTYPE.ROPER;
+    return g.joined(t) ? t : -1;
   }
 
   // The ground this map covers against the island's: 1 there, MAP_SPREAD_MAX at the most. What is scattered over the
@@ -456,7 +513,7 @@ export class Zombies {
     let n = 0;
     for (const d of free) {
       const r = g.rng();
-      const type = r < 0.2 ? ZTYPE.RUNNER : g.day >= 2 && r < 0.3 ? ZTYPE.SHADE : g.day >= 3 && r < 0.38 ? ZTYPE.LEAPER : ZTYPE.WALKER;
+      const type = r < 0.2 ? ZTYPE.RUNNER : g.joined(ZTYPE.SHADE) && r < 0.3 ? ZTYPE.SHADE : g.joined(ZTYPE.LEAPER) && r < 0.38 ? ZTYPE.LEAPER : ZTYPE.WALKER;
       const z = this.spawn(type, d.x, d.z, { y: d.y, den: true, hpMul: 1.1 + 0.05 * g.day });
       if (!z) continue;
       // (a crawler from the start: both legs gone, as Combat.hitLeg leaves them)
@@ -495,6 +552,7 @@ export class Zombies {
   // a pack at a forest den out of sight of every survivor (and away from the car and other packs)
   spawnForestPack(humans) {
     const g = this.g;
+    if (!g.joined(ZTYPE.DOG)) return 0; // (no dogs until the run has met them)
     const dens = this.forestDens();
     if (!dens.length) return 0;
     const car = g.world.car;
@@ -1084,6 +1142,9 @@ export class Zombies {
       }
     }
 
+    // the flammer: what the survivors built catches from it as it comes past
+    if (def.igniteRange && (z.igniteT -= dt) <= 0) this.igniteNear(z);
+
     // type specific behaviour (may take over movement this tick)
     if (def.flying) return this.updateBat(z, dt, target, tx, ty, tz, dist);
     if (this.special(z, dt, target, tx, ty, tz, dist)) return;
@@ -1260,7 +1321,7 @@ export class Zombies {
 
     // stop to attack
     let attacking = false;
-    if (target && z.state !== 7 && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target))) {
+    if (target && z.state !== 7 && !def.noMelee && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target))) {
       attacking = true;
       dx = tx - z.x;
       dz = tz - z.z;
@@ -1901,6 +1962,7 @@ export class Zombies {
       if (d > def.range + PLAYER_RADIUS + 0.9 || ((Math.abs(s.y - z.y) > 2.5 || !this.canReach(z, p)) && !this.canReachUp(z, p, 0.9))) return;
       g.damagePlayer(p, def.dmg * dmgMul, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
       g.impact(IMPACT.BLOOD, s.x, s.y + 1.2, s.z);
+      if (def.fireproof) g.setAlight(p); // (the flammer's blow sets them burning: PLAYER_FIRE)
       if (def.knock) this.knock(p, z.x, z.z, def.knock, 4, 0.35);
     } else if (z.pendingKind === 2) {
       const s = g.ents[z.pendingTarget];
@@ -1964,6 +2026,29 @@ export class Zombies {
       }
     }
     return best;
+  }
+
+  // The flammer sets alight the nearest piece of what the survivors built that will burn (structBurns) and is not
+  // burning already, within igniteRange m of its body; then not again for igniteRate s (sooner when nothing caught)
+  igniteNear(z) {
+    const g = this.g;
+    const def = z.def;
+    z.igniteT = 0.25;
+    let best = null;
+    let bd = Infinity;
+    for (const c of g.world.structGrid.query(z.x, z.z, def.radius + def.igniteRange + 3.5, _lq)) {
+      const s = g.ents[c.id];
+      if (!s || s.kind !== ENT.STRUCTURE || s.removed || s.fire > 0 || !structBurns(s.stype)) continue;
+      if (z.y > c.y1 || z.y + def.height < c.y0 || !footprintContains(c, z.x, z.z, def.radius + def.igniteRange)) continue;
+      const d = Math.hypot(c.x - z.x, c.z - z.z);
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    if (!best) return;
+    g.igniteStructure(best);
+    z.igniteT = def.igniteRate * (0.8 + g.rng() * 0.4);
   }
 
   // a dog sets out to ram structure s: it backs off square from it, on its own side (special state 8)
@@ -2071,7 +2156,7 @@ export class Zombies {
     if (!z.link) return;
     const p = g.players.get(z.link);
     if (p) {
-      if (z.ztype === ZTYPE.LEAPER) p.state.pinned = 0;
+      if (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER) p.state.pinned = 0;
       else p.state.pulled = 0;
       p.pinnedBy = 0;
       p.ropedBy = 0;
@@ -2092,14 +2177,23 @@ export class Zombies {
       z.animT = 0;
     }
     z.specialCd = 6 + this.g.rng() * 3;
+    // a crawler off a face makes off for a tree away from them (FLEE_*)
+    if (z.ztype === ZTYPE.CRAWLER && !z.dead) {
+      z.fleeT = FLEE_T;
+      z.fleeFrom = p ? p.id : 0;
+      z.tree = null;
+      z.perched = z.climb = false;
+      z.treeT = 0;
+      z.specialCd = Math.max(z.specialCd, FLEE_T + FLEE_REST);
+    }
   }
 
-  // A pinned survivor who has shoved the leaper all the way off (the simulation's s.shove, Game.processInputs) throws
-  // it: it is flung back the way it faces, away from them, and is dazed for THROW_OFF_DAZE s once it lands, long
-  // enough to get away
+  // A pinned survivor who has shoved the leaper (or clawed the crawler) all the way off (the simulation's s.shove,
+  // Game.processInputs) throws it: it is flung back the way it faces, away from them, and is dazed for THROW_OFF_DAZE s
+  // once it lands, long enough to get away. Returns the one thrown off (null: nothing was on them)
   throwOff(p) {
     const z = this.g.zombies.find((o) => o.id === p.pinnedBy && !o.dead);
-    if (!z || z.state !== 3 || z.link !== p.id) return false;
+    if (!z || z.state !== 3 || z.link !== p.id) return null;
     this.releaseLink(z);
     const s = p.state;
     const ax = z.x - s.x;
@@ -2113,7 +2207,7 @@ export class Zombies {
     z.attackCd = Math.max(z.attackCd, THROW_OFF_DAZE);
     z.specialCd = Math.max(z.specialCd, 4);
     this.g.sound(SOUND.ZOMBIE_PAIN, z.x, z.y + 1, z.z, 30);
-    return true;
+    return z;
   }
 
   // ---------------------------------------------------------------- specials
@@ -2130,6 +2224,9 @@ export class Zombies {
       z.vz *= 0.7;
       this.integrate(z, dt, 0, 0, this.humansCache);
     };
+
+    // a crawler up a tree, or on its way to one (perch)
+    if (t === ZTYPE.CRAWLER && z.state === 0 && this.perch(z, dt, target, dist)) return true;
 
     // windup common: state 1
     if (z.state === 1) {
@@ -2148,7 +2245,7 @@ export class Zombies {
     if (z.state === 2) {
       z.anim = ZANIM.AIRBORNE;
       if (z.pounce && target) this.leapSteer(z, target.state, dt);
-      z.vy -= GRAV * dt;
+      z.vy -= leapG(z) * dt;
       _pos.x = z.x + z.vx * dt;
       _pos.y = z.y;
       _pos.z = z.z + z.vz * dt;
@@ -2184,6 +2281,7 @@ export class Zombies {
         z.state = 0;
         z.anim = ZANIM.IDLE;
         z.animT = 0.3;
+        z.glide = false;
         if (z.pounce) {
           // a leaper comes down beside its prey and has them; or it missed, and is soon ready to go again
           z.pounce = false;
@@ -2207,21 +2305,29 @@ export class Zombies {
       }
       const s = p.state;
       z.linkT += dt;
-      // on them, face to face: further off the further they have shoved it (s.shove, the simulation's)
-      const off = PIN_NEAR + PIN_SHOVED * s.shove;
+      // on them, face to face: further off the further they have shoved it (s.shove, the simulation's). A crawler is
+      // on their face itself, wrapped round their head (the client stands it up against it: entities.js)
+      const latch = t === ZTYPE.CRAWLER;
+      const off = (latch ? LATCH_NEAR : PIN_NEAR) + PIN_SHOVED * s.shove;
       z.x = s.x - Math.sin(s.yaw) * off;
       z.z = s.z - Math.cos(s.yaw) * off;
-      z.y = s.y;
+      z.y = s.y + (latch ? (s.crouch ? EYE_HEIGHT_CROUCH : EYE_HEIGHT) - LATCH_DROP : 0);
       z.yaw = s.yaw + Math.PI;
       z.anim = ZANIM.ATTACK;
       z.animT = 0.2;
-      s.pinned = 1;
+      s.pinned = latch ? PIN_FACE : 1;
       if (z.attackCd <= 0) {
-        z.attackCd = 0.45;
-        g.damagePlayer(p, 5.5 * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
-        g.impact(IMPACT.BLOOD, s.x, s.y + 1, s.z);
+        // (a crawler only nibbles: latchDmg every latchRate s, a little at a time while the rest of the dead come for them)
+        z.attackCd = latch ? def.latchRate : 0.45;
+        if (latch) {
+          g.damagePlayer(p, def.latchDmg * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
+          if (g.rng() < 0.3) g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 25);
+        } else {
+          g.damagePlayer(p, 5.5 * (1 + 0.05 * g.day), { kind: KILLER.ZOMBIE, ztype: t, x: z.x, z: z.z });
+          g.impact(IMPACT.BLOOD, s.x, s.y + 1, s.z);
+        }
       }
-      if (z.linkT > 5 || z.linkDmg > z.maxHp * 0.45) this.releaseLink(z);
+      if (z.linkT > (latch ? def.latchMax : 5) || z.linkDmg > z.maxHp * 0.45) this.releaseLink(z);
       return true;
     }
     if (z.state === 4) {
@@ -2361,6 +2467,13 @@ export class Zombies {
           return true;
         }
         break;
+      case ZTYPE.CRAWLER:
+        // (not at whoever already has something on them: it goes for a face that is free)
+        if (z.specialCd <= 0 && z.los && dist < def.latchRange && z.vy === 0 && (!z.tree || dist < 3) && !target.state.pinned && !target.state.pulled) {
+          windup(0.35, 2, SOUND.CRAWLER_CHITTER);
+          return true;
+        }
+        break;
       case ZTYPE.ROPER:
         if (z.specialCd <= 0 && z.los && dist < def.ropeRange && dist > 5 && !target.state.pulled && !target.state.pinned) {
           windup(0.7, 3, SOUND.ROPER_SHOOT);
@@ -2448,16 +2561,201 @@ export class Zombies {
 
   // the leaper's arc from where it stands to (ax, ay, az) in T s, flown as special state 2 flies it (the same body,
   // resolveBody, and groundAt, which sets it down on whatever its feet come to): does anything stop it on the way?
+  // A crawler's trees (PERCH_*): up one, it clings there and waits, and drops on whoever comes near; on the ground, it
+  // makes for one near its prey and climbs it. False when it has no tree to go to (it hunts on the ground then), or
+  // its prey is on top of it (it springs from where it is)
+  perch(z, dt, target, dist) {
+    const g = this.g;
+    const c = z.tree;
+    // (a tree cut down or broken off under it: it lets go and falls)
+    if (c && (!c.cells || c.y1 < (z.perched ? z.y : c.y0 + 1 + PERCH_LOW) + 0.5)) {
+      z.tree = null;
+      z.perched = z.climb = false;
+      z.treeT = 1.5;
+    }
+    if (z.perched) return this.perchedOn(z, dt);
+    if (z.dazedT > 0) return false;
+    z.treeT -= dt;
+    // off a face: away from whoever it had (FLEE_*), whether it has prey or not
+    const fleeing = z.fleeT > 0;
+    let from = null;
+    if (fleeing) {
+      z.fleeT -= dt;
+      const fp = g.players.get(z.fleeFrom);
+      from = fp && fp.alive ? fp.state : target ? target.state : null;
+    }
+    if (!target && !from) return false;
+    if (!z.tree && z.treeT <= 0) {
+      z.treeT = 1.5 + g.rng();
+      z.tree = from ? this.pickFleeTree(z, from) : this.pickTree(z, target.state);
+    }
+    if (!z.tree && from) {
+      // no tree far enough off yet: straight away from them, at a run
+      const ax = z.x - from.x;
+      const az = z.z - from.z;
+      const l = Math.hypot(ax, az) || 1;
+      const sp = z.def.speed * g.diff.speed;
+      this.integrate(z, dt, (ax / l) * sp, (az / l) * sp, this.humansCache);
+      if (Math.hypot(z.vx, z.vz) > 0.2) z.yaw = turn(z.yaw, Math.atan2(-z.vx, -z.vz), dt * 8);
+      z.anim = ZANIM.RUN;
+      return true;
+    }
+    if (!z.tree || (!fleeing && dist < 3 && z.los)) return false;
+    const t = z.tree;
+    const dx = t.x - z.x;
+    const dz = t.z - z.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const foot = t.y0 + 1;
+    if (z.perchY <= 0) z.perchY = Math.max(PERCH_LOW, Math.min(PERCH_HIGH, (t.y1 - foot) * PERCH_UP));
+    // (it starts up from the ground, not from the air: falling past another trunk it does not catch hold of it)
+    if (d >= t.r + 0.9) z.climb = false;
+    else if (!z.climb && z.y < groundAt(g.world, z.x, z.z, z.y + 0.5, 0.2, false) + 0.3) z.climb = true;
+    const climbing = z.climb && z.y < z.perchY + foot;
+    if (!climbing) {
+      // on its way to it, at a run
+      const sp = z.def.speed * g.diff.speed;
+      this.integrate(z, dt, (dx / d) * sp, (dz / d) * sp, this.humansCache);
+      if (Math.hypot(z.vx, z.vz) > 0.2) z.yaw = turn(z.yaw, Math.atan2(-z.vx, -z.vz), dt * 8);
+      z.anim = ZANIM.RUN;
+      return true;
+    }
+    // at its foot: up the trunk, on the side towards its prey (or whoever it fled)
+    const toward = from || target?.state;
+    if (toward) z.perchA = Math.atan2(toward.x - t.x, toward.z - t.z);
+    this.cling(z, t);
+    z.y = Math.min(foot + z.perchY, Math.max(z.y, foot) + CLIMB_SPEED * dt);
+    z.vx = z.vy = z.vz = 0;
+    z.anim = ZANIM.RUN;
+    if (z.y >= foot + z.perchY) {
+      z.perched = true;
+      z.climb = false;
+      z.perchT = 0;
+      z.callT = 0.5 + g.rng();
+    }
+    return true;
+  }
+
+  // where on the trunk a crawler clings: perchA round it, its belly to the bark, facing out
+  cling(z, t) {
+    const r = t.r + 0.16;
+    z.x = t.x + Math.sin(z.perchA) * r;
+    z.z = t.z + Math.cos(z.perchA) * r;
+    z.yaw = Math.atan2(-Math.sin(z.perchA), -Math.cos(z.perchA));
+  }
+
+  // up its tree (perch): it works round the trunk towards whoever is nearest, chitters now and then, and drops on
+  // anyone who comes within PERCH_DROP m of the trunk in its sight
+  perchedOn(z, dt) {
+    const g = this.g;
+    const t = z.tree;
+    z.vx = z.vy = z.vz = 0;
+    z.anim = z.windT > 0 ? ZANIM.SPECIAL : ZANIM.IDLE;
+    let near = null;
+    let nd = Infinity;
+    for (const h of this.humansCache) {
+      if (!h.alive || h.zombie || g.safe(h)) continue;
+      const d = Math.hypot(h.state.x - t.x, h.state.z - t.z);
+      if (d < nd) {
+        nd = d;
+        near = h;
+      }
+    }
+    if (near) z.perchA = turn(z.perchA, Math.atan2(near.state.x - t.x, near.state.z - t.z), dt * 1.5);
+    this.cling(z, t);
+    if (z.windT > 0) {
+      z.windT -= dt;
+      if (z.windT > 0) return true;
+      // off the tree and down on to them
+      const h = g.players.get(z.windOn);
+      if (h && h.alive && !h.zombie && !h.state.pinned && !h.state.pulled) {
+        const s = h.state;
+        z.perched = z.climb = false;
+        z.tree = null;
+        z.treeT = 4;
+        z.glide = true;
+        z.target = h.id;
+        z.stateAct = 2;
+        this.fireSpecial(z, h, s.x, s.y, s.z, Math.hypot(s.x - z.x, s.z - z.z));
+        if (z.state !== 2) z.glide = false;
+      }
+      return true;
+    }
+    z.callT -= dt;
+    if (z.callT <= 0) {
+      z.callT = PERCH_CALL[0] + g.rng() * (PERCH_CALL[1] - PERCH_CALL[0]);
+      g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 40);
+    }
+    z.perchT = nd < PERCH_STRAY ? 0 : z.perchT + dt;
+    if (z.perchT > PERCH_BORED) {
+      // nobody comes: down, to find a tree nearer them (it lets go; it falls)
+      z.perched = z.climb = false;
+      z.tree = null;
+      z.treeT = 1.5;
+      return true;
+    }
+    if (near && nd < PERCH_DROP && z.specialCd <= 0 && !near.state.pinned && !near.state.pulled && this.clearLine(z.x, z.y + 0.2, z.z, near.state.x, near.state.y + 1.4, near.state.z)) {
+      z.windT = PERCH_WIND;
+      z.windOn = near.id;
+      g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y, z.z, 40);
+    }
+    return true;
+  }
+
+  // the tree a crawler off a face makes for: FLEE_FAR m or more from whoever it had (at s), on its own side of them, as
+  // near to it as may be, and no other crawler's
+  pickFleeTree(z, s) {
+    let best = null;
+    let bs = Infinity;
+    const ox = z.x - s.x;
+    const oz = z.z - s.z;
+    for (const c of this.g.world.staticGrid.query(z.x, z.z, PERCH_FIND, _trees)) {
+      if (!(c.flags & COL.TREE) || c.y1 - c.y0 - 1 < PERCH_LOW + 2) continue;
+      if (Math.hypot(c.x - s.x, c.z - s.z) < FLEE_FAR) continue;
+      if ((c.x - s.x) * ox + (c.z - s.z) * oz < 0) continue; // (not back past them)
+      const sc = Math.hypot(c.x - z.x, c.z - z.z);
+      if (sc >= bs) continue;
+      let taken = false;
+      for (const o of this.g.zombies) if (o !== z && o.tree === c && !o.dead) taken = true;
+      if (taken) continue;
+      best = c;
+      bs = sc;
+    }
+    z.perchY = 0;
+    return best;
+  }
+
+  // the tree a crawler after a survivor at s makes for: one that stands, near them but not over them, PERCH_AT m off
+  // them as near as may be, not far out of its own way, and no other crawler's
+  pickTree(z, s) {
+    let best = null;
+    let bs = Infinity;
+    for (const c of this.g.world.staticGrid.query(s.x, s.z, PERCH_FIND, _trees)) {
+      if (!(c.flags & COL.TREE) || c.y1 - c.y0 - 1 < PERCH_LOW + 2) continue;
+      const dh = Math.hypot(c.x - s.x, c.z - s.z);
+      if (dh < PERCH_NEAR || dh > PERCH_FIND) continue;
+      const sc = Math.abs(dh - PERCH_AT) + 0.35 * Math.hypot(c.x - z.x, c.z - z.z);
+      if (sc >= bs) continue;
+      let taken = false;
+      for (const o of this.g.zombies) if (o !== z && o.tree === c && !o.dead) taken = true;
+      if (taken) continue;
+      best = c;
+      bs = sc;
+    }
+    z.perchY = 0;
+    return best;
+  }
+
   leapClear(z, ax, ay, az, T) {
     const w = this.g.world;
     const vx = (ax - z.x) / T;
     const vz = (az - z.z) / T;
-    const vy = (ay - z.y + 0.5 * GRAV * T * T) / T;
+    const G = leapG(z);
+    const vy = (ay - z.y + 0.5 * G * T * T) / T;
     const n = Math.max(4, Math.ceil(T / 0.05));
     for (let i = 1; i <= n; i++) {
       const t = (i / n) * T;
       _leap.x = z.x + vx * t;
-      _leap.y = z.y + vy * t - 0.5 * GRAV * t * t;
+      _leap.y = z.y + vy * t - 0.5 * G * t * t;
       _leap.z = z.z + vz * t;
       const px = _leap.x;
       const pz = _leap.z;
@@ -2473,9 +2771,10 @@ export class Zombies {
   // a leaper in the air on a pounce twists towards its prey (LEAP_STEER): at the speed that would bring it down on
   // them, as far as that much twisting gets it
   leapSteer(z, s, dt) {
-    const disc = z.vy * z.vy + 2 * GRAV * (z.y - (s.y + 0.6));
+    const G = leapG(z);
+    const disc = z.vy * z.vy + 2 * G * (z.y - (s.y + leapAim(z)));
     if (disc < 0) return;
-    const left = (z.vy + Math.sqrt(disc)) / GRAV;
+    const left = (z.vy + Math.sqrt(disc)) / G;
     if (left < 0.05) return;
     let dvx = (s.x - z.x) / left - z.vx;
     let dvz = (s.z - z.z) / left - z.vz;
@@ -2498,16 +2797,23 @@ export class Zombies {
       if (Math.hypot(s.x - z.x, s.z - z.z) < reach && Math.abs(s.y + 0.8 - z.y) < 1.6 && !s.pinned && !s.pulled && this.canReach(z, h)) {
         z.state = 3;
         z.pounce = false;
+        z.glide = false;
         z.link = h.id;
         z.linkDmg = 0;
         z.linkT = 0;
-        s.pinned = 1;
+        s.pinned = z.ztype === ZTYPE.CRAWLER ? PIN_FACE : 1; // (on the face: blind, but still on their feet)
         s.vx = s.vz = 0;
         h.pinnedBy = z.id;
         g.track?.grabbed(h, 'pinned');
         g.director?.grabbed(g, h);
-        g.sound(SOUND.LEAPER_SCREECH, z.x, z.y + 1, z.z, 40);
-        g.damagePlayer(h, 10, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
+        // (a crawler lands on the face and does no harm: being blind is the harm)
+        if (z.ztype === ZTYPE.CRAWLER) {
+          z.attackCd = z.def.latchRate;
+          g.sound(SOUND.CRAWLER_CHITTER, z.x, z.y + 1, z.z, 40);
+        } else {
+          g.sound(SOUND.LEAPER_SCREECH, z.x, z.y + 1, z.z, 40);
+          g.damagePlayer(h, 10, { kind: KILLER.ZOMBIE, ztype: z.ztype, x: z.x, z: z.z });
+        }
         return true;
       }
     }
@@ -2533,7 +2839,9 @@ export class Zombies {
         // between (LEAP_*); with no arc that clears it, the lowest one, which runs into it
         if (!target) return;
         const s = target.state;
-        const T0 = Math.max(LEAP_TMIN, Math.min(LEAP_TMAX, LEAP_T0 + LEAP_TK * dist));
+        const up = leapAim(z);
+        const flight = z.ztype === ZTYPE.CRAWLER ? CRAWLER_FLIGHT : 1;
+        const T0 = (z.glide ? Math.min(GLIDE_TMAX, GLIDE_T0 + GLIDE_TK * Math.hypot(dist, z.y - s.y)) : Math.max(LEAP_TMIN, Math.min(LEAP_TMAX, LEAP_T0 + LEAP_TK * dist))) / flight;
         const aim = (T) => {
           const k = LEAP_LEAD * T * Math.min(1, LEAP_LEAD_MAX / (Math.hypot(s.vx, s.vz) * LEAP_LEAD * T || 1));
           _leap.x = s.x + s.vx * k;
@@ -2541,21 +2849,21 @@ export class Zombies {
         };
         let T = T0;
         for (let k = 0; k < 4; k++) {
-          aim(T0 + k * LEAP_RAISE);
-          if (this.leapClear(z, _leap.x, s.y + 0.6, _leap.z, T0 + k * LEAP_RAISE)) {
-            T = T0 + k * LEAP_RAISE;
+          aim(T0 + k * LEAP_RAISE / flight);
+          if (this.leapClear(z, _leap.x, s.y + up, _leap.z, T0 + k * LEAP_RAISE / flight)) {
+            T = T0 + k * LEAP_RAISE / flight;
             break;
           }
         }
         aim(T);
         z.vx = (_leap.x - z.x) / T;
         z.vz = (_leap.z - z.z) / T;
-        z.vy = (s.y + 0.6 - z.y + 0.5 * GRAV * T * T) / T;
+        z.vy = (s.y + up - z.y + 0.5 * leapG(z) * T * T) / T;
         z.state = 2;
         z.pounce = true;
         z.anim = ZANIM.AIRBORNE;
         z.specialCd = 5 + g.rng() * 3;
-        g.sound(SOUND.LEAP, z.x, z.y + 1, z.z, 30);
+        g.sound(SOUND.LEAP, z.x, z.y + def.headY, z.z, z.ztype === ZTYPE.CRAWLER ? 18 : 30);
         break;
       }
       case 3: {
@@ -3068,6 +3376,11 @@ function roofBetween(w, ox, oy, oz, tx, ty, tz) {
 }
 
 // how fast a zombie of this kind drags itself along once both legs are gone (m/s)
+// how far above its prey's feet a pounce comes down: a crawler goes for the face, a leaper for the chest
+export function leapAim(z) {
+  return z.ztype === ZTYPE.CRAWLER ? LATCH_AIM : LEAP_AIM;
+}
+
 export function crawlSpeed(def) {
   return Math.max(CRAWL_SPEED_MIN, Math.min(CRAWL_SPEED_MAX, def.speed * CRAWL_SPEED));
 }

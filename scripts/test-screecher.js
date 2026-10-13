@@ -7,6 +7,7 @@
 // usage: node scripts/test-screecher.js [seed]
 import './clip/dom-stub.js';
 import { Game } from '../server/game.js';
+import { joinNight } from '../shared/nights.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND } from '../shared/defs.js';
 import { BTN, SLOT_PISTOL } from '../shared/constants.js';
@@ -25,16 +26,17 @@ const def = ZOMBIE_DEFS[ZTYPE.SCREECHER];
 // ---------------------------------------------------------------- the kind
 check('the screecher is a special of its own, with its numbers', !!def && !def.boss && !def.common && def.screamRange > 0 && def.screamRate > 0 && def.screamHorde > 0 && def.ringRange > 0 && def.ringT > 0);
 check('...in the bestiary with the specials', BESTIARY.some((e) => e.t === ZTYPE.SCREECHER && e.group === 'special'));
-check('...and its own night, after every other kind has joined', Object.values(ZOMBIE_DEFS).every((d) => d.boss || d === def || d.minNight < def.minNight));
+check('...and a night of its own, drawn from the seed', joinNight(game.seed, ZTYPE.SCREECHER) >= 2);
 {
   const kinds = (n) => {
     game.day = n;
     game.startNight();
     return game.waves.flatMap((wv) => wv.queue);
   };
-  const before = kinds(def.minNight - 1).filter((t) => t === ZTYPE.SCREECHER).length;
-  const on = kinds(def.minNight).filter((t) => t === ZTYPE.SCREECHER).length;
-  check(`none in the horde before night ${def.minNight}, at least one on it`, before === 0 && on >= 1, `${before} / ${on}`);
+  const N = joinNight(game.seed, ZTYPE.SCREECHER);
+  const before = kinds(N - 1).filter((t) => t === ZTYPE.SCREECHER).length;
+  const on = kinds(N).filter((t) => t === ZTYPE.SCREECHER).length;
+  check(`none in the horde before night ${N} (this seed's), at least one on it`, before === 0 && on >= 1, `${before} / ${on}`);
   // back to a long day: the night's waves would muddle the counts below
   game.waves = [];
   game.startDay?.();
@@ -155,7 +157,7 @@ check(`...the horde comes once its windup (${def.screamWindup} s) is through`, s
 const called = fresh(before);
 const want = def.screamHorde + def.screamHordeEach; // two survivors
 check(`it calls ${want} of the dead (two survivors)`, called.length === want, `${called.length}`);
-check('...runners and walkers', called.every((z) => z.ztype === ZTYPE.RUNNER || z.ztype === ZTYPE.WALKER) && called.some((z) => z.ztype === ZTYPE.RUNNER));
+check('...runners and walkers (a walker now and then a Mother)', called.every((z) => z.ztype === ZTYPE.RUNNER || z.ztype === ZTYPE.WALKER || z.ztype === ZTYPE.MOTHER) && called.some((z) => z.ztype === ZTYPE.RUNNER));
 check('...of the horde, all set on the one it screamed at', called.every((z) => z.horde && z.target === a.id && z.aggroId === a.id && z.aggroT > 10));
 const dmin = Math.min(...called.map(near));
 check('...coming from out of reach, 30 m off at the nearest', dmin >= 30, `${dmin.toFixed(1)} m`);

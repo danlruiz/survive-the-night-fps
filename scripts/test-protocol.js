@@ -115,7 +115,7 @@ function expectQ(e) {
   const q = [qpos(e.x), qpos(e.y), qpos(e.z)];
   switch (e.kind) {
     case ENT.PLAYER:
-      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, e.state.ears > 0 && !e.zombie ? PSTAT.EARS : 0);
+      q.push(qlookYaw(e.state.yaw), qlookPitch(e.state.pitch), playerFlags(e), e.zombie ? 0 : e.state.weapons[e.state.slot] || 0, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state.fireCount & 255, (e.state.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0));
       break;
     case ENT.ZOMBIE:
       q.push(qangle8(e.yaw), e.anim, Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.link, e.legs | 0, (e.burnT > 0 ? 1 : 0) | (e.burst ? 2 : 0));
@@ -124,7 +124,7 @@ function expectQ(e) {
       q.push(e.count);
       break;
     case ENT.STRUCTURE:
-      q.push(Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state, (e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE) && e.burnLeft > 0 ? (stagedTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0);
+      q.push(Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255))), e.state, e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE ? (e.burnLeft > 0 ? (stagedTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0) : e.fire > 0 ? 1 : 0);
       break;
     case ENT.CRATE:
     case ENT.CACHE:
@@ -190,12 +190,14 @@ for (let tick = 1; tick <= TICKS; tick++) {
       e.revivedBy = Math.random() < 0.1 ? 5 : 0;
       e.state.slot = irnd(0, 2);
       e.state.ride = Math.random() < 0.3 ? irnd(1, 16) : 0; // onto a ride at the fair, off it
+      e.burning = Math.random() < 0.2; // set alight by a flammer, put out
     }
     if (e.kind === ENT.ITEM && Math.random() < 0.05) e.count = irnd(1, 900);
     if (e.kind === ENT.STRUCTURE && Math.random() < 0.1) {
       e.hp = rnd(0, 500);
       e.state = irnd(0, 1);
       e.burnLeft = Math.random() < 0.5 ? rnd(0, 600) : 0; // (fed, relit or burnt out)
+      e.fire = Math.random() < 0.3 ? rnd(0.1, 30) : 0; // (any other piece: set alight by a flammer, put out)
     }
     if (e.kind === ENT.CRATE && Math.random() < 0.05) e.state = irnd(0, 3);
     if (e.kind === ENT.CACHE && Math.random() < 0.05) e.state = irnd(0, 1);

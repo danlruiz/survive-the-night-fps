@@ -91,7 +91,7 @@ function quant(e) {
       q[6] = e.zombie ? 0 : currentWeapon(s); // (the walkie-talkie slot: ITEM.WALKIE)
       q[7] = Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255)));
       q[8] = s.fireCount & 255;
-      q[9] = s.ears > 0 && !e.zombie ? PSTAT.EARS : 0;
+      q[9] = (s.ears > 0 && !e.zombie ? PSTAT.EARS : 0) | (e.burning ? PSTAT.BURNING : 0);
       break;
     }
     case ENT.ZOMBIE:
@@ -100,7 +100,7 @@ function quant(e) {
       q[5] = Math.max(0, Math.min(255, Math.ceil((e.hp / e.maxHp) * 255)));
       q[6] = e.link || 0;
       q[7] = e.legs;
-      q[8] = (e.onFire || e.burnT > 0 ? ZSTATUS.BURNING : 0) | (e.burst ? ZSTATUS.BURST : 0);
+      q[8] = (e.onFire || e.burnT > 0 || ZOMBIE_DEFS[e.ztype]?.fireproof ? ZSTATUS.BURNING : 0) | (e.burst ? ZSTATUS.BURST : 0); // (the flammer is never not burning)
       break;
     case ENT.ITEM:
       q[3] = e.count;
@@ -110,7 +110,9 @@ function quant(e) {
       q[4] = e.state | 0;
       // a torch's or a campfire's flame: the server tick it burns out at (16 bits; 0: out), as the fair's fuel is
       // sent, so the clients count it down themselves and it is sent again only when the fire is fed or relit
-      q[5] = (e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE) && e.burnLeft > 0 ? (stageTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0;
+      // (any other piece: 1 while it is on fire - STRUCT_FIRE, Game.igniteStructure)
+      if (e.stype === STRUCT.TORCH || e.stype === STRUCT.CAMPFIRE) q[5] = e.burnLeft > 0 ? (stageTick + Math.round(e.burnLeft * SERVER_TICK_RATE)) & 0xffff || 1 : 0;
+      else q[5] = e.fire > 0 ? 1 : 0;
       break;
     case ENT.CRATE:
     case ENT.CACHE:

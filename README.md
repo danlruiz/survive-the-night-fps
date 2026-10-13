@@ -522,7 +522,9 @@ difficulty start over in this browser. Your record of runs is kept.
 - **Arsenal:** pistol, pump shotgun, double-barrel (two heavier blasts back to back, then a break-open
   reload), MP5 (full-auto 9mm out of the pistol's reserve, the quietest gun that fires a bullet), AK-47,
   M4A1 (full-auto 5.56, accurate) and a scoped bolt-action hunting rifle (no bullet hits harder: one body
-  shot drops most of the dead and carries on through the ones behind), plus knife, bats, machete and
+  shot drops most of the dead and carries on through the ones behind), the **Desert Eagle** (workbench: 2 gun
+  parts, 4 scrap, 1 tape; a sidearm in the pistol's place that fires the hunting rifle's .308, seven rounds that
+  each hit well over twice as hard as a pistol's, with a heavy kick), plus knife, bats, machete and
   hammer. Knife, bats and machete have a heavy attack (RMB): a harder blow that can drop what a light swing
   only wounds, paid for with a longer recovery, so light swings still do more damage over time.
   **Nunchucks** (workbench: 2 planks, 2 scrap, 1 tape; now and then in a duffel bag, at the summer camp, at the

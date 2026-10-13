@@ -19,7 +19,7 @@ import { HARVEST, harvestAt, harvestPrompt, strippedKey, needLines } from '../cl
 import { SLOT_PISTOL, SLOT_MELEE } from '../shared/constants.js';
 import { ITEM_DEFS, SCHEMATICS, SCHEM_BIT, schematicRumours } from '../shared/defs.js';
 import { raycastWorld, groundAt } from '../shared/collision.js';
-import { NIGHT_THEMES, nightTheme, nightBoss, BOSS_POOL, FIRST_BOSS } from '../shared/nights.js';
+import { NIGHT_THEMES, nightTheme, nightBoss, BOSS_POOL, FIRST_BOSS, SPECIALS, joinNight, kindsJoining } from '../shared/nights.js';
 
 const seed = +(process.argv[2] || 4242);
 // The checks must pass on any seed, so none of them may lean on what the ones before it happened to leave behind.
@@ -491,6 +491,11 @@ check('caches replicated', [...A.store.ents.values()].some((e) => e.kind === ENT
 // zombie dogs: packs den in the thick woods, hunt together, lunge and bite; the head sits ahead of the body
 {
   const car = game.world.car;
+  // (no dogs in the woods before the run has met them: the day they join, three packs come out)
+  const day0 = game.day;
+  game.day = Math.max(day0, joinNight(game.seed, ZTYPE.DOG));
+  for (let i = 0; i < 3 && game.zombies.filter((z) => z.ztype === ZTYPE.DOG && !z.dead).length < 6; i++) game.zm.spawnForestPack([]);
+  game.day = day0;
   const dogs = game.zombies.filter((z) => z.ztype === ZTYPE.DOG && !z.dead);
   const packs = new Set(dogs.map((d) => d.pack));
   check('dog packs roam the woods', dogs.length >= 4 && packs.size >= 2, `${dogs.length} dogs, ${packs.size} packs`);
@@ -3386,29 +3391,33 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
   check('the zombie cap holds through a stand of eight who do not shoot', eight.peak <= 120 && eight.sent > one.sent && eight.sent <= eight.size && eight.far === 0, `peak ${eight.peak} zombies, ${eight.sent} of ${eight.size} came`);
 }
 
-// one new kind of the dead a night, bats with the spitters on night 3 (ZOMBIE_DEFS minNight): none before its night, the new one there for certain on
-// its night, and from their night on at least one shade and never more than six
+// walkers and runners on night 1, then one new special a night in an order drawn from the seed (shared/nights.js
+// joinNight) until all are out: none before its night, the new one there for certain on its night, and from their
+// night on at least one shade and never more than six
 {
   const early = [];
   const missing = [];
   const shades = [];
-  for (let n = 1; n <= 10; n++) {
+  const all = SPECIALS.length + 1;
+  const shadeNight = joinNight(game.seed, ZTYPE.SHADE);
+  for (let n = 1; n <= all + 1; n++) {
     game.day = n;
     game.startNight();
     const q = game.waves.flatMap((wv) => wv.queue);
     const kinds = new Set(q);
-    for (const t of kinds) if (ZOMBIE_DEFS[t].minNight > n) early.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
-    for (const [t, d] of Object.entries(ZOMBIE_DEFS)) if (!d.boss && !d.born && !d.rolled && d.minNight === n && !kinds.has(+t)) missing.push(`${d.name} on night ${n}`);
+    for (const t of kinds) if (!ZOMBIE_DEFS[t].boss && joinNight(game.seed, t) > n) early.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
+    for (const t of kindsJoining(game.seed, n)) if (!kinds.has(t)) missing.push(`${ZOMBIE_DEFS[t].name} on night ${n}`);
     const k = q.filter((t) => t === ZTYPE.SHADE).length;
-    if (n >= ZOMBIE_DEFS[ZTYPE.SHADE].minNight) shades.push(k);
+    if (n >= shadeNight) shades.push(k);
   }
   const fresh = [];
-  for (let n = 2; n <= 9; n++) fresh.push(Object.values(ZOMBIE_DEFS).filter((d) => !d.boss && d.minNight === n).length);
-  // bats join with the spitters on night 3, so night 7 brings no new kind
-  const want = [1, 2, 1, 1, 1, 0, 1, 1];
-  check('one new kind of the dead a night (two on night 3, none on 7), and none before its night', fresh.every((k, i) => k === want[i]) && !early.length, early.join(', ') || `new on nights 2-9: ${fresh.join('/')}`);
+  for (let n = 1; n <= all + 1; n++) fresh.push(kindsJoining(game.seed, n).length);
+  const want = Array.from({ length: all + 1 }, (_, i) => (i === 0 || i === all ? 0 : 1));
+  check(`one new special a night, from night 2 until all ${SPECIALS.length} are out, and none before its night`, fresh.every((k, i) => k === want[i]) && !early.length, early.join(', ') || `new on nights 1-${all + 1}: ${fresh.join('/')}`);
+  const orders = new Set(Array.from({ length: 20 }, (_, s) => SPECIALS.map((t) => joinNight(s + 1, t)).join()));
+  check('...in an order drawn from the seed', orders.size > 15, `${orders.size} orders over 20 seeds`);
   check('...each one in the horde on its night', !missing.length, missing.join(', '));
-  check('...and from their night on, one to six shades', shades.every((k) => k >= 1 && k <= 6), `nights ${ZOMBIE_DEFS[ZTYPE.SHADE].minNight}-10: ${shades.join('/')}`);
+  check('...and from their night on, one to six shades', shades.every((k) => k >= 1 && k <= 6), `nights ${shadeNight}-${all + 1}: ${shades.join('/')}`);
 }
 
 // a full entity registry: a join that cannot get an id is turned away and leaves nothing behind, what a survivor
@@ -3611,8 +3620,17 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
     while (nightTheme(s, n) !== th) s++;
     return s;
   };
-  const roll = (th, n) => {
-    game.seed = seedFor(th, n);
+  // a seed on which the theme comes on the night the last of its kinds joins (as on the night it was measured on)
+  const themeNight = (th) => {
+    for (let s = 1; ; s++) {
+      const n = Math.max(2, ...(th.needs || []).map((k) => joinNight(s, k)));
+      if (nightTheme(s, n) === th) return { s, n };
+    }
+  };
+  // themes: false rolls the same seed's night plain (the same kinds unlocked, the theme switched off)
+  const roll = (th, n, themes = true, seed = seedFor(th, n)) => {
+    game.seed = seed;
+    game.themes = themes;
     const r = { n: 0, hp: 0, by: new Map(), shades: 0 };
     const queued = game.events.length;
     for (let i = 0; i < 500; i++) {
@@ -3639,9 +3657,9 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
   let wrongBlend = 0;
   let wrongSize = 0;
   for (const th of NIGHT_THEMES) {
-    const n = th.from;
-    const plain = roll(null, n);
-    const r = roll(th, n);
+    const { s: seed, n } = themeNight(th);
+    const plain = roll(th, n, false, seed);
+    const r = roll(th, n, true, seed);
     // what it boosts is at least 1.3x as common as on a plain night, what it thins at most 0.85x
     for (const [t, mul] of Object.entries(th.mul)) {
       const k = share(r, +t) / share(plain, +t);
@@ -3653,22 +3671,18 @@ import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constan
     const kh = r.hp / plain.hp;
     if (Math.abs(kn - 1) > 0.04 || Math.abs(kh - 1) > 0.2) wrongSize++;
     size.push(`${th.id} x${kn.toFixed(2)}/x${kh.toFixed(2)}`);
-    for (const t of r.by.keys()) if (ZOMBIE_DEFS[t].minNight > n) early.push(`${th.id}: ${ZOMBIE_DEFS[t].name} on night ${n}`);
     if (r.shades > 6) early.push(`${th.id}: ${r.shades} shades`);
   }
   check('a themed night has its blend', wrongBlend === 0, `against a plain night: ${blend.join(', ')}`);
   check('...the same head count and about the same total health as a plain one', wrongSize === 0, `count/health: ${size.join(', ')}`);
-  check('...and no zombie the night has not unlocked', early.length === 0, early.join(', '));
+  check('...and no more than six shades', early.length === 0, early.join(', '));
   // switched off (tests, benchmarks), the same seed gives the plain night
   const pack = NIGHT_THEMES.find((th) => th.id === 'pack');
-  const plain = roll(null, 2);
-  game.themes = false;
-  const off = roll(pack, 2);
-  game.themes = true;
+  const off = roll(pack, 2, false);
   const on = roll(pack, 2);
   game.seed = kept;
-  const dogs = [plain, off, on].map((r) => share(r, ZTYPE.DOG));
-  check('themes can be switched off', dogs[1] < dogs[0] * 1.3 && dogs[2] > dogs[0] * 2, `dogs on night 2: plain ${(dogs[0] * 100).toFixed(0)}%, The Pack switched off ${(dogs[1] * 100).toFixed(0)}%, The Pack ${(dogs[2] * 100).toFixed(0)}%`);
+  const dogs = [off, on].map((r) => share(r, ZTYPE.DOG));
+  check('themes can be switched off', dogs[0] > 0 && dogs[1] > dogs[0] * 2, `dogs on night 2: The Pack switched off ${(dogs[0] * 100).toFixed(0)}%, The Pack ${(dogs[1] * 100).toFixed(0)}%`);
 }
 
 // a new playthrough is a new valley: the server rolls a fresh map and tells its clients the seed

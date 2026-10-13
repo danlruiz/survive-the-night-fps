@@ -131,7 +131,7 @@ export class RocketsClient {
       const rx = e.rx - ox;
       const rz = e.rz - oz;
       if (rx * rx + rz * rz > (tHit + 4) * (tHit + 4)) continue;
-      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(g.room?.difficulty).aim) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
+      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(g.room?.difficulty).aim, e.perched) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
       _pos.x = e.rx;
       _pos.y = e.ry;
       _pos.z = e.rz;

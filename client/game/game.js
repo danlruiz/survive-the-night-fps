@@ -27,6 +27,7 @@ import {
   STAMINA_MAX,
   BTN,
   MOON,
+  PIN_FACE,
 } from '../../shared/constants.js';
 import {
   ITEM,
@@ -56,8 +57,9 @@ import {
   CONSUMABLES,
   useWasted,
   PROJ,
+  PLAYER_FIRE,
 } from '../../shared/defs.js';
-import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
+import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
 import { trackedRecipe, trackedNeed } from './tracked.js';
 import { mayHold } from './itemguide.js';
 import { worldFor } from '../../shared/worlds.js';
@@ -108,10 +110,12 @@ import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
 import { FairClient } from './fair.js';
 import { HandcarClient } from './handcar.js';
+import { FaceLatch } from './facelatch.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
 import { Input } from './input.js';
 import { TouchPad } from '../ui/touchpad.js';
+import { touchMode } from './touchmode.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { mateDown } from './matedown.js';
 import { DropHold } from './drophold.js';
@@ -183,6 +187,8 @@ const WEATHER_TOAST = {
 
 const SHOT_SOUND = {
   [ITEM.PISTOL]: SOUND.PISTOL,
+  [ITEM.REVOLVER]: SOUND.PISTOL,
+  [ITEM.DEAGLE]: SOUND.DEAGLE,
   [ITEM.SHOTGUN]: SOUND.SHOTGUN,
   [ITEM.AK47]: SOUND.AK47,
   [ITEM.HUNTING_RIFLE]: SOUND.RIFLE,
@@ -199,11 +205,13 @@ const SHOT_KICK = {
   [ITEM.SHOTGUN]: [1.4, 0.25],
   [ITEM.DB_SHOTGUN]: [1.6, 0.3],
   [ITEM.HUNTING_RIFLE]: [1.3, 0.3],
+  [ITEM.DEAGLE]: [1.4, 0.22],
   [ITEM.MP5]: [0.8, 0.04],
   [ITEM.CROSSBOW]: [0, 0.1],
   [ITEM.RPG]: [1.8, 0.45],
   [ITEM.AT_RIFLE]: [2.2, 0.7],
   [ITEM.FLARE_GUN]: [1.5, 0.12],
+  [ITEM.REVOLVER]: [1.3, 0.14],
 };
 // the anti-tank rifle's long reload: how far into it the round goes home (its bolt opens at the start, closes at the end)
 const AT_ROUND_IN = 0.62;
@@ -1508,6 +1516,21 @@ export class Game {
     return this.players.get(id)?.name || 'Someone';
   }
 
+  // the teammate on fire within reach of our [Space] (PLAYER_FIRE: the server puts out the nearest), or null
+  burningMate(s) {
+    let best = null;
+    let bd = PLAYER_FIRE.reach;
+    for (const e of this.entities.ents.values()) {
+      if (e.kind !== ENT.PLAYER || e.id === this.myId || !(e.q[9] & PSTAT.BURNING) || e.q[5] & (PFLAG.DEAD | PFLAG.ZOMBIE)) continue;
+      const d = Math.hypot(e.rx - s.x, e.rz - s.z);
+      if (d < bd && Math.abs(e.ry - s.y) < 1.5) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
   // a death now lasts until sunrise (DAWN_RETURN) - unless there is none to come: the final stand stops the clock,
   // and a wipe ends the run
   dawnAhead() {
@@ -2105,7 +2128,7 @@ export class Game {
       const rz = e.rz - ev.z;
       const along = rx * dx + ry * dy + rz * dz;
       if (along < -1 || along > wallT + 2 || rx * rx + ry * ry + rz * rz - along * along > 16) continue;
-      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
+      const hb = deer ? deerHitbox(e.ryaw, e.q[4]) : zdef ? zombieHitbox(zdef, e.ryaw, e.q[7], e.q[4] === ZANIM.AIRBORNE, difficultyOf(this.room?.difficulty).aim, e.perched) : playerHitbox(true, !!(e.q[5] & PFLAG.CROUCH));
       _hbPos.x = e.rx;
       _hbPos.y = e.ry;
       _hbPos.z = e.rz;
@@ -2336,6 +2359,7 @@ export class Game {
         case 'shove':
           // a shove at the leaper on us: the hands thrust (the viewmodel), the palms thump into it, the HUD's key jolts
           this.vm.shove(ev.v);
+          this.faceLatch?.jolt(); // (a crawler on our face jolts off it)
           this.shoves = (this.shoves | 0) + 1;
           a.playLocal('hit', { volume: 0.3 + 0.25 * ev.v, rate: 0.75 });
           this.camShake = Math.min(1, (this.camShake || 0) + 0.05);
@@ -3529,6 +3553,10 @@ export class Game {
     const prying = self.holdKind === HOLD.SEARCH && this.entities.ents.get(this.holding);
     vmState.pry = !!(prying && this.bootOf(prying)?.shut && pryWeapon(weaponNow));
     this.vm.update(dt, vmState);
+    // a crawler on our face: the animal itself over our eyes, its belly to them (built the first time one lands)
+    const latched = vmState.pinned && !s.zombie && !cine && !this.debugCam && !!this.latchedBy();
+    if (latched && !this.faceLatch) this.faceLatch = new FaceLatch(this.renderer.vmScene);
+    this.faceLatch?.update(dt, latched, s.shove, time);
     if (this.vm.itemId === ITEM.NUNCHAKU && this.vm.nk) nkSounds(this.audio, this.vm.nk.core, null, this.nkSt, time);
     this.updateSelfBody(dt, s, rp, time, hspeed);
     if (this.vmMuzzleT > 0) {
@@ -4196,6 +4224,12 @@ export class Game {
     this.punchT = 0;
   }
 
+  // the crawler on our face, if one is (ZF.LINK: who it has hold of)
+  latchedBy() {
+    for (const e of this.entities.ents.values()) if (e.kind === ENT.ZOMBIE && e.ztype === ZTYPE.CRAWLER && e.q[6] === this.myId && !e.dead) return e;
+    return null;
+  }
+
   updateHud(dt, s, aiming, wdef) {
     const self = this.self;
     const g = this.global;
@@ -4222,8 +4256,29 @@ export class Game {
     h.dropHint = this.dropHold.hint > 0 ? bindLabel('drop') : ''; // (let go too soon: "Hold G to drop")
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
-    h.shoveKey = h.shove >= 0 ? bindLabel('jump') : '';
-    h.shoves = this.shoves | 0;
+    const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
+    h.shoveText = face ? 'Thrash your head about to tear it off' : 'Mash to shove it off';
+    // ...or the same meter for a fire (a flammer's doing: PLAYER_FIRE): each press of [Space] beats it down - ours, or
+    // that of the teammate beside us we are beating the flames out on
+    const burning = !!self.burning && !!self.alive && !s.zombie && !s.downed;
+    if (this.frame % 6 === 1) this.fireMate = burning || !self.alive || s.zombie || s.downed ? null : this.burningMate(s);
+    const mate = !burning && this.fireMate && this.entities.ents.get(this.fireMate.id) === this.fireMate ? this.fireMate : null;
+    if (h.shove < 0 && (burning || mate)) {
+      h.shove = self.douse || 0;
+      h.shoveText = burning ? 'Mash to put the fire out' : `Mash to beat out the fire on ${this.name(mate.id)}`;
+    }
+    h.onFire = burning;
+    this.inputBuffer.passJump = burning || !!mate;
+    if (burning !== !!this.burnLoop) {
+      if (burning) this.burnLoop = this.audio.createLoop?.('burning', s.x, s.y + 1, s.z) || null;
+      else {
+        this.burnLoop?.stop();
+        this.burnLoop = null;
+      }
+    }
+    this.burnLoop?.setPosition(s.x, s.y + 1, s.z);
+    h.shoveKey = h.shove >= 0 ? (face ? (touchMode() ? 'Swipe' : 'Mouse') : bindLabel('jump')) : '';
+    h.shoves = (this.shoves | 0) + this.inputBuffer.firePresses;
     const w = currentWeapon(s);
     const def = WEAPONS[w];
     if (def && !def.melee) {
