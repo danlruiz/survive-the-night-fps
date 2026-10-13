@@ -22,7 +22,7 @@ export const DIFFICULTIES = [
     name: 'Ember',
     rank: 'Easy',
     // The line under the choice on the new-game card.
-    blurb: 'Fewer dead, and they hit softer and move slower. Days and nights run long, near shots count, and you start with more rounds and bandages. The final stand at the car is smaller, with fewer Tanks. Wiped out on the mainland, you always start again at the bridge.',
+    blurb: 'Fewer dead, and they hit softer and move slower. Days and nights run long, near shots count, and you start with more rounds and bandages. The final stand at the car is smaller, with fewer Tanks.',
     day: 1.5, // day 1 is 9 min, was 6. The last days floor at 4½ min, was 3. The minute of horn stays a minute.
     night: 1.4, // 3½ min, was 2½. The three waves spread out with the night, so there is time to reload between them.
     zombies: 0.55, // night 1 alone is 9 of them, was 17. The day's wanderers, the road herd and a car alarm shrink the same way.
@@ -48,15 +48,12 @@ export const DIFFICULTIES = [
     standCrowd: 0.75, // at most 45% of them on their feet at once, was 60%.
     standTanks: 0.5, // a Tank for every two survivors, was one each. A lone survivor still meets one.
     standSpecials: 0.45, // spitters, boomers, leapers and dogs in it as rarely as on Ember's nights; the rest are runners.
-    // A wipe on the mainland sends the team back to the bridgehead with what they crossed with this many times a run
-    // (Game.restartFromBridge); past it, a wipe there ends the run like one on the island. Not a multiplier.
-    retries: Infinity,
   },
   {
     id: 'nightfall',
     name: 'Nightfall',
     rank: 'Standard',
-    blurb: 'The valley as it plays today. Days shrink, the nights fill up, and a shot that misses is a miss. One second try at the bridge if the mainland wipes you out. Earns 2x the XP of Ember.',
+    blurb: 'The valley as it plays today. Days shrink, the nights fill up, and a shot that misses is a miss. Earns 2x the XP of Ember.',
     day: 1,
     night: 1,
     zombies: 1,
@@ -79,14 +76,13 @@ export const DIFFICULTIES = [
     standCrowd: 1,
     standTanks: 1,
     standSpecials: 1,
-    retries: 1, // one second try at the bridge
   },
   {
     id: 'blackout',
     name: 'Blackout',
     rank: 'Hard',
     // A person who already headshots and kites. Body shots and standing still stop being enough.
-    blurb: 'More of them, harder hits, less time before dark, and less in your pockets. A wipe on the mainland ends the run. For people who already play shooters. Earns 3x the XP of Ember.',
+    blurb: 'More of them, harder hits, less time before dark, and less in your pockets. For people who already play shooters. Earns 3x the XP of Ember.',
     day: 0.8, // day 1 is just under 5 min, was 6. Still the long first day, but you have to know where you are going.
     night: 0.85, // a little over 2 min. The waves sit closer together.
     zombies: 1.4, // night 1 alone is 24, was 17. The daytime cap rises with them, still under the night's own limit.
@@ -109,7 +105,6 @@ export const DIFFICULTIES = [
     standCrowd: 1,
     standTanks: 1,
     standSpecials: 1,
-    retries: 0, // a wipe anywhere is the end of the run
   },
 ];
 

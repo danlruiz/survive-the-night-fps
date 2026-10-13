@@ -381,9 +381,10 @@ export class Game {
     // (a restored game's valley is the one it was played on: built from its seed, which pins nothing)
     // The run's act (shared/acts.js): 1 on the island, 2 on the mainland. startAct: the one every run of this game
     // begins on - the island, or the mainland for a game made to start there (acts.js MAINLAND_START). checkpoint: the
-    // team as it came off the bridge ({ day, used, unlocked, kits }: checkpointAt): the day is the long one (dayLen),
-    // and a wipe on the mainland starts again from it while the difficulty's retries last (restartFromBridge); past
-    // them the run is over. crossing: the cutscene between the two,
+    // team as it came off the bridge ({ day, unlocked, kits }: checkpointAt): the day is the long one (dayLen),
+    // and every wipe on the mainland starts the run again from it (restartFromBridge), as every wipe on the island
+    // starts it again on the island: a run that has got to the mainland stays there. (A game made to start there
+    // starts a new run there: startGame.) crossing: the cutscene between the two,
     // while it plays ({ pending: the mainland is still to be built, skip: who has asked to skip it }).
     this.startAct = opts.startAct === WORLD.MAINLAND ? WORLD.MAINLAND : WORLD.ISLAND;
     this.act = WORLD.ISLAND;
@@ -1534,9 +1535,8 @@ export class Game {
 
   // The checkpoint at the bridge. Everybody is alive on the mainland - whoever was dead or turned at the end of the
   // island comes back - with what they carried over and, at the least, the bridgehead cache's floor (bridgehead).
-  // What each of them has now is kept: a wipe on the mainland starts again from it as long as the difficulty's
-  // retries last (restartFromBridge), and after them it is the end of the run. Returns how many it brought back from
-  // the dead.
+  // What each of them has now is kept: every wipe on the mainland starts the run again from it (restartFromBridge).
+  // Returns how many it brought back from the dead.
   checkpointAt() {
     let back = 0;
     for (const p of this.players.values()) {
@@ -1548,7 +1548,7 @@ export class Game {
       } else this.landOn(p);
       this.bridgehead(p);
     }
-    this.checkpoint = { day: this.day, used: 0, unlocked: this.unlocked, kits: this.kitsNow() };
+    this.checkpoint = { day: this.day, unlocked: this.unlocked, kits: this.kitsNow() };
     return back;
   }
 
@@ -1579,20 +1579,17 @@ export class Game {
     this.syncThrow(p);
   }
 
-  // How many more times a wipe now would start again at the bridge (Infinity on Ember): none off the mainland, or
-  // with no checkpoint to start from
-  retriesLeft() {
-    const cp = this.checkpoint;
-    if (this.act !== WORLD.MAINLAND || !cp?.kits) return 0;
-    return Math.max(0, this.diff.retries - (cp.used | 0));
+  // Whether a wipe now starts the run again at the bridge: on the mainland of a run that crossed to it, with a
+  // checkpoint to start from. (A game made to start on the mainland starts a new run there instead: startGame.)
+  atBridge() {
+    return this.act === WORLD.MAINLAND && this.startAct === WORLD.ISLAND && !!this.checkpoint?.kits;
   }
 
-  // A wipe on the mainland with a retry left: the same mainland again, as the team found it coming off the bridge,
-  // on the day they did, each with what they crossed with (the gun crates again, for a game that began there).
-  // Whoever joined since has a late joiner's kit for that day.
+  // A wipe on the mainland of a run that crossed to it: the same mainland again, as the team found it coming off the
+  // bridge, on the day they did, each with what they crossed with. Whoever joined since has a late joiner's kit for
+  // that day.
   restartFromBridge() {
     const cp = this.checkpoint;
-    cp.used = (cp.used | 0) + 1;
     this.track.finish('abandoned'); // (the wipe's match is over already: gameOver)
     this.clearWorld();
     this.crossing = null;
@@ -1601,7 +1598,6 @@ export class Game {
     this.unlocked = cp.unlocked | 0;
     this.timeLeft = this.dayLen;
     this.populate();
-    if (this.startAct === WORLD.MAINLAND) this.startCrates();
     const kits = new Map(cp.kits);
     for (const p of this.players.values()) {
       p.nightKills = p.nightRevives = 0;
@@ -1615,13 +1611,12 @@ export class Game {
       if (k) this.wear(p, k);
       else this.bridgehead(p, false);
     }
-    const left = this.retriesLeft();
-    this.notify(NOTIFY.CHECKPOINT, Number.isFinite(left) ? Math.min(left, 0xfffe) : 0xffff);
+    this.notify(NOTIFY.CHECKPOINT, this.day);
     this.newWorldForAll(); // (nobody's prey while the page clears the old run away)
     this.globalDirty = true;
     this.playersDirty = true;
     this.track.start();
-    this.log(`wiped on the mainland: back at the bridgehead, day ${this.day} (try ${cp.used + 1})`);
+    this.log(`wiped on the mainland: back at the bridgehead, day ${this.day}`);
   }
 
   // The gun crates of a game that starts on the mainland (acts.js MAINLAND_START), on the ground at the bridgehead
@@ -2160,8 +2155,6 @@ export class Game {
     this.restartT = GAME_OVER_DELAY;
     this.escape.active = false;
     this.notify(NOTIFY.GAME_OVER, this.day);
-    // ...and whether the end screen is the run's, or a second try at the bridge follows it (restartFromBridge)
-    if (this.retriesLeft() > 0) this.notify(NOTIFY.WIPE_RETRY, this.checkpoint.day);
     this.globalDirty = true;
     this.log('game over on day', this.day);
   }
@@ -4670,7 +4663,7 @@ export class Game {
         this.sup.items.forEach((it, i) => this.giveItem(p, it, this.sup.need[i] - this.supplies[i]));
         break;
       case 'wipe':
-        // /wipe: every survivor dies (on the mainland the team goes back to the bridge while retries last: restartFromBridge)
+        // /wipe: every survivor dies (on the mainland the team goes back to the bridge: restartFromBridge)
         for (const q of [...this.players.values()]) if (q.alive && !q.zombie) this.killPlayer(q, { kind: KILLER.WORLD }, true);
         this.checkAllDead();
         break;
@@ -5035,7 +5028,7 @@ export class Game {
       if (this.takeoffHold) return; // (/takeoff hold: look-dev)
       this.restartT -= dt;
       if (this.restartT <= 0) {
-        if (this.phase === PHASE.GAMEOVER && this.retriesLeft() > 0) this.restartFromBridge();
+        if (this.phase === PHASE.GAMEOVER && this.atBridge()) this.restartFromBridge();
         else this.startGame();
       }
       return;

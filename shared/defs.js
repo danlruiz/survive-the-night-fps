@@ -809,7 +809,7 @@ export const NOTIFY = {
   CACHE: 67, // (to one survivor) what the bridgehead cache gave them. arg = a CACHE_GAVE bitmask
   STAND_STAGE: 68, // the runway stand moves on. arg = 1: the tanks are full, the engines are warming; 2: warm, get in
   RUNWAY_BLOCKED: 69, // (to whoever tried to take off) the dead are on the runway. arg = how many
-  CHECKPOINT: 70, // a wipe on the mainland: the run starts again from the bridgehead. arg = the retries left after this one (0xffff: no end to them)
+  CHECKPOINT: 70, // a wipe on the mainland: the run starts again from the bridgehead. arg = the day it starts on
   // vehicles (shared/vehicles.js)
   VEH_FIXED: 71, // a vehicle runs. arg = the player who fitted the last part
   VEH_BROKE: 72, // (to who is in it) it has broken down
@@ -818,7 +818,6 @@ export const NOTIFY = {
   VEH_NEED: 75, // (to whoever tried) arg = VEH_NO: why nothing could be done to it
   VEH_OFF: 76, // (to the rider) arg = VEH_OFF: what took them off it
   SUPPLY_HINT: 77, // a team that has found no supply yet is told on the radio where one is. arg = the hint (shared/supplyhelp.js)
-  WIPE_RETRY: 78, // (with GAME_OVER) the end screen is not the run's: a second try at the bridge follows it. arg = the day it starts on
 };
 
 // NOTIFY.VEH_NEED / VEH_OFF: why

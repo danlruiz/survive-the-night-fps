@@ -44,9 +44,9 @@
 //                         explosion or unknown
 //
 // The two acts (shared/acts.js): a run that drives off the island goes on across the bridge as the same match, and
-// its victory is the plane's. A wipe on the mainland ends the match: the next begins back at the bridgehead while the
-// difficulty has tries left (Game.restartFromBridge), on the island once it has none (summary.startAct 2: a match begun
-// on the mainland - a game made to start there, a try at the bridge, or one picked up there after a deploy). In the match_end record suppliesInstalled /
+// its victory is the plane's. A wipe on the mainland ends the match: the next begins back at the bridgehead
+// (Game.restartFromBridge), never on the island (summary.startAct 2: a match begun on the mainland - a game made to
+// start there, a restart at the bridge, or one picked up there after a deploy). In the match_end record suppliesInstalled /
 // suppliesNeeded and engineStartedS are of the act the match ended in (the engine: the last one started);
 // summary.supplies is always the car's, summary.planeParts the plane's (the same shape; null for a match that never
 // saw the mainland), every supplyLog entry names its act, summary.act is the act it ended in, and summary.crossing

@@ -65,7 +65,7 @@ export const BRIDGEHEAD = { MAGS: 2, ROUNDS: 60, BANDAGES: 1, PISTOL: ITEM.PISTO
 // with a starting kit for that day and the bridgehead's floor, and the gun crates stand there for it: CRATES of them
 // at the least, one for each survivor there past that, CRATES_MAX at the most (world.startCrates are where). Each holds
 // one of GUNS (a different one to each crate, as far as they go) with MAGS magazines of its rounds, and STOCK.
-// [E] breaks one open, as a supply drop's. On a second try at the bridge (Game.restartFromBridge) they are there again.
+// [E] breaks one open, as a supply drop's. A wipe starts a new run there (never on the island), with its own crates.
 export const MAINLAND_START = {
   DAY: 3,
   CRATES: 4,

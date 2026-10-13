@@ -4,9 +4,9 @@
 //   - a game made to start on the mainland (acts.js MAINLAND_START): the team at the bridgehead on its day, with a
 //     starting kit and the bridgehead's floor, and the gun crates there - each a different gun, loaded, its rounds
 //     and the stock
-//   - a wipe on the mainland: back at the bridge with what the team had there while the difficulty's retries last
-//     (difficulty.js: Ember always, Nightfall once, Blackout never), then the end of the run - the next begins where
-//     the game does
+//   - a wipe in a game made on the mainland: a new run there, on a new mainland, with the crates again; a wipe on the
+//     mainland of a run that crossed to it: back at the bridge with what the team had there, every time, whatever
+//     the difficulty - such a run never goes back to the island
 //   - a deploy keeps the map the game starts on, and the crates
 //   - the server: a map 2 game is made (POST /api/games) and joined (the socket's JOIN) only by whoever has beaten map
 //     1; /api/progress says so; quick joins never go to one; the list marks them
@@ -130,8 +130,7 @@ const wipe = (game) => {
   check(`${MAINLAND_START.CRATES} gun crates stand shut at the bridgehead, each with a different gun`, crates.length === MAINLAND_START.CRATES && new Set(crates.map((e) => e.gun)).size === crates.length && crates.every((e) => Math.hypot(e.x - game.world.start.x, e.z - game.world.start.z) < 25), crates.map((e) => `${e.gun}@${e.x | 0},${e.z | 0}`).join(' '));
   check('...on the ground, not in it nor over it', crates.every((e) => Math.abs(e.y - game.world.heightAt(e.x, e.z)) < 1.5), crates.map((e) => (e.y - game.world.heightAt(e.x, e.z)).toFixed(2)).join(' '));
   // (Ann's join began the run: Ben came after it, as a late joiner, and has a late joiner's kit at the bridge again)
-  check('...and for a checkpoint: the day, and what each had as it began', game.checkpoint?.day === MAINLAND_START.DAY && game.checkpoint.used === 0 && game.checkpoint.kits.length === 1);
-  check('the arrival says how many tries the mainland gives, on Nightfall one', game.retriesLeft() === 1 && difficultyOf(game.diff.id).retries === 1);
+  check('...and for a checkpoint: the day, and what each had as it began', game.checkpoint?.day === MAINLAND_START.DAY && game.checkpoint.kits.length === 1);
 
   // Ann breaks the first open
   const e = crates[0];
@@ -156,19 +155,17 @@ const wipe = (game) => {
   game.giveItem(a, ITEM.MEDKIT, 2);
   ticks(game, 1);
   wipe(game);
-  check('a wipe on the mainland is a game over, with a second try to come', game.phase === PHASE.GAMEOVER && notes.some((n) => n[0] === NOTIFY.WIPE_RETRY && n[1] === MAINLAND_START.DAY));
-  const resets = ann.resets.length;
-  ticks(game, GAME_OVER_DELAY + 0.5);
-  check('...back at the bridgehead on the day the run began, on the same mainland', game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.day === MAINLAND_START.DAY && ann.resets.length === resets && notes.some((n) => n[0] === NOTIFY.CHECKPOINT && n[1] === 0), `phase ${game.phase} day ${game.day}`);
-  check('...everybody alive there with what they had as it began', [a, b].every((p) => p.alive && !p.zombie && near(p, game.world.start, 16)) && kitOf(a) === kits[0] && kitOf(b) === kits[1], `${kitOf(a)}\n      ${kits[0]}`);
-  check('...and the gun crates shut again, all of them', shut(game).length === MAINLAND_START.CRATES);
-  check('...with no tries left on Nightfall', game.retriesLeft() === 0 && game.checkpoint.used === 1);
   const seed = game.seed;
-  wipe(game);
-  check('a second wipe: no second try to come', game.phase === PHASE.GAMEOVER && notes.filter((n) => n[0] === NOTIFY.WIPE_RETRY).length === 1);
+  check('a wipe on the mainland is a game over', game.phase === PHASE.GAMEOVER);
   ticks(game, GAME_OVER_DELAY + 0.5);
-  check('...a new run, on a new mainland: the game starts there', game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.world.kind === WORLD.MAINLAND && game.seed !== seed && ann.resets.at(-1)?.act === WORLD.MAINLAND && game.day === MAINLAND_START.DAY, `phase ${game.phase} act ${game.act} resets ${JSON.stringify(ann.resets)}`);
-  check('...its tries afresh, and its crates', game.checkpoint.used === 0 && game.retriesLeft() === 1 && shut(game).length === MAINLAND_START.CRATES);
+  check('...then a new run at the start of map 2: a new mainland, its first day, at the bridgehead', game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.world.kind === WORLD.MAINLAND && game.seed !== seed && ann.resets.at(-1)?.act === WORLD.MAINLAND && game.day === MAINLAND_START.DAY && notes.filter((n) => n[0] === NOTIFY.NEW_GAME && n[1] === MAINLAND_START.DAY).length === 2, `phase ${game.phase} act ${game.act} day ${game.day} resets ${JSON.stringify(ann.resets)}`);
+  check('...everybody alive there, with a fresh start and none of what they picked up', [a, b].every((p) => p.alive && !p.zombie && near(p, game.world.start, 16)) && countItem(a.inv, ITEM.MEDKIT) === 0);
+  check('...and the gun crates shut again, all of them', shut(game).length === MAINLAND_START.CRATES);
+  for (let i = 0; i < 3; i++) {
+    wipe(game);
+    ticks(game, GAME_OVER_DELAY + 0.5);
+  }
+  check('...and so after every wipe, on every difficulty: never the island', game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.day === MAINLAND_START.DAY && shut(game).length === MAINLAND_START.CRATES);
 
   // a deploy keeps the map the game starts on, and the crates
   const C = new Game({ log: quiet, themes: false, restore: decode(encode(envelope(game))) });
@@ -177,26 +174,6 @@ const wipe = (game) => {
   // the admin's /map1 is still the island
   game.startGame(WORLD.ISLAND);
   check("an admin's /map1 in it: the island", game.act === WORLD.ISLAND && game.world.kind === WORLD.ISLAND && game.day === 1 && !game.crates.length);
-}
-
-// ================================================================ the tries, by difficulty
-{
-  const tries = (difficulty, n) => {
-    const game = new Game({ startAct: WORLD.MAINLAND, difficulty, log: quiet, themes: false, godMode: true });
-    join_(game, 'Ann');
-    ticks(game, 0.2);
-    let back = 0;
-    for (let i = 0; i < n; i++) {
-      wipe(game);
-      ticks(game, GAME_OVER_DELAY + 0.5);
-      if (game.checkpoint.used > 0) back = game.checkpoint.used;
-      else break;
-    }
-    return back;
-  };
-  check('Ember: back to the bridge after every wipe', tries('ember', 4) === 4);
-  check('Nightfall: once', tries('nightfall', 4) === 1);
-  check('Blackout: never', tries('blackout', 4) === 0);
 }
 
 // ================================================================ the checkpoint on a run from the island
@@ -210,16 +187,22 @@ const wipe = (game) => {
   game.cross(a, false);
   game.arrive();
   const kit = kitOf(a);
-  check('a run from the island comes off the bridge with a checkpoint', game.act === WORLD.MAINLAND && game.checkpoint?.kits.length === 1 && game.retriesLeft() === 1);
+  check('a run from the island comes off the bridge with a checkpoint', game.act === WORLD.MAINLAND && game.checkpoint?.kits.length === 1);
   game.giveItem(a, ITEM.MEDKIT, 3);
   game.day = game.checkpoint.day + 2;
   wipe(game);
   ticks(game, GAME_OVER_DELAY + 0.5);
   check('...a wipe goes back to it: the same mainland, the day they came, with what they crossed with', game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.day === game.checkpoint.day && kitOf(a) === kit && notes.some((n) => n[0] === NOTIFY.CHECKPOINT), `${kitOf(a)}\n      ${kit}`);
   check('...and no gun crates: they are for a game that starts there', !game.crates.length);
-  wipe(game);
-  ticks(game, GAME_OVER_DELAY + 0.5);
-  check('...and the second wipe on Nightfall ends the run: the next begins on the island', game.phase === PHASE.DAY && game.act === WORLD.ISLAND && game.day === 1 && !game.checkpoint && countItem(a.inv, ITEM.MEDKIT) === 0, `act ${game.act} day ${game.day}`);
+  for (const difficulty of ['nightfall', 'blackout']) {
+    game.diff = difficultyOf(difficulty);
+    for (let i = 0; i < 3; i++) {
+      game.day = game.checkpoint.day + 1;
+      wipe(game);
+      ticks(game, GAME_OVER_DELAY + 0.5);
+    }
+    check(`...and back to it after every wipe, on ${difficulty} too: never the island again`, game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.day === game.checkpoint.day && kitOf(a) === kit, `act ${game.act} day ${game.day}`);
+  }
 }
 
 // ================================================================ the server
