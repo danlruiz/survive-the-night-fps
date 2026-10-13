@@ -27,7 +27,7 @@ const LAST = ['sim-act2.js', 'sim-rejoin.js', 'sim-smoke.js'];
 //   test-mainland.js  the mainland generated for many seeds (~2.5 min) - mainland.js, the places on it
 //   sim-act2.js       a full playthrough of both acts (~2.5 min) - acts, the boat, the end of the run
 const NIGHTLY = new Set(['test-vehicles.js', 'test-mainland.js', 'sim-act2.js']);
-const STEP_MS = 20 * 60_000; // (the slowest step, test-vehicles, takes about 9 minutes)
+const STEP_MS = 40 * 60_000; // (the slowest step, test-vehicles, takes 9 minutes, and up to about 20 on a busy machine)
 const tests = readdirSync(here)
   .filter((f) => /^test-.+\.js$/.test(f) && !ELSEWHERE.has(f))
   .sort();
@@ -45,7 +45,9 @@ const failed = [];
 const t0 = Date.now();
 for (const [i, f] of steps.entries()) {
   say(`\n=== [${i + 1}/${steps.length}] node scripts/${f}`);
+  const t1 = Date.now();
   const r = spawnSync(process.execPath, [join(here, f)], { stdio: 'inherit', timeout: STEP_MS, killSignal: 'SIGKILL' });
+  say(`=== ${f}: ${((Date.now() - t1) / 1000).toFixed(1)} s`);
   if (r.error?.code === 'ETIMEDOUT') failed.push(`${f} (still running after ${STEP_MS / 60000} min: killed)`);
   else if (r.status !== 0) failed.push(`${f} (${r.signal || `exit ${r.status}`})`);
 }
