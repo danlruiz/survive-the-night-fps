@@ -187,6 +187,7 @@ const WEATHER_TOAST = {
 
 const SHOT_SOUND = {
   [ITEM.PISTOL]: SOUND.PISTOL,
+  [ITEM.REVOLVER]: SOUND.PISTOL,
   [ITEM.DEAGLE]: SOUND.DEAGLE,
   [ITEM.SHOTGUN]: SOUND.SHOTGUN,
   [ITEM.AK47]: SOUND.AK47,
@@ -210,6 +211,7 @@ const SHOT_KICK = {
   [ITEM.RPG]: [1.8, 0.45],
   [ITEM.AT_RIFLE]: [2.2, 0.7],
   [ITEM.FLARE_GUN]: [1.5, 0.12],
+  [ITEM.REVOLVER]: [1.3, 0.14],
 };
 // the anti-tank rifle's long reload: how far into it the round goes home (its bolt opens at the start, closes at the end)
 const AT_ROUND_IN = 0.62;

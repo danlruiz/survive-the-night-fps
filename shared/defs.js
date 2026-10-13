@@ -52,6 +52,7 @@ export const ITEM = {
   PISTOL: 55,
   FLARE_GUN: 56, // a sidearm (the pistol's slot): one parachute flare at a time, up into the sky (shared/skyflare.js)
   NUNCHAKU: 57, // melee with a moveset of its own: combos, a wound-up heavy, a simulated chain (shared/nunchaku.js)
+  REVOLVER: 58, // a sidearm (the pistol's slot): six heavy 9mm rounds, a slow reload
   DEAGLE: 59, // a sidearm (the pistol's slot) that hits like a rifle, on the hunting rifle's .308
   SHOTGUN: 60,
   AK47: 61,
@@ -163,6 +164,7 @@ export const ITEM_DEFS = {
   [ITEM.HAMMER]: { name: 'Hammer', cat: 'weapon', stack: 1, color: 0x7a5c3a, desc: 'Build and repair structures.' },
   [ITEM.NUNCHAKU]: { name: 'Nunchucks', cat: 'weapon', stack: 1, color: 0x7a4a2a, desc: 'Two hardwood handles on a chain. Keep swinging for a four-move combo whose last blow lands hardest; hold the heavy attack to spin it up. Short reach, one target, and every move costs stamina.' },
   [ITEM.PISTOL]: { name: 'Pistol', cat: 'weapon', stack: 1, color: 0x333333, desc: 'Reliable 9mm sidearm.' },
+  [ITEM.REVOLVER]: { name: 'Revolver', cat: 'weapon', stack: 1, color: 0x3a3632, desc: 'Six-shot 9mm revolver. Hits much harder than the pistol, but fires slower and takes longer to reload. Takes the pistol\'s place.' },
   [ITEM.SHOTGUN]: { name: 'Shotgun', cat: 'weapon', stack: 1, color: 0x4a3a2a, desc: 'Devastating up close.' },
   [ITEM.AK47]: { name: 'AK-47', cat: 'weapon', stack: 1, color: 0x5a4632, desc: 'Full-auto 7.62 rifle.' },
   [ITEM.HUNTING_RIFLE]: { name: 'Hunting Rifle', cat: 'weapon', stack: 1, color: 0x6b4f33, desc: 'Bolt-action .308. Pierces.' },
@@ -295,6 +297,10 @@ export const WEAPONS = {
   [ITEM.NUNCHAKU]: { slot: 2, melee: true, nunchaku: true, damage: 28, rate: 0.32, range: 1.9, altDamage: 165, altRate: 0.8, headMul: 1.7, knock: 0.6, swing: 0.1 },
   [ITEM.HAMMER]: { slot: 4, melee: true, damage: 25, rate: 0.6, range: 2.0, altDamage: 25, altRate: 0.6, headMul: 1.5, knock: 1, swing: 0.15, build: true },
   [ITEM.PISTOL]: { slot: 1, damage: 30, rate: 0.16, mag: 12, reload: 1.35, ammo: 0, pellets: 1, spread: 0.012, moveSpread: 0.02, recoil: 0.018, range: 120, headMul: 3.0, auto: false, noise: 45, sound: 'pistol' },
+  // the revolver: the pistol's rounds, six of them, nearly twice as hard and a little tighter. Slower between shots and
+  // to reload (a speedloader), so a cylinder does about what a pistol magazine does (330 vs 360) in a longer time;
+  // it is the sidearm for picking off heads (110 x 3 kills a walker outright), not for holding off a crowd
+  [ITEM.REVOLVER]: { slot: 1, damage: 55, rate: 0.4, mag: 6, reload: 2.4, ammo: 0, pellets: 1, spread: 0.008, moveSpread: 0.024, recoil: 0.04, range: 140, headMul: 3.0, auto: false, noise: 60, sound: 'pistol' },
   // the Desert Eagle: the pistol's slot, the hunting rifle's rounds. Over twice the pistol's hit for half its rate and
   // magazine, a wide first shot and a hard climb: one at a time, aimed, for the heads that matter. Loud as a rifle
   [ITEM.DEAGLE]: { slot: 1, damage: 72, rate: 0.3, mag: 7, reload: 1.8, ammo: 3, pellets: 1, spread: 0.014, moveSpread: 0.03, recoil: 0.05, range: 140, headMul: 2.8, auto: false, noise: 70, sound: 'deagle' },
@@ -503,6 +509,8 @@ export const RECIPES = [
   { id: 42, out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
   // the Desert Eagle: more gun parts than a pistol is made of and a lot more steel; no schematic
   { id: 43, out: ITEM.DEAGLE, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 1 }, station: 'bench' },
+  // two gun parts for the lockwork, scrap for the frame and cylinder, wood for the grips
+  { id: 44, out: ITEM.REVOLVER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 1 }, station: 'bench' },
 ];
 
 // The order the backpack grid is sorted in after a pickup or a drop, by category: weapons, what is worn or carried for
@@ -534,6 +542,7 @@ export const SALVAGE = {
   [ITEM.HAMMER]: { [ITEM.SCRAP]: 1 },
   [ITEM.NUNCHAKU]: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 },
   [ITEM.PISTOL]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
+  [ITEM.REVOLVER]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
   [ITEM.DEAGLE]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2 },
   [ITEM.SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1, [ITEM.WOOD]: 1 },
   [ITEM.AK47]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 1 },
