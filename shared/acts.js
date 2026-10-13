@@ -59,3 +59,23 @@ export const RUNWAY = { FUEL_TIME: 60, WARM_TIME: 50, HOLD: 12, CLEAR: 2, STRIP:
 //   a knife and a hammer, for whoever has no blade or nothing to build with (the tools every survivor starts with)
 // Whoever the checkpoint brought back from the dead dropped everything where they fell: they come over with the floor.
 export const BRIDGEHEAD = { MAGS: 2, ROUNDS: 60, BANDAGES: 1, PISTOL: ITEM.PISTOL, MELEE: ITEM.KNIFE, BUILD: ITEM.HAMMER };
+
+// A game made to start on the mainland (map 2: "Start on" on the new-game card, open to whoever has beaten map 1).
+// The team has not come over the bridge with what the island gave it, so it is put down at the bridgehead on day DAY
+// with a starting kit for that day and the bridgehead's floor, and the gun crates stand there for it: CRATES of them
+// at the least, one for each survivor there past that, CRATES_MAX at the most (world.startCrates are where). Each holds
+// one of GUNS (a different one to each crate, as far as they go) with MAGS magazines of its rounds, and STOCK.
+// [E] breaks one open, as a supply drop's. On a second try at the bridge (Game.restartFromBridge) they are there again.
+export const MAINLAND_START = {
+  DAY: 3,
+  CRATES: 4,
+  CRATES_MAX: 6,
+  GUNS: [ITEM.AK47, ITEM.SHOTGUN, ITEM.M4A1, ITEM.MP5, ITEM.HUNTING_RIFLE, ITEM.DB_SHOTGUN],
+  MAGS: 4,
+  STOCK: [
+    [ITEM.AMMO_9MM, 36],
+    [ITEM.BANDAGE, 2],
+    [ITEM.MEDKIT, 1],
+    [ITEM.MOLOTOV, 1],
+  ],
+};

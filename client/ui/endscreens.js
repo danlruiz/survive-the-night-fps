@@ -510,7 +510,8 @@ export class EndScreen {
   }
 
   // What this run did to the player's own record. rep: recordRun's report (records.js), { late: true } for a run
-  // joined too late to count, or nothing when the run was not followed at all
+  // joined too late to count, { part: true } for one that started at the bridge, or nothing when the run was not
+  // followed at all
   _record(rep) {
     const box = this.run;
     box.textContent = '';
@@ -519,6 +520,10 @@ export class EndScreen {
     const right = cardHead(box, 'Your run');
     if (rep.late) {
       el('p', 'xend-note', box, 'You joined this run after its first minute, so it is not on your record.');
+      return;
+    }
+    if (rep.part) {
+      el('p', 'xend-note', box, 'This run started at the bridge, not on the island, so it is not on your record.');
       return;
     }
     const { run, news, record: rec } = rep;

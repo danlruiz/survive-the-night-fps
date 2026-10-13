@@ -64,7 +64,7 @@ import { trackedRecipe, trackedNeed } from './tracked.js';
 import { WEAPON_LIST } from '../../shared/weapons/index.js';
 import { mayHold } from './itemguide.js';
 import { worldFor } from '../../shared/worlds.js';
-import { WORLD, CROSSING, TAKEOFF_TIME, PLANE_REACH, RUNWAY } from '../../shared/acts.js';
+import { WORLD, CROSSING, TAKEOFF_TIME, PLANE_REACH, RUNWAY, MAINLAND_START } from '../../shared/acts.js';
 import { SUPPLIES, SUPPLY_NEED, W, setAct, wordsOf } from './act.js'; // (this act's supplies, and the words for what they go into)
 import { usePos } from '../../shared/protocol.js';
 import { SUPPLY_HELP, narrowedAt } from '../../shared/supplyhelp.js';
@@ -328,7 +328,8 @@ export class Game {
     this.deathShown = false;
     this.overlay = null;
     this.runOn = false; // a run is under way, as far as this client has seen (trackRun)
-    this.run = null; // ...and we have been in it from the start: { tick, kills0 }
+    this.run = null; // ...and we have been in it from the start: { tick, kills0, day }
+    this.sawRunEnd = false; // the last run ended under us, so the next one starts under us whatever day it is on
     this.runReport = null; // what the run that just ended did to the personal record, for the end screen
     this.prevPhase = -1;
     this.lastHudInvKey = '';
@@ -1053,6 +1054,7 @@ export class Game {
     this.introPending = !resume; // until NEW_GAME introduces the run this join started, or lateJoinIntro one already under way
     if (!resume) {
       this.runOn = false;
+      this.sawRunEnd = false;
       this.run = this.runReport = null;
       this.progress = null; // our XP (onProgress), once the server says
     }
@@ -1258,18 +1260,29 @@ export class Game {
       if (this.runOn) return;
       this.runOn = true;
       this.onboarding.reset(); // (a new player's walkthrough looks at this run from its start: onboarding.js)
-      // how much of the run was played before we saw it: nothing when it starts under us
-      const gone = g.phase === PHASE.DAY && g.day === 1 ? g.phaseLen - g.timeLeft : Infinity;
+      // how much of the run was played before we saw it: nothing when it starts under us. A run starts on day 1, on
+      // the mainland's first day in a game made to start there, or on whatever day a second try at the bridge does
+      // (we saw the try before it end)
+      const first = g.day === 1 || this.sawRunEnd || (this.room?.startAct === WORLD.MAINLAND && g.day === MAINLAND_START.DAY);
+      this.sawRunEnd = false;
+      const gone = g.phase === PHASE.DAY && first ? g.phaseLen - g.timeLeft : Infinity;
       // kills0: our score when the run began. The server's count can carry over from the run before
-      this.run = gone <= RUN_JOIN_GRACE ? { tick: this.net.tick - gone * SERVER_TICK_RATE, kills0: this.players.get(this.myId)?.kills ?? Infinity } : null;
+      this.run = gone <= RUN_JOIN_GRACE ? { tick: this.net.tick - gone * SERVER_TICK_RATE, kills0: this.players.get(this.myId)?.kills ?? Infinity, day: g.day } : null;
     } else if (this.runOn) {
       this.runOn = false;
       const run = this.run;
       this.run = null;
       if (g.phase !== PHASE.VICTORY && g.phase !== PHASE.GAMEOVER) return;
+      this.sawRunEnd = true;
       finishOnboarding(); // (a run played to its end: the walkthrough is not shown again, firstrun.js)
       if (!run) {
         this.runReport = { late: true };
+        return;
+      }
+      // a run from the mainland's start or a second try at the bridge is not the whole run: its time and nights
+      // would beat a whole one's, so it is not put on the record
+      if (run.day !== 1) {
+        this.runReport = { part: true };
         return;
       }
       this.runReport = recordRun({
@@ -1848,9 +1861,24 @@ export class Game {
         ui.notify('THE MAINLAND', 'big', 6);
         ui.notify('The bridge is gone behind you. There is an airfield past the city: find the plane, find its parts, fly out.', 'sub', 9);
         if (arg) ui.notify(`${arg === 1 ? 'One of the dead is' : `${arg} of the dead are`} a survivor again: the crossing brought them back.`, 'good', 7);
-        ui.notify('There is no second chance here: if everyone falls, the run starts over on the island.', 'toast', 9);
+        ui.notify(this.retriesText(), 'toast', 9);
         this.discovered = new Set([ZONE.BRIDGEHEAD]);
         break;
+      case NOTIFY.WIPE_RETRY:
+        this.wipeRetry = true; // (the end screen that comes up with this says the team goes back to the bridge)
+        break;
+      case NOTIFY.CHECKPOINT: {
+        // a wipe on the mainland, and a second try at the bridge (arg: the tries left after this one, 0xffff: no end)
+        this.wipeRetry = false;
+        this.deathShown = false;
+        this.waypoint = null;
+        this.pings = [];
+        this.discovered = new Set([ZONE.BRIDGEHEAD]);
+        ui.notify('BACK AT THE BRIDGEHEAD', 'big', 5);
+        ui.notify(this.room?.startAct === WORLD.MAINLAND ? 'As you started, with the gun crates there again.' : 'As you came off the bridge, with what you carried over it.', 'sub', 7);
+        ui.notify(arg === 0xffff ? 'If everyone falls again, you start again here.' : arg ? `${arg} more ${arg === 1 ? 'try' : 'tries'} here after this one.` : 'This is the last try: if everyone falls again, the run is over.', 'toast', 9);
+        break;
+      }
       case NOTIFY.CACHE: {
         const got = [arg & CACHE_GAVE.PISTOL && 'a pistol', arg & CACHE_GAVE.AMMO && 'ammunition', arg & CACHE_GAVE.BANDAGE && 'a bandage', arg & CACHE_GAVE.MELEE && 'a knife', arg & CACHE_GAVE.BUILD && 'a hammer'].filter(Boolean);
         if (got.length) ui.notify(`From the checkpoint's cache at the bridgehead: ${got.join(', ')}.`, 'toast', 8);
@@ -1947,7 +1975,16 @@ export class Game {
         this.flyover?.clear();
         this.graves?.reset();
         this.introPending = false;
+        this.wipeRetry = false;
         ui.notify(`DAY ${arg}`, 'big', 5);
+        if (this.act === WORLD.MAINLAND) {
+          // a game that starts on the mainland (map 2): at the bridgehead, with the gun crates (acts.js MAINLAND_START)
+          this.discovered = new Set([ZONE.BRIDGEHEAD]);
+          ui.notify('THE MAINLAND', 'big', 6);
+          ui.notify('There is an airfield past the city: find the plane, find its parts, fly out. Break open the gun crates at the bridgehead first.', 'sub', 9);
+          ui.notify(this.retriesText(), 'toast', 9);
+          break;
+        }
         ui.notify('Your car died on Route 9. Find the supplies to fix it - before the dark finds you.', 'sub', 6);
         // a new player's first run opens on the goal (#270): turned to face the car, and the walkthrough's first
         // card says what it needs (onboarding.js)
@@ -1961,6 +1998,15 @@ export class Game {
         ui.notify('Part of the horde is coming up out of St. Agnes Cemetery. Watch the ground behind you.', 'toast', 7);
         break;
     }
+  }
+
+  // What a wipe on the mainland costs on this game's difficulty (difficulty.js retries), for the arrival's notices
+  retriesText() {
+    const n = difficultyOf(this.room?.difficulty).retries;
+    const over = this.room?.startAct === WORLD.MAINLAND ? 'the run starts over' : 'the run starts over on the island';
+    if (n === Infinity) return 'If everyone falls here, you start again at the bridgehead with what you carried.';
+    if (!n) return `There is no second chance here: if everyone falls, ${over}.`;
+    return `If everyone falls here, you get ${n === 1 ? 'one more try' : `${n} more tries`} from the bridgehead. After that, ${over}.`;
   }
 
   // The card under the clock from the dusk horn to nightfall (hud2.js Tonight): what the coming night brings, worked
@@ -3894,8 +3940,9 @@ export class Game {
       this.ui.setCardsOpen(false);
       this.ui.setSpawnOpen(false);
       const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
-      // (on the mainland a wipe is the end of the whole run: the next one begins on the island)
-      const reason = this.world.car.plane ? 'Every survivor has fallen on the mainland. The run starts over on the island.' : 'Every survivor has fallen.';
+      // (on the mainland a wipe goes back to the bridge while the difficulty's tries last; after them it is the end of
+      // the whole run, and the next begins where the game does: the island, or the mainland for a game made there)
+      const reason = !this.world.car.plane ? 'Every survivor has fallen.' : this.wipeRetry ? 'Every survivor has fallen on the mainland. The team goes back to the bridgehead.' : this.room?.startAct === WORLD.MAINLAND ? 'Every survivor has fallen on the mainland. The run starts over at the bridgehead.' : 'Every survivor has fallen on the mainland. The run starts over on the island.';
       this.ui.showGameOver({ days: g.day, kills, reason, restartIn: Math.ceil(g.restartT), record: this.runReport, progress: this.progress });
       this.freePointerForEnd();
     } else if (g.phase === PHASE.VICTORY && this.overlay !== 'victory' && !this.cine) {

@@ -298,7 +298,8 @@ const KNOCK_MS = 1000; // how long a socket at a full game has to send its JOIN 
 // A game socket's seat in its game (d.code), or in whichever a quick join picks - or it is told why not, and closed.
 // join: its JOIN, once it has sent it. At a full game the seat waits for that (d.knocked): it may be one of the game's
 // own players coming back while their old socket is still open here, who is let in (Room.mayComeBack)
-function seat(ws, join = null) {
+// early: everything the socket sent before it had a seat, its JOIN first (open), for a game it may have to wait on (map1Gate)
+function seat(ws, join = null, early = null) {
   const d = ws.getUserData();
   let reason = 0;
   let room = null;
@@ -306,12 +307,15 @@ function seat(ws, join = null) {
   else if (CONN_PER_IP && (perIp.get(d.ip) || 0) >= CONN_PER_IP) reason = REJECT_REASON.FULL;
   else {
     room = d.code ? lobby.find(d.code, d.ip) : lobby.quick();
+    // a game that starts on the mainland: only for whoever has beaten map 1, which takes their JOIN to know (a guest is
+    // their browser's id) and a look at their record first
+    if (room && room.startAct === 2 && !d.map1 && !mayPlayMap2(d.user)) {
+      if (join) return map1Gate(ws, room, join, early);
+      if (!d.knocked) knock(ws);
+      return;
+    }
     if (room?.full && d.code && !join && !d.knocked) {
-      d.knocked = true;
-      d.early = [];
-      setTimeout(() => {
-        if (d.early && !d.room) seat(ws, new Uint8Array(0)); // (never said who it is: turned away, or seated if there is room now)
-      }, KNOCK_MS);
+      knock(ws);
       return;
     }
     const slot = room ? room.attach(ws, join) : -1;
@@ -320,18 +324,58 @@ function seat(ws, join = null) {
       d.slot = slot;
     } else reason = room || !d.code ? REJECT_REASON.FULL : lobby.wasLost(d.code) || REJECT_REASON.NO_GAME; // (wasLost: a deploy ended it, and why)
   }
-  if (reason) {
-    // told why, the way the game tells a join it turns away (the client closes on it; this closes it anyway) - in the
-    // codec of the game's own client, for one an older build carries on (or carried on, when a deploy ended it)
-    const bytes = rejectBytes(reason, room?.proto || (d.code ? lobby.lostProto(d.code) : undefined));
-    netMetrics.wsOut('game_rejects', bytes);
-    ws.send(bytes, true, false);
-    ws.end(1000, 'rejected');
-    return;
-  }
+  if (reason) return turnAway(ws, reason, room);
   perIp.set(d.ip, (perIp.get(d.ip) || 0) + 1);
   d.counted = true;
   d.at = Date.now();
+}
+// told why, the way the game tells a join it turns away (the client closes on it; this closes it anyway) - in the
+// codec of the game's own client, for one an older build carries on (or carried on, when a deploy ended it)
+function turnAway(ws, reason, room) {
+  const d = ws.getUserData();
+  const bytes = rejectBytes(reason, room?.proto || (d.code ? lobby.lostProto(d.code) : undefined));
+  netMetrics.wsOut('game_rejects', bytes);
+  ws.send(bytes, true, false);
+  ws.end(1000, 'rejected');
+}
+// A socket with no seat yet waits for its JOIN (a page sends it as the socket opens): what it sends is kept, and the
+// first of it is taken for the JOIN (message). One that never sends it is seated, or turned away, without
+function knock(ws) {
+  const d = ws.getUserData();
+  d.knocked = true;
+  d.early = [];
+  setTimeout(() => {
+    if (d.early && !d.room && d.knocked) seat(ws, new Uint8Array(0)); // (never said who it is: turned away, or seated if there is room now)
+  }, KNOCK_MS);
+}
+// An admin plays any game: a signed-in one, or everybody on a development server (DEV_ADMIN, devadmin.js)
+const mayPlayMap2 = (user) => !!user?.isAdmin || devAdminAllowed();
+// Whether the player whose JOIN this is has beaten map 1 (stats map1Cleared), before they are seated in a game that
+// starts on the mainland. What the socket sends meanwhile is kept, and goes to the game after the JOIN once they are
+// in. One who has not is told so (REJECT_REASON.MAP1_FIRST). The record that cannot be read lets them in: the gate is
+// the game's design, not anybody's safety.
+function map1Gate(ws, room, join, early) {
+  const d = ws.getUserData();
+  const sent = early?.length ? early : [join];
+  d.knocked = false;
+  d.early = []; // (message: kept here meanwhile)
+  const key = room.keyOf(join, d.user);
+  const who = d.user ? { userId: d.user.id } : key.startsWith('g:') ? { guestKey: key.slice(2) } : null;
+  const ask = room.keys.includes(key) ? Promise.resolve(true) : who ? Promise.resolve(stats.map1Cleared(who)) : Promise.resolve(false);
+  ask
+    .catch((err) => {
+      log(`game ${room.code}: whether a player has beaten map 1 could not be read (${err.message}): let in`);
+      return true;
+    })
+    .then((ok) => {
+      const later = d.early;
+      d.early = null;
+      if (!later) return; // (closed while it waited)
+      if (!ok) return turnAway(ws, REJECT_REASON.MAP1_FIRST, room);
+      d.map1 = true;
+      seat(ws, join);
+      for (const bytes of [...sent, ...later]) if (d.room) hear(ws, bytes);
+    });
 }
 // a message from a game socket, for its game
 function hear(ws, bytes) {
@@ -375,7 +419,7 @@ app.ws('/ws', {
     // up; when what is there reads as "Connection: close, all sent" it closes the socket, straight after open (close
     // code 1006, 0 ms). Fixed upstream in uNetworking/uWebSockets#1929. (scripts/test-session-socket.js)
     const wait = user || restoring ? Promise.all([user, restoring]).then(([u]) => u, () => null) : null;
-    res.upgrade({ ip, code, back, user: null, wait, early: null, knocked: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
+    res.upgrade({ ip, code, back, user: null, wait, early: null, knocked: false, map1: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
   },
   open: (ws) => {
     const d = ws.getUserData();
@@ -387,8 +431,8 @@ app.ws('/ws', {
       d.wait = d.early = null;
       if (!early) return; // (closed while it waited)
       d.user = user;
-      seat(ws, early[0] || null);
-      for (const bytes of early) if (d.room) hear(ws, bytes); // (no room: turned away, and closed by now; or knocking: seat)
+      seat(ws, early[0] || null, early);
+      for (const bytes of early) if (d.room) hear(ws, bytes); // (no room: turned away, and closed by now; knocking, or waiting on map1Gate: seat)
     });
   },
   message: (ws, message, isBinary) => {
@@ -490,6 +534,8 @@ function json(res, status, obj) {
     res.writeStatus(STATUS_TEXT[status] || String(status)).writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').end(body);
   });
 }
+// what a player who has not beaten map 1 is told when they ask for a game on map 2 (the client says the same: rejectText)
+const MAP1_FIRST = 'Map 2 opens once you have beaten map 1: fix the car and drive off the island with your team.';
 const lobbyInfo = () => ({ games: lobby.rooms.size, maxGames: lobby.cluster || lobby.maxTotal === null ? lobby.maxGames : Math.min(lobby.maxGames, lobby.maxTotal), canCreate: lobby.canCreate, players: lobby.players(), defaultPlayers: lobby.maxPlayers, maxPlayers: lobby.roomMaxPlayers });
 
 // the public games, and what a new one can be
@@ -541,8 +587,10 @@ app.get('/api/version', (res, req) => {
     .then((r) => aborted || json(res, stopping ? 503 : 200, versionOf(r)));
 });
 
-// makes a game: { name, host, inviteOnly, maxPlayers, difficulty } -> its info, code included.
+// makes a game: { name, host, inviteOnly, maxPlayers, difficulty, map, guestId } -> its info, code included.
 // difficulty is ember, nightfall or blackout (shared/difficulty.js). Left off, it is Nightfall, which plays as the valley always has.
+// map: 1 (the island, and left off) or 2: every run begins on the mainland (acts.js MAINLAND_START), for whoever has
+// beaten map 1 - signed in, their account; a guest, their browser's id (guestId, posted as a JOIN carries it).
 app.post('/api/games', (res, req) => {
   const ip = clientAddress(res, req);
   const token = sessionToken(req);
@@ -573,10 +621,15 @@ app.post('/api/games', (res, req) => {
     if (!o || typeof o !== 'object') return json(res, 400, { error: 'Bad request' });
     const difficulty = chosenDifficulty(o.difficulty);
     if (!difficulty) return json(res, 400, { error: 'Pick easy, standard, or hard.' });
+    if (o.map !== undefined && o.map !== 1 && o.map !== 2) return json(res, 400, { error: 'Pick map 1 or map 2.' });
+    const startAct = o.map === 2 ? 2 : 1;
     // who it is made by, for their one game at a time: the account signed in, else the address
     const user = token ? auth.userForToken(token).catch(() => null) : null;
     Promise.resolve(user)
-      .then((u) => lobby.make({ name: o.name, host: o.host, inviteOnly: o.inviteOnly === true, maxPlayers: o.maxPlayers, difficulty }, { ip, maker: u ? `u:${u.id}` : `ip:${ip}` }))
+      .then(async (u) => {
+        if (startAct === 2 && !mayPlayMap2(u) && !(await stats.map1Cleared(u ? { userId: u.id } : { guestKey: idKey(o.guestId) }))) return { error: MAP1_FIRST, status: 403 };
+        return lobby.make({ name: o.name, host: o.host, inviteOnly: o.inviteOnly === true, maxPlayers: o.maxPlayers, difficulty, startAct }, { ip, maker: u ? `u:${u.id}` : `ip:${ip}` });
+      })
       .then(async (made) => {
         if (made.error) return aborted || json(res, made.status, made.code ? { error: made.error, code: made.code } : { error: made.error });
         // (behind the proxy: listed before its maker hears the code, so the proxy can send them to it)

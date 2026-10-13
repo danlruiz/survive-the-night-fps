@@ -125,7 +125,7 @@ import {
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
-import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
+import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH, MAINLAND_START } from '../shared/acts.js';
 import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
 import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from './trees.js';
 import { blowOf, BLOW } from '../shared/surfaces.js';
@@ -379,17 +379,20 @@ export class Game {
     this.log = opts.log ?? ((...a) => console.log('[game]', ...a));
     this.records = opts.stats ?? new PlayerStats(); // the leaderboard (stats.js): the server's is kept in a file, this one goes with the game
     // (a restored game's valley is the one it was played on: built from its seed, which pins nothing)
-    // The run's act (shared/acts.js): 1 on the island, 2 on the mainland. checkpoint: the day the team came off the
-    // bridge (arrive: that day is the long one). A wipe on the mainland ends the run like one on the island: the next
-    // begins on the island. crossing: the cutscene between the two,
+    // The run's act (shared/acts.js): 1 on the island, 2 on the mainland. startAct: the one every run of this game
+    // begins on - the island, or the mainland for a game made to start there (acts.js MAINLAND_START). checkpoint: the
+    // team as it came off the bridge ({ day, used, unlocked, kits }: checkpointAt): the day is the long one (dayLen),
+    // and a wipe on the mainland starts again from it while the difficulty's retries last (restartFromBridge); past
+    // them the run is over. crossing: the cutscene between the two,
     // while it plays ({ pending: the mainland is still to be built, skip: who has asked to skip it }).
+    this.startAct = opts.startAct === WORLD.MAINLAND ? WORLD.MAINLAND : WORLD.ISLAND;
     this.act = WORLD.ISLAND;
     this.checkpoint = null;
     this.crossing = null;
     this.thawAt = 0; // a game brought over waits, still, for its players until then (ms on the wall's clock; 0: it runs)
     this.frozenAt = 0; // ...since then (ms on the wall's clock)
     // (opts.prepared: the valley built ahead, while the last server was still playing the game: prepareWorld)
-    this.setWorld(restore ? restore.game.seed : opts.seed ?? randomSeed(), restore?.game.act ?? WORLD.ISLAND, opts.prepared);
+    this.setWorld(restore ? restore.game.seed : opts.seed ?? randomSeed(), restore?.game.act ?? this.startAct, opts.prepared);
     if (restore && !sameWorld(restore, this.worldPrint)) throw new HandoffError(`this build makes another valley of seed ${this.seed}`, { world: true });
     this.rng = mulberry32(this.seed ^ 0xabcdef);
 
@@ -1305,11 +1308,11 @@ export class Game {
 
   // Every playthrough gets a valley of its own: once a game has been played on this one, generate the next
   // and tell the clients its seed. Call with the world cleared (structures live in the old world's grids).
-  // A run always begins on the island: after one that ended on the mainland that is built again even where the seed
-  // is pinned.
-  rollWorld() {
-    if (!this.worldPlayed || (this.fixedSeed && this.act === WORLD.ISLAND)) return;
-    this.setWorld(this.fixedSeed ? this.seed : randomSeed(), WORLD.ISLAND);
+  // A run begins on the game's startAct (the island, unless it was made to start on the mainland): after one that
+  // ended on the other map, that map is built again even where the seed is pinned.
+  rollWorld(act = this.startAct) {
+    if (this.act === act && (!this.worldPlayed || this.fixedSeed)) return;
+    this.setWorld(this.fixedSeed ? this.seed : randomSeed(), act);
     this.tellWorld();
   }
   // every client builds the world this game is now on (S2C.WORLD_RESET: its seed and its act)
@@ -1374,16 +1377,21 @@ export class Game {
     return { active: false, t: 0, ready: false, stalled: false, leaving: false, spawnT: 0, boss: false, sent: 0, tanks: 0, stage: 0, blocked: false };
   }
 
-  startGame() {
+  // A new run, on act (the game's startAct unless an admin asks for the other: /map1, /cross). On the mainland it
+  // begins at the bridgehead on MAINLAND_START.DAY, as if the team had just come off the bridge with a day's starting
+  // kit, and the gun crates are there (startCrates).
+  startGame(act = this.startAct) {
     this.track.finish('abandoned'); // (a run still being played as a new one begins: debug, tests)
     this.cards.runEnded();
     this.clearWorld();
     this.checkpoint = null;
     this.crossing = null;
-    this.rollWorld();
+    this.rollWorld(act);
     this.worldPlayed = true;
     this.phase = PHASE.DAY;
-    this.day = this.startDayNum;
+    const mainland = act === WORLD.MAINLAND;
+    this.day = mainland ? Math.max(this.startDayNum, MAINLAND_START.DAY) : this.startDayNum;
+    if (mainland) this.checkpoint = { day: this.day, used: 0, unlocked: 0, kits: [] }; // (for dayLen: the long first day)
     this.timeLeft = this.dayLen;
     this.unlocked = 0;
     this.populate();
@@ -1399,9 +1407,14 @@ export class Game {
       p.waypoint = null; // (it pointed into the old valley; the client drops its own on NEW_GAME)
       clearLoadoutRun(p);
       this.spawnHuman(p);
+      if (mainland) this.bridgehead(p, false);
+    }
+    if (mainland) {
+      this.startCrates();
+      this.checkpoint.kits = this.kitsNow();
     }
     this.notify(NOTIFY.NEW_GAME, this.day);
-    this.newWorldForAll(); // (a new island: every page builds it)
+    this.newWorldForAll(); // (a new island, or mainland: every page builds it)
     this.globalDirty = true;
     this.playersDirty = true;
     this.track.start();
@@ -1521,8 +1534,9 @@ export class Game {
 
   // The checkpoint at the bridge. Everybody is alive on the mainland - whoever was dead or turned at the end of the
   // island comes back - with what they carried over and, at the least, the bridgehead cache's floor (bridgehead).
-  // It is no second chance: a wipe on the mainland is the end of the run (gameOver), and the next begins on the
-  // island. Returns how many it brought back from the dead.
+  // What each of them has now is kept: a wipe on the mainland starts again from it as long as the difficulty's
+  // retries last (restartFromBridge), and after them it is the end of the run. Returns how many it brought back from
+  // the dead.
   checkpointAt() {
     let back = 0;
     for (const p of this.players.values()) {
@@ -1534,8 +1548,101 @@ export class Game {
       } else this.landOn(p);
       this.bridgehead(p);
     }
-    this.checkpoint = { day: this.day };
+    this.checkpoint = { day: this.day, used: 0, unlocked: this.unlocked, kits: this.kitsNow() };
     return back;
+  }
+
+  // what each survivor carries right now, as plain data (the checkpoint's kits): [leaverKey, kit]
+  kitsNow() {
+    const kits = [];
+    for (const p of this.players.values()) kits.push([this.leaverKey(p), this.kitOf(p)]);
+    return kits;
+  }
+  kitOf(p) {
+    const s = p.state;
+    return { weapons: s.weapons.slice(), mags: s.mags.slice(), ammo: s.ammo.slice(), inv: p.inv.map((it) => (it ? { ...it } : null)), armor: p.armor, armorMax: p.armorMax, armorItem: p.armorItem, backpackItem: p.backpackItem, kit: p.kit };
+  }
+  // ...and back on them
+  wear(p, k) {
+    const s = p.state;
+    s.weapons = k.weapons.slice();
+    s.mags = k.mags.slice();
+    s.ammo = k.ammo.slice();
+    p.inv = k.inv.map((it) => (it ? { ...it } : null));
+    p.armor = k.armor;
+    p.armorMax = k.armorMax;
+    p.armorItem = k.armorItem;
+    p.backpackItem = k.backpackItem;
+    p.kit = k.kit;
+    p.invDirty = true;
+    p.selfSync = true;
+    this.syncThrow(p);
+  }
+
+  // How many more times a wipe now would start again at the bridge (Infinity on Ember): none off the mainland, or
+  // with no checkpoint to start from
+  retriesLeft() {
+    const cp = this.checkpoint;
+    if (this.act !== WORLD.MAINLAND || !cp?.kits) return 0;
+    return Math.max(0, this.diff.retries - (cp.used | 0));
+  }
+
+  // A wipe on the mainland with a retry left: the same mainland again, as the team found it coming off the bridge,
+  // on the day they did, each with what they crossed with (the gun crates again, for a game that began there).
+  // Whoever joined since has a late joiner's kit for that day.
+  restartFromBridge() {
+    const cp = this.checkpoint;
+    cp.used = (cp.used | 0) + 1;
+    this.track.finish('abandoned'); // (the wipe's match is over already: gameOver)
+    this.clearWorld();
+    this.crossing = null;
+    this.phase = PHASE.DAY;
+    this.day = cp.day;
+    this.unlocked = cp.unlocked | 0;
+    this.timeLeft = this.dayLen;
+    this.populate();
+    if (this.startAct === WORLD.MAINLAND) this.startCrates();
+    const kits = new Map(cp.kits);
+    for (const p of this.players.values()) {
+      p.nightKills = p.nightRevives = 0;
+      p.lastChance = false;
+      if (p.perksNext >= 0) p.perks = p.perksNext;
+      p.perksNext = -1;
+      p.progDirty = true;
+      p.waypoint = null;
+      const k = kits.get(this.leaverKey(p));
+      this.spawnHuman(p, k ? k.kit || { mag: 0, ammo: 0, items: [], tools: [] } : starterKit(this.day, this.diff));
+      if (k) this.wear(p, k);
+      else this.bridgehead(p, false);
+    }
+    const left = this.retriesLeft();
+    this.notify(NOTIFY.CHECKPOINT, Number.isFinite(left) ? Math.min(left, 0xfffe) : 0xffff);
+    this.newWorldForAll(); // (nobody's prey while the page clears the old run away)
+    this.globalDirty = true;
+    this.playersDirty = true;
+    this.track.start();
+    this.log(`wiped on the mainland: back at the bridgehead, day ${this.day} (try ${cp.used + 1})`);
+  }
+
+  // The gun crates of a game that starts on the mainland (acts.js MAINLAND_START), on the ground at the bridgehead
+  // (world.startCrates), shut: one for each survivor there, CRATES at the least. [E] breaks one open (interact).
+  startCrates() {
+    const spots = this.world.startCrates || [];
+    const n = Math.min(spots.length, MAINLAND_START.CRATES_MAX, Math.max(MAINLAND_START.CRATES, this.humanCount()));
+    for (let i = 0; i < n; i++) {
+      const sp = spots[i];
+      const e = { kind: ENT.CRATE, x: sp.x, y: 0, z: sp.z, gy: 0, state: 1, despawnAt: this.time + 1e9, gun: MAINLAND_START.GUNS[i % MAINLAND_START.GUNS.length] };
+      e.y = e.gy = groundAt(this.world, sp.x, sp.z, 200, 0.6);
+      if (this.spawnEntity(e)) this.crates.push(e);
+    }
+  }
+  // what a gun crate holds, out on the ground as it breaks open: its gun, loaded, its rounds and the stock
+  openGunCrate(e) {
+    const def = WEAPONS[e.gun];
+    this.dropItem(e.gun, 1, e.x, e.y, e.z, { spread: 0.8, life: 900, mag: def.mag });
+    const ammo = AMMO_ITEMS[def.ammo];
+    if (ammo) this.dropItem(ammo, Math.min(AMMO_MAX[def.ammo], def.mag * MAINLAND_START.MAGS), e.x, e.y, e.z, { spread: 1.2, life: 900 });
+    for (const [item, count] of MAINLAND_START.STOCK) this.dropItem(item, count, e.x, e.y, e.z, { spread: 1.2 + this.rng() * 0.8, life: 900 });
   }
 
   // a survivor who crossed in the car, put down at the bridgehead as they are: on their feet, off whatever the
@@ -1573,7 +1680,8 @@ export class Game {
   // team that crossed with empty guns can fight its way to the first building; one that crossed well stocked gets
   // nothing. The difficulty moves the floor's rounds and bandages as it does the starting kit's (starterKit):
   // Nightfall's are the numbers in acts.js. Returns what it gave (CACHE_GAVE), which the survivor is told.
-  bridgehead(p) {
+  // tell: say what it gave (NOTIFY.CACHE); not at the start of a game begun on the mainland, which has its own words
+  bridgehead(p, tell = true) {
     const s = p.state;
     let gave = 0;
     const gun = (it) => isFirearm(it) && it !== ITEM.FLARE_GUN;
@@ -1604,7 +1712,7 @@ export class Game {
     if (gave) {
       p.invDirty = true;
       p.selfSync = true;
-      this.notify(NOTIFY.CACHE, gave, p.id);
+      if (tell) this.notify(NOTIFY.CACHE, gave, p.id);
     }
     return gave;
   }
@@ -2052,6 +2160,8 @@ export class Game {
     this.restartT = GAME_OVER_DELAY;
     this.escape.active = false;
     this.notify(NOTIFY.GAME_OVER, this.day);
+    // ...and whether the end screen is the run's, or a second try at the bridge follows it (restartFromBridge)
+    if (this.retriesLeft() > 0) this.notify(NOTIFY.WIPE_RETRY, this.checkpoint.day);
     this.globalDirty = true;
     this.log('game over on day', this.day);
   }
@@ -2130,6 +2240,8 @@ export class Game {
       return this.victory();
     }
     this.log('drove off:', p.name);
+    // map 1 is beaten: on the record of everybody in the run (as a win is), which opens map 2 games to them
+    this.credit(this.players.values(), 'crossings');
     this.track.drove(p);
     this.ach.drove(p); // (the driver's feat is the car's, as it was)
     this.ach.leftIsland(); // (whoever has the cat in their arms took it with them)
@@ -2898,8 +3010,14 @@ export class Game {
     if (e.kind === ENT.CRATE) {
       if (e.state !== 1) return;
       e.state = 2;
-      this.track.crateOpened(p);
       e.despawnAt = this.time + 180;
+      if (e.gun) {
+        // one of the gun crates at the start of a game begun on the mainland (startCrates)
+        this.openGunCrate(e);
+        this.sound(SOUND.WOOD_BREAK, e.x, e.y + 0.5, e.z, 30);
+        return;
+      }
+      this.track.crateOpened(p);
       const n = 5 + Math.floor(this.rng() * 3);
       for (let i = 0; i < n; i++) {
         const [item, cnt] = this.rollTable(CRATE_TABLE);
@@ -4482,7 +4600,7 @@ export class Game {
         if (args[1] === 'go' && this.crossing) this.crossing.hold = Math.max(0, (this.crossing.hold | 0) - 1);
         else if (this.phase === PHASE.CROSSING) this.sendChat(p, 0, CHATF.SYSTEM, 'the crossing is already on');
         else {
-          if (this.act !== WORLD.ISLAND || (this.phase !== PHASE.DAY && this.phase !== PHASE.NIGHT)) this.startGame();
+          if (this.act !== WORLD.ISLAND || (this.phase !== PHASE.DAY && this.phase !== PHASE.NIGHT)) this.startGame(WORLD.ISLAND);
           this.cross(p, this.phase === PHASE.NIGHT);
           if (args[1] === 'skip') this.arrive();
           else if (args[1] === 'hold') this.crossing.hold = 2;
@@ -4498,7 +4616,7 @@ export class Game {
           break;
         }
         if (this.phase !== PHASE.CROSSING) {
-          if (this.phase !== PHASE.DAY && this.phase !== PHASE.NIGHT) this.startGame();
+          if (this.phase !== PHASE.DAY && this.phase !== PHASE.NIGHT) this.startGame(WORLD.ISLAND);
           this.cross(p, false, false);
         }
         this.arrive();
@@ -4513,7 +4631,7 @@ export class Game {
           break;
         }
         this.takeoffHold = 0; // (a /takeoff hold would otherwise freeze the next run's end screen)
-        this.startGame();
+        this.startGame(WORLD.ISLAND);
         this.sendChat(p, 0, CHATF.SYSTEM, `on the island (map 1): day ${this.day}`);
         break;
       case 'takeoff':
@@ -4552,7 +4670,7 @@ export class Game {
         this.sup.items.forEach((it, i) => this.giveItem(p, it, this.sup.need[i] - this.supplies[i]));
         break;
       case 'wipe':
-        // /wipe: every survivor dies (on either map the run is over: the next begins on the island)
+        // /wipe: every survivor dies (on the mainland the team goes back to the bridge while retries last: restartFromBridge)
         for (const q of [...this.players.values()]) if (q.alive && !q.zombie) this.killPlayer(q, { kind: KILLER.WORLD }, true);
         this.checkAllDead();
         break;
@@ -4916,7 +5034,10 @@ export class Game {
     if (this.phase === PHASE.GAMEOVER || this.phase === PHASE.VICTORY) {
       if (this.takeoffHold) return; // (/takeoff hold: look-dev)
       this.restartT -= dt;
-      if (this.restartT <= 0) this.startGame();
+      if (this.restartT <= 0) {
+        if (this.phase === PHASE.GAMEOVER && this.retriesLeft() > 0) this.restartFromBridge();
+        else this.startGame();
+      }
       return;
     }
     // the final stand at the car pauses the day/night clock
