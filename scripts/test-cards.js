@@ -633,8 +633,13 @@ const strike = async (a, b) => {
   B.send(CARDOP.CONFIRM, {});
   game.update(); // (struck: the cards are on their way)
   const committing = t.phase === 'committing' && A.last[CARDMSG.TRADE]?.committing === true;
-  await run();
-  check('cards and items: committed through the store, then the items change hands', committing && A.last[CARDMSG.TRADE_END]?.why === 'done' && (await count(A, BET_A)) === 0 && (await count(B, BET_A)) === b0 + a0 && a.inv.reduce((n, s) => n + (s?.item === ITEM.NAILS ? s.count : 0), 0) === nailsA + 2 && B.last[CARDMSG.COLL]?.found[BET_A] === b0 + a0, JSON.stringify({ committing, end: A.last[CARDMSG.TRADE_END], a: await count(A, BET_A) }));
+  // (the store's answers come back over a few turns, and B's collection is sent on the update after them: a single
+  // run() was sometimes one turn short - the trade 'done' and A's cards gone, but not yet all of it seen)
+  const traded = async () => ({ end: A.last[CARDMSG.TRADE_END], a: await count(A, BET_A), b: await count(B, BET_A), nails: a.inv.reduce((n, s) => n + (s?.item === ITEM.NAILS ? s.count : 0), 0) - nailsA, coll: B.last[CARDMSG.COLL]?.found[BET_A] });
+  const tradedOk = (r) => r.end?.why === 'done' && r.a === 0 && r.b === b0 + a0 && r.nails === 2 && r.coll === b0 + a0;
+  let got = null;
+  for (let i = 0; i < 20 && !tradedOk((got = await traded())); i++) await run();
+  check('cards and items: committed through the store, then the items change hands', committing && tradedOk(got), JSON.stringify({ committing, ...got, want: b0 + a0 }));
   N.clear();
   const tn = await openTrade(N, C);
   N.send(CARDOP.OFFER, { cards: { [BET_A]: 1 } });
