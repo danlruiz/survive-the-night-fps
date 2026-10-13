@@ -855,14 +855,22 @@ export class Game {
     // back from a drop inside the grace minute, or from a deploy: their own body (onClose / hold). (A guest by the
     // hash of their browser id, never the id: it is the key to their leaderboard record, and a deploy saves this.)
     const key = account ? `a:${account.id}` : UUID_RE.test(pid) ? `g:${idKey(pid)}` : '';
-    // ...or, in a full game, back before the game has even seen them go: their old link is dead but its socket has not
-    // closed here yet (the page notices a lost connection long before the server does), and it still fills their seat.
-    // This one takes the body over, and the old socket is let go (takeOver; Room.mayComeBack let it in). (With a seat
-    // free, the same browser in another tab is a player of its own, as ever)
+    // ...or back before the game has even seen them go: their old link is dead but its socket has not closed here yet
+    // (the page notices a lost connection long before the server does: up to the socket's idle timeout). This one
+    // takes the body over, and the old socket is let go (takeOver). That is a page coming back into the game it was
+    // playing (conn.back: main.js rejoin), or anyone of theirs at a full game, where the old socket still fills their
+    // seat (Room.mayComeBack let it in). Otherwise the same browser in another tab is a player of its own, as ever.
+    // (Without conn.back a drop with a seat free made a second, new player with a starting kit beside the old body.)
     if (key) {
       const full = this.players.size >= this.maxPlayers;
-      for (const q of this.players.values()) {
-        if (q.rejoinKey !== key || (!q.away && !full)) continue;
+      const back = full || session.conn.back === true;
+      // (theirs in two tabs: a held one first, else the one heard from longest ago - its socket is the dead one)
+      let q = null;
+      for (const c of this.players.values()) {
+        if (c.rejoinKey !== key || (!c.away && !back)) continue;
+        if (!q || (c.away && !q.away) || (!c.away === !q.away && c.session.msgWindow < q.session.msgWindow)) q = c;
+      }
+      if (q) {
         if (!q.away) this.takeOver(q);
         q.rec ||= this.records.enter(pid, q.name, account); // (one brought over from the last server has none here yet)
         return this.resume(session, q);

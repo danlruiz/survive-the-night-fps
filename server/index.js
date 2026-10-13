@@ -350,6 +350,7 @@ app.ws('/ws', {
   upgrade: (res, req, context) => {
     const ip = clientAddress(res, req);
     const code = String(req.getQuery('game') || '').trim().toUpperCase(); // none: a quick join
+    const back = !!code && req.getQuery('back') === '1'; // the page coming back into the game it was playing (Game.handleJoin)
     // signed in (the session cookie, from a page of ours): they play as their account (Game.handleJoin)
     const token = sessionToken(req);
     const key = req.getHeader('sec-websocket-key');
@@ -374,7 +375,7 @@ app.ws('/ws', {
     // up; when what is there reads as "Connection: close, all sent" it closes the socket, straight after open (close
     // code 1006, 0 ms). Fixed upstream in uNetworking/uWebSockets#1929. (scripts/test-session-socket.js)
     const wait = user || restoring ? Promise.all([user, restoring]).then(([u]) => u, () => null) : null;
-    res.upgrade({ ip, code, user: null, wait, early: null, knocked: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
+    res.upgrade({ ip, code, back, user: null, wait, early: null, knocked: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
   },
   open: (ws) => {
     const d = ws.getUserData();
