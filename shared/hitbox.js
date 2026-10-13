@@ -13,9 +13,12 @@ export function playerHitbox(zombie, crouch) {
 // low: it is in the air or down on a survivor it has pinned, and its head with it.
 // aim: Ember widens the body only (shared/difficulty.js). The head stays the size it is drawn, so a headshot
 // is still a shot that hit the head. Nightfall and Blackout pass 1, and so does any caller that omits it.
-export function zombieHitbox(def, yaw, legs, low, aim = 1) {
+// perched: a crawler up a tree, head down on the trunk (it hangs from where it is: bottom, below its feet), its head
+// at the bottom, bent out from the bark
+export function zombieHitbox(def, yaw, legs, low, aim = 1, perched = false) {
   const body = aim > 0 ? aim : 1;
   if (def.flying) return { r: 0.45 * body, top: 0.5, headY: 0.1, headR: 0.3, hx: 0, hz: 0, flying: true };
+  if (perched) return { r: 0.22 * body, bottom: -0.35, top: 0.3, headY: -0.32, headR: def.headR * 1.2, hx: -Math.sin(yaw) * 0.12, hz: -Math.cos(yaw) * 0.12 };
   // both legs gone: it lies on the ground, its head ahead of its body
   if (legs === 3) return { r: CRAWL_RADIUS * body, top: CRAWL_HEIGHT, headY: CRAWL_HEAD_Y, headR: def.headR * 1.2, hx: -Math.sin(yaw) * CRAWL_HEAD_FWD, hz: -Math.cos(yaw) * CRAWL_HEAD_FWD };
   let headY = def.headY;
@@ -32,7 +35,7 @@ export function zombieHitbox(def, yaw, legs, low, aim = 1) {
 export let headHit = false;
 export function rayHitbox(pos, hb, ox, oy, oz, dx, dy, dz, maxT) {
   const ht = raySphere(pos.x + hb.hx, pos.y + hb.headY, pos.z + hb.hz, hb.headR, ox, oy, oz, dx, dy, dz, maxT);
-  const bt = hb.flying ? raySphere(pos.x, pos.y + 0.15, pos.z, 0.5, ox, oy, oz, dx, dy, dz, maxT) : rayCylinder(pos.x, pos.z, pos.y, pos.y + hb.top, hb.r, ox, oy, oz, dx, dy, dz, maxT);
+  const bt = hb.flying ? raySphere(pos.x, pos.y + 0.15, pos.z, 0.5, ox, oy, oz, dx, dy, dz, maxT) : rayCylinder(pos.x, pos.z, pos.y + (hb.bottom || 0), pos.y + hb.top, hb.r, ox, oy, oz, dx, dy, dz, maxT);
   headHit = ht >= 0 && !hb.flying && (bt < 0 || ht <= bt + 0.05);
   return headHit ? ht : bt;
 }
