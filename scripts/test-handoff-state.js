@@ -216,6 +216,8 @@ const TRANSIENT = [
   /^game\.lookIds\b/,
   // (the armed cars' next chirp: it comes at once on the new server; and their colliders, found again from the valley)
   /^game\.(armedT|trunkCols)\b/,
+  // (when the Scouts last looked about them: they look again at once on the new server, server/roles.js)
+  /^game\.roles\.scoutT\b/,
   /^game\.(ents|all|freeIds|gens|deer|cats|projectiles|areas)\b/, // (the registry is checked above; the deer, the cat and what was in flight start afresh)
   // a player: their connection, and what resume starts afresh for the client that comes back
   /^players\.\*\.(session|rec|view|shadow|cmdQueue|cmdBudget|hx|hy|hz|selfSync|away|arriving|ts|invDirty|invSort|selfCache|globalCache|listVer|snapTick|ackSent|greeted|loadoutEntered)\b/,

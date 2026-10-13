@@ -287,7 +287,7 @@ if (inv.backpack) {
 const players = [
   { id: 1, name: 'Survivor417', account: '', status: 'alive', hp: 1, kills: 23, ping: 42, level: 7, perks: perkMask([0, 3, 4, 11]), talking: false, self: true, dist: 0, dir: null, place: 'by the car' },
   { id: 2, name: 'Marlowe', account: 'Marlowe', status: 'alive', hp: 0.45, kills: 31, ping: 67, level: 18, perks: perkMask([5, 6, 15, 26, 29, 0, 3]), talking: true, self: false, dist: 38, dir: -0.8, place: '' },
-  { id: 6, name: 'Wren_77', account: 'Wren_77', status: 'alive', hp: 0.82, kills: 17, ping: 51, level: 11, perks: 0, talking: false, radio: true, self: false, dist: 112, dir: 3.0, place: 'Ranger Lookout' },
+  { id: 6, name: 'Wren_77', account: 'Wren_77', status: 'alive', hp: 0.82, kills: 17, ping: 51, level: 11, perks: perkMask([11, 12, 9, 8]), talking: false, radio: true, self: false, dist: 112, dir: 3.0, place: 'Ranger Lookout' },
   { id: 3, name: 'deadeye_kat', account: 'deadeye_kat', status: 'zombie', kills: 12, ping: 88, level: 24, perks: perkMask([5, 6, 21, 18, 14, 16, 27, 4]), talking: false, self: false },
   { id: 4, name: 'Old Hank', account: '', status: 'downed', kills: 8, ping: 120, level: 3, perks: perkMask([9]), talking: false, self: false, dist: 64, dir: 0.7, place: 'Pinewood Motel', downFor: 12 },
   { id: 5, name: 'Ruth', account: 'ruthless', status: 'dead', kills: 3, ping: 55, level: 1, perks: 0, talking: false, self: false },
@@ -593,9 +593,11 @@ switch (screen) {
     const h = { ...baseHud, hp: 30, phase: PHASE.NIGHT, timeLeft: 88, night: 1, hordeLeft: 21, prompt: null, context: null, crosshair: { spread: 7, visible: false } };
     ui.hideSplash();
     feedSome();
-    // &alone=1: no teammate in sight
+    // &alone=1: no teammate in sight; &roles=1: a Guardian by them and a Medic on the way (shared/roles.js)
     const mate = q.get('alone') ? null : { name: 'Marlowe', d: reviving ? 1.2 : 14 };
-    loop((t) => ({ ...h, downed: { bleed: Math.max(0, 22 - t), reviving, mate } }));
+    const roles = !!q.get('roles') && !reviving;
+    const medic = roles ? { name: 'Wren_77', d: 31 } : null;
+    loop((t) => ({ ...h, downed: { bleed: roles ? 22 : Math.max(0, 22 - t), reviving, mate, medic, guard: roles ? 'Marlowe' : '', dragged: '' } }));
     break;
   }
   case 'hud-dawn': {

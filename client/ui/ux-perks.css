@@ -241,6 +241,12 @@
   color: var(--bone-dim);
 }
 
+.stn-ui .prk-brh-role {
+  font: 0.7rem / 1.2 var(--f-mono);
+  letter-spacing: 0.06em;
+  color: var(--brass);
+}
+
 .stn-ui .prk-brh-c {
   align-self: flex-start;
   padding: 0.05rem 0.35rem;

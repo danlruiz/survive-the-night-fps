@@ -223,6 +223,10 @@
   color: var(--amber);
 }
 
+.stn-ui .pls-role {
+  color: var(--brass);
+}
+
 .stn-ui .pls-radio,
 .stn-ui .pls-mic {
   color: var(--good);

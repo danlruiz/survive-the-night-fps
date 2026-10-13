@@ -596,6 +596,7 @@ export class Combat {
     const solid = z.lit && !z.onFire;
     if (solid) amount *= z.def.litResist;
     if (z.dazedT > 0 && z.def.stunHurt) amount *= z.def.stunHurt; // (a dog reeling from its ram)
+    if (z.markT > 0) amount *= g.roles.hurtMul(z, attacker); // (a Spotter's mark: server/roles.js)
     g.track?.dealt(attacker, z, amount);
     // (a boss's rewards are for everybody who hurt it, not only whoever lands the last blow: killZombie)
     if (z.boss && attacker?.kind === ENT.PLAYER && !attacker.zombie && amount > 0) (z.hurtBy ||= new Set()).add(attacker.id);

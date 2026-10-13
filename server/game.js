@@ -123,7 +123,7 @@ import {
   structBurns,
 } from '../shared/defs.js';
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
-import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
+import { XP, XPS, XP_SRC, levelOf, perkMask, perkIds } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
 import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH } from '../shared/acts.js';
 import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
@@ -158,8 +158,9 @@ import { GUN, GUN_LYING } from '../shared/mountedgun.js';
 import { Fair } from './fair.js';
 import { Handcars } from './handcar.js';
 import { Vehicles } from './vehicles.js';
-import { FAIR_GEN_ID, FAIR_TANK_ID, SIPHON_ID } from '../shared/protocol.js';
+import { FAIR_GEN_ID, FAIR_TANK_ID, SIPHON_ID, PING_KIND } from '../shared/protocol.js';
 import { Power } from './power.js';
+import { Roles } from './roles.js';
 import { MatchTracker } from './analytics.js';
 import { AchievementTracker } from './achievements.js';
 import { BestiaryTracker } from './bestiary.js';
@@ -428,6 +429,7 @@ export class Game {
     this.supplies = [0, 0, 0, 0, 0]; // installed per SUPPLIES entry
     this.supplyHints = [255, 255, 255, 255, 255, 255, 255]; // zones: 4 parts + 3 jerry cans
     this.supplyFound = 0; // a bit per hint: that one has been taken from its hiding place (nothing left to search there)
+    this.scouted = 0; // a bit per hint: a Scout has been near its hiding place, and it is on everyone's compass (server/roles.js)
     this.supplyHintSpots = []; // per hint: the world.partSpots index it is hidden at (-1: none). The crows circle over it
     this.supplyClock = 0; // s since the act's supplies were hidden...
     this.supplyHelp = 0; // ...and the help a team that has found none of them gets by now (shared/supplyhelp.js)
@@ -478,6 +480,7 @@ export class Game {
     this.handcars = new Handcars(this); // the handcars on the railway: where they are on the line, who rides them
     this.vehicles = new Vehicles(this); // the mopeds, cars and bicycles of the mainland (vehicles.js)
     this.power = new Power(this); // the buildable generator and its floodlights
+    this.roles = new Roles(this); // the co-op roles the perk branches give (server/roles.js)
     this.stats = { bytesOut: 0, msgsOut: 0, lastReport: Date.now(), tickMs: 0 };
     this.tickStats = new TickStats(1000 / SERVER_TICK_RATE); // how long ticks take and where a slow one went (update)
     this.track = new MatchTracker(this, opts.analytics); // match analytics (analytics.js): a no-op without opts.analytics
@@ -1566,7 +1569,7 @@ export class Game {
       p.revivedBy = 0;
       p.hp = Math.max(p.hp, REVIVE_HP);
     }
-    s.ride = s.cart = s.hmg = s.pet = 0;
+    s.ride = s.cart = s.hmg = s.pet = s.drag = 0;
     s.drive = s.driveK = s.pass = s.passN = 0;
     s.pinned = s.pulled = 0;
     s.vx = s.vy = s.vz = 0;
@@ -1707,6 +1710,7 @@ export class Game {
     const places = this.act === WORLD.MAINLAND ? [] : shuffle([...byPlace.values()].map(shuffle));
     this.supplySpots = [];
     this.supplyFound = 0;
+    this.scouted = 0;
     this.supplyHintSpots = [];
     this.supplyClock = 0;
     this.supplyHelp = 0;
@@ -2635,6 +2639,7 @@ export class Game {
         const z = dqpos(r.i16());
         if (this.time - p.pingT < 0.6) return;
         p.pingT = this.time;
+        if ((kind & 3) === PING_KIND.DANGER) this.roles.mark(p, x, y, z); // (a Spotter's marks the one it lands on)
         this.emit((w) => {
           w.u8(EVT.PING);
           w.u16(p.id);
@@ -3020,7 +3025,8 @@ export class Game {
     }
     if (e.kind === ENT.PLAYER && e !== p && e.alive && e.downed && !e.zombie) {
       if (d > this.reachOf(e)) return;
-      p.hold = { kind: HOLD.REVIVE, target: id, t: 0, need: REVIVE_TIME * this.diff.revive * playerMods(p).revive };
+      if (this.roles.drag(p, e)) return; // (a crouched Runner takes them by the collar instead: server/roles.js)
+      p.hold = { kind: HOLD.REVIVE, target: id, t: 0, need: REVIVE_TIME * this.diff.revive * playerMods(p).revive * this.roles.reviveMul(p) };
       e.revivedBy = p.id;
     }
   }
@@ -4262,6 +4268,7 @@ export class Game {
     for (const z of this.zombies) {
       if (z.link === p.id) this.zm.releaseLink(z);
     }
+    this.roles.letGo(p); // (a downed teammate they were dragging)
     p.state.pulled = 0;
     p.state.pinned = 0;
   }
@@ -4330,6 +4337,13 @@ export class Game {
         p.progDirty = true;
         this.playersDirty = true;
         this.sendChat(p, 0, CHATF.SYSTEM, `+${n} XP: level ${this.levelOf(p)}${p.rec ? '' : ' (not kept: you have no record)'}.`);
+        break;
+      }
+      case 'perks': {
+        // /perks <id ...>: these perks in force for this run, whatever the record holds (progress.js ids): for trying
+        // perks and the roles they give (shared/roles.js) without the levels. /perks alone: none
+        this.applyPerks(p, perkMask(args.slice(1).map(Number)));
+        this.sendChat(p, 0, CHATF.SYSTEM, `Perks in force: ${perkIds(p.perks).join(' ') || 'none'}.`);
         break;
       }
       case 'night':
@@ -4828,6 +4842,7 @@ export class Game {
     this.updatePhase(dt);
     this.pledges.update(dt);
     this.updateSupplyHelp(dt);
+    this.roles.update(dt);
     this.cemetery.update(dt);
     ts.mark(T_PHASE);
     this.updatePlayers(dt);
@@ -5229,7 +5244,7 @@ export class Game {
       } else p.drownT = 0;
       if (p.burning && this.updateFire(p, dt)) continue;
       if (p.downed) {
-        if (!p.revivedBy && !this.safe(p)) p.bleed -= dt * playerMods(p).bleed; // (a held player's clock stops)
+        if (!p.revivedBy && !this.safe(p) && !this.roles.guarded(p)) p.bleed -= dt * playerMods(p).bleed; // (a held player's clock stops, and a guarded one's)
         if (p.bleed <= 0) this.killPlayer(p, p.lastSrc || { kind: KILLER.WORLD });
         if (p.revivedBy) {
           const rv = this.players.get(p.revivedBy);
@@ -5427,6 +5442,7 @@ export class Game {
       parts++;
     }
     w.patch8(pat, parts);
+    w.u8(this.scouted); // the hiding places a Scout has been near (server/roles.js)
   }
 
   // Self state. The simulated part only goes out when the client has to rebase its prediction on it (SELF.SYNC):
@@ -5515,7 +5531,7 @@ export class Game {
       c.u8(s.cart);
       c.f32(s.cartS);
       c.f32(s.cartV);
-      c.u8(s.hmg | (s.pet << 1));
+      c.u8(s.hmg | (s.pet << 1) | (s.drag << 2));
       c.u32(s.perks);
       c.u16(s.drive);
       c.u8(s.driveK | (s.dhold << 4) | (s.ddead ? 128 : 0));

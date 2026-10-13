@@ -52,6 +52,7 @@ import { cartStep, cartCarry, CART_PUMP, LEVER_HANDS } from './handcar.js';
 import { driveStep, DRIVE_HANDS } from './vehicles.js';
 import { swimming, waterFloor, wadeDepth, riverCurrent, SWIM_HANDS, SWIM_SPEED, SWIM_FAST, SWIM_DOWNED, SWIM_ACCEL, SWIM_DRAG, SWIM_TREAD, SWIM_DRAIN, WADE_FROM, WADE_SLOW, CROUCH_WADE, SWIM_DEPTH } from './swim.js';
 import { perkMods } from './progress.js';
+import { DRAG } from './roles.js';
 import { simNunchaku } from './nunchaku.js';
 
 export function createPlayerState() {
@@ -109,6 +110,8 @@ export function createPlayerState() {
     // the stray cat in their arms (server/cats.js): no weapon in the hands, the fire button strokes it, nobody swims
     // with it, and a weapon switch sets it down
     pet: 0,
+    // dragging a downed teammate along (a Runner: shared/roles.js, server/roles.js): every pace at DRAG.pace
+    drag: 0,
     // at the wheel of a vehicle (vehicles.js): its entity id and kind, where it points, its steering, its tank, whether
     // it has broken down. Then x / y / z and vx / vz are the vehicle's. Or carried in one: its id and the seat
     drive: 0,
@@ -174,6 +177,7 @@ export function copyPlayerState(dst, src) {
   dst.cartV = src.cartV;
   dst.hmg = src.hmg;
   dst.pet = src.pet;
+  dst.drag = src.drag;
   dst.drive = src.drive;
   dst.driveK = src.driveK;
   dst.dyaw = src.dyaw;
@@ -198,7 +202,7 @@ export function samePlayerState(a, b) {
   if (a.switchT !== b.switchT || a.cooldown !== b.cooldown || a.reloadT !== b.reloadT || a.recoil !== b.recoil) return false;
   if (a.zombie !== b.zombie || a.leapCd !== b.leapCd || a.pulled !== b.pulled || a.pinned !== b.pinned || a.burning !== b.burning) return false;
   if (a.pullX !== b.pullX || a.pullY !== b.pullY || a.pullZ !== b.pullZ || a.stunT !== b.stunT || a.shove !== b.shove || a.ears !== b.ears) return false;
-  if (a.hmg !== b.hmg || a.pet !== b.pet || a.perks !== b.perks) return false;
+  if (a.hmg !== b.hmg || a.pet !== b.pet || a.drag !== b.drag || a.perks !== b.perks) return false;
   if (a.ride !== b.ride || a.rideT !== b.rideT || a.rideGo !== b.rideGo) return false;
   if (a.cart !== b.cart || a.cartS !== b.cartS || a.cartV !== b.cartV) return false;
   if (a.drive !== b.drive || a.driveK !== b.driveK || a.dyaw !== b.dyaw || a.dsteer !== b.dsteer || a.dfuel !== b.dfuel || a.ddead !== b.ddead || a.dhold !== b.dhold || a.pass !== b.pass || a.passN !== b.passN) return false;
@@ -294,6 +298,7 @@ export function hashPlayerState(s) {
   if (s.pass) mix(s.pass | (s.passN << 16) | 0x70000000);
   if (s.hmg) mix(0x686d67);
   if (s.pet) mix(0x636174);
+  if (s.drag) mix(0x647267);
   if (s.perks) mix(s.perks);
   return (h ^ (h >>> 8) ^ (h >>> 16) ^ (h >>> 24)) & 255;
 }
@@ -544,6 +549,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   else if (wade > WADE_FROM) wishSpeed *= 1 - WADE_SLOW * Math.min(1, (wade - WADE_FROM) / (SWIM_DEPTH - WADE_FROM)); // wading in deeper
   if (aiming) wishSpeed *= 0.62;
   if (s.hmg) wishSpeed *= GUN_CARRY_SPEED;
+  if (s.drag) wishSpeed *= DRAG.pace;
   if (face) wishSpeed *= BLIND_SPEED;
   if (!moving) wishSpeed = 0;
 
