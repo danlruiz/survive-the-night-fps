@@ -371,6 +371,9 @@ const LOCAL = {
   bandage: { bank: 'bandage', vol: 0.5, rec: R_BANDAGE },
   ui_click: { bank: 'ui_click', vol: 0.35, bus: 'ui', jit: 0.02, send: 0 },
   ui_hover: { bank: 'ui_hover', vol: 0.12, bus: 'ui', jit: 0.03, send: 0 },
+  // a hold-to-act key down, and a hold broken off (game/holdring.js)
+  hold_press: { bank: 'hold_press', vol: 0.3, bus: 'ui', jit: 0.03, send: 0 },
+  hold_cancel: { bank: 'hold_cancel', vol: 0.35, bus: 'ui', jit: 0, send: 0 },
   // Dead Hand, the card game (game/cards.js): heard by the one playing, whatever is going on around them
   card_play: { bank: 'card_play', vol: 0.45, bus: 'ui', jit: 0.05, send: 0 },
   card_draw: { bank: 'card_draw', vol: 0.3, bus: 'ui', jit: 0.06, send: 0 },

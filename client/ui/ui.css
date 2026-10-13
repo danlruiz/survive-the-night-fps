@@ -1084,6 +1084,60 @@ body {
   text-shadow: var(--shadow);
 }
 
+/* a held key's ring (game/holdring.js): up on the frame the key goes down, with a pop... */
+.stn-ui .use.in {
+  animation: stn-useIn 0.14s ease-out;
+}
+
+@keyframes stn-useIn {
+  0% {
+    transform: translate(-50%, -50%) scale(0.72);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ...and broken off short of done: red, a shake, what happened under it, fading out */
+.stn-ui .use.cancel .fg {
+  stroke: var(--blood-hi);
+}
+
+.stn-ui .use.cancel .use-label {
+  color: var(--blood-lite);
+  letter-spacing: 0.14em;
+}
+
+.stn-ui .use.cancel.shake {
+  animation: stn-useShake var(--cancel-s, 0.7s) ease-out forwards;
+}
+
+@keyframes stn-useShake {
+  0% {
+    transform: translate(-50%, -50%);
+  }
+  8% {
+    transform: translate(calc(-50% - 5px), -50%);
+  }
+  18% {
+    transform: translate(calc(-50% + 4px), -50%);
+  }
+  28% {
+    transform: translate(calc(-50% - 2px), -50%);
+  }
+  38%,
+  70% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%);
+    opacity: 0;
+  }
+}
+
 .stn-ui .prompt {
   position: absolute;
   left: 0;
@@ -1871,63 +1925,6 @@ body {
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--bone-2);
-}
-
-/* the drop key held (game/drophold.js): a ring filling up beside the weapon's name, or "Hold G to drop" */
-.stn-ui .w-drop {
-  --p: 0; /* how far the hold is, 0..1 (hud.js) */
-  display: inline-flex;
-  align-items: center;
-  gap: calc(6 * var(--u));
-  font: 500 max(10px, calc(12 * var(--u))) / 1 var(--f-num);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--blood-lite);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-
-.stn-ui .w-drop[hidden] {
-  display: none;
-}
-
-.stn-ui .w-drop-ring {
-  width: max(14px, calc(18 * var(--u)));
-  height: max(14px, calc(18 * var(--u)));
-  border-radius: 50%;
-  background: conic-gradient(var(--blood-hi) calc(var(--p) * 360deg), rgba(230, 223, 207, 0.22) 0);
-  -webkit-mask: radial-gradient(circle, transparent 46%, #000 50%);
-  mask: radial-gradient(circle, transparent 46%, #000 50%);
-}
-
-.stn-ui .w-drop.tap {
-  color: var(--bone-2);
-  letter-spacing: 0.08em;
-  text-transform: none;
-  animation: stn-dropTap 1.6s ease-out forwards;
-}
-
-.stn-ui .w-drop.tap .w-drop-ring {
-  display: none;
-}
-
-.stn-ui .w-drop .kbd {
-  margin: 0 0.3em;
-  letter-spacing: 0;
-}
-
-@keyframes stn-dropTap {
-  0% {
-    opacity: 0;
-    transform: translateX(6px);
-  }
-  12%,
-  75% {
-    opacity: 1;
-    transform: none;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 
 .stn-ui .ammo-row {

@@ -57,7 +57,7 @@ export class FixtureUI {
 
   // [E] on look target `t`
   interact(t) {
-    this.g.beginHold(t === 'bell' ? BELL_ID : RADIO_ID);
+    this.g.beginHold(t === 'bell' ? BELL_ID : RADIO_ID, t === 'bell' ? HOLD.BELL : HOLD.RADIO);
   }
 
   // the progress ring's label while one of our holds runs ('' for any other kind)

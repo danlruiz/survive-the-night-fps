@@ -1533,6 +1533,40 @@ export function uiHover(sr) {
   }
   return finish(out, sr, 0.9, 0.0005, 0.005);
 }
+// A hold-to-act key went down (game/holdring.js): a soft, low latch click with a short rising tick on it, so the
+// press is heard on the frame it is made, under whatever the hold itself will sound like
+export function holdPress(sr, rng) {
+  const out = alloc(sr, 0.09);
+  const c = new Float32Array(Math.floor(0.06 * sr));
+  let ph = 0;
+  for (let i = 0; i < c.length; i++) {
+    const t = i / sr;
+    ph += (520 + 380 * Math.min(1, t / 0.03)) / sr;
+    c[i] = Math.sin(TAU * ph) * Math.min(1, t / 0.002) * Math.exp(-t / 0.018);
+  }
+  addNorm(out, c, sr, 0, 0.8);
+  addNorm(out, noise(sr, rng, 0.006, { bp: [2400, 1.2], a: 0.0002, d: 0.002 }), sr, 0, 0.35);
+  return finish(out, sr, 0.8, 0.0001, 0.01);
+}
+// ...and the hold was broken off short of done: two dull falling notes, the press's tick run backwards
+export function holdCancel(sr, rng) {
+  const out = alloc(sr, 0.2);
+  const note = (f0, f1, len) => {
+    const c = new Float32Array(Math.floor(len * sr));
+    const lp = new Biquad().lp(sr, 1400, 0.8);
+    let ph = 0;
+    for (let i = 0; i < c.length; i++) {
+      const t = i / sr;
+      ph += (f0 + (f1 - f0) * (t / len)) / sr;
+      c[i] = lp.run((ph % 1) < 0.5 ? 1 : -1) * Math.min(1, t / 0.003) * Math.exp(-t / (len * 0.45));
+    }
+    return c;
+  };
+  addNorm(out, note(420, 360, 0.07), sr, 0, 0.6);
+  addNorm(out, note(300, 240, 0.1), sr, 0.075, 0.6);
+  addNorm(out, noise(sr, rng, 0.01, { lp: 1800, a: 0.0005, d: 0.004 }), sr, 0, 0.2);
+  return finish(out, sr, 0.75, 0.0002, 0.02);
+}
 // ------------------------------------------------------------------ Dead Hand, the card game (ui/cards.js)
 // a card put down on the table: the slap of its face on the felt and the snap of the card itself
 export function cardPlay(sr, rng) {
@@ -2303,6 +2337,8 @@ export const SFX_DEFS = [
   { bank: 'heal', n: 1, sr: HI, gen: healChime },
   { bank: 'ui_click', n: 1, sr: HI, gen: uiClick },
   { bank: 'ui_hover', n: 1, sr: HI, gen: uiHover },
+  { bank: 'hold_press', n: 1, sr: HI, gen: holdPress },
+  { bank: 'hold_cancel', n: 1, sr: HI, gen: holdCancel },
   { bank: 'card_play', n: 3, sr: HI, gen: cardPlay },
   { bank: 'card_draw', n: 2, sr: HI, gen: cardDraw },
   { bank: 'card_flip', n: 2, sr: HI, gen: cardFlip },
