@@ -66,13 +66,13 @@ export const SHOVE_SLIP = 0.6; // a second, let go: it bears down again
 // can walk (at BLIND_SPEED of the pace, no sprint, no jump) and they shake it off by throwing their head about - the
 // same meter, filled while the view turns faster than SHAKE_MIN (rad/s, turning and nodding alike), by SHAKE_GAIN for
 // each rad/s over it (up to SHAKE_CAP over) a second, and sinking back by SHAKE_SLIP a second while it does not.
-// Thrashing the view about gets it off in about two seconds; looking around as anyone does in a fight never does
+// Thrashing the view about gets it off in under a second; looking around as anyone does in a fight never does
 export const PIN_FACE = 2;
 export const BLIND_SPEED = 0.6;
-export const SHAKE_MIN = 6;
-export const SHAKE_GAIN = 0.09;
+export const SHAKE_MIN = 3;
+export const SHAKE_GAIN = 0.2;
 export const SHAKE_CAP = 14;
-export const SHAKE_SLIP = 0.35;
+export const SHAKE_SLIP = 0.2;
 
 export const PLAYER_MAX_HP = 100;
 export const ZOMBIE_PLAYER_MAX_HP = 260;

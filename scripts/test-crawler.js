@@ -13,9 +13,10 @@
 //   - thrashing the view about tears it off in a couple of seconds; looking round as anyone does in a fight does not,
 //     and Space (the leaper's shove) does nothing to it. Once it is off it reels and does not take them again at once
 //   - a teammate's blow knocks it off, and it does not go for a face that already has something on it
-//   - it joins the horde on its own night (minNight) and not before
+//   - it joins the horde on its own night (drawn from the seed: joinNight) and not before
 // usage: node scripts/test-crawler.js [seed ...]   (VERBOSE=1 prints each scenario's numbers)
 import { Game } from '../server/game.js';
+import { joinNight } from '../shared/nights.js';
 import { leapAim } from '../server/zombies.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, CMD_DT, PIN_FACE, WALK_SPEED } from '../shared/constants.js';
@@ -207,7 +208,7 @@ function treeTrial(env, rng) {
     s.y = groundAt(w, s.x, s.z, 200, 0.3);
     s.vx = s.vy = s.vz = 0;
   };
-  put(12);
+  put(40); // (past PERCH_DROP, 21 m: a survivor inside that drops it)
   const z = game.zm.spawn(ZTYPE.CRAWLER, s.x + 20, s.z, { horde: true });
   calls.length = 0;
   for (let i = 0; i < 15 / DT && !z.perched; i++) {
@@ -225,11 +226,22 @@ function treeTrial(env, rng) {
     game.update();
     if (s.pinned || !z.perched) out.left = false;
   }
+  if (!z.tree) { out.why = `fell off the tree while the survivor kept away (perched ${z.perched}, dazed ${z.dazedT}, state ${z.state})`; return out; }
   out.calls = calls.filter((k) => k.y > z.tree.y0 + 2).length;
-  // in under it: put 4 m off its trunk on its side, and held there
+  // in under it: put 7 m off its trunk on a side of the bark it can see round (a side blocked by something else is not
+  // one it drops from), and held there
   const t = z.tree;
-  s.x = t.x + Math.sin(z.perchA) * 4.5;
-  s.z = t.z + Math.cos(z.perchA) * 4.5;
+  for (let k = 0; k < 8; k++) {
+    const side = z.perchA + (k * Math.PI) / 4;
+    const xx = t.x + Math.sin(side) * 7;
+    const zz = t.z + Math.cos(side) * 7;
+    if (game.zm.clearLine(z.x, z.y + 0.2, z.z, xx, groundAt(w, xx, zz, 200, 0.3) + 1.4, zz)) {
+      z.perchA = side;
+      break;
+    }
+  }
+  s.x = t.x + Math.sin(z.perchA) * 7;
+  s.z = t.z + Math.cos(z.perchA) * 7;
   s.y = groundAt(w, s.x, s.z, 200, 0.3);
   let airT = 0;
   for (let i = 0; i < 5 / DT; i++) {
@@ -266,7 +278,7 @@ function treeTrial(env, rng) {
 
 const trees = [];
 
-const runs = { tried: 0, latched: 0, onFace: 0, bites: [], held: [], time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 } };
+const runs = { tried: 0, latched: 0, onFace: 0, bites: [], held: [], time: [], walk: { n: 0, ok: 0, d: [] }, shake: { n: 0, ok: 0, t: [] }, look: { n: 0, ok: 0 }, mash: { n: 0, ok: 0 }, struck: { n: 0, ok: 0 }, taken: { n: 0, ok: 0 }, flee: { n: 0, ok: 0, d: [] } };
 
 for (const seed of seeds) {
   const env = setup(seed);
@@ -367,6 +379,35 @@ for (const seed of seeds) {
     } else if (released < 0) runs[how].ok++;
   }
 
+  // shaken off, it runs: with the survivor standing still for 9 s it makes off for a tree well away from them (or up
+  // one already), and does not come back down on them
+  {
+    const r = trial(env, spot, 5, rng);
+    if (r.latched) {
+      const z = r.z;
+      const yaw0 = c.yaw;
+      c.k = 0;
+      let released = -1;
+      for (let i = 0; i < 3 / DT && released < 0; i++) {
+        c.input(0, (k) => yaw0 + 1.05 * Math.sin(2 * Math.PI * 3 * k * CMD_DT));
+        game.update();
+        if (!s.pinned) released = i;
+      }
+      if (released >= 0) {
+        runs.flee.n++;
+        let again = false;
+        for (let i = 0; i < 9 / DT; i++) {
+          c.input(0);
+          game.update();
+          if (i > 2 && (z.state === 3 || s.pinned)) again = true;
+        }
+        const d = Math.hypot(z.x - s.x, z.z - s.z);
+        runs.flee.d.push(`${d.toFixed(1)} m${z.perched ? ' up a tree' : ''}`);
+        if (!again && !z.dead && d > 10) runs.flee.ok++;
+      }
+    }
+  }
+
   // a teammate's blow knocks it off
   {
     const r = trial(env, spot, 5, rng);
@@ -410,10 +451,10 @@ for (const seed of seeds) {
   }
 }
 
-check('after a survivor, it runs up a tree near them (6-32 m off them) and clings there 3.5-6.5 m up', trees.length === seeds.length && trees.every((r) => r.up && r.high >= 3.4 && r.high <= 6.6 && r.keep >= 6 && r.keep <= 33), trees.map((r) => (r.up ? `${r.high.toFixed(1)} m up, ${r.keep.toFixed(1)} m off` : r.why)).join(' / '));
+check('after a survivor, it runs up a tree near them (18-96 m off them) and clings there 3.5-6.5 m up', trees.length === seeds.length && trees.every((r) => r.up && r.high >= 3.4 && r.high <= 6.6 && r.keep >= 18 && r.keep <= 99), trees.map((r) => (r.up ? `${r.high.toFixed(1)} m up, ${r.keep.toFixed(1)} m off` : r.why)).join(' / '));
 check('...and chitters up there now and then, so it can be heard', trees.every((r) => r.calls >= 2), trees.map((r) => r.calls).join('/'));
 check('...and leaves alone a survivor who keeps away from its tree', trees.every((r) => r.up && r.left));
-check('...and glides down on one who comes in under it, slower than a leaper springs, and has them by the face', trees.every((r) => r.latched && r.air > 0.6), trees.map((r) => `${r.latched ? 'had them' : 'missed'} after ${r.air.toFixed(2)} s in the air`).join(' / '));
+check('...and glides down on one who comes in under it, and has them by the face (a glide of 0.37 s or more: CRAWLER_FLIGHT)', trees.every((r) => r.latched && r.air > 0.3), trees.map((r) => `${r.latched ? 'had them' : 'missed'} after ${r.air.toFixed(2)} s in the air`).join(' / '));
 check('a tree cut down under it drops it', trees.every((r) => r.felledDrops));
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
 check('a survivor standing still has one on their face from every crawler that springs at them', runs.tried >= seeds.length * TRIALS && runs.latched === runs.tried, `${runs.latched} of ${runs.tried} (${pct(runs.latched, runs.tried)})`);
@@ -424,9 +465,10 @@ const perHold = Math.floor(DEF.latchMax / DEF.latchRate);
 check(`on their face it nibbles: ${DEF.latchDmg} hp (+5% a night) every ${DEF.latchRate} s, about ${perHold} bites over a full hold`, runs.held.length === seeds.length && runs.held.every((n) => n >= perHold - 2 && n <= perHold + 1) && runs.bites.every((b) => Math.abs(b.amount - nibble(b)) < 1e-9), `${runs.held.join('/')} bites a hold, ${[...new Set(runs.bites.map((b) => b.amount.toFixed(2)))].join('/')} hp each`);
 check('...and that is all the harm it does: nothing to anyone it has not got by the face', runs.latched > 0 && runs.bites.length > 0 && runs.bites.every((b) => b.face), `${runs.bites.filter((b) => !b.face).length} of ${runs.bites.length} off the face`);
 check('with one on their face they still walk on, slowed (no sprint), and it stays on', runs.walk.n >= seeds.length && runs.walk.ok === runs.walk.n, `${runs.walk.ok} of ${runs.walk.n} (${runs.walk.d.map((d) => d.toFixed(1)).join('/')} m in 2 s)`);
-check('thrashing their head about tears it off in about two seconds; off, it reels and does not take them again as they run', runs.shake.n >= seeds.length && runs.shake.ok === runs.shake.n, `${runs.shake.ok} of ${runs.shake.n} (${runs.shake.t.map((t) => t.toFixed(2)).join('/')} s)`);
+check('thrashing their head about tears it off in under a second; off, it reels and does not take them again as they run', runs.shake.n >= seeds.length && runs.shake.ok === runs.shake.n, `${runs.shake.ok} of ${runs.shake.n} (${runs.shake.t.map((t) => t.toFixed(2)).join('/')} s)`);
 check('...looking round as anyone does in a fight does not', runs.look.n >= seeds.length && runs.look.ok === runs.look.n, `${runs.look.ok} of ${runs.look.n}`);
 check("...and mashing Space (the leaper's shove) does not", runs.mash.n >= seeds.length && runs.mash.ok === runs.mash.n, `${runs.mash.ok} of ${runs.mash.n}`);
+check('shaken off, it runs off for a tree away from them, and does not come straight back', runs.flee.n >= seeds.length && runs.flee.ok === runs.flee.n, `${runs.flee.ok} of ${runs.flee.n} (${runs.flee.d.join(' / ')} off after 9 s)`);
 check("a teammate's blow knocks it off", runs.struck.n >= seeds.length && runs.struck.ok === runs.struck.n, `${runs.struck.ok} of ${runs.struck.n}`);
 check('it does not spring at a face that already has something on it', runs.taken.n === seeds.length && runs.taken.ok === runs.taken.n, `${runs.taken.ok} of ${runs.taken.n}`);
 check('a crawler goes for the face, a leaper still for the chest', leapAim({ ztype: ZTYPE.CRAWLER }) > 1.2 && leapAim({ ztype: ZTYPE.LEAPER }) < 1);
@@ -439,11 +481,12 @@ check('a crawler goes for the face, a leaper still for the chest', leapAim({ zty
     game.startNight();
     return game.waves.reduce((n, wv) => n + wv.queue.filter((t) => t === ZTYPE.CRAWLER).length, 0);
   };
+  const N = joinNight(game.seed, ZTYPE.CRAWLER);
   const before = [];
-  for (let n = 1; n < DEF.minNight; n++) before.push(count(n));
-  const on = count(DEF.minNight);
-  const after = count(DEF.minNight + 2);
-  check(`crawlers join the horde on night ${DEF.minNight} and not before`, before.every((k) => k === 0) && on >= 1 && after >= 1, `nights 1-${DEF.minNight - 1}: ${before.join('/')}, night ${DEF.minNight}: ${on}, night ${DEF.minNight + 2}: ${after}`);
+  for (let n = 1; n < N; n++) before.push(count(n));
+  const on = count(N);
+  const after = count(N + 2);
+  check(`crawlers join the horde on night ${N} (this seed's) and not before`, before.every((k) => k === 0) && on >= 1 && after >= 1, `nights 1-${N - 1}: ${before.join('/')}, night ${N}: ${on}, night ${N + 2}: ${after}`);
 }
 
 if (fails.length) {
