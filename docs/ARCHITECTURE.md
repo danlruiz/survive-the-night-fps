@@ -125,6 +125,14 @@ more than its bytes**, so put things into the packets that already flow.
   Whether a press acts is asked of `simulatePlayer` on a scratch copy of the state, so a new rule in the
   simulation needs no counterpart there. This only shapes what the client sends: `Prediction.step` simulates the
   shaped command, and the server never knows.
+- **Held keys** (`client/game/holdring.js`). Every hold-to-act input (the server's holds: search, revive, the
+  car, the fixtures, the mounted gun, the fair, vehicle work, siphoning; and the client's own: the drop key, a base
+  generator's switch) shows one ring from the frame the key goes down. It fills by the client's clock from the
+  press (`holdNeed` guesses the server's time) and follows `self.holdProgress` once that comes, pushed on by half a
+  round trip. A hold that ends short of done is shown red with why, and a cancel sound plays. A key that is a tap
+  first (a vehicle, the mounted gun) starts the ring with a `lead`: let go inside it, the ring goes quietly. [E]
+  held while an item is in the hands (the server turns a hold down then) waits in `Game.holdWait` and is asked for
+  the moment they are free.
 - **Down: one snapshot per tick** (`Game.sendTick`), corked together with the player list and inventory when
   those changed. A flags byte (`SNAP`) says which sections follow; tick and acked command are implied
   (+1, +`CMDS_PER_PACKET`) unless flagged. A client whose socket is backed up is skipped, never sent a snapshot
