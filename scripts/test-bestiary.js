@@ -36,7 +36,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('every entry has a name, a group, a vague line and a tip', BESTIARY.every((e) => e.name === ZOMBIE_DEFS[e.t].name && e.group && e.vague?.length > 10 && e.tip?.length > 20));
   const leaks = BESTIARY.filter((e) => e.vague.toLowerCase().includes(e.name.replace(/^The /, '').toLowerCase()));
   check("no vague line gives away the monster's name", !leaks.length, leaks.map((e) => e.name).join());
-  check('a record fits the u32 on the wire', BESTIARY_ALL >= 0 && BESTIARY_ALL < 2 ** 31 && seenCount(BESTIARY_ALL) === BESTIARY.length);
+  check('a record fits the u32 on the wire', BESTIARY_ALL >>> 0 < 2 ** 32 && Math.max(...BESTIARY.map((e) => e.t)) < 31 && seenCount(BESTIARY_ALL) === BESTIARY.length);
   check('a mask from anywhere keeps only kinds the book has', cleanSeen(1 << 20 | bit(ZTYPE.RUNNER)) === bit(ZTYPE.RUNNER) && cleanSeen('3') === 0 && cleanSeen(-1) === BESTIARY_ALL);
 }
 

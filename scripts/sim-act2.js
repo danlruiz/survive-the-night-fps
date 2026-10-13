@@ -15,7 +15,7 @@ const { C2S, S2C, ACT, CAR_ID, HOLD, SNAP, PLF, UNDO_NO, PROTOCOL_VERSION, Write
 const { PHASE, ESCAPE_DRIVE_TIME, ENGINE_START_TIME, GAME_OVER_DELAY, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_BUILD, INVENTORY_MAX, dayLength, MAP_SIZE } = await import('../shared/constants.js');
 const { ITEM, WEAPONS, AMMO, AMMO_ITEMS, ZTYPE, ZONE, ZONE_NAMES, NOTIFY, EVT, CACHE_GAVE, PLANE_PARTS, PLANE_NEED, SUPPLIES, ZOMBIE_DEFS, SCHEMATICS, SCHEM_BIT, CONT_DEFS, schematicRumours } = await import('../shared/defs.js');
 const { WORLD, MAINLAND_SIZE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, ARRIVAL_DAY, MAINLAND_DAY_MORE, MAINLAND_NIGHT } = await import('../shared/acts.js');
-const { nightBoss, nightTheme, MAINLAND_BOSSES, NIGHT_THEMES } = await import('../shared/nights.js');
+const { nightBoss, nightTheme, MAINLAND_BOSSES, joinNight, hasJoined } = await import('../shared/nights.js');
 const { readHeader, readGlobal, readSelf } = await import('../client/net/decode.js');
 const { envelope, encode, decode } = await import('../server/handoff.js');
 const { START_CLEAR } = await import('../server/zombies.js');
@@ -445,10 +445,13 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   }
   check('every mainland night has one of the late bosses: The Abomination on the fourth, The Hive Queen on the fifth, never the same twice running', ok, detail);
   check('...while the island keeps its own (The Brute on the first night)', nightBoss(SEED, 1) === ZTYPE.BOSS_BRUTE && nightBoss(SEED, 1, WORLD.ISLAND) === ZTYPE.BOSS_BRUTE);
-  const early = NIGHT_THEMES.filter((th) => th.from > 2 && th.from <= MAINLAND_NIGHT).map((th) => th.id);
-  let drawn = false;
-  for (let seed = 1; seed < 400 && !drawn; seed++) drawn = early.includes(nightTheme(seed, 2, WORLD.MAINLAND)?.id) && !early.includes(nightTheme(seed, 2)?.id);
-  check('a mainland night counts as the fourth at the least: its themes can be drawn however early the team crossed', drawn, early.join());
+  // (a theme about kinds that, on the island, would not be out until later than night 2)
+  let drawn = '';
+  for (let seed = 1; seed < 400 && !drawn; seed++) {
+    const th = nightTheme(seed, 2, WORLD.MAINLAND);
+    if (th?.needs && !th.needs.some((k) => hasJoined(seed, k, 2))) drawn = `${th.id} on seed ${seed}`;
+  }
+  check('a mainland night counts as the fourth at the least: its themes can be drawn however early the team crossed', !!drawn, drawn);
   // in a game: a team that crossed on day 2 meets, that night, a horde made up as on night 4
   const game = new Game({ seed: SEED, log: quiet, godMode: true });
   const ann = client(game, 'Ann', randomUUID());
@@ -458,7 +461,7 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   game.arrive();
   game.startNight();
   const kinds = new Set(game.waves.flatMap((wv) => wv.queue));
-  check('the night after an early crossing: a late boss, and the kinds of night 4 in the horde', game.bossPending.types[0] === nightBoss(SEED, 2, WORLD.MAINLAND) && late.has(game.bossPending.types[0]) && [...kinds].every((t) => ZOMBIE_DEFS[t].minNight <= MAINLAND_NIGHT) && [...kinds].some((t) => ZOMBIE_DEFS[t].minNight > 2), `boss ${game.bossPending.types[0]}, kinds ${[...kinds].join()}`);
+  check('the night after an early crossing: a late boss, and the kinds of night 4 in the horde', game.bossPending.types[0] === nightBoss(SEED, 2, WORLD.MAINLAND) && late.has(game.bossPending.types[0]) && [...kinds].every((t) => ZOMBIE_DEFS[t].boss || joinNight(SEED, t) <= MAINLAND_NIGHT) && [...kinds].some((t) => joinNight(SEED, t) > 2), `boss ${game.bossPending.types[0]}, kinds ${[...kinds].join()}`);
 }
 
 // ================================================================ what the island has learnt since, on the mainland
