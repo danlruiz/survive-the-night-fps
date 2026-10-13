@@ -1,4 +1,4 @@
-// The crawler (ZTYPE.CRAWLER: server/zombies.js LATCH_*, PERCH_*, perch, fireSpecial case 2, special states 2 and 3),
+// The crawler (ZTYPE.CRAWLER: server/specials/crawler.js LATCH_*, PERCH_*, perch; the pounce in server/specials/leaper.js),
 // against the real server in-process with a survivor driven by real input. A flying squirrel, it waits up trees:
 //   - after a survivor, it makes for a tree near them (not over them), runs up it and clings there, chittering now and
 //     then, and leaves alone a survivor who keeps away from that tree; one who comes close under it it glides down on,

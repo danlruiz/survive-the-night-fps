@@ -1648,7 +1648,7 @@ export class Game {
         g.flyover?.start(x, y, z, heading, eta, g.time, g.audio);
       },
       screech(id, secs) {
-        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/zombies.js screech)
+        // a screecher screamed close by: our ears ring until it is dead, or for secs (server/specials/screecher.js screech)
         if (g.self?.zombie) return;
         g.ringFrom = id;
         g.audio.ring?.(secs);

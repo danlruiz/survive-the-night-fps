@@ -1,4 +1,4 @@
-// The zombie dog's hunt (server/zombies.js: DOG_*, breakOff, startRam, ram, lungeClear), against the real server
+// The zombie dog's hunt (server/specials/dog.js: DOG_*, breakOff, startRam, ram, lungeClear), against the real server
 // in-process with a survivor who stands still. Dogs are put down on open ground of a few valleys, and round closed
 // pens of four pieces built the way a survivor builds them:
 //   - one dog on open ground bites, breaks off and comes back: a gap of seconds between bites, and it spends little

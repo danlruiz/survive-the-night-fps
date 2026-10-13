@@ -123,7 +123,7 @@ wrong for a wall.
   luggage, a fallen pole): it is walked and shot through, so that no corridor or doorway is shut by it.
 - **A campfire's ring is 0.5 m high** though its stones are 0.3: nobody stands in the flames.
 - **Roof slopes, tilted slabs, fire escapes, cornices** are drawn without colliders (a tilted box cannot be one).
-  The sweep counts them apart ("by design"). A bat's flight has its own roof boxes (`server/zombies.js`).
+  The sweep counts them apart ("by design"). A bat's flight has its own roof boxes (`server/specials/bat.js`).
 - **The quest plane** (`plane_wreck`): the ground under its wings and round its engines stays shut, and its
   tailplane's box still hangs at 1.98 m - a jump under it does push the jumper out. It was so before; moving it
   changes where the plane can be worked on, which wants playing.
