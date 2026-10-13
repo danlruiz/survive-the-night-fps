@@ -85,7 +85,7 @@ import {
   ITEM,
   ITEM_DEFS,
   WEAPONS,
-  RECIPES,
+  RECIPE_BY_ID,
   SALVAGE,
   STRUCT,
   STRUCT_DEFS,
@@ -3589,7 +3589,7 @@ export class Game {
   }
 
   craft(p, recipeId) {
-    const rec = RECIPES[recipeId];
+    const rec = RECIPE_BY_ID.get(recipeId);
     if (!rec) return;
     if (rec.schem && !(this.unlocked & (1 << SCHEM_BIT[rec.schem]))) return this.notify(NOTIFY.LOCKED, rec.schem, p.id);
     if (rec.station && !this.nearStation(p, rec.station)) return this.notify(rec.station === 'fire' ? NOTIFY.NEED_FIRE : NOTIFY.NEED_BENCH, 0, p.id);

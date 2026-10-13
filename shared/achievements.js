@@ -15,6 +15,7 @@
 //              browser what unlocked. Signing in merges what the browser earned as a guest (mergeProgress).
 import { ITEM } from './defs.js';
 import { MOUNTED_GUN } from './mountedgun.js';
+import { WEAPON_LIST } from './weapons/index.js';
 
 // The lifetime counts. The index is the stat's number on the wire: append only.
 //   kills      the dead put down (zombies and turned players)     nights    nights seen through alive
@@ -79,9 +80,9 @@ export const ACHIEVEMENTS = [
   C(31, 'days_30', 'gold', 'days', 30, 'Lifer', 'Play on 30 different days.', 'sun'),
 
   // ---- combat
-  F(32, 'kill_pistol', 'combat', 'bronze', 'Sidearm', 'Kill one of the dead with the pistol, the revolver or the Desert Eagle.', `item:${ITEM.PISTOL}`),
-  F(33, 'kill_shotgun', 'combat', 'bronze', 'Boomstick', 'Kill one with a shotgun or the double-barrel.', `item:${ITEM.SHOTGUN}`),
-  F(34, 'kill_rifle', 'combat', 'bronze', 'Rifleman', 'Kill one with a rifle: the AK-47, the M4A1 or the hunting rifle.', `item:${ITEM.AK47}`),
+  F(32, 'kill_pistol', 'combat', 'bronze', 'Sidearm', 'Kill one of the dead with a sidearm.', `item:${ITEM.PISTOL}`),
+  F(33, 'kill_shotgun', 'combat', 'bronze', 'Boomstick', 'Kill one with a shotgun.', `item:${ITEM.SHOTGUN}`),
+  F(34, 'kill_rifle', 'combat', 'bronze', 'Rifleman', 'Kill one with an assault rifle or a hunting rifle.', `item:${ITEM.AK47}`),
   F(35, 'kill_atrifle', 'combat', 'silver', 'Big Game', 'Kill one with the anti-tank rifle.', `item:${ITEM.AT_RIFLE}`),
   F(36, 'kill_rpg', 'combat', 'silver', 'Danger Close', 'Kill one with the RPG.', `item:${ITEM.RPG}`),
   F(37, 'kill_flame', 'combat', 'silver', 'Barbecue', 'Kill one with the flamethrower.', `item:${ITEM.FLAMETHROWER}`),
@@ -133,19 +134,9 @@ export const ACH_BY_N = [];
 for (const a of ACHIEVEMENTS) ACH_BY_N[a.n] = a;
 
 // The kind of weapon a kill counts for (combat's "first kill with..."), by the weapon on the kill
+// (a weapon's is `feat` in its file, shared/weapons/)
 export const KILL_FEATS = {
-  [ITEM.PISTOL]: 'kill_pistol',
-  [ITEM.REVOLVER]: 'kill_pistol',
-  [ITEM.DEAGLE]: 'kill_pistol',
-  [ITEM.SHOTGUN]: 'kill_shotgun',
-  [ITEM.DB_SHOTGUN]: 'kill_shotgun',
-  [ITEM.AK47]: 'kill_rifle',
-  [ITEM.M4A1]: 'kill_rifle',
-  [ITEM.HUNTING_RIFLE]: 'kill_rifle',
-  [ITEM.AT_RIFLE]: 'kill_atrifle',
-  [ITEM.RPG]: 'kill_rpg',
-  [ITEM.FLAMETHROWER]: 'kill_flame',
-  [ITEM.KNIFE]: 'kill_knife',
+  ...Object.fromEntries(WEAPON_LIST.filter((w) => w.feat).map((w) => [w.id, w.feat])),
   [MOUNTED_GUN]: 'kill_mg',
 };
 

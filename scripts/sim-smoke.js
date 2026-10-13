@@ -5,7 +5,7 @@
 // Decodes every snapshot with the real client decoder. usage: node scripts/sim-smoke.js [seed]
 import { CRAFT_MAX, craftRun, copyInv } from '../client/game/bulkcraft.js';
 import { spawnCatalog } from '../client/ui/spawnmenu.js';
-import { RECIPES, AMMO_MAX } from '../shared/defs.js';
+import { RECIPE_BY_ID, AMMO_MAX } from '../shared/defs.js';
 import { Game } from '../server/game.js';
 import { treeHp } from '../server/trees.js';
 import { C2S, ACT, ENT, HOLD, CAR_ID, CHATF, PLF, WELCOMEF, REJECT_REASON, PROTOCOL_VERSION, Writer, Reader, S2C, qangle16, qpitch, ZSTATUS, writeInput } from '../shared/protocol.js';
@@ -1736,11 +1736,11 @@ const standOff = (c, e, d) => {
   }
   // craft at the fire: gunpowder needs chem
   game.giveItem(p, ITEM.CHEM, 2);
-  A.act(ACT.CRAFT, 19);
+  A.act(ACT.CRAFT, ITEM.POWDER);
   run(3);
   check('crafted at campfire', p.inv.some((x) => x && x.item === ITEM.POWDER));
   const nails0 = p.inv.reduce((n, x) => n + (x && x.item === ITEM.NAILS ? x.count : 0), 0);
-  A.act(ACT.CRAFT, 21); // nails at the bench
+  A.act(ACT.CRAFT, ITEM.NAILS); // nails at the bench
   run(3);
   check('crafted at workbench', p.inv.reduce((n, x) => n + (x && x.item === ITEM.NAILS ? x.count : 0), 0) === nails0 + 10);
   // Crafting in bulk (Shift / Ctrl+click): the client works out how many crafts the server will take (craftRun,
@@ -1757,7 +1757,7 @@ const standOff = (c, e, d) => {
       set();
       game.syncThrow(p);
       const model = copyInv({ slots: p.inv, ammo: s.ammo, weapons: s.weapons });
-      const n = craftRun(RECIPES[id], model, CRAFT_MAX);
+      const n = craftRun(RECIPE_BY_ID.get(id), model, CRAFT_MAX);
       A.notes.length = 0;
       for (let i = 0; i < n; i++) A.act(ACT.CRAFT, id);
       run(1);
@@ -1770,15 +1770,15 @@ const standOff = (c, e, d) => {
     };
     const count = (item) => p.inv.reduce((n, x) => n + (x && x.item === item ? x.count : 0), 0);
     // 60 sticks: twenty planks from twenty actions in one tick
-    const planks = bulk(18, [[ITEM.STICK, 20], [ITEM.STICK, 20], [ITEM.STICK, 20]]);
+    const planks = bulk(ITEM.WOOD, [[ITEM.STICK, 20], [ITEM.STICK, 20], [ITEM.STICK, 20]]);
     check('a bulk craft of 20 is 20 crafts in one tick', planks.n === CRAFT_MAX && planks.ok && count(ITEM.WOOD) === 20 && count(ITEM.STICK) === 0, `${planks.n} sent, ${count(ITEM.WOOD)} planks, ${count(ITEM.STICK)} sticks left`);
     // the materials run out (3 scrap); a full nail stack with nowhere else to go; the last scrap paid frees the slot
     // the nails need; bats with the melee slot taken and two free slots; a bat into the empty melee slot, then no room
-    const mats = bulk(9, [[ITEM.SCRAP, 3], [ITEM.POWDER, 20]]);
-    const stack = bulk(21, [[ITEM.SCRAP, 5], [ITEM.NAILS, 45], ...full(22)]);
-    const freed = bulk(21, [[ITEM.SCRAP, 1], [ITEM.NAILS, 55], ...full(22)]);
-    const bats = bulk(3, [[ITEM.WOOD, 9], ...full(21)]);
-    const bat = bulk(3, [[ITEM.WOOD, 6], ...full(23)], () => (s.weapons[2] = 0));
+    const mats = bulk(ITEM.AMMO_9MM, [[ITEM.SCRAP, 3], [ITEM.POWDER, 20]]);
+    const stack = bulk(ITEM.NAILS, [[ITEM.SCRAP, 5], [ITEM.NAILS, 45], ...full(22)]);
+    const freed = bulk(ITEM.NAILS, [[ITEM.SCRAP, 1], [ITEM.NAILS, 55], ...full(22)]);
+    const bats = bulk(ITEM.BAT, [[ITEM.WOOD, 9], ...full(21)]);
+    const bat = bulk(ITEM.BAT, [[ITEM.WOOD, 6], ...full(23)], () => (s.weapons[2] = 0));
     check(
       'a bulk craft stops where the server would refuse the next one',
       [mats, stack, freed, bats, bat].every((c) => c.ok) && [mats.n, stack.n, freed.n, bats.n, bat.n].join() === '3,1,1,2,1' && [mats.next, stack.next, freed.next, bats.next, bat.next].join() === [NOTIFY.NOT_ENOUGH, NOTIFY.INVENTORY_FULL, NOTIFY.NOT_ENOUGH, NOTIFY.INVENTORY_FULL, NOTIFY.INVENTORY_FULL].join(),
@@ -1789,8 +1789,8 @@ const standOff = (c, e, d) => {
     // batch that fits (120 + 2 x 12 of 150), so nothing is spilt - and every backpack slot taken does not matter
     const cap = AMMO_MAX[AMMO.P9];
     const had = s.ammo[AMMO.P9];
-    const ammo = bulk(9, [[ITEM.SCRAP, 10], [ITEM.POWDER, 30], ...full(22)], () => (s.ammo[AMMO.P9] = cap - 30), false);
-    check('bulk ammunition stops at the last whole batch the reserve takes', ammo.n === 2 && ammo.ok && s.ammo[AMMO.P9] === cap - 30 + 2 * RECIPES[9].n && count(ITEM.AMMO_9MM) === 0 && count(ITEM.SCRAP) === 8 && count(ITEM.POWDER) === 26, `${ammo.n} batches sent at ${cap - 30} of ${cap}: reserve ${s.ammo[AMMO.P9]}, ${count(ITEM.SCRAP)} scrap and ${count(ITEM.POWDER)} powder left`);
+    const ammo = bulk(ITEM.AMMO_9MM, [[ITEM.SCRAP, 10], [ITEM.POWDER, 30], ...full(22)], () => (s.ammo[AMMO.P9] = cap - 30), false);
+    check('bulk ammunition stops at the last whole batch the reserve takes', ammo.n === 2 && ammo.ok && s.ammo[AMMO.P9] === cap - 30 + 2 * RECIPE_BY_ID.get(ITEM.AMMO_9MM).n && count(ITEM.AMMO_9MM) === 0 && count(ITEM.SCRAP) === 8 && count(ITEM.POWDER) === 26, `${ammo.n} batches sent at ${cap - 30} of ${cap}: reserve ${s.ammo[AMMO.P9]}, ${count(ITEM.SCRAP)} scrap and ${count(ITEM.POWDER)} powder left`);
     s.ammo[AMMO.P9] = had;
     p.inv.splice(0, p.inv.length, ...keep[0]);
     keep[1].forEach((v, i) => (s.weapons[i] = v));
@@ -1799,7 +1799,7 @@ const standOff = (c, e, d) => {
   }
   // locked recipe
   A.notes.length = 0;
-  A.act(ACT.CRAFT, 15);
+  A.act(ACT.CRAFT, ITEM.SHOTGUN);
   run(3);
   check('schematic lock enforced', A.notes.some(([m]) => m === NOTIFY.LOCKED));
   // crossbow: a bench recipe that needs no schematic, bolts are their own reserve, it re-cocks itself,
@@ -1809,8 +1809,8 @@ const standOff = (c, e, d) => {
   game.giveItem(p, ITEM.ROPE, 1);
   game.giveItem(p, ITEM.SCRAP, 4);
   game.giveItem(p, ITEM.STICK, 6);
-  A.act(ACT.CRAFT, 26);
-  A.act(ACT.CRAFT, 27);
+  A.act(ACT.CRAFT, ITEM.CROSSBOW);
+  A.act(ACT.CRAFT, ITEM.AMMO_BOLTS);
   run(3);
   check('crafted crossbow + bolts at workbench', s.weapons[0] === ITEM.CROSSBOW && s.mags[0] === 1 && s.ammo[AMMO.BOLT] === 4, `bolts ${s.ammo[AMMO.BOLT]}`);
   // four more bolts with room for one in the reserve, and every backpack slot taken (ammunition needs none): the
@@ -1825,7 +1825,7 @@ const standOff = (c, e, d) => {
     for (let i = 2; i < p.inv.length; i++) p.inv[i] = { item: ITEM.LEATHER, count: 10 };
     s.ammo[AMMO.BOLT] = cap - 1;
     const before = new Set(game.items);
-    A.act(ACT.CRAFT, 27);
+    A.act(ACT.CRAFT, ITEM.AMMO_BOLTS);
     run(3);
     const spilt = game.items.filter((e) => !before.has(e) && e.item === ITEM.AMMO_BOLTS);
     const n = spilt.reduce((k, e) => k + e.count, 0);

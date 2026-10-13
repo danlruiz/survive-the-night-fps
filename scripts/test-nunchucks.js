@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { Game } from '../server/game.js';
 import { C2S, S2C, SNAP, PROTOCOL_VERSION, PFLAG, Writer, Reader } from '../shared/protocol.js';
 import { BTN, CMD_DT, SERVER_TICK_RATE, SLOT_MELEE, SLOT_PISTOL, STAMINA_MAX, STAMINA_REGEN_DELAY } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, LOOT_TABLES, CONT_TABLES, ZONE, ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, SALVAGE, LOOT_TABLES, CONT_TABLES, ZONE, ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
 import { createPlayerState, copyPlayerState, samePlayerState, simulatePlayer, hashPlayerState } from '../shared/playersim.js';
 import { groundAt } from '../shared/collision.js';
 import { createWorld } from '../shared/world.js';
@@ -39,7 +39,7 @@ const near = (a, b, tol = CMD_DT * 1.01) => Math.abs(a - b) <= tol;
   // (they came in at 41 and needed no bump of their own; later features bump it: 42 was Dead Hand's)
   check('the protocol version is as it was', PROTOCOL_VERSION >= 41, `${PROTOCOL_VERSION}`);
   const rec = RECIPES.find((r) => r.out === ITEM.NUNCHAKU);
-  check('made at the workbench from planks, scrap and tape: its id its place in the list (the recipes of the vehicles come after it)', !!rec && rec.station === 'bench' && !rec.schem && rec === RECIPES[40] && RECIPES.every((r, i) => r.id === i) && rec.id === 40 && Object.keys(rec.cost).every((it) => ITEM_DEFS[it]?.cat === 'res'), JSON.stringify(rec?.cost));
+  check('made at the workbench from planks, scrap and tape: its id the nunchucks themselves', !!rec && rec.station === 'bench' && !rec.schem && rec.id === ITEM.NUNCHAKU && RECIPE_BY_ID.get(rec.id) === rec && Object.keys(rec.cost).every((it) => ITEM_DEFS[it]?.cat === 'res'), JSON.stringify(rec?.cost));
   const sal = SALVAGE[ITEM.NUNCHAKU];
   check('...and it comes apart into less than it took', !!sal && Object.entries(sal).every(([it, n]) => rec.cost[it] && n <= rec.cost[it] / 2 + 0.5) && Object.keys(sal).length < Object.keys(rec.cost).length);
   const where = Object.entries(LOOT_TABLES).filter(([, t]) => t.some((r) => r[0] === ITEM.NUNCHAKU)).map(([z]) => +z);
