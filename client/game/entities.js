@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { POSE_NEAR, POSE_HZ } from '../render/rates.js';
 import { ENT, PFLAG, PSTAT, ZSTATUS, HCAR_AT, playerRide, dqpos, dqangle16, dqangle8, dqpitch } from '../../shared/protocol.js';
-import { ZTYPE, ZANIM, CANIM, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, PROJ, AREA, SOUND, WEAPONS, ITEM, ITEM_DEFS, structPickRadius } from '../../shared/defs.js';
+import { ZTYPE, ZANIM, CANIM, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, PROJ, AREA, SOUND, WEAPONS, ITEM, ITEM_DEFS, structPickRadius, greenBlood, zombieLoop } from '../../shared/defs.js';
 import { makeBox, COL, canReach, groundAt } from '../../shared/collision.js';
 import { SERVER_TICK_RATE, PICK_RADIUS, MATE_PICK_Y, CRAWL_HEIGHT, CRAWL_HEAD_Y, CRAWL_HEAD_FWD, WATER_LEVEL, GRAVITY } from '../../shared/constants.js';
 import { afloatAt } from '../../shared/swim.js';
@@ -412,9 +412,11 @@ export class Entities {
           e.lastHp = e.q[5];
           e.dead = e.q[4] === ZANIM.DEAD;
           if (ZOMBIE_DEFS[e.ztype].boss) this.bossEnt = e;
-          if (e.ztype === ZTYPE.BOSS_ABOMINATION || e.ztype === ZTYPE.BOSS_HIVEQUEEN || e.ztype === ZTYPE.BOSS_BRUTE || e.ztype === ZTYPE.BOSS_BLOATER) e.loop = g.audio.createLoop?.('boss_breath', e.rx, e.ry + 2, e.rz);
-          // the wet, rattling breath of the dead: only the nearest few are ever heard (the audio engine caps the loop)
-          else if (!e.dead && !ZOMBIE_DEFS[e.ztype].flying && e.ztype !== ZTYPE.DOG && e.ztype !== ZTYPE.BOSS_ALPHA && e.ztype !== ZTYPE.SHADE && e.ztype !== ZTYPE.CRAWLER) e.loop = g.audio.createLoop?.('zombie_idle', e.rx, e.ry + 1.5, e.rz);
+          // the loop its row says it carries (a boss's breath; by default the wet, rattling breath of the dead, of which
+          // only the nearest few are ever heard: the audio engine caps the loop)
+          const loop = zombieLoop(e.ztype);
+          if (loop === 'boss_breath') e.loop = g.audio.createLoop?.(loop, e.rx, e.ry + 2, e.rz);
+          else if (loop && !e.dead) e.loop = g.audio.createLoop?.(loop, e.rx, e.ry + 1.5, e.rz);
           this.zombieCount++;
           break;
         }
@@ -877,7 +879,7 @@ export class Entities {
     }
     const g = this.g;
     const def = ZOMBIE_DEFS[e.ztype];
-    const green = e.ztype === ZTYPE.SPITTER || e.ztype === ZTYPE.BOOMER || e.ztype === ZTYPE.BOSS_HIVEQUEEN || e.ztype === ZTYPE.BOSS_BLOATER;
+    const green = greenBlood(e.ztype);
     const crawl = e.q[7] === 3; // both legs shot off: it was lying on the ground, its head ahead of it
     if (flags & 8) {
       // overkill: the body is blown apart along the blow (yaw), nothing is left to fall over
@@ -931,7 +933,7 @@ export class Entities {
     const v = e?.view;
     if (!v?.shin) return;
     const g = this.g;
-    const green = e.ztype === ZTYPE.SPITTER || e.ztype === ZTYPE.BOOMER || e.ztype === ZTYPE.BOSS_HIVEQUEEN || e.ztype === ZTYPE.BOSS_BLOATER;
+    const green = greenBlood(e.ztype);
     const c = v.shin.color;
     for (let side = 0; side < 2; side++) {
       if (!(bits & (1 << side))) continue;
@@ -1076,7 +1078,10 @@ export class Entities {
               e.growlT = shade ? 1.8 + Math.random() * 2.2 : 4 + Math.random() * 9;
               const alpha = e.ztype === ZTYPE.BOSS_ALPHA; // a dog's bark and snarl, from a chest the size of a pony's
               const dog = e.ztype === ZTYPE.DOG || alpha;
-              const snd = e.ztype === ZTYPE.CRAWLER ? SOUND.CRAWLER_CHITTER : shade ? SOUND.SHADE_WHISPER : dog ? (e.speed > 3 && Math.random() < 0.6 ? SOUND.DOG_BARK : SOUND.DOG_SNARL) : e.ztype === ZTYPE.BAT ? SOUND.BAT_SCREECH : e.ztype === ZTYPE.BOOMER || e.ztype === ZTYPE.BOSS_BLOATER ? SOUND.BOOMER_GURGLE : e.ztype === ZTYPE.TANK ? SOUND.TANK_ROAR : e.ztype === ZTYPE.RUNNER && e.speed > 3 ? SOUND.RUNNER_SCREAM : ZOMBIE_DEFS[e.ztype].boss ? SOUND.BOSS_ROAR : e.speed < 1.2 && distC > 14 * 14 && e.q[4] !== ZANIM.ATTACK ? SOUND.ZOMBIE_MOAN : SOUND.ZOMBIE_GROWL; // shambling about somewhere off in the trees, it moans; on the hunt or on top of you, it growls
+              // what its row says it utters (shared/defs.js ZOMBIE_DEFS sounds): on the run, its fast one; else its growl,
+              // a boss's roar, or - shambling about somewhere off in the trees, it moans; on the hunt or on top of you, it growls
+              const say = ZOMBIE_DEFS[e.ztype].sounds;
+              const snd = say?.fast && e.speed > 3 && Math.random() < (say.fastChance ?? 1) ? SOUND[say.fast] : say?.growl ? SOUND[say.growl] : ZOMBIE_DEFS[e.ztype].boss ? SOUND.BOSS_ROAR : e.speed < 1.2 && distC > 14 * 14 && e.q[4] !== ZANIM.ATTACK ? SOUND.ZOMBIE_MOAN : SOUND.ZOMBIE_GROWL;
               if (e.ztype === ZTYPE.TANK && Math.random() < 0.6) e.growlT += 4;
               if (dog || e.ztype === ZTYPE.CRAWLER) e.growlT *= 0.6;
               g.audio.play(snd, { x: e.rx, y: e.ry + (alpha ? 1.2 : dog ? 0.6 : 1.5), z: e.rz, volume: e.ztype === ZTYPE.BAT ? 0.6 : alpha ? 1.4 : 0.9, rate: e.voice * (alpha ? 0.66 : e.ztype === ZTYPE.BOSS_BLOATER ? 0.62 : 1) });

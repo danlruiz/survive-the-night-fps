@@ -3,9 +3,12 @@
 // kinds have joined the run so far is drawn from the seed in shared/nights.js (joinOrder); the numbers that shape
 // each kind's own fight are in server/specials/.
 import { NIGHT_LENGTH, NIGHT_WAVES, WAVE_TIMES, WAVE_SPREAD } from '../shared/constants.js';
-import { ZTYPE } from '../shared/defs.js';
+import { ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
 import { nightRank } from '../shared/acts.js';
 import { nightTheme, joinNight, hasJoined, kindsJoining } from '../shared/nights.js';
+
+// the kinds a night's waves are drawn from, in ZTYPE order: every one whose row has a wave weight (shared/defs.js)
+const WAVE_KINDS = Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].wave);
 
 export const SPAWN_SPREAD = 4; // a horde group is scattered this far round the spot picked for it (Game.spawnHordeGroup)
 // By day the further out from the car (where every run starts), the stronger the dead, whatever the night: none of the
@@ -44,31 +47,16 @@ export function nightWaves(g, n, humans, total) {
   for (let k = 0; k < NIGHT_WAVES; k++) {
     const count = Math.max(3, Math.round(total * shares[k]));
     const sp = k / (NIGHT_WAVES - 1); // later waves bring more specials
-    const weights = [
-      [ZTYPE.WALKER, 50 - sp * 12],
-      [ZTYPE.RUNNER, 16 + n * 2 + sp * 6],
-      [ZTYPE.SPITTER, 6 + sp * 4],
-      [ZTYPE.BOOMER, 6 + sp * 3],
-      [ZTYPE.DOG, 3 + sp * 2], // each pick is a pack of 2-3
-      [ZTYPE.LEAPER, 6 + sp * 4],
-      [ZTYPE.BAT, 7],
-      [ZTYPE.ROPER, 5 + sp * 3],
-      [ZTYPE.TANK, (1 + n * 0.3) * (0.5 + sp)],
-      [ZTYPE.SHADE, 2.5 + sp * 2.5],
-      [ZTYPE.SMOKER, 3 + sp * 3],
-      [ZTYPE.SCREECHER, 1.5 + sp * 2], // (each one's scream brings a crowd of its own: SCREECH_* in specials/screecher.js)
-      [ZTYPE.CRAWLER, 5 + sp * 4],
-      [ZTYPE.FLAMMER, 3 + sp * 3],
-    ];
+    // (each kind's weight is its row's wave: shared/defs.js ZOMBIE_DEFS. A dog pick is a pack of 2-3; each screecher's
+    // scream brings a crowd of its own, SCREECH_* in specials/screecher.js)
+    const weights = WAVE_KINDS.map((t) => [t, ZOMBIE_DEFS[t].wave(n, sp)]);
     // one new kind a night: each stays out of the horde until its night comes
     for (const wt of weights) if (!hasJoined(g.seed, wt[0], n, g.act)) wt[1] = 0;
     if (theme) for (const wt of weights) wt[1] *= theme.mul[wt[0]] ?? 1;
-    // Ember thins the kinds that punish movement. Blackout brings more of them. Walkers and tanks stay: one is
+    // Ember thins the kinds that punish movement (scaled). Blackout brings more of them. Walkers and tanks stay: one is
     // the crowd, the other is a slow thing you can see coming. The night's guaranteed new kind is added below.
     if (g.diff.specials !== 1) {
-      for (const wt of weights) {
-        if (wt[0] === ZTYPE.SPITTER || wt[0] === ZTYPE.BOOMER || wt[0] === ZTYPE.LEAPER || wt[0] === ZTYPE.ROPER || wt[0] === ZTYPE.SHADE || wt[0] === ZTYPE.BAT || wt[0] === ZTYPE.SMOKER || wt[0] === ZTYPE.SCREECHER || wt[0] === ZTYPE.CRAWLER || wt[0] === ZTYPE.FLAMMER) wt[1] *= g.diff.specials;
-      }
+      for (const wt of weights) if (ZOMBIE_DEFS[wt[0]].scaled) wt[1] *= g.diff.specials;
     }
     const tot = weights.reduce((a, b) => a + b[1], 0);
     const q = [];
@@ -82,7 +70,7 @@ export function nightWaves(g, n, humans, total) {
             q.push(ZTYPE.RUNNER);
             break;
           }
-          const k = t === ZTYPE.DOG ? 2 + (g.rng() < 0.5 ? 1 : 0) : 1;
+          const k = ZOMBIE_DEFS[t].pack ? 2 + (g.rng() < 0.5 ? 1 : 0) : 1;
           for (let j = 0; j < k; j++) q.push(t);
           i += k - 1;
           break;

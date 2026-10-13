@@ -23,6 +23,7 @@ import {
   STRUCT_DEFS,
   GIB,
   BURN,
+  greenBlood,
 } from '../shared/defs.js';
 import { ENT, qpos, qangle16, qpitch } from '../shared/protocol.js';
 import { shotDirections, eyeHeight } from '../shared/playersim.js';
@@ -201,7 +202,7 @@ export class Combat {
         const hx = ox + dx * h.t;
         const hy = oy + dy * h.t;
         const hz = oz + dz * h.t;
-        const green = !h.isPlayer && (h.e.ztype === ZTYPE.SPITTER || h.e.ztype === ZTYPE.BOOMER || h.e.ztype === ZTYPE.BOSS_HIVEQUEEN || h.e.ztype === ZTYPE.BOSS_BLOATER);
+        const green = !h.isPlayer && greenBlood(h.e.ztype);
         // a shade frozen by light is hard as stone: bullets chip it instead of drawing blood
         g.impact(h.e.lit ? IMPACT.DIRT : green ? IMPACT.GREEN_BLOOD : IMPACT.BLOOD, hx, hy, hz, -dx, -dy, -dz);
         let killed;
