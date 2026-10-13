@@ -14,9 +14,9 @@
 import * as THREE from 'three';
 import { BTN, INTERACT_REACH, EYE_HEIGHT } from '../../shared/constants.js';
 import { ITEM, ITEM_DEFS, AMMO, SOUND, NOTIFY, VEH_NO, VEH_OFFS } from '../../shared/defs.js';
-import { ACT, VACT, VFLAG, HOLD, qpos, dqangle16 } from '../../shared/protocol.js';
+import { ACT, VACT, VFLAG, HOLD, SIPHON_ID, qpos, dqangle16 } from '../../shared/protocol.js';
 import { WORLD } from '../../shared/acts.js';
-import { VEH, VSTATE, VEHICLES, VEH_NAMES, FIX, REPAIR, HORN, vehicleGrid, parkedCollider, questCar, siphonOf, seatFeet } from '../../shared/vehicles.js';
+import { VEH, VSTATE, VEHICLES, VEH_NAMES, FIX, REPAIR, HORN, STARTER_TIME, vehicleGrid, parkedCollider, questCar, siphonOf, seatFeet } from '../../shared/vehicles.js';
 import { raycastWorld } from '../../shared/collision.js';
 import { VehicleModel, GRIP_HOLD, SEAT_POSE, SIT_T, SIT_K, SEAT_HIP, ANKLE } from '../render/models/vehicles.js';
 import { VMArm, handQ, ARM_L1, ARM_L2 } from '../render/models/weapons.js';
@@ -58,6 +58,7 @@ export class VehicleClient {
     this.lastYaw = 0;
     this.held = 0; // [E] is down on this vehicle (a tap gets in, held it works on it)
     this.heldT = 0;
+    this.heldJob = 0; // ...and the work a hold would be on it (protocol HOLD; 0: none it can do)
     this.target = { vehicle: 0, e: null, siphon: null };
     this.dry = new Set(); // wrecks we know to be drawn off
     this.eye = { x: 0, y: 0, z: 0, roll: 0, on: false };
@@ -253,7 +254,7 @@ export class VehicleClient {
       const t = g.lookTarget;
       if (!t || t.vehicle !== this.held) this.held = 0;
       else if ((this.heldT += dt) >= HOLD_AFTER) {
-        g.beginHold(this.held);
+        g.beginHold(this.held, this.heldJob);
         this.held = 0;
       }
     }
@@ -646,6 +647,8 @@ export class VehicleClient {
     T.e = e;
     T.siphon = null;
     T.exit = false;
+    T.job = 0; // the hold [E] would start on it (protocol HOLD; 0: none), for the ring at the press
+    T.jobNeed = 0; // ...and how long that takes, when not the kind's usual (holdNeed)
     g.lookTarget = T;
     const E = bindTag('interact');
     const s = g.prediction.state;
@@ -669,16 +672,20 @@ export class VehicleClient {
         // one of the bridgehead's: it wants no part, only a few seconds' work
         g.prompt = `${E} Hold to get ${name} running`;
         T.dead = false;
+        T.job = HOLD.VEH_FIX;
+        T.jobNeed = STARTER_TIME;
         return true;
       }
       g.prompt = can ? `${E} Hold to fit ${ITEM_DEFS[can[0]].name} ×${can[1]} · ${cap(name)} needs ${parts.join(', ')}` : `${cap(name)} does not run. It needs ${parts.join(', ')}`;
       if (!can) T.dead = true;
       else T.dead = false;
+      T.job = can ? HOLD.VEH_FIX : 0;
       return true;
     }
     T.dead = false;
     const patch = Object.keys(REPAIR).every((k) => (counts[k] || 0) >= REPAIR[k]);
     if (v.state === VSTATE.DEAD) {
+      T.job = patch ? HOLD.VEH_REPAIR : 0;
       g.prompt = patch ? `${E} Hold to patch ${name} up (${costText(REPAIR)})` : `${cap(name)} has broken down. Patching it up takes ${costText(REPAIR)}`;
       return true;
     }
@@ -690,6 +697,7 @@ export class VehicleClient {
     const jobs = [];
     if (P.tank && v.fuel < 0.98) jobs.push(fuel > 0 ? `hold ${E} to pour Fuel in (tank ${Math.round(v.fuel * 100)}%)` : `tank ${Math.round(v.fuel * 100)}%: no Fuel on you`);
     else if (v.hp < 0.98) jobs.push(patch ? `hold ${E} to patch it up (${costText(REPAIR)})` : `${Math.round(v.hp * 100)}% sound: a patch takes ${costText(REPAIR)}`);
+    T.job = P.tank && v.fuel < 0.98 ? (fuel > 0 ? HOLD.VEH_FUEL : 0) : v.hp < 0.98 && patch ? HOLD.VEH_REPAIR : 0;
     if (jobs.length) line += ` · ${jobs[0]}`;
     g.prompt = line;
     return true;
@@ -721,7 +729,8 @@ export class VehicleClient {
     const g = this.g;
     if (t.siphon) {
       this.siphonKey = `${qpos(t.siphon.x)},${qpos(t.siphon.z)}`;
-      g.holding = 0xffdf;
+      g.holding = SIPHON_ID;
+      g.startHoldRing(SIPHON_ID, HOLD.SIPHON);
       g.conn.action(ACT.SIPHON, qpos(t.siphon.x), qpos(t.siphon.z));
       return;
     }
@@ -729,9 +738,14 @@ export class VehicleClient {
     const e = t.e;
     if (!e || t.dead) return;
     const v = e.veh;
-    if (v.state === VSTATE.BROKEN || v.state === VSTATE.DEAD) return g.beginHold(e.id);
+    const job = { need: t.jobNeed || undefined };
+    if (v.state === VSTATE.BROKEN || v.state === VSTATE.DEAD) return g.beginHold(e.id, t.job, job);
     this.held = e.id;
     this.heldT = 0;
+    this.heldJob = t.job;
+    // a tap gets in, held it is work on it: the work's ring is up from the press, the tap's moment in it (a tap
+    // lets it go quietly, Game.endHold)
+    if (t.job) g.startHoldRing(e.id, t.job, { ...job, lead: HOLD_AFTER });
   }
   // [E] comes up before the hold: a tap, which gets in
   release() {

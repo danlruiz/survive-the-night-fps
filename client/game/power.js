@@ -34,7 +34,6 @@ const SPOT_DISTANCE = FLOOD_RANGE + 5;
 const SPOT_DECAY = -0.25;
 const BEAM_LEN = 12; // the visible shaft of the beam (m): it fades out long before the light does
 const BEAM_HALF = FLOOD_HALF * 0.85;
-const TAP_SHOWN = 0.15; // the switch's progress ring only shows once [E] has been down this long (a tap shows none)
 const byDistance = (a, b) => a.d2 - b.d2;
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
@@ -258,13 +257,18 @@ export class PowerViews {
       L.intensity = power * e.warm;
     }
     // the switch: [E] still down on the same generator after GEN_HOLD
+    // (its ring, Game's holdRing, is up from the press: a tap that pours fuel in shows it for that moment)
     if (this.held) {
       const t = g.lookTarget;
-      if (!t || t.id !== this.held) this.held = 0; // looked away: nothing happens
-      else if ((this.heldT += dt) >= GEN_HOLD) {
+      const ring = g.holdRing.key === 'gen';
+      if (!t || t.id !== this.held) {
+        this.held = 0; // looked away: nothing happens
+        if (ring) g.cancelHoldRing('Looked away');
+      } else if ((this.heldT += dt) >= GEN_HOLD) {
         g.conn.action(ACT.GEN_SWITCH, this.held);
         this.held = 0;
-      }
+        if (ring) g.holdRing.end();
+      } else if (ring) g.holdRing.local(this.heldT / GEN_HOLD);
     }
     // with the hammer out and one of the two picked (or pointed at in the ring), every generator shows how far its power reaches
     const s = g.prediction.state;
@@ -287,6 +291,8 @@ export class PowerViews {
     if (e.stype !== STRUCT.GENERATOR || this.mending(e, this.g.prediction.state.slot)) return false;
     this.held = e.id;
     this.heldT = 0;
+    // (a tap pours, which says so itself; the ring is for the hold, and a tap lets it go quietly: release)
+    this.g.startHoldRing('gen', 0, { label: genOn(e.q[4]) ? 'Switching off…' : 'Switching on…', need: GEN_HOLD });
     return true;
   }
 
@@ -295,14 +301,7 @@ export class PowerViews {
     if (!this.held) return;
     this.g.conn.action(ACT.INTERACT, this.held);
     this.held = 0;
-  }
-
-  // the switch's progress ring (Game.updateHud)
-  hud(h) {
-    if (!this.held || this.heldT < TAP_SHOWN) return;
-    const e = this.g.entities.ents.get(this.held);
-    h.useProgress = Math.min(1, (this.heldT - TAP_SHOWN) / (GEN_HOLD - TAP_SHOWN));
-    h.useLabel = e && genOn(e.q[4]) ? 'Switching off…' : 'Switching on…';
+    if (this.g.holdRing.key === 'gen') this.g.holdRing.end();
   }
 
   // What the prompt says of a generator or a floodlight (null: not one of ours, or one to be mended with the hammer).

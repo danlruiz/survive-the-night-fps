@@ -28,6 +28,8 @@ import {
   BTN,
   MOON,
   PIN_FACE,
+  SEARCH_TIME,
+  REVIVE_TIME,
 } from '../../shared/constants.js';
 import {
   ITEM,
@@ -83,7 +85,7 @@ import { HomeSense, HOME_WALLS, HOMELESS_THEMES } from '../audio/home.js';
 import { MotifWatch, MOTIFS } from '../audio/motifs.js';
 import { shotDirections, shotSpread, shotClimb, aimingWith, currentWeapon, eyeHeight } from '../../shared/playersim.js';
 import { stepClimb, punchOf, punchAt, crosshairGap } from './aimview.js';
-import { pryWeapon } from '../../shared/trunk.js';
+import { pryWeapon, pryTime } from '../../shared/trunk.js';
 import { perkMods, levelOf, picksEarned, XP_SRC } from '../../shared/progress.js';
 import { swimming } from '../../shared/swim.js';
 import { raycastWorld, makeBox, overlapBoxes, COL } from '../../shared/collision.js';
@@ -121,7 +123,8 @@ import { TouchPad } from '../ui/touchpad.js';
 import { touchMode } from './touchmode.js';
 import { actionsOf, bindTag, bindPair, bindLabel } from './binds.js';
 import { mateDown } from './matedown.js';
-import { DropHold } from './drophold.js';
+import { DropHold, DROP_HOLD, TAP_HINT } from './drophold.js';
+import { HoldRing, holdNeed } from './holdring.js';
 import { SkyFlares } from './skyflares.js';
 import { Voice } from './voice.js';
 import { Environment } from '../render/environment.js';
@@ -343,6 +346,9 @@ export class Game {
     this.menuAngle = 0;
     this.lowHpBeat = 0;
     this.holding = 0; // hold-to-interact target we told the server about
+    this.holdWait = null; // { id, kind, o }: [E] held for that while the hands were on an item, asked for once they are free
+    this.holdRing = new HoldRing((kind) => this.holdInfo(kind)); // the ring every held key shows from its press (holdring.js)
+    this.ringOut = { progress: -1, label: '', cancelled: false };
     this.flames = new Map(); // flamethrowers spraying right now: shooter id (-1 = ours) -> { loop, t, glow, at, light }
     this.flameLights = []; // their fire lights this frame, for the light pool
     this.pings = [];
@@ -2421,7 +2427,7 @@ export class Game {
           this.vehicles.release();
           this.gun.keyUp();
         } else if (a === 'players' && !this.ui.rosterPinned) this.showRoster(false);
-        else if (a === 'drop') this.dropHold.release(cancelled); // (let go too soon: the HUD says to hold it)
+        else if (a === 'drop' && this.dropHold.release(cancelled) === 'tap') this.cancelHoldRing(`Hold ${bindLabel('drop')} to drop`, TAP_HINT); // (let go too soon: the ring says to hold it)
       }
     };
     inp.handlers.onBlur = () => this.ui.rosterPinned || this.showRoster(false);
@@ -2640,7 +2646,10 @@ export class Game {
     if (s.pet) return void this.cat.put(); // ...and so does the cat
     if (s.zombie || s.slot === SLOT_THROW || !s.weapons[s.slot]) return;
     if (this.settings.holdToDrop === false) this.conn.action(ACT.DROP_WEAPON, s.slot);
-    else this.dropHold.start(s.slot);
+    else {
+      this.dropHold.start(s.slot);
+      this.startHoldRing('drop', 0, { label: `Dropping ${ITEM_DEFS[s.weapons[s.slot]]?.name || 'it'}…`, need: DROP_HOLD });
+    }
   }
 
   // The weapon that picking up one for this slot would put down: the slot is taken and the pack has no room for a
@@ -3188,13 +3197,13 @@ export class Game {
     if (t.handcar) return this.handcar.interact(t);
     if (t.vehicle !== undefined) return this.vehicles.interact(t);
     if (t === 'car') {
-      if (g.suppliesDone && (!g.finale || g.escapeReady)) this.beginHold(CAR_ID); // start the engine; once it is warm, get in and drive
+      if (g.suppliesDone && (!g.finale || g.escapeReady)) this.beginHold(CAR_ID, g.finale ? HOLD.DRIVE : HOLD.ENGINE); // start the engine; once it is warm, get in and drive
       else this.conn.action(ACT.INTERACT, CAR_ID);
       return;
     }
     if (t === 'bell' || t === 'radio') return this.fixtures.interact(t);
     if (t.kind === ENT.CACHE || (t.kind === ENT.PLAYER && t.downed)) {
-      this.beginHold(t.id);
+      this.beginHold(t.id, t.kind === ENT.CACHE ? HOLD.SEARCH : HOLD.REVIVE);
       return;
     }
     if (t.kind === ENT.PLAYER) return this.cards.chooser(t.id); // a teammate on their feet: a match or a trade (nothing is sent until one is picked)
@@ -3203,15 +3212,89 @@ export class Game {
     this.conn.action(ACT.INTERACT, t.id);
   }
 
-  beginHold(id) {
+  // [E] held on `id`, for a hold of `kind`: what the server will most likely make of it, for the ring's label and
+  // time until it says (holdring.js). The ring is up from this frame on, unless the press started it already (a key
+  // that is a tap first: startHoldRing with a lead). With the hands on an item the server turns a hold down
+  // (holdBegin), so it is asked for the moment they are free again, the key still down (holdWait, updateHoldRing).
+  beginHold(id, kind = 0, o = {}) {
+    if (this.handsBusy()) {
+      if (!this.holdWait && this.holdRing.key !== id) this.audio.playLocal('hold_press');
+      if (this.holdRing.key === id) this.holdRing.end();
+      this.holdWait = { id, kind, o };
+      return;
+    }
     this.holding = id;
+    // (nothing to guess from - work on a vehicle that wants none: the server says why not, and a ring comes up if it
+    // does take it up after all)
+    if (this.holdRing.key !== id && kind) this.startHoldRing(id, kind, { ...o, server: true });
     this.conn.action(ACT.HOLD_BEGIN, id);
   }
 
   endHold() {
+    this.holdWait = null;
+    if (this.holdRing.server && this.holdRing.release() === 'cancel') this.audio.playLocal('hold_cancel');
     if (!this.holding) return;
     this.holding = 0;
     this.conn.action(ACT.HOLD_END);
+  }
+
+  // An item is in the hands, as the server has it or as we have just asked (a hold is turned down meanwhile)
+  handsBusy() {
+    return !!(this.self.useItem || this.prediction.state.using);
+  }
+
+  // A held key went down: its ring is up on this frame, with a click. key: what it is of (a target id, 'drop'...),
+  // kind: the server hold it is to be (0: one of ours). o: { label, need, lead, server } over what kind says
+  startHoldRing(key, kind, o = {}, quiet = false) {
+    const d = kind ? this.holdInfo(kind, typeof key === 'number' ? key : 0) : null;
+    this.holdRing.start(key, o.label || d?.label || '', { need: o.need ?? d?.need ?? 1, lead: o.lead || 0, server: o.server ?? !!kind, kind });
+    if (!quiet) this.audio.playLocal('hold_press');
+  }
+
+  // the held key's hold is broken off: the ring goes red with `text`, and the cancel sound plays
+  cancelHoldRing(text, t) {
+    if (this.holdRing.cancel(text, t)) this.audio.playLocal('hold_cancel');
+  }
+
+  // What a server hold of `kind` on `id` takes and is called on the ring
+  holdInfo(kind, id = this.holding) {
+    const t = this.entities.ents.get(id);
+    const s = this.prediction.state;
+    const pm = perkMods(s.perks);
+    const boot = kind === HOLD.SEARCH && !!t && !!this.bootOf(t)?.shut; // (a car's boot is forced: shared/trunk.js)
+    const lever = boot ? pryWeapon(currentWeapon(s)) : 0;
+    let label =
+      kind === HOLD.SEARCH
+        ? `Searching${t ? ' ' + (CONT_DEFS[t.ctype]?.name || '').toLowerCase() : ''}…`
+        : kind === HOLD.REVIVE
+          ? `Reviving ${t ? this.name(t.id) : ''}…`
+          : kind === HOLD.DRIVE
+            ? 'Getting in…'
+            : kind === HOLD.FAIR_START
+              ? 'Starting the generator…'
+              : kind === HOLD.FAIR_STOP
+                ? 'Shutting it off…'
+                : kind === HOLD.GUN_LIFT
+                  ? 'Lifting the gun…'
+                  : 'Starting the engine…';
+    label = this.fixtures.holdLabel(kind) || this.vehicles.holdLabel(kind) || label;
+    if (boot) label = lever ? 'Prying the trunk open…' : 'Forcing the trunk open…';
+    const need = holdNeed(kind, { search: (boot ? pryTime(lever) : SEARCH_TIME) * pm.search, revive: REVIVE_TIME * difficultyOf(this.room?.difficulty).revive * pm.revive });
+    return { need, label };
+  }
+
+  // The ring's frame: the server's word on our hold, and a hold waited for until the hands were free
+  updateHoldRing(dt) {
+    const self = this.self;
+    const r = this.holdRing;
+    const w = this.holdWait;
+    if (w && !this.handsBusy()) {
+      this.holdWait = null;
+      this.beginHold(w.id, w.kind, w.o);
+    }
+    // a hold the server took up after the ring had given up on it (a long trip): back up, quietly
+    if (!r.active && r.cancelT <= 0 && this.holding && self.holdKind) this.startHoldRing(this.holding, self.holdKind, {}, true);
+    if (r.update(dt, this.holding ? self.holdKind : 0, self.holdProgress, this.conn.rtt / 1000) === 'cancel') this.audio.playLocal('hold_cancel');
   }
 
   // [Z] / middle mouse: mark where you look for the team (enemy -> danger, loot -> loot)
@@ -3817,14 +3900,22 @@ export class Game {
     this.updateOverlays();
     this.radio.update(s);
     this.cards.update(dt); // (Dead Hand: the practice table's clock and the computer's moves, the screen shut on a fall)
+    // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out),
+    // and the ring every held key shows
+    const canDrop = !!self.alive && !s.zombie && !s.downed && this.input.enabled;
+    const dropped = this.dropHold.update(dt, s.slot, canDrop) === 'drop';
+    if (dropped && s.weapons[s.slot] && s.slot !== SLOT_THROW) this.conn.action(ACT.DROP_WEAPON, s.slot);
+    if (this.holdRing.key === 'drop') {
+      if (dropped) this.holdRing.end();
+      else if (!this.dropHold.holding) this.cancelHoldRing();
+      else this.holdRing.local(this.dropHold.progress);
+    }
+    this.updateHoldRing(dt);
     // HUD
     this.updateHud(dt, s, aiming, wdef);
     this.onboarding.update(dt);
     this.keyHints.update(dt);
     if (this.faceCar > 0) this.turnToCar(dt);
-    // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out)
-    const canDrop = !!self.alive && !s.zombie && !s.downed && this.input.enabled;
-    if (this.dropHold.update(dt, s.slot, canDrop) === 'drop' && s.weapons[s.slot] && s.slot !== SLOT_THROW) this.conn.action(ACT.DROP_WEAPON, s.slot);
     if (this.ui.mapOpen) this.updateMap(s);
     // the leaderboard is asked for while it is up: as it opens, then every few seconds (it moves as people play)
     if (this.ui.boardOpen && performance.now() >= this.boardT) {
@@ -4308,8 +4399,6 @@ export class Game {
     h.radioKeyed = this.radio.keyed;
     h.throwItem = s.weapons[SLOT_THROW];
     h.throwCount = s.throwCount;
-    h.dropHold = this.dropHold.progress; // the drop key's hold, 0..1 (-1: not held)
-    h.dropHint = this.dropHold.hint > 0 ? bindLabel('drop') : ''; // (let go too soon: "Hold G to drop")
     // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
     h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
     const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
@@ -4381,20 +4470,19 @@ export class Game {
     if (def && !def.melee) spread = crosshairGap(shotSpread(s, def, false), this.camera.fov, window.innerHeight);
     h.crosshair.spread = spread;
     h.crosshair.visible = !aiming && self.alive && !this.ui.inventoryOpen && !this.ui.mapOpen;
-    // progress ring: consumables or hold-to-interact
-    if (self.holdKind) {
-      h.useProgress = self.holdProgress;
-      const t = this.entities.ents.get(this.holding);
-      h.useLabel = self.holdKind === HOLD.SEARCH ? `Searching${t ? ' ' + (CONT_DEFS[t.ctype]?.name || '').toLowerCase() : ''}…` : self.holdKind === HOLD.REVIVE ? `Reviving ${t ? this.name(t.id) : ''}…` : self.holdKind === HOLD.DRIVE ? 'Getting in…' : self.holdKind === HOLD.FAIR_START ? 'Starting the generator…' : self.holdKind === HOLD.FAIR_STOP ? 'Shutting it off…' : 'Starting the engine…';
-      h.useLabel = this.fixtures.holdLabel(self.holdKind) || this.vehicles.holdLabel(self.holdKind) || h.useLabel;
-      if (self.holdKind === HOLD.GUN_LIFT) h.useLabel = 'Lifting the gun…';
-      if (self.holdKind === HOLD.SEARCH && t && this.bootOf(t)?.shut) h.useLabel = pryWeapon(currentWeapon(this.prediction.state)) ? 'Prying the trunk open…' : 'Forcing the trunk open…';
+    // progress ring: a held key's (holdring.js: from its press, red for a moment when it is broken off), or an item in use
+    const ring = this.holdRing.hud(this.ringOut);
+    h.useCancel = ring.cancelled ? ring.cancelFor : 0;
+    if (ring.progress >= 0) {
+      h.useProgress = ring.progress;
+      h.useLabel = ring.label;
     } else {
       // (put away by a click, it is gone at once: the server's word on it is a round trip off)
       h.useProgress = self.useItem && this.prediction.state.using ? self.useProgress : -1;
       const c = CONSUMABLES[self.useItem];
       h.useLabel = self.useItem ? `${c?.food ? 'Eating' : c?.drink ? 'Drinking' : 'Using'} ${ITEM_DEFS[self.useItem]?.name || ''}` : '';
-      this.power.hud(h); // ([E] held on a generator's switch)
+      // ([E] held meanwhile: the hold is next, the moment the hands are free)
+      if (self.useItem && this.holdWait?.kind) h.useLabel += ` · then ${this.holdInfo(this.holdWait.kind, this.holdWait.id).label.replace('…', '')}`;
     }
     // context panel
     const counts = this.invCounts();

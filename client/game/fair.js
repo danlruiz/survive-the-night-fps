@@ -15,7 +15,7 @@
 // as an offset that fades, so the rides glide to where they belong instead of jumping.
 import { BTN, CMD_RATE, SERVER_TICK_RATE, INTERACT_REACH, EYE_HEIGHT } from '../../shared/constants.js';
 import { ITEM, NOTIFY, ZONE } from '../../shared/defs.js';
-import { ACT, ENT, FAIR_GEN_ID, FAIR_TANK_ID, playerRide } from '../../shared/protocol.js';
+import { ACT, ENT, HOLD, FAIR_GEN_ID, FAIR_TANK_ID, playerRide } from '../../shared/protocol.js';
 import { GEN, RIDE_SEATS, SEAT_PICK, seatPos, seatLow, isWheelSeat } from '../../shared/fair.js';
 import { canReach } from '../../shared/collision.js';
 import { FairView } from '../render/fair.js';
@@ -282,7 +282,7 @@ export class FairClient {
     }
     if (t.fair === 'seat') return g.conn.action(ACT.RIDE, t.seat);
     g.askedCost = { [ITEM.AMMO_FUEL]: GEN.portion }; // (for NOTIFY.NOT_ENOUGH, should the server refuse)
-    if (t.fair === 'gen') g.beginHold(FAIR_GEN_ID);
+    if (t.fair === 'gen') g.beginHold(FAIR_GEN_ID, this.running ? HOLD.FAIR_STOP : HOLD.FAIR_START);
     else g.conn.action(ACT.INTERACT, FAIR_TANK_ID);
   }
 
