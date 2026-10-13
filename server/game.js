@@ -1694,7 +1694,7 @@ export class Game {
     this.supplyHints = items.flatMap((item, i) => new Array(need[i]).fill(i)).map((i, hint) => {
       const item = items[i];
       const hide = (sp) => {
-        this.spawnItem(item, 1, sp.x, sp.y, sp.z, { permanent: true, hint });
+        this.spawnItem(item, 1, sp.x, this.onFloor(sp.x, sp.y, sp.z), sp.z, { permanent: true, hint });
         this.supplySpots.push(sp);
         this.supplyHintSpots[hint] = this.world.partSpots.indexOf(sp);
         return sp.zone;
@@ -2132,7 +2132,12 @@ export class Game {
   // How many of the dead the final stand brings in all. It is read whenever a group is due (updateEscape), so it
   // follows the survivors still alive: a death shrinks what is still to come, a late joiner adds to it.
   finalStandSize() {
-    return Math.round(FINAL_STAND_SIZE * (this.act === WORLD.MAINLAND ? RUNWAY.SIZE : 1) * this.hordeSize(this.day, Math.max(1, this.humanCount())));
+    return Math.round(FINAL_STAND_SIZE * this.diff.stand * (this.act === WORLD.MAINLAND ? RUNWAY.SIZE : 1) * this.hordeSize(this.day, Math.max(1, this.humanCount())));
+  }
+
+  // How many Tanks the final stand may bring (the boss comes on top). At least one: Ember halves it, not to nothing.
+  finalStandTanks() {
+    return Math.max(1, Math.round(FINAL_STAND_TANKS * this.diff.standTanks * Math.max(1, this.humanCount())));
   }
 
   startEngine(p) {
@@ -2225,7 +2230,17 @@ export class Game {
 
   spawnLoot(lp) {
     const [item, count] = this.rollTable(lp.table);
-    lp.ent = this.spawnItem(item, count, lp.x, lp.y, lp.z, { point: lp });
+    lp.ent = this.spawnItem(item, count, lp.x, this.onFloor(lp.x, lp.y, lp.z), lp.z, { point: lp });
+  }
+
+  // The height something laid at an authored spot (floor loot, a hidden supply) lies at: on the floor it was meant to
+  // be on. The island's places put their spots 2 cm over a building's base, and the floor is a 12 cm slab laid on that
+  // base (Builder.room), so a fan belt or a box of spark plugs (3-4 cm tall) lay hidden under the floorboards and a
+  // battery or a tyre half sunk in them. Only ever up, onto a surface within 15 cm over the spot: one on a desk stays
+  // on the desk, and one outdoors stays where it is.
+  onFloor(x, y, z) {
+    const LIFT = 0.15;
+    return Math.max(y, groundAt(this.world, x, z, y + LIFT - STEP_HEIGHT - 0.02, 0) + 0.02);
   }
 
   spawnItem(item, count, x, y, z, opts = {}) {
@@ -5077,13 +5092,14 @@ export class Game {
     const size = e.spawnT <= 0 ? this.finalStandSize() : 0; // 0: no group is due
     // a warm engine goes on drawing them once the stand is spent, so every second the team lingers at the car costs
     const linger = e.ready && size > 0 && e.sent >= size;
-    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE))) {
+    if ((e.sent < size || linger) && this.hordeAlive() < Math.min(MAX_ZOMBIES_ALIVE, Math.round(size * FINAL_STAND_ALIVE * this.diff.standCrowd))) {
       const spread = plane ? RUNWAY.FUEL_TIME + RUNWAY.WARM_TIME - 30 : FINAL_STAND_SPREAD;
       e.spawnT = ((spread / Math.ceil(size / 3.5)) * (0.7 + this.rng() * 0.6)) / (linger ? ESCAPE_LINGER_PACE : 1); // groups of 3-5, as a wave's
-      const tanks = FINAL_STAND_TANKS * Math.max(1, this.humanCount());
+      const tanks = this.finalStandTanks();
       const q = [];
       for (let i = linger ? 5 : Math.min(5, size - e.sent); i > 0; i--) {
-        const r = this.rng();
+        let r = this.rng();
+        if (r >= 0.67) r = 0.67 + (r - 0.67) / this.diff.standSpecials; // fewer specials: the share past 0.97 is a runner
         let type = r < 0.45 ? ZTYPE.WALKER : r < 0.67 ? ZTYPE.RUNNER : r < 0.72 ? ZTYPE.DOG : r < 0.8 ? ZTYPE.SPITTER : r < 0.87 ? ZTYPE.BOOMER : r < 0.93 ? ZTYPE.LEAPER : r < 0.97 && e.tanks < tanks ? ZTYPE.TANK : ZTYPE.RUNNER;
         if (!this.joined(type)) type = ZTYPE.RUNNER; // (only the kinds the run has met so far)
         if (type === ZTYPE.TANK) e.tanks++;

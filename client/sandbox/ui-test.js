@@ -497,6 +497,8 @@ switch (screen) {
     if (q.get('achtrack')) fakeAchievements();
     // &weapon=<item id>&mag=<n>&reserve=<n>&reload=<0..1>: try the ammo block with any primary
     if (q.get('weapon')) Object.assign(h, { weapons: [+q.get('weapon'), ...baseHud.weapons.slice(1)], mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: q.get('reload') == null ? -1 : +q.get('reload') });
+    // &sidearm=<item id>: the same in the pistol's slot (hotbar 2), in hand
+    if (q.get('sidearm')) Object.assign(h, { weapons: baseHud.weapons.map((w, i) => (i === 1 ? +q.get('sidearm') : w)), slot: 1, mag: +q.get('mag') || 0, reserve: +(q.get('reserve') ?? 24), reloading: -1 });
     // &coach=<step id | tip id>: the first-run guide's card (#270), with the marker the step puts in the world
     if (q.get('coach')) {
       const id = q.get('coach');

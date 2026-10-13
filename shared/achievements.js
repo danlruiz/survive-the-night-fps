@@ -79,7 +79,7 @@ export const ACHIEVEMENTS = [
   C(31, 'days_30', 'gold', 'days', 30, 'Lifer', 'Play on 30 different days.', 'sun'),
 
   // ---- combat
-  F(32, 'kill_pistol', 'combat', 'bronze', 'Sidearm', 'Kill one of the dead with the pistol.', `item:${ITEM.PISTOL}`),
+  F(32, 'kill_pistol', 'combat', 'bronze', 'Sidearm', 'Kill one of the dead with the pistol, the revolver or the Desert Eagle.', `item:${ITEM.PISTOL}`),
   F(33, 'kill_shotgun', 'combat', 'bronze', 'Boomstick', 'Kill one with a shotgun or the double-barrel.', `item:${ITEM.SHOTGUN}`),
   F(34, 'kill_rifle', 'combat', 'bronze', 'Rifleman', 'Kill one with a rifle: the AK-47, the M4A1 or the hunting rifle.', `item:${ITEM.AK47}`),
   F(35, 'kill_atrifle', 'combat', 'silver', 'Big Game', 'Kill one with the anti-tank rifle.', `item:${ITEM.AT_RIFLE}`),
@@ -135,6 +135,8 @@ for (const a of ACHIEVEMENTS) ACH_BY_N[a.n] = a;
 // The kind of weapon a kill counts for (combat's "first kill with..."), by the weapon on the kill
 export const KILL_FEATS = {
   [ITEM.PISTOL]: 'kill_pistol',
+  [ITEM.REVOLVER]: 'kill_pistol',
+  [ITEM.DEAGLE]: 'kill_pistol',
   [ITEM.SHOTGUN]: 'kill_shotgun',
   [ITEM.DB_SHOTGUN]: 'kill_shotgun',
   [ITEM.AK47]: 'kill_rifle',
