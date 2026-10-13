@@ -1,5 +1,8 @@
 // The bosses' specials: The Brute's temper, The Bloater's bile, The Alpha's howl (it hunts as its dogs do: dog.js),
-// The Abomination's slam and boulders, and The Hive Queen's acid and bats
+// The Abomination's slam and boulders, and The Hive Queen's acid and bats. Every boss has a weak window after its big
+// move, where it reels (Zombies.reel) and takes stunHurt x damage: The Brute after a swing at nobody (Zombies.resolveHit),
+// The Alpha after a ram (dog.js), The Bloater once it has heaved, The Abomination after a slam, The Hive Queen as its
+// bats tear out of its back, and a Tank after a charge that got nobody (tank.js). docs/bosses.md has the whole audit
 import { ZTYPE, SOUND, PROJ, KILLER, EVT } from '../../shared/defs.js';
 import { qpos } from '../../shared/protocol.js';
 import { GRAV } from './util.js';
@@ -57,10 +60,11 @@ export const triggers = {
       this.windup(z, 0.8, 7, SOUND.BOSS_ROAR);
       return true;
     }
+    // it hunches and shrieks, and the bats tear out of the hive on its back (act 15)
     if (z.summonCd <= 0 && g.zombies.length < 125) {
-      z.summonCd = 14;
-      for (let i = 0; i < 3; i++) this.spawn(ZTYPE.BAT, z.x + (g.rng() - 0.5) * 3, z.z + (g.rng() - 0.5) * 3, { horde: true });
-      g.sound(SOUND.BAT_SCREECH, z.x, z.y + 3, z.z, 60);
+      z.summonCd = def.broodRate;
+      this.windup(z, def.broodWindup, 15, SOUND.BAT_SCREECH);
+      return true;
     }
     return false;
   },
@@ -95,6 +99,7 @@ export const acts = {
       if (d < 6.5) g.damageStructure(s, 450 * (1 - d / 8) * g.diff.hurt);
     }
     z.specialCd = 5 + g.rng() * 2;
+    this.reel(z, z.def.slamReel); // (its fists in the ground: the window to shoot it, and no blow follows the slam)
   },
   6(z, target, tx, ty, tz, dist) {
     const g = this.g;
@@ -158,5 +163,14 @@ export const acts = {
       c.lob(PROJ.ACID, z, z.x, z.y + def.headY - 0.4, z.z, z.x + rx, s.y, z.z + rz, Math.max(0.5, dist / 14), 12);
     }
     z.specialCd = def.spewRate + g.rng() * 2;
+    this.reel(z, def.spewReel); // (emptied, it heaves for breath: the window to shoot it)
+  },
+  15(z, target, tx, ty, tz, dist) {
+    const g = this.g;
+    const def = z.def;
+    // The Hive Queen's brood: bats tear out of the hive on its back, and it shudders, open, while they do
+    for (let i = 0; i < def.brood; i++) this.spawn(ZTYPE.BAT, z.x + (g.rng() - 0.5) * 3, z.z + (g.rng() - 0.5) * 3, { horde: true });
+    g.sound(SOUND.BAT_SCREECH, z.x, z.y + 3, z.z, 60);
+    this.reel(z, def.broodReel);
   },
 };
