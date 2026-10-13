@@ -220,7 +220,9 @@ export function readSelf(r, out, flags) {
       out.alive = f & 1 ? 1 : 0;
       out.flashlight = f & 2 ? 1 : 0;
       out.beingRevived = f & 4 ? 1 : 0;
+      out.burning = f & 8 ? 1 : 0; // set alight by a flammer (PLAYER_FIRE)
       out.battery = r.u8();
+      out.douse = r.u8() / 255; // ...how far it is put out, or the teammate's they are beating out
     }
     if (m & 8) {
       out.useItem = r.u8();

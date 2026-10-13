@@ -810,6 +810,37 @@ export class Entities {
     e.burnLoop?.setPosition(e.rx, e.ry + 1, e.rz);
   }
 
+  // Fire on a survivor or on a piece of what was built (a flammer's doing): flames over it (h m tall, r round it; w m
+  // wide along its yaw, for a wall), its light, its crackle. Off: all of that goes
+  updateFireOn(e, on, dt, camPos, h, r, w = 0) {
+    if (!on) {
+      if (e.blaze) {
+        e.burnLoop?.stop();
+        e.burnLoop = null;
+        e.blaze = null;
+      }
+      return;
+    }
+    const g = this.g;
+    const f = e.blaze || (e.blaze = { x: 0, y: 0, z: 0, intensity: w ? 0.8 : 0.45, big: w > 0 });
+    f.x = e.rx;
+    f.y = e.ry + h * 0.5 - 0.6; // (the light pool lifts a fire's light 1.2 m)
+    f.z = e.rz;
+    this.fireSources.push(f);
+    const d2 = (e.rx - camPos.x) ** 2 + (e.rz - camPos.z) ** 2;
+    if (d2 < 70 * 70) {
+      const yaw = w ? ((e.rot8 || 0) / 256) * TAU : 0;
+      const n = w ? Math.max(1, Math.round(w)) : 1;
+      for (let i = 0; i < n; i++) {
+        if (Math.random() >= dt * (w ? 9 : 14)) continue;
+        const u = w ? (Math.random() - 0.5) * w : 0;
+        g.effects.burnPuff(e.rx + Math.cos(yaw) * u, e.ry, e.rz - Math.sin(yaw) * u, h * (w ? 0.8 : 0.9), w ? 0.15 : r);
+      }
+    }
+    if (!e.burnLoop) e.burnLoop = g.audio.createLoop?.('burning', e.rx, e.ry + 1, e.rz) || null;
+    e.burnLoop?.setPosition(e.rx, e.ry + 1, e.rz);
+  }
+
   // a smoker alive and in sight: wisps off its body all the time, and a puff of trail every SMOKER_TRAIL m it walks
   updateSmoker(e, dt, distC) {
     if (e.dead || distC > 70 * 70) {
@@ -1161,6 +1192,7 @@ export class Entities {
           }
           v.update(dt, { speed: downed ? e.speed * 0.4 : e.speed, sprint: !!(flags & PFLAG.SPRINT), crouch: !!(flags & PFLAG.CROUCH) || downed, pitch: downed ? 0.9 : e.rpitch, onGround: Math.abs(e.vy) < 1.5, reloading: !!(flags & PFLAG.RELOADING), dead, time, grips, carry, cradle: cat.cradle, pet: cat.pet, sit: e.seatK > 0.5 || !!seat || e.vK > 0, reach: vride?.reach, sitT: vride?.sitT, sitK: vride?.sitK, sitSplay: vride?.sitSplay, sitLean: vride?.sitLean, sitTwist: vride?.sitTwist, feet: vride?.feet, sitNow: seat || e.vK > 0 ? vU : undefined, swim: afloat && !downed, ears, talk: !!g.players.get(e.id)?.onAir, voice: g.voice?.mouthLevel(e.id) || 0 }); // (talk: on the walkie-talkie; voice: how loud they are talking, for the mouth)
           v.object.visible = !(dead && zombie);
+          this.updateFireOn(e, !dead && !zombie && !!(e.q[9] & PSTAT.BURNING) && e.id !== g.myId, dt, camPos, 1.7, 0.3); // (set alight by a flammer: ours is the HUD's)
           // nunchucks: what their chain is doing is heard from where they stand (nothing of it is on the wire)
           if (weapon === ITEM.NUNCHAKU) {
             const nk = v.nk?.();
@@ -1295,6 +1327,8 @@ export class Entities {
             if (e.shakeT <= 0) e.obj.position.set(e.rx, e.ry, e.rz);
           }
           if (e.fire && e.fire.intensity > 0) this.fireSources.push(e.fire);
+          // a piece set alight by a flammer (SF.BURN on anything but a torch or a campfire: STRUCT_FIRE)
+          if (e.stype !== STRUCT.TORCH && e.stype !== STRUCT.CAMPFIRE) this.updateFireOn(e, !!e.q[5], dt, camPos, STRUCT_DEFS[e.stype].sy, 0, STRUCT_DEFS[e.stype].sx);
           break;
         }
         case ENT.AREA:
