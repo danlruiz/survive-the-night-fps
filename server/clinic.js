@@ -6,7 +6,6 @@ import { mulberry32 } from '../shared/rng.js';
 
 export const WARD_DARK = 0.5; // world.darkAt from which a spot counts as in the dark (Zombies.inDark)
 const HOME = 'wards'; // the dwellers' flow field on the valley's grid: the way back to the middle of the hall (nav.js)
-const SHADE_DAY = 2; // the Shade of the isolation ward is there from this day on
 
 export class Wards {
   constructor(game, zm) {
@@ -35,7 +34,7 @@ export class Wards {
     g.rng = this.luck(); // (Zombies.spawn rolls a body's looks and timers from the game's)
     let n = 0;
     for (const d of c.dens) {
-      if (d.kind === 2 && g.day < SHADE_DAY) continue;
+      if (d.kind === 2 && !g.joined(ZTYPE.SHADE)) continue; // (the isolation ward's Shade, once the run has met shades: Game.joined)
       // (its dweller is still about, and not one the sunrise has just caught outside)
       if (g.zombies.some((z) => z.ward && !z.dead && z.burning <= 0 && !z.onFire && Math.hypot(z.homeX - d.x, z.homeZ - d.z) < 0.5)) continue;
       // (given with its floor, as a spot down the mine is: from above, the ground here is the roof)
