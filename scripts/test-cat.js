@@ -167,17 +167,22 @@ check('a new game has the stray cat near the car, in nobody\'s arms', !!cat() &&
   run(2);
   check('...and stops when it is let go', cat().anim === CANIM.HELD);
   // the pace: the same stretch walked and sprinted with it and without, in the simulation both ends run
+  // (the fastest of four headings: whichever way is clear of trees and props where she stands)
   const pace = (pet, buttons) => {
-    const st = copyPlayerState(createPlayerState(), s);
-    st.pet = pet;
-    st.vx = st.vz = 0;
-    st.stamina = 100;
-    const cmd = { seq: 0, buttons, yaw: 0.4, pitch: 0, slot: 255 };
-    for (let i = 0; i < 30; i++) simulatePlayer(st, cmd, game.world, null);
-    const x = st.x;
-    const z = st.z;
-    for (let i = 0; i < 60; i++) simulatePlayer(st, cmd, game.world, null);
-    return Math.hypot(st.x - x, st.z - z) / (60 * CMD_DT);
+    let best = 0;
+    for (let k = 0; k < 4; k++) {
+      const st = copyPlayerState(createPlayerState(), s);
+      st.pet = pet;
+      st.vx = st.vz = 0;
+      st.stamina = 100;
+      const cmd = { seq: 0, buttons, yaw: 0.4 + (k * Math.PI) / 2, pitch: 0, slot: 255 };
+      for (let i = 0; i < 30; i++) simulatePlayer(st, cmd, game.world, null);
+      const x = st.x;
+      const z = st.z;
+      for (let i = 0; i < 60; i++) simulatePlayer(st, cmd, game.world, null);
+      best = Math.max(best, Math.hypot(st.x - x, st.z - z) / (60 * CMD_DT));
+    }
+    return best;
   };
   const walk = pace(1, BTN.FWD);
   const sprint = pace(1, BTN.FWD | BTN.SPRINT);
