@@ -15,9 +15,9 @@
 // its place over every other marker (Compass, RANK below), a red toast and an alarm (game/matedown.js).
 import { ITEM_DEFS, ZONE_NAMES, ITEM, ZOMBIE_DEFS, supplyRumours } from '../../shared/defs.js';
 import { SUPPLIES, SUPPLY_NEED, W, ACT_NOW } from '../game/act.js'; // (this act's: the car's supplies, or the plane's parts)
-import { WORLD, RUNWAY, nightRank } from '../../shared/acts.js';
+import { WORLD, RUNWAY } from '../../shared/acts.js';
 import { PHASE, DUSK_WARNING, BOSS_WAVE, MOON } from '../../shared/constants.js';
-import { nightBoss, nightTheme } from '../../shared/nights.js';
+import { nightBoss, nightTheme, kindsJoining } from '../../shared/nights.js';
 import { el, svgEl, fmtTime, clamp, replay } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { bindTag, bindLabel } from '../game/binds.js';
@@ -643,13 +643,10 @@ export class DamageDir {
   }
 }
 
-// the kinds of the dead that join the horde on night n: those whose minNight comes after last night's rank and by
-// tonight's (shared/acts.js nightRank: on the mainland every night ranks the fourth at the least, so nothing joins
-// there before the fifth)
-function newKinds(night, act) {
-  const rank = nightRank(act, night);
-  const prev = nightRank(act, night - 1);
-  return Object.values(ZOMBIE_DEFS).filter((d) => !d.boss && d.intro && d.minNight > prev && d.minNight <= rank);
+// the kinds of the dead that join the horde on night n: one a night, in the order drawn from the seed
+// (shared/nights.js kindsJoining; on the mainland every night ranks the fourth at the least)
+function newKinds(seed, night, act) {
+  return kindsJoining(seed, night, act).map((t) => ZOMBIE_DEFS[t]).filter((d) => d.intro);
 }
 
 // ---------------------------------------------------------------- the dusk card
@@ -662,7 +659,7 @@ export function tonightBrief(seed, night, act, moon = MOON.NORMAL) {
   else if (moon === MOON.CLEAR) rows.push({ kind: 'clear', ico: 'moon', name: 'Clear Moon', tag: 'Calm night', text: 'A bright moon and breathers between waves. Regroup.' });
   const th = nightTheme(seed, night, act);
   if (th) rows.push({ kind: 'theme', ico: 'horde', name: th.name, tag: '', text: th.brief || th.warn });
-  for (const d of newKinds(night, act)) rows.push({ kind: 'new', ico: 'claw', name: d.name + 's', tag: 'New', text: d.introBrief || d.intro });
+  for (const d of newKinds(seed, night, act)) rows.push({ kind: 'new', ico: 'claw', name: d.name + 's', tag: 'New', text: d.introBrief || d.intro });
   const zd = ZOMBIE_DEFS[nightBoss(seed, night, act)];
   rows.push({ kind: 'boss', ico: 'skull', name: zd.name, tag: `Boss · wave ${BOSS_WAVE + 1}`, text: zd.tipBrief || zd.tip || '' });
   return rows;
