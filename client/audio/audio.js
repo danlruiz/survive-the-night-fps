@@ -2091,6 +2091,13 @@ export class AudioEngine {
     this._need(d.bank, () => go(null));
   }
 
+  // a special's approach motif (music.js motif, motifs.js): near on the piano, far on strings; pan -1..1 toward it
+  motif(ztype, near, pan = 0) {
+    if (!this._ready || !this._music || this._state.menu) return;
+    this._resume();
+    this._music.motif(ztype, near, pan);
+  }
+
   setVolumes(v = EMPTY) {
     for (const k of ['master', 'music', 'sfx', 'ambience', 'voice']) {
       // (voice runs to 2: the slider can push a quiet friend past the level the mix was balanced at)
