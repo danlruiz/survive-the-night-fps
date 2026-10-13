@@ -5,7 +5,7 @@
 // usage: node scripts/test-deagle.js [seed]
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
-import { SLOT_PISTOL } from '../shared/constants.js';
+import { SLOT_PRIMARY, SLOT_PISTOL } from '../shared/constants.js';
 import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO, AMMO_ITEMS, SOUND, NOTIFY, LOOT_TABLES, CONT_TABLES, ZOMBIE_LOOT, SPECIAL_LOOT } from '../shared/defs.js';
 import { KILL_FEATS } from '../shared/achievements.js';
 import { worldWeaponTris, viewModelTris, VM_DEBUG } from '../client/render/models/weapons.js';
@@ -104,6 +104,19 @@ game.notify = (m, a, id) => {
   check('server: made at the workbench, and every ingredient spent', made === 1 && cost.every(([it]) => has(it) === 0), `pistol slot held ${ITEM_DEFS[before]?.name}`);
 }
 game.nearStation = nearStation;
+{
+  // made or picked up with the pistol's slot free, it goes there (hotbar 2), not into the primary slot (hotbar 1)
+  s.weapons[SLOT_PRIMARY] = ITEM.AK47;
+  s.weapons[SLOT_PISTOL] = 0;
+  s.mags[0] = 17;
+  p.inv.fill(null);
+  game.giveItem(p, ITEM.DEAGLE, 1);
+  check('server: it lands in the pistol slot, the primary slot\'s rifle untouched', s.weapons[SLOT_PISTOL] === ITEM.DEAGLE && s.mags[1] === DEF.mag && s.weapons[SLOT_PRIMARY] === ITEM.AK47 && s.mags[0] === 17 && has(ITEM.DEAGLE) === 0);
+  s.weapons[SLOT_PRIMARY] = 0;
+  s.weapons[SLOT_PISTOL] = 0;
+  game.giveItem(p, ITEM.DEAGLE, 1);
+  check('...and with the primary slot empty too, still the pistol slot', s.weapons[SLOT_PISTOL] === ITEM.DEAGLE && s.weapons[SLOT_PRIMARY] === 0);
+}
 
 // ---------------------------------------------------------------- what the client shows
 {
