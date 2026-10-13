@@ -6,7 +6,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { SLOT_THROW, SERVER_DT } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, RECIPES, THROWABLES, THROW_ITEMS, PROJ, ZTYPE, STRUCT, NOTIFY, SCHEM_BIT } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, RECIPES, RECIPE_BY_ID, THROWABLES, THROW_ITEMS, PROJ, ZTYPE, STRUCT, NOTIFY, SCHEM_BIT } from '../shared/defs.js';
 import { readSnapshot } from '../client/net/decode.js';
 
 const seed = +(process.argv[2] || 4242);
@@ -150,7 +150,7 @@ const ground = (x, z) => w.floorAt(x, z, w.heightAt(x, z) + 1);
   game.giveItem(a, ITEM.SCRAP, 4);
   const rg = RECIPES.find((r) => r.out === ITEM.GRENADE);
   const rd = RECIPES.find((r) => r.out === ITEM.DECOY);
-  check('recipe ids are their index, the new ones at the end', RECIPES.every((r, i) => r.id === i) && RECIPES.indexOf(rg) >= 31 && RECIPES.indexOf(rd) >= 31);
+  check('each one found by its id, the item it makes', rg.id === ITEM.GRENADE && rd.id === ITEM.DECOY && RECIPE_BY_ID.get(rg.id) === rg && RECIPE_BY_ID.get(rd.id) === rd);
   check('the frag grenade costs 2 scrap and 3 gunpowder at the workbench, behind the explosives schematic', rg.station === 'bench' && rg.schem === ITEM.SCHEM_EXPLOSIVES && rg.n === 1 && JSON.stringify(rg.cost) === JSON.stringify({ [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }));
   check('the noisemaker costs scrap, barbed wire and a battery at the workbench, no schematic', rd.station === 'bench' && !rd.schem && rd.n === 1 && JSON.stringify(rd.cost) === JSON.stringify({ [ITEM.SCRAP]: 1, [ITEM.WIRE]: 1, [ITEM.BATTERY]: 1 }));
   const pb = RECIPES.find((r) => r.out === ITEM.PIPEBOMB);

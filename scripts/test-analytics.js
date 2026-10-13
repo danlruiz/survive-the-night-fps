@@ -143,7 +143,7 @@ check('every join is an event, the signed-in player under their account', events
   // throw a molotov, craft a bandage, find a schematic, search a cache
   game.combat.throwProjectile(p, ITEM.MOLOTOV);
   game.giveItem(p, ITEM.CLOTH, 2);
-  game.craft(p, 1);
+  game.craft(p, ITEM.BANDAGE);
   game.giveItem(p, ITEM.SCHEM_SHOTGUN, 1);
   game.searchCache(p, game.caches.find((c) => c.state === 0));
   check('a throwable thrown, a craft, a schematic, a cache: on Ann\'s stint', st.usedItems.molotov === 1 && st.crafted === 1 && st.craftedItems.bandage === 1 && st.st.schematics === 1 && st.cachesSearched === 1 && events(m1.id, 'schematic').length === 1 && events(m1.id, 'schematic')[0].data.item === 'schem_shotgun');

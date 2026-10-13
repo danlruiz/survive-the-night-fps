@@ -1,113 +1,25 @@
 // Game content definitions shared by client and server.
 // Numeric ids are part of the wire protocol - do not renumber.
 import { FLASHLIGHT_MAX, STAMINA_MAX } from './constants.js';
+import { BASE_ITEM } from './items.js';
+import { WEAPON_LIST } from './weapons/index.js';
 
 // ---------------------------------------------------------------- items
-export const ITEM = {
-  NONE: 0,
-  // resources
-  WOOD: 1,
-  STICK: 2,
-  CLOTH: 3,
-  SCRAP: 4,
-  NAILS: 5,
-  ROPE: 6,
-  TAPE: 7,
-  POWDER: 8,
-  CHEM: 9,
-  HERB: 10,
-  ALCOHOL: 11,
-  LEATHER: 12,
-  WIRE: 13,
-  PLATE: 14,
-  GUNPARTS: 15,
-  // (16 is no item: the mounted gun's shots and kills carry it as their weapon, MOUNTED_GUN in mountedgun.js)
-  STONE: 17, // broken off boulders and the quarry's faces with a melee weapon (Game.gatherHit)
-  // consumables
-  BANDAGE: 20,
-  MEDKIT: 21,
-  PAINKILLERS: 22,
-  BATTERY: 23,
-  TORCH: 24,
-  TUNA: 25,
-  // throwables
-  MOLOTOV: 30,
-  PIPEBOMB: 31,
-  FLARE: 32,
-  GRENADE: 33,
-  DECOY: 34,
-  // armor
-  JACKET: 40,
-  KEVLAR: 41,
-  // gear (works from the backpack, just by being carried)
-  WALKIE: 45,
-  // worn in an equipment slot of its own, like armor: more slots in the backpack grid (INVENTORY_SIZE in constants.js)
-  BACKPACK: 46,
-  // weapons
-  KNIFE: 50,
-  BAT: 51,
-  SPIKED_BAT: 52,
-  MACHETE: 53,
-  HAMMER: 54,
-  PISTOL: 55,
-  FLARE_GUN: 56, // a sidearm (the pistol's slot): one parachute flare at a time, up into the sky (shared/skyflare.js)
-  NUNCHAKU: 57, // melee with a moveset of its own: combos, a wound-up heavy, a simulated chain (shared/nunchaku.js)
-  REVOLVER: 58, // a sidearm (the pistol's slot): six heavy 9mm rounds, a slow reload
-  DEAGLE: 59, // a sidearm (the pistol's slot) that hits like a rifle, on the hunting rifle's .308
-  SHOTGUN: 60,
-  AK47: 61,
-  HUNTING_RIFLE: 62,
-  M4A1: 63,
-  MP5: 64,
-  DB_SHOTGUN: 65,
-  CROSSBOW: 66,
-  FLAMETHROWER: 67,
-  RPG: 68,
-  AT_RIFLE: 69,
-  // ammunition (carried apart from the backpack, a reserve per calibre: state.ammo, AMMO below)
-  AMMO_9MM: 70,
-  AMMO_SHELLS: 71,
-  AMMO_762: 72,
-  AMMO_308: 73,
-  AMMO_556: 74,
-  AMMO_BOLTS: 75,
-  AMMO_FUEL: 76,
-  AMMO_ROCKET: 77,
-  AMMO_145: 78,
-  AMMO_FLARE: 79,
-  // car parts (quest)
-  CAR_BATTERY: 80,
-  SPARE_TIRE: 81,
-  SPARK_PLUGS: 82,
-  FUEL_CAN: 83,
-  FAN_BELT: 84,
-  // plane parts (act 2, the mainland: shared/acts.js)
-  PROPELLER: 85,
-  MAGNETO: 86,
-  HYDRAULIC_PUMP: 87,
-  FLIGHT_RADIO: 88,
-  AVGAS: 89,
-  // schematics (picked up -> unlocks recipes for the whole team)
-  SCHEM_SHOTGUN: 90,
-  SCHEM_RIFLE: 91,
-  SCHEM_KEVLAR: 92,
-  SCHEM_EXPLOSIVES: 93,
-  SCHEM_METAL: 94,
-  // the mainland's (shared/vehicles.js): a manual found beside its broken mopeds, and what a workbench makes with it.
-  // Nothing of these is on the island: the manual is not among SCHEMATICS (which the island hides in its lockers)
-  SCHEM_VEHICLES: 95,
-  MOPED_KIT: 96,
-  BIKE_KIT: 97,
-  // consumables: what a hunted deer gives (shared/deer.js)
-  VENISON_RAW: 26,
-  VENISON: 27,
-  // consumables: refills stamina, with a key of its own (ACTION_KEYS.drink in client/game/input.js)
-  ENERGY_DRINK: 28,
-  // card packs (Dead Hand, shared/cards.js): opened as they are picked up - the cards go into the finder's collection,
-  // which they keep across runs (server/cards.js), and the pack takes no room in the backpack
-  CARD_PACK: 98,
-  SEALED_PACK: 99,
-};
+// Every item's id: the ones in items.js, with each weapon's (shared/weapons/) put in after the backpack, in id order.
+// Two items on one id, or a weapon on a name that is taken, stop the game from loading
+export const ITEM = (() => {
+  const base = Object.entries(BASE_ITEM);
+  const weapons = WEAPON_LIST.map((w) => [w.key, w.id]);
+  const at = base.findIndex(([k]) => k === 'BACKPACK') + 1;
+  const out = Object.fromEntries([...base.slice(0, at), ...weapons, ...base.slice(at)]);
+  const ids = new Map();
+  for (const [k, id] of [...base, ...weapons]) {
+    if (ids.has(id)) throw new Error(`ITEM.${k} and ITEM.${ids.get(id)} are both item ${id}`);
+    ids.set(id, k);
+  }
+  if (Object.keys(out).length !== ids.size) throw new Error('a weapon in shared/weapons/ is named like an item that is already there');
+  return out;
+})();
 
 // ammo reserve indices: the rounds of a calibre a survivor carries (state.ammo). Ammunition is not kept in the
 // backpack: it is carried apart, in the inventory's Ammunition panel, and goes on the ground from there (ACT.DROP_AMMO)
@@ -157,26 +69,6 @@ export const ITEM_DEFS = {
 
   [ITEM.WALKIE]: { name: 'Walkie-Talkie', cat: 'gear', stack: 1, color: 0x3d4a3a, desc: 'Everyone carries one in slot [6]. Take it out and hold fire to talk to every survivor over it, however far apart you are.' },
 
-  [ITEM.KNIFE]: { name: 'Knife', cat: 'weapon', stack: 1, color: 0xaaaaaa, desc: 'Fast. Quiet.' },
-  [ITEM.BAT]: { name: 'Baseball Bat', cat: 'weapon', stack: 1, color: 0x9c7a4b, desc: 'Heavy swings, knockback.' },
-  [ITEM.SPIKED_BAT]: { name: 'Spiked Bat', cat: 'weapon', stack: 1, color: 0x8a5a3b, desc: 'A bat wrapped in nails and wire.' },
-  [ITEM.MACHETE]: { name: 'Machete', cat: 'weapon', stack: 1, color: 0x9aa3a8, desc: 'Cleaves through the horde.' },
-  [ITEM.HAMMER]: { name: 'Hammer', cat: 'weapon', stack: 1, color: 0x7a5c3a, desc: 'Build and repair structures.' },
-  [ITEM.NUNCHAKU]: { name: 'Nunchucks', cat: 'weapon', stack: 1, color: 0x7a4a2a, desc: 'Two hardwood handles on a chain. Keep swinging for a four-move combo whose last blow lands hardest; hold the heavy attack to spin it up. Short reach, one target, and every move costs stamina.' },
-  [ITEM.PISTOL]: { name: 'Pistol', cat: 'weapon', stack: 1, color: 0x333333, desc: 'Reliable 9mm sidearm.' },
-  [ITEM.REVOLVER]: { name: 'Revolver', cat: 'weapon', stack: 1, color: 0x3a3632, desc: 'Six-shot 9mm revolver. Hits much harder than the pistol, but fires slower and takes longer to reload. Takes the pistol\'s place.' },
-  [ITEM.SHOTGUN]: { name: 'Shotgun', cat: 'weapon', stack: 1, color: 0x4a3a2a, desc: 'Devastating up close.' },
-  [ITEM.AK47]: { name: 'AK-47', cat: 'weapon', stack: 1, color: 0x5a4632, desc: 'Full-auto 7.62 rifle.' },
-  [ITEM.HUNTING_RIFLE]: { name: 'Hunting Rifle', cat: 'weapon', stack: 1, color: 0x6b4f33, desc: 'Bolt-action .308. Pierces.' },
-  [ITEM.M4A1]: { name: 'M4A1', cat: 'weapon', stack: 1, color: 0x2e2f2c, desc: 'Full-auto 5.56 carbine. Accurate, soft recoil.' },
-  [ITEM.MP5]: { name: 'MP5', cat: 'weapon', stack: 1, color: 0x353535, desc: 'Full-auto 9mm submachine gun. Fast and quiet.' },
-  [ITEM.DB_SHOTGUN]: { name: 'Double-Barrel', cat: 'weapon', stack: 1, color: 0x5c4028, desc: 'Two barrels of buckshot back to back. Slow to reload.' },
-  [ITEM.CROSSBOW]: { name: 'Crossbow', cat: 'weapon', stack: 1, color: 0x5a4a34, desc: 'One heavy bolt, almost no noise. Slow to cock.' },
-  [ITEM.FLAMETHROWER]: { name: 'Flamethrower', cat: 'weapon', stack: 1, color: 0xb5651d, desc: 'A short cone of fire. Whatever it touches keeps burning.' },
-  [ITEM.AT_RIFLE]: { name: 'Anti-Tank Rifle', cat: 'weapon', stack: 1, color: 0x4f5232, desc: 'Single-shot 14.5mm. Goes through a whole line of them, and hits bosses and Tanks three times as hard. A very slow reload.' },
-  [ITEM.RPG]: { name: 'RPG', cat: 'weapon', stack: 1, color: 0x4b5320, desc: 'Fires one rocket grenade at a time. It bursts on impact and tears apart everything around it. Slow to reload, and very loud.' },
-  [ITEM.DEAGLE]: { name: 'Desert Eagle', cat: 'weapon', stack: 1, color: 0x9a9ca0, desc: 'A steel hand cannon. Seven rounds of .308 that hit like a rifle and kick like one. Takes the pistol\'s place.' },
-  [ITEM.FLARE_GUN]: { name: 'Flare Gun', cat: 'weapon', stack: 1, color: 0xe0601c, desc: 'Fires a parachute flare high into the sky. It lights the ground for a minute as it drifts back down, and Shades cannot move under it. Takes the pistol\'s place.' },
 
   [ITEM.AMMO_9MM]: { name: '9mm Ammo', cat: 'ammo', stack: AMMO_MAX[0], color: 0xc9a227, ammo: 0, desc: 'Pistol rounds.' },
   [ITEM.AMMO_SHELLS]: { name: 'Shotgun Shells', cat: 'ammo', stack: AMMO_MAX[1], color: 0xb03a2e, ammo: 1, desc: '12 gauge.' },
@@ -215,6 +107,8 @@ export const ITEM_DEFS = {
   [ITEM.CARD_PACK]: { name: 'Card Pack', cat: 'card', stack: 1, color: 0x8e2a24, desc: 'A pack of Dead Hand cards. Opened as you pick it up: three cards for your collection, which you keep from run to run [K].' },
   [ITEM.SEALED_PACK]: { name: 'Sealed Pack', cat: 'card', stack: 1, color: 0xb0863a, desc: 'A sealed pack of Dead Hand cards, still in its foil: three cards, at least one of them rare, for your collection [K].' },
   [ITEM.ENERGY_DRINK]: { name: 'Energy Drink', cat: 'cons', stack: 5, color: 0x6fc23a, desc: 'A can of something fizzy and very sweet. Refills your stamina in one go, even on the run. Quick drink [B].' },
+  // the weapons: `def` in each one's file (shared/weapons/)
+  ...Object.fromEntries(WEAPON_LIST.map((w) => [w.id, w.def])),
 };
 
 // ---------------------------------------------------------------- talking
@@ -282,45 +176,8 @@ export function schematicRumours(hints, unlocked = 0) {
 // Melee: altDamage / altRate = the heavy attack (RMB instead of LMB). The blow lands at once like a light one, so
 // what it costs is the recovery: it must hit harder and keep up less damage per second than the light attack,
 // or one of the two buttons is never worth pressing. (The hammer sits in the build slot and is never swung.)
-export const WEAPONS = {
-  [ITEM.KNIFE]: { slot: 2, melee: true, damage: 38, rate: 0.42, range: 2.0, altDamage: 80, altRate: 1.0, headMul: 1.6, knock: 0.5, swing: 0.12 },
-  [ITEM.BAT]: { slot: 2, melee: true, damage: 60, rate: 0.72, range: 2.4, altDamage: 100, altRate: 1.3, headMul: 1.8, knock: 5, swing: 0.2 },
-  [ITEM.SPIKED_BAT]: { slot: 2, melee: true, damage: 95, rate: 0.72, range: 2.4, altDamage: 155, altRate: 1.3, headMul: 1.8, knock: 5, swing: 0.2 },
-  [ITEM.MACHETE]: { slot: 2, melee: true, damage: 75, rate: 0.55, range: 2.2, altDamage: 125, altRate: 1.0, headMul: 2.0, knock: 1.5, swing: 0.15 },
-  // Nunchucks: a moveset, not one swing (nunchaku: true; the moves, their timing and what each costs are NK_MOVES in
-  // shared/nunchaku.js). The numbers here are the opener's and the fully wound heavy's, for whatever reads a weapon's
-  // row. Against the others, on one target with the whole chain landed: 198 damage in 1.68 s, 118 a second - over the
-  // knife (90) and the bat (83), under the machete (136) and the spiked bat (132), which also strike two at once and
-  // cost nothing. The shortest reach there is, one target, and 27 stamina a combo: three and a half combos empty a
-  // full bar, and out of breath it is the opener alone at 0.7 of its damage (61 a second). The heavy: 70 on a tap,
-  // 165 after a full 0.95 s wind-up (87 a second either way, under the light chain as the rule above asks).
-  [ITEM.NUNCHAKU]: { slot: 2, melee: true, nunchaku: true, damage: 28, rate: 0.32, range: 1.9, altDamage: 165, altRate: 0.8, headMul: 1.7, knock: 0.6, swing: 0.1 },
-  [ITEM.HAMMER]: { slot: 4, melee: true, damage: 25, rate: 0.6, range: 2.0, altDamage: 25, altRate: 0.6, headMul: 1.5, knock: 1, swing: 0.15, build: true },
-  [ITEM.PISTOL]: { slot: 1, damage: 30, rate: 0.16, mag: 12, reload: 1.35, ammo: 0, pellets: 1, spread: 0.012, moveSpread: 0.02, recoil: 0.018, range: 120, headMul: 3.0, auto: false, noise: 45, sound: 'pistol' },
-  // the revolver: the pistol's rounds, six of them, nearly twice as hard and a little tighter. Slower between shots and
-  // to reload (a speedloader), so a cylinder does about what a pistol magazine does (330 vs 360) in a longer time;
-  // it is the sidearm for picking off heads (110 x 3 kills a walker outright), not for holding off a crowd
-  [ITEM.REVOLVER]: { slot: 1, damage: 55, rate: 0.4, mag: 6, reload: 2.4, ammo: 0, pellets: 1, spread: 0.008, moveSpread: 0.024, recoil: 0.04, range: 140, headMul: 3.0, auto: false, noise: 60, sound: 'pistol' },
-  // the Desert Eagle: the pistol's slot, the hunting rifle's rounds. Over twice the pistol's hit for half its rate and
-  // magazine, a wide first shot and a hard climb: one at a time, aimed, for the heads that matter. Loud as a rifle
-  [ITEM.DEAGLE]: { slot: 1, damage: 72, rate: 0.3, mag: 7, reload: 1.8, ammo: 3, pellets: 1, spread: 0.014, moveSpread: 0.03, recoil: 0.05, range: 140, headMul: 2.8, auto: false, noise: 70, sound: 'deagle' },
-  [ITEM.SHOTGUN]: { slot: 0, damage: 17, rate: 0.85, mag: 6, reload: 0.55, reloadEach: true, ammo: 1, pellets: 9, spread: 0.075, moveSpread: 0.02, recoil: 0.07, range: 45, headMul: 2.0, auto: false, noise: 80, sound: 'shotgun' },
-  // the AK-47: the hardest hitting automatic and the least accurate - a wider cone than the M4A1 in every stance and
-  // half again its climb, tight for a first aimed round or a short burst (scripts/test-spread.js holds its groups)
-  [ITEM.AK47]: { slot: 0, damage: 36, rate: 0.1, mag: 30, reload: 2.3, ammo: 2, pellets: 1, spread: 0.016, moveSpread: 0.034, recoil: 0.022, range: 150, headMul: 2.6, auto: true, sound: 'ak47' },
-  [ITEM.HUNTING_RIFLE]: { slot: 0, damage: 180, rate: 1.0, mag: 5, reload: 2.6, ammo: 3, pellets: 1, spread: 0.002, moveSpread: 0.03, recoil: 0.09, range: 220, headMul: 3.0, auto: false, noise: 100, pierce: 3, sound: 'rifle' },
-  [ITEM.M4A1]: { slot: 0, damage: 30, rate: 0.085, mag: 30, reload: 2.1, ammo: 4, pellets: 1, spread: 0.013, moveSpread: 0.032, recoil: 0.015, range: 170, headMul: 2.6, auto: true, sound: 'm4a1' },
-  [ITEM.MP5]: { slot: 0, damage: 25, rate: 0.075, mag: 30, reload: 1.9, ammo: 0, pellets: 1, spread: 0.017, moveSpread: 0.016, recoil: 0.011, range: 90, headMul: 2.4, auto: true, noise: 35, sound: 'mp5' },
-  [ITEM.DB_SHOTGUN]: { slot: 0, damage: 16, rate: 0.22, mag: 2, reload: 1.6, ammo: 1, pellets: 12, spread: 0.1, moveSpread: 0.02, recoil: 0.09, range: 38, headMul: 2.0, auto: false, noise: 90, sound: 'dbshotgun' },
-  [ITEM.CROSSBOW]: { slot: 0, damage: 160, rate: 0.4, mag: 1, reload: 2.2, autoReload: true, ammo: 5, pellets: 1, spread: 0.004, moveSpread: 0.02, recoil: 0.03, range: 110, headMul: 2.5, auto: false, noise: 6, quiet: true, sound: 'crossbow' },
-  [ITEM.FLAMETHROWER]: { slot: 0, damage: 6, rate: 0.08, mag: 100, reload: 2.8, ammo: 6, pellets: 1, spread: 0.02, moveSpread: 0.01, recoil: 0.003, range: 11, headMul: 1, auto: true, noise: 30, flame: { cone: 0.2 } },
-  // the anti-tank rifle: one round, a long reload, made for the big ones. It goes through five, and a boss or a Tank
-  // takes bossMul x of it. The loudest gun there is
-  [ITEM.AT_RIFLE]: { slot: 0, damage: 400, rate: 1.0, mag: 1, reload: 6.0, autoReload: true, ammo: 8, pellets: 1, spread: 0.015, moveSpread: 0.09, recoil: 0.2, range: 260, headMul: 3.0, auto: false, noise: 150, pierce: 5, bossMul: 3, sound: 'atrifle' },
-  [ITEM.RPG]: { slot: 0, damage: 360, rate: 0.5, mag: 1, reload: 3.4, autoReload: true, ammo: 7, pellets: 1, spread: 0.008, moveSpread: 0.03, recoil: 0.12, range: 200, headMul: 1, auto: false, noise: 90, sound: 'rpg', rocket: { speed: 48, grav: 3, radius: 5.5 } },
-  // a break-open single shot: it hurts nothing, the flare is the point. The pop carries about as far as a pistol shot
-  [ITEM.FLARE_GUN]: { slot: 1, damage: 0, rate: 0.6, mag: 1, reload: 1.7, autoReload: true, ammo: 9, pellets: 1, spread: 0.006, moveSpread: 0.02, recoil: 0.07, range: 0, headMul: 1, auto: false, noise: 50, sound: 'flaregun', skyflare: true },
-};
+// (each weapon's row is `stats` in its file, shared/weapons/)
+export const WEAPONS = Object.fromEntries(WEAPON_LIST.map((w) => [w.id, w.stats]));
 
 // Burning: a status any zombie can be given (Combat.ignite) - the flamethrower and molotov fires do. It takes `dps`
 // for `time` seconds after the fire that lit it; more fire tops the time back up, it does not stack.
@@ -457,69 +314,54 @@ export const CAMPFIRE_MAX_FUEL = 600;
 // ---------------------------------------------------------------- crafting
 // station: undefined = by hand anywhere, 'fire' = near a lit campfire, 'bench' = near a workbench.
 // schem: the team must have found this schematic first.
+// id: the item it makes (an item has one recipe at most). It is what C2S.CRAFT sends and what RECIPE_BY_ID is keyed
+// by, never a place in the list, so a recipe can go anywhere without renumbering any other (the list's order is only
+// the crafting panel's, where it breaks ties).
 export const STATION_NAMES = { fire: 'Campfire', bench: 'Workbench' };
-export const RECIPES = [
-  { id: 0, out: ITEM.TORCH, n: 1, cost: { [ITEM.STICK]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 1, out: ITEM.BANDAGE, n: 1, cost: { [ITEM.CLOTH]: 2 } },
-  { id: 2, out: ITEM.MEDKIT, n: 1, cost: { [ITEM.CLOTH]: 2, [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
-  { id: 3, out: ITEM.BAT, n: 1, cost: { [ITEM.WOOD]: 3 } },
-  { id: 4, out: ITEM.SPIKED_BAT, n: 1, cost: { [ITEM.WOOD]: 3, [ITEM.NAILS]: 8, [ITEM.WIRE]: 1 }, station: 'bench' },
-  { id: 5, out: ITEM.MACHETE, n: 1, cost: { [ITEM.SCRAP]: 4, [ITEM.LEATHER]: 1, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 6, out: ITEM.HAMMER, n: 1, cost: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 } },
-  { id: 7, out: ITEM.MOLOTOV, n: 1, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 8, out: ITEM.PIPEBOMB, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 9, out: ITEM.AMMO_9MM, n: 12, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 2 }, station: 'bench' },
-  { id: 10, out: ITEM.AMMO_SHELLS, n: 6, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 11, out: ITEM.AMMO_762, n: 20, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4 }, station: 'bench' },
-  { id: 12, out: ITEM.JACKET, n: 1, cost: { [ITEM.CLOTH]: 6, [ITEM.LEATHER]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 13, out: ITEM.KEVLAR, n: 1, cost: { [ITEM.PLATE]: 2, [ITEM.CLOTH]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_KEVLAR },
-  { id: 14, out: ITEM.HUNTING_RIFLE, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
-  { id: 15, out: ITEM.SHOTGUN, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 2 }, station: 'bench', schem: ITEM.SCHEM_SHOTGUN },
-  { id: 16, out: ITEM.AMMO_308, n: 5, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 17, out: ITEM.ROPE, n: 1, cost: { [ITEM.CLOTH]: 3 } },
-  { id: 18, out: ITEM.WOOD, n: 1, cost: { [ITEM.STICK]: 3 } },
-  { id: 19, out: ITEM.POWDER, n: 6, cost: { [ITEM.CHEM]: 1, [ITEM.STICK]: 2 }, station: 'fire' },
-  { id: 20, out: ITEM.PAINKILLERS, n: 1, cost: { [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
-  { id: 21, out: ITEM.NAILS, n: 10, cost: { [ITEM.SCRAP]: 1 }, station: 'bench' },
-  { id: 22, out: ITEM.FLARE, n: 2, cost: { [ITEM.POWDER]: 2, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 } },
-  { id: 23, out: ITEM.BATTERY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
-  { id: 24, out: ITEM.AMMO_556, n: 15, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench' },
-  { id: 25, out: ITEM.DB_SHOTGUN, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_SHOTGUN },
-  { id: 26, out: ITEM.CROSSBOW, n: 1, cost: { [ITEM.ROPE]: 1, [ITEM.STICK]: 4, [ITEM.SCRAP]: 3 }, station: 'bench' },
-  { id: 27, out: ITEM.AMMO_BOLTS, n: 4, cost: { [ITEM.STICK]: 2, [ITEM.SCRAP]: 1 }, station: 'bench' },
-  { id: 28, out: ITEM.FLAMETHROWER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 2, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 29, out: ITEM.AMMO_FUEL, n: 50, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
-  { id: 30, out: ITEM.VENISON, n: 1, cost: { [ITEM.VENISON_RAW]: 1 }, station: 'fire' },
-  { id: 31, out: ITEM.GRENADE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 32, out: ITEM.DECOY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.WIRE]: 1, [ITEM.BATTERY]: 1 }, station: 'bench' },
+const BASE_RECIPES = [
+  { out: ITEM.TORCH, n: 1, cost: { [ITEM.STICK]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.BANDAGE, n: 1, cost: { [ITEM.CLOTH]: 2 } },
+  { out: ITEM.MEDKIT, n: 1, cost: { [ITEM.CLOTH]: 2, [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
+  { out: ITEM.MOLOTOV, n: 1, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.PIPEBOMB, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.AMMO_9MM, n: 12, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 2 }, station: 'bench' },
+  { out: ITEM.AMMO_SHELLS, n: 6, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.AMMO_762, n: 20, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 4 }, station: 'bench' },
+  { out: ITEM.JACKET, n: 1, cost: { [ITEM.CLOTH]: 6, [ITEM.LEATHER]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
+  { out: ITEM.KEVLAR, n: 1, cost: { [ITEM.PLATE]: 2, [ITEM.CLOTH]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_KEVLAR },
+  { out: ITEM.AMMO_308, n: 5, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.ROPE, n: 1, cost: { [ITEM.CLOTH]: 3 } },
+  { out: ITEM.WOOD, n: 1, cost: { [ITEM.STICK]: 3 } },
+  { out: ITEM.POWDER, n: 6, cost: { [ITEM.CHEM]: 1, [ITEM.STICK]: 2 }, station: 'fire' },
+  { out: ITEM.PAINKILLERS, n: 1, cost: { [ITEM.HERB]: 2, [ITEM.ALCOHOL]: 1 }, station: 'fire' },
+  { out: ITEM.NAILS, n: 10, cost: { [ITEM.SCRAP]: 1 }, station: 'bench' },
+  { out: ITEM.FLARE, n: 2, cost: { [ITEM.POWDER]: 2, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 } },
+  { out: ITEM.BATTERY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
+  { out: ITEM.AMMO_556, n: 15, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench' },
+  { out: ITEM.AMMO_BOLTS, n: 4, cost: { [ITEM.STICK]: 2, [ITEM.SCRAP]: 1 }, station: 'bench' },
+  { out: ITEM.AMMO_FUEL, n: 50, cost: { [ITEM.ALCOHOL]: 1, [ITEM.CHEM]: 1 }, station: 'bench' },
+  { out: ITEM.VENISON, n: 1, cost: { [ITEM.VENISON_RAW]: 1 }, station: 'fire' },
+  { out: ITEM.GRENADE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 3 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.DECOY, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.WIRE]: 1, [ITEM.BATTERY]: 1 }, station: 'bench' },
   // a step past the Padded Jacket: the rope is 3 cloth apiece, and the leather is a trip out (barn, cabins, lodge, trunks)
-  { id: 33, out: ITEM.BACKPACK, n: 1, cost: { [ITEM.LEATHER]: 4, [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2 }, station: 'bench' },
-  { id: 34, out: ITEM.RPG, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 5, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 35, out: ITEM.AMMO_ROCKET, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 4, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
-  { id: 36, out: ITEM.AT_RIFLE, n: 1, cost: { [ITEM.GUNPARTS]: 4, [ITEM.SCRAP]: 6, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
-  { id: 37, out: ITEM.AMMO_145, n: 2, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 5 }, station: 'bench' },
-  // the flare gun is a pipe and a hammer; a shell is a road flare's makings with a little chute packed on top
-  { id: 38, out: ITEM.FLARE_GUN, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 3, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 39, out: ITEM.AMMO_FLARE, n: 1, cost: { [ITEM.POWDER]: 3, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 }, station: 'bench' },
-  // two turned handles, a chain cut out of scrap, tape for the grips
-  { id: 40, out: ITEM.NUNCHAKU, n: 1, cost: { [ITEM.WOOD]: 2, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 }, station: 'bench' },
-  // vehicles, built (shared/vehicles.js; `vehicle`: the kind that stands beside the bench when it is made - nothing goes
-  // into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
-  { id: 41, out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
-  { id: 42, out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
-  // the Desert Eagle: more gun parts than a pistol is made of and a lot more steel; no schematic
-  { id: 43, out: ITEM.DEAGLE, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 1 }, station: 'bench' },
-  // two gun parts for the lockwork, scrap for the frame and cylinder, wood for the grips
-  { id: 44, out: ITEM.REVOLVER, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 1 }, station: 'bench' },
-  // the rest of the arsenal, so every weapon can be made (scripts/test-recipes.js). The knife and the pistol are what
-  // everyone starts with, made again cheaply when lost; the MP5 a step past the pistol; the two assault rifles the
-  // dearest guns short of the anti-tank rifle, behind the Rifle Schematic like it
-  { id: 45, out: ITEM.KNIFE, n: 1, cost: { [ITEM.SCRAP]: 2, [ITEM.LEATHER]: 1 }, station: 'bench' },
-  { id: 46, out: ITEM.PISTOL, n: 1, cost: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 3, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 47, out: ITEM.MP5, n: 1, cost: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 1 }, station: 'bench' },
-  { id: 48, out: ITEM.AK47, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 3, [ITEM.WOOD]: 2, [ITEM.TAPE]: 1 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
-  { id: 49, out: ITEM.M4A1, n: 1, cost: { [ITEM.GUNPARTS]: 3, [ITEM.SCRAP]: 4, [ITEM.TAPE]: 2 }, station: 'bench', schem: ITEM.SCHEM_RIFLE },
+  { out: ITEM.BACKPACK, n: 1, cost: { [ITEM.LEATHER]: 4, [ITEM.CLOTH]: 6, [ITEM.ROPE]: 2 }, station: 'bench' },
+  { out: ITEM.AMMO_ROCKET, n: 1, cost: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 4, [ITEM.CHEM]: 1 }, station: 'bench', schem: ITEM.SCHEM_EXPLOSIVES },
+  { out: ITEM.AMMO_145, n: 2, cost: { [ITEM.SCRAP]: 2, [ITEM.POWDER]: 5 }, station: 'bench' },
+  { out: ITEM.AMMO_FLARE, n: 1, cost: { [ITEM.POWDER]: 3, [ITEM.CHEM]: 1, [ITEM.CLOTH]: 1 }, station: 'bench' },
 ];
+// vehicles, built (shared/vehicles.js; `vehicle`: the kind that stands beside the bench when it is made - nothing goes
+// into the pack). Mainland only, and not listed anywhere until the team has the manual (`hide`)
+const VEHICLE_RECIPES = [
+  { out: ITEM.BIKE_KIT, n: 1, cost: { [ITEM.SCRAP]: 6, [ITEM.WIRE]: 2, [ITEM.TAPE]: 2, [ITEM.LEATHER]: 1 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 3, hide: true },
+  { out: ITEM.MOPED_KIT, n: 1, cost: { [ITEM.SCRAP]: 14, [ITEM.GUNPARTS]: 2, [ITEM.WIRE]: 3, [ITEM.TAPE]: 2, [ITEM.BATTERY]: 2 }, station: 'bench', schem: ITEM.SCHEM_VEHICLES, vehicle: 1, hide: true },
+];
+// the weapons' (`recipe` in each one's file, shared/weapons/) after the others, the vehicles last
+export const RECIPES = [...BASE_RECIPES, ...WEAPON_LIST.filter((w) => w.recipe).map((w) => ({ out: w.id, ...w.recipe })), ...VEHICLE_RECIPES].map((r) => ({ id: r.out, ...r }));
+export const RECIPE_BY_ID = new Map();
+for (const r of RECIPES) {
+  if (RECIPE_BY_ID.has(r.id)) throw new Error(`two recipes make ${ITEM_DEFS[r.out]?.name ?? r.out}: a recipe's id is the item it makes`);
+  RECIPE_BY_ID.set(r.id, r);
+}
 
 // The order the backpack grid is sorted in after a pickup or a drop, by category: weapons, what is worn or carried for
 // what it does (armor, the backpack, the walkie-talkie), ammunition, medicine and the other consumables, throwables,
@@ -543,29 +385,11 @@ export const SALVAGE = {
   [ITEM.JACKET]: { [ITEM.CLOTH]: 3, [ITEM.LEATHER]: 1 },
   [ITEM.KEVLAR]: { [ITEM.PLATE]: 1, [ITEM.CLOTH]: 2 },
   [ITEM.WALKIE]: { [ITEM.BATTERY]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.KNIFE]: { [ITEM.SCRAP]: 1, [ITEM.LEATHER]: 1 },
-  [ITEM.BAT]: { [ITEM.WOOD]: 1 },
-  [ITEM.SPIKED_BAT]: { [ITEM.WOOD]: 1, [ITEM.NAILS]: 4 },
-  [ITEM.MACHETE]: { [ITEM.SCRAP]: 2, [ITEM.LEATHER]: 1 },
-  [ITEM.HAMMER]: { [ITEM.SCRAP]: 1 },
-  [ITEM.NUNCHAKU]: { [ITEM.WOOD]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.PISTOL]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.REVOLVER]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.DEAGLE]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2 },
-  [ITEM.SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1, [ITEM.WOOD]: 1 },
-  [ITEM.AK47]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2, [ITEM.WOOD]: 1 },
-  [ITEM.HUNTING_RIFLE]: { [ITEM.GUNPARTS]: 1, [ITEM.WOOD]: 1 },
-  [ITEM.M4A1]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 2 },
-  [ITEM.MP5]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2 },
-  [ITEM.DB_SHOTGUN]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.CROSSBOW]: { [ITEM.ROPE]: 1, [ITEM.SCRAP]: 1 },
-  [ITEM.FLAMETHROWER]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 },
-  [ITEM.AT_RIFLE]: { [ITEM.GUNPARTS]: 2, [ITEM.SCRAP]: 3 },
-  [ITEM.RPG]: { [ITEM.GUNPARTS]: 1, [ITEM.SCRAP]: 2, [ITEM.TAPE]: 1 },
-  [ITEM.FLARE_GUN]: { [ITEM.SCRAP]: 2 }, // (made of a gun part, 3 scrap and tape: the part is what is not got back)
   [ITEM.GRENADE]: { [ITEM.SCRAP]: 1, [ITEM.POWDER]: 1 },
   [ITEM.DECOY]: { [ITEM.BATTERY]: 1 },
   [ITEM.BACKPACK]: { [ITEM.LEATHER]: 2, [ITEM.CLOTH]: 3, [ITEM.ROPE]: 1 },
+  // the weapons: `salvage` in each one's file (shared/weapons/)
+  ...Object.fromEntries(WEAPON_LIST.filter((w) => w.salvage).map((w) => [w.id, w.salvage])),
 };
 // What worn gear (armor, the backpack) taken apart from its equipment row [Shift+LMB] gives back: its SALVAGE row
 // - a backpack 2 Leather, 3 Cloth and 1 Rope. -> { item: count }, or null for anything that is not worn or has none.
