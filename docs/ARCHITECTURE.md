@@ -24,7 +24,11 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
                  (a spanning tree out from Route 9 + loops)
   world.js       deterministic world generation from a seed: builds the plan - terrain, A*-routed roads,
                  roadside/woodland sites, buildings, props, containers, supply spots, doorways,
-                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it
+                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it.
+                 It calls the stages in world/ in order: terrain.js, roads.js (router.js: the A*),
+                 roadside.js (the sites, the road dressing), places.js (every named place, the mine's
+                 workings), vegetation.js, spawns.js. Both maps share heightfield.js (the samplers),
+                 worldquery.js (floorAt, rayTerrain) and polyline.js (a line as points a metre apart)
   mine.js        the workings under Blackrock Mine: a second level under the heightfield (see The mine below)
   clinic.js      Mercy Clinic and the rule that its wards are dark at noon (see Dark interiors below)
   rail.js        the railway: its heights, the cut and fill, Whitlock Depot, the stalled train (see The railway)
@@ -767,6 +771,13 @@ screen). `scripts/test-airfield-hints.js` holds them.
   Passage Mines under the river). `world.car` is the plane there (`plane: true`), so everything that asks for "the
   car" - the reach, the supplies, the final stand - asks for it. What the island has and it lacks (railway, fair,
   clinic, cemetery) is `null`; its `mine` is the passage.
+  - *The code*: `createMainland` makes the kit and the places' hiding spots and calls the stages in `shared/mainland/`
+    in a fixed order (they draw from its random stream): `plan.js` (where everything is, from the picture),
+    `terrain.js` (the heightfield), `roads.js` (the roads, graded into it), `citykit.js`, `buildings.js`
+    and `city.js` (Town Center), `docks.js`, `homes.js`, `places.js`, `mountains.js` (the tunnels' galleries, the
+    cliffs' walls), `airfield.js`, `sites.js` (the land a body walks to, the roadside sites, the farm, the road signs,
+    hoardings and poles), `passage.js` (the mines, the quarry's pit), `vegetation.js`, `spawns.js` and `fieldmap.js`; `consts.js` holds
+    the measures.
   - *The layout* (`shared/mainland-layout.js`) is the picture, traced: the sea and its islands and Pine Lake as
     outlines (even-odd), the river's middle line with its width, the creek, the mountains' outlines, the tunnels, every
     road with its class (main, secondary, dirt, trail; the suburbs' and the village's lanes), the areas of houses, the
