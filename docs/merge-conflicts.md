@@ -18,7 +18,7 @@ Files that conflicted, counted over those 76 merges (`git merge-tree` on each me
 | `shared/protocol.js` | 13 | `PROTOCOL_VERSION`: one line holding the number and its whole history as a comment |
 | `shared/defs.js` | 10 | `ITEM`, `WEAPONS`, `RECIPES`, `SALVAGE` rows after the pistol; `ZTYPE` and `SOUND` ids. **Mostly fixed** by #354 for weapons |
 | `server/game.js` | 10 | night wave weights and the Ember/Blackout `\|\|` chain (**moved** to `server/spawns.js` by #355); names appended to import lists |
-| `client/game/game.js` | 10 | `SHOT_SOUND` (**fixed** by #354); HUD meters (shove, fire) written in the same spot |
+| `client/game/game.js` | 10 | `SHOT_SOUND` (**fixed** by #354); HUD meters (shove, fire) written in the same spot (**moved** to `client/game/hudmeters.js`, and the rest of the class split into `client/game/game/`) |
 | `shared/progress.js` | 5 | `XP.kinds`: every zombie kind's XP on one line |
 | `client/ui/menus.js` | 5 | menu screens edited side by side |
 | `shared/bestiary.js` | 4 | a new kind's `B(...)` row added after the last special |
@@ -109,7 +109,7 @@ A new zombie kind is registered by hand in about 15 places (issue #347). Miss on
 silently gets red blood, no XP or the wrong difficulty scaling. Each of those lists is also a conflict waiting to
 happen.
 
-- **Still in the code:** the green-blood test is written out four times (`server/combat.js`, `client/game/game.js`,
+- **Still in the code:** the green-blood test is written out four times (`server/combat.js`, `client/game/game/shots.js`,
   twice in `client/game/entities.js`); which kinds Ember/Blackout scales (`server/spawns.js`); XP per kind
   (`shared/progress.js`); wave weights (`server/spawns.js`); 20 `ztype ===` checks in `client/game/entities.js`.
 - **Resolve:** add the new kind to every copy. Grep for a sibling kind (`ZTYPE.SMOKER`) to find them all, since the
@@ -148,7 +148,7 @@ draw after it, and seeded tests that have nothing to do with the change start fa
 
 ### 8. Very large files
 
-`server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (4,800),
+`server/game.js` (5,800 lines), `client/game/game.js` (4,600; since split into `client/game/game/`), `client/render/models/weapons.js` (4,800),
 `client/render/models/characters.js` (5,500) and `client/ui/menus.js` are where unrelated features meet. A conflict
 in one of them is often two features that only share a file.
 
@@ -159,7 +159,9 @@ in one of them is often two features that only share a file.
      what #354 started. Today a new gun still edits `BUILDERS`, `VM` and `ITEM_ICONS`.
   2. A zombie kind's model, pose and sounds into `client/render/models/zombies/<kind>.js`, the client twin of
      `server/specials/`.
-  3. HUD meters (shove, fire, pin) out of `client/game/game.js` into one module, one meter each.
+  3. HUD meters (shove, fire, pin) out of `client/game/game.js` into one module, one meter each. **Done**:
+     `client/game/hudmeters.js`; the rest of `client/game/game.js` is split into `client/game/game/`, one file per
+     responsibility.
 
 ### 9. Moved code
 
@@ -204,4 +206,4 @@ pillars in [design.md](design.md):
 | 6 | Client weapon files (builder, `VM`, icon) | `weapons.js`, `icons.js` | large |
 | 7 | Client zombie files (model, pose, sounds) | `characters.js`, `entities.js`, `audio.js` | large |
 | 8 | A random stream per system | seeded tests breaking after merges | medium |
-| 9 | HUD meters module | `client/game/game.js` | medium |
+| 9 | HUD meters module (**done**: `client/game/hudmeters.js`) | `client/game/game.js` | medium |
