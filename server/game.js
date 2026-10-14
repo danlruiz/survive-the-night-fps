@@ -233,7 +233,7 @@ export class Game {
     // the kinds of the dead each player has seen (bestiary.js). opts.bestiary: where an account's go (the network thread)
     this.bestiary = new BestiaryTracker(this, opts.bestiary);
     // Dead Hand, the card game: matches, trades, bets and packs (cards.js). opts.cards: where the collections are kept
-    // (the network thread: room-worker.js RemoteCards); none, in this thread (LocalCards)
+    // (the network thread: room-worker.js RemoteCollection); none, in this thread (LocalCards)
     this.cards = new Cards(this, opts.cards);
     this.loadouts = new Loadouts(this, opts.loadouts);
     this.pledges = new Pledges(this); // the pledge window as a run begins: Skulls spent on what the group starts with

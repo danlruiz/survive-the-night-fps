@@ -70,7 +70,7 @@ export class Vehicles {
     let manuals = 0;
     for (const s of vehicleSpots(w)) {
       const e = this.make(s.kind, s.x, s.z, s.yaw, { tint: s.tint });
-      // the workshop manual (a moped and a bicycle built at a bench: defs.js RECIPES) lies by the first two broken
+      // the workshop manual (a moped and a bicycle built at a bench: defs/crafting.js RECIPES) lies by the first two broken
       // mopeds of the map - it is the mainland's, and found where what it is about stands
       if (e && s.kind === VEH.MOPED && manuals < 2 && !(g.unlocked & (1 << SCHEM_BIT[ITEM.SCHEM_VEHICLES]))) {
         manuals++;

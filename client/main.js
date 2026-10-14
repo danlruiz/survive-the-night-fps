@@ -65,7 +65,7 @@ function onGesture() {
 for (const type of GESTURES) addEventListener(type, onGesture, true);
 
 // ---------------------------------------------------------------- back in after a drop
-// The server holds a dropped player's place for a minute (server/game.js hold): their body stays where it was, safe,
+// The server holds a dropped player's place for a minute (server/game/sessions.js hold): their body stays where it was, safe,
 // and a JOIN from this browser in that time puts them back in it with everything they had. So a drop goes straight
 // back in, trying every few seconds for that minute; and a page reopened on the game it was playing (a crash, the tab
 // closed by accident) does the same. stn.playing: { code, t } of the game being played, renewed while playing.

@@ -1,4 +1,4 @@
-// The RPG: one grenade at a time (WEAPONS[ITEM.RPG], shared/defs.js), flown by the server as a projectile
+// The RPG: one grenade at a time (WEAPONS[ITEM.RPG], shared/weapons/rpg.js), flown by the server as a projectile
 // (Combat.launch, PROJ.ROCKET in Combat.updateProjectiles) until it strikes something, then a blast (Combat.explode).
 // In-process checks against a real Game: the shared sim fires it once and re-arms it by itself; the grenade flies
 // rather than striking at once, bursts on the one it is aimed at and takes the dead round it along, leaves those out of

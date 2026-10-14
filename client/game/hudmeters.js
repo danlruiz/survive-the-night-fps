@@ -1,4 +1,4 @@
-// The HUD's mash meter (ui/hud.js draws it: h.shove 0..1, -1 while it is down, with h.shoveText, h.shoveKey and the
+// The HUD's mash meter (ui/hud/center.js draws it: h.shove 0..1, -1 while it is down, with h.shoveText, h.shoveKey and the
 // presses so far, each of which jolts it). One meter here for each thing that puts it up; the first one up has it.
 // Game.updateHud (game/hud.js) fills them in once a frame.
 import { PIN_FACE } from '../../shared/constants.js';

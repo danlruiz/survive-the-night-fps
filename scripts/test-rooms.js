@@ -1,5 +1,5 @@
-// The lobby and its games (server/rooms.js, server/room-worker.js, the /ws and /api/games routes of server/index.js)
-// against a real server process: quick joins sharing a game, games made public or invite-only, joining by code, a
+// The lobby and its games (server/rooms.js, server/room-worker.js, the /ws and /api/games routes of server/sockets.js
+// and server/http/lobby.js) against a real server process: quick joins sharing a game, games made public or invite-only, joining by code, a
 // full game and a missing one turning a socket away, the leaderboard answered across the thread, a seat handed to a
 // new socket only once the old one's traffic is done, empty games shutting down, and the per-address allowances.
 import { spawn } from 'node:child_process';

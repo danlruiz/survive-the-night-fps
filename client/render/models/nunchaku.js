@@ -1,5 +1,5 @@
 // Nunchucks: the moves, and the two views of them (first person: NunchakuFP, used by weapons.js's ViewModel; third
-// person: NunchakuTP, used by characters.js's SurvivorInstance). The rules - which move, when its blows land, what
+// person: NunchakuTP, used by characters/survivor.js's SurvivorInstance). The rules - which move, when its blows land, what
 // they do - are shared/nunchaku.js and playersim.js; nothing here decides anything. This is what it looks like.
 //
 // One handle is in a hand (the driver's) and goes where that hand's track takes it; the other is on the end of the
@@ -1405,7 +1405,7 @@ const TP_BODY = {
   retreat: [[0.05, 0.5, -0.05, 0.08, 0.02, -0.3, 2], [0.14, -0.4, -0.1, -0.08, 0.03, -0.6, 5], [0.38, -0.25, -0.05, -0.04, 0.02, -0.45, 0]],
   heavy: [[0.07, -0.6, -0.1, -0.1, 0.02, -0.2, 2], [0.14, 0.65, 0.35, 0.14, 0.14, 0.8, 5], [0.3, 0.5, 0.25, 0.1, 0.12, 0.7, 2], [0.74, 0.2, 0.1, 0.04, 0.05, 0.4, 0]],
 };
-/** The body's own clips, rest poses and whirl: FP's, carried to a chest with these proportions (P: characters.js humanP). */
+/** The body's own clips, rest poses and whirl: FP's, carried to a chest with these proportions (P: characters/skeleton.js humanP). */
 export function tpBody(P) {
   const k = (P.uarmLen + P.farmLen) / (FP.L1 + FP.L2);
   const cy = P.shoulderY - P.chestY;
@@ -1456,7 +1456,7 @@ export function tpBody(P) {
 
 const _qc = new THREE.Quaternion(), _pc = new THREE.Vector3(), _sc = new THREE.Vector3();
 export class NunchakuTP {
-  /** geo: { handle, link } (weapons.js getNunchakuGeo(false)); P: the body's proportions. */
+  /** geo: { handle, link } (weapons/nunchaku.js getNunchakuGeo(false)); P: the body's proportions. */
   constructor(geo, material, P) {
     this.body = tpBody(P);
     this.core = new NunchakuCore(this.body);

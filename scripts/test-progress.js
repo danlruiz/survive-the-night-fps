@@ -1,4 +1,4 @@
-// Experience, levels and perks (shared/progress.js, server/progress.js, the XP in server/game.js): the rules on their
+// Experience, levels and perks (shared/progress.js, server/progress.js, the XP in server/game/experience.js): the rules on their
 // own; what a survivor earns in a running game and what they do not (the night's diminishing returns, the wedged dead,
 // a death keeping what was earned); perks in force in the simulation and the server's rules, a pick made during a
 // night waiting for dawn; the client's prediction keeping step with a perk the server set; picking and starting over

@@ -45,7 +45,7 @@ export const ZTYPE = uniqueIds('ZTYPE', {
 //   xp: what killing one is worth (shared/progress.js XP.kinds; XP.kill without it). Every kind that is neither rank and
 //     file (common) nor a boss has one
 //   blood: 'green' for the ones that bleed bile and acid (the impact a bullet makes, the gore a blown-apart one leaves)
-//   lod: the client builds a far copy of its model (client/render/models/characters.js LOD_TYPES)
+//   lod: the client builds a far copy of its model (client/render/models/zombies/index.js LOD_TYPES)
 //   sounds: { loop, growl, fast, fastChance } - SOUND keys and createLoop names (client/game/entities/zombies.js). loop: the
 //     loop it carries ('zombie_idle' when unset, null for none); growl: what it utters now and then (the moan or the
 //     growl when unset, a boss's roar); fast: what it utters instead on the run, fastChance of the time (default 1)

@@ -60,26 +60,29 @@ The kinds of clip found so far, with an example of each:
 
 ## Where everything lives
 
-**First person: `client/render/models/weapons.js`.** The whole viewmodel is here.
+**First person: `client/render/models/weapons.js` and `client/render/models/weapons/`.** `weapons.js` is the
+viewmodel (`ViewModel`, its animations and the world model); every held item is a file of its own in `weapons/`
+(`weapons/index.js` lists them and says what a file holds), with the shapes they are built from in `weapons/parts.js`
+and the hands and arms in `weapons/hands.js`.
 
-- `BUILDERS` and the `build*` functions: each item's model, authored in weapon space. The origin is the right hand's
-  grip and the barrel or blade points along -Z. Guns: the pistol grip runs up +Y through the fist. Melee: the handle
-  runs along Z. Throwables: the long axis is +Y.
-- `HAND_POSES`: every hand pose. Each has `curl` (four fingers by three joint angles), `spread`, `thumb` (two segment
-  directions), and `center` (where the grip sits in the hand: the wrist is placed so this point is on the item's grip).
-  Hand space: the wrist is at the origin, the fingers point along -Y and the palm faces -X. The left hand is the right
-  one mirrored in X. The shared poses (`grip`, `trigger`, `cup`, `support`, `pinch`, `open`, `knife`, `radio`) come
-  first, then the poses fitted to one item each (`ball`, `bottle`, `akSupport`, `wristGrip`, `batR`, `kitHold`,
-  `akMag`, `rackPinch`, ...). `VMArm.hand()` builds a pose's mesh the first time it is shown, so a pose costs nothing
-  until its item is held.
-- `FINGERS`, `PHALANX_R`, `THUMB_MCP`, `getHandGeo`: the hand's geometry. These are exported through `VM_DEBUG` for
-  the grip fitter.
-- `VM`: each item's viewmodel setup. `hip` is the pose at the hip, `rGrip`/`lGrip` are the grip points and hand
+- Each item's `build` (its file in `weapons/`, gathered into `BUILDERS` by `weapons/index.js`): its model, authored in
+  weapon space. The origin is the right hand's grip and the barrel or blade points along -Z. Guns: the pistol grip
+  runs up +Y through the fist. Melee: the handle runs along Z. Throwables: the long axis is +Y.
+- `HAND_POSES` (`weapons/hands.js`): every hand pose. Each has `curl` (four fingers by three joint angles), `spread`,
+  `thumb` (two segment directions), and `center` (where the grip sits in the hand: the wrist is placed so this point
+  is on the item's grip). Hand space: the wrist is at the origin, the fingers point along -Y and the palm faces -X.
+  The left hand is the right one mirrored in X. The shared poses (`grip`, `trigger`, `cup`, `support`, `pinch`,
+  `open`, `knife`, `radio`) are in `hands.js`; a pose fitted to one item (`ball`, `bottle`, `akSupport`, `wristGrip`,
+  `batR`, `akMag`, ...) is in that item's file, under `poses`, and `weapons/index.js` adds it to `HAND_POSES`.
+  `VMArm.hand()` builds a pose's mesh the first time it is shown, so a pose costs nothing until its item is held.
+- `FINGERS`, `PHALANX_R`, `THUMB_MCP`, `getHandGeo` (`weapons/hands.js`): the hand's geometry. These are exported
+  through `weapons.js`'s `VM_DEBUG` for the grip fitter.
+- Each item's `vm` (its file, gathered into `VM`): its viewmodel setup. `hip` is the pose at the hip, `rGrip`/`lGrip` are the grip points and hand
   orientations in weapon space, `rPose` and `lGrip.pose` name the hand poses, `poleR`/`poleL` point the elbows,
   `magPose` is the hand on the magazine in a reload, `swingPoleL` drops the left elbow in a two-handed swing, and
   `sprint`, `recoil` and `talk` are offsets.
-- `SWINGS` (melee keyframes), `_animReload` (every reload), `_animThrow`, `_animUse` and `useItem` (the props being
-  used: kit, tin, meat, drink, each with its own `usePose`).
+- In `weapons.js`: `SWINGS` (melee keyframes), `_animReload` (every reload), `_animThrow`, `_animUse` and `useItem`
+  (the props being used: kit, tin, meat, drink, each with its own `usePose`).
 - The reload hand blend: a reload moves the left hand from the grip to point A, then to point B (`st.a`/`st.b`,
   `st.m`, weight `st.w`). `st.poseA`/`st.poseB` are the hand poses at each point, and the grip centers blend between
   them (`_blendCenter`). `st.arc` sends the hand round something on the way. `st.poleA`/`st.poleB` move the elbow.
@@ -89,10 +92,11 @@ The kinds of clip found so far, with an example of each:
   `s.wallDist` in `ViewModel.update`.
 - `THROW_RELEASE`: the moment of the throw at which the item leaves the hand and the hand opens.
 
-**The wall distance: `client/game/game.js`.** `Game.weaponClearance` casts two short rays from the eye (`WC_RAYS`:
+**The wall distance: `client/game/game/view.js`.** `Game.weaponClearance` casts two short rays from the eye (`WC_RAYS`:
 straight on, and out past the right hand) and passes the distance to `vm.update` as `wallDist`.
 
-**Third person: `client/render/models/characters.js`.** `SurvivorInstance`:
+**Third person: `client/render/models/characters/survivor.js`** (`characters.js` is the door the game comes in by;
+the survivor's built bodies and `solveArms`'s chest numbers are in `characters/survivorrig.js`). `SurvivorInstance`:
 
 - `setWeapon` puts the world model (`createWorldWeapon`) on `mount`, under the right hand. Guns are held barrel along
   the forearm and melee weapons handle through the fist. Throwables are moved out to the palm by their radius
@@ -111,7 +115,8 @@ straight on, and out past the right hand) and passes the distance to `vm.update`
 
 **Ground items: `client/render/models/pickups.js`.** `createPickup` builds each item. Items built in `BUILD` are set
 down on the ground by their lowest vertex (`REST_SINK`, `REST_LIFT`, `REST_AT`). Weapons and throwables are laid on
-their side by `weaponPickup` (`HELD_LAY`), placed by their own vertices.
+their side by `weaponPickup` (or as their file's `lay` says: `PICKUP_LAY`, `weapons/index.js`), placed by their own
+vertices.
 
 **World placement: `shared/world.js`, `shared/rail.js`, and the other place files** (`clinic.js`, `cemetery.js`,
 `fair.js`, `mine.js`):
@@ -227,7 +232,7 @@ through `launchChrome` too.
 | `survey.js` | `clip:survey` | Measures every item in every state: first person, third person, ground items. Writes `shots/clip/survey/here.json` and `.csv`, and prints the counts and the worst frames. `--against <tree or git ref>` measures another build too and prints the worst frame per item in each. `--save-baseline` and `--baseline` gate a PR (exit 1 when a frame gets worse). |
 | `pairs.js` | `clip:pairs` | Before/after panels from two builds with the same camera, pose and clock. Takes a JSON list (see `pairs.example.json`). By default the "before" is a temporary worktree of origin/main. |
 | `game-shots.js` | `clip:game` | Shots in the real game: a built server, admin `/give` and `/tp`, one or two clients. `--before <tree>` composes pairs. See `game-shots.example.json`. |
-| `fit-grip.js` | `clip:fit` | Fits a hand pose to an item's mesh and prints the pose to paste into `HAND_POSES`. |
+| `fit-grip.js` | `clip:fit` | Fits a hand pose to an item's mesh and prints the pose to paste into the item's `poses` (`weapons/<name>.js`). |
 | `props.js` | `clip:props` | World props, trees, boulders and walls inside each other, over many seeds, with the `/tp` to each. |
 | `pickups.js` | `clip:pickups` | Every ground item's lowest point: sunk or floating. |
 | `outfits.js` | `clip:outfits` | Clothes against clothes on the survivors the character creator can make (no browser): a shirt through a vest, pockets through a bib, hair through a hat, a collar through a beard or a ponytail, a hem through the kit on the belt. Each part of a look is tagged as it is built (`MeshBuilder.debugParts`, `people.js` `mb.tag`), and from every vertex of the inner one a ray goes back in along its normal: the outer one crossed within 3 cm is how far it is through. `--looks roster,cover,random:N,hat:` picks the looks; `--save-baseline` / `--baseline` as the survey's. The survey's own `--looks` measures held items and the pack on the same looks (`&look=` in `?hold=`). |
@@ -310,7 +315,7 @@ by hand.
 | `window.__hands` | `{ R, L }`: each hand's grip center (view space) once posed. `pairs.js` reads it to aim at the hand where the before build has it. |
 | `&nk=SCRIPT` | with `?vm=57` (the nunchucks): plays their moves instead of `&act` - `guard`, `draw`, `idle`, `whip`, `backhand`, `eight`, `smash`, `lunge`, `sweep`, `retreat`, `heavy1`..`heavy3`, `combo`, `combo2`, `flourish`, `carry` (`client/sandbox/nk-script.js`). `&t` / `&ts` are seconds into the script. `&hit=flesh\|bone\|wood\|metal\|dirt` lands every blow on that (default: they miss). The other handle and the links are measured with the first (they are the item's meshes); the streak behind them is not. |
 
-Tuning overrides, to try a change without editing weapons.js (the item is `?vm=`'s):
+Tuning overrides, to try a change without editing the item's file (the item is `?vm=`'s):
 
 | Parameter | What it overrides |
 | --- | --- |
@@ -393,7 +398,7 @@ Run the survey again on the items you changed (`--item`), and then on everything
 
 ### 4. Check what shares the change
 
-A hand pose, a grip, an elbow pole, a reload branch (all rifles share one) or a hold category in characters.js is
+A hand pose, a grip, an elbow pole, a reload branch (all rifles share one) or a hold category in `characters/survivor.js` is
 shared by other items. A change for one item can break another. Re-survey all of them, compare against the baseline
 (`--baseline shots/clip/base-before.json`), and look at the frames that moved.
 
@@ -432,9 +437,9 @@ one first; fix the test's assumption, not the world. Do not bump `PROTOCOL_VERSI
 npm run clip:fit -- <item> [--side L] [--act reload --t 0.69]
 ```
 
-Paste the printed pose into `HAND_POSES` under a new name and set it as the item's `rPose` (or `lGrip.pose`, or
-`magPose` for a reload hold). A pose built for a 3 cm handle cannot hold a 6 cm grenade: do not try to tune a shared
-pose until it fits everything. If the fit leaves a finger far out (a loose look) or the thumb was kept, look at it with
+Paste the printed pose into the item's file (`weapons/<name>.js`) under `poses`, with a new name, and set it as the
+item's `rPose` (or `lGrip.pose`, or `magPose` for a reload hold). A pose built for a 3 cm handle cannot hold a 6 cm
+grenade: do not try to tune a shared pose until it fits everything. If the fit leaves a finger far out (a loose look) or the thumb was kept, look at it with
 `&hp=` and try `--search`, `--open`, `--loose`, or `--dy`/`--dz` to slide the grip. A pistol grip needs the hand
 lower, under the trigger guard, with a straight index finger (`--keep 0` on a base whose index is straight).
 
@@ -450,7 +455,7 @@ Fix the hold at the end of the move with the fitter. Change keyframe timing only
 out to the side takes the forearm off the other hand. Try `&pole=` in the sandbox.
 
 **An item drawn over a wall (first person).** The tuck handles this: `TUCK`, `TUCK_GAP` and `TUCK_RANGE` in weapons.js,
-and `WC_RAYS` in game.js. A new kind of item needs a `TUCK` entry. Never draw the viewmodel into the world's depth: it
+and `WC_RAYS` in `client/game/game/view.js`. A new kind of item needs a `TUCK` entry. Never draw the viewmodel into the world's depth: it
 is in its own pass so the world never cuts it.
 
 **Third person, item vs body.** Change the hold in `solveArms`, the mount offset in `setWeapon`, or the constants

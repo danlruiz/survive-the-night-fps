@@ -241,7 +241,7 @@ export class Pause {
     this._syncHints();
   }
 
-  // "Live · Night 3 · dawn in 2:14 · 30 left": the HUD's clock, as it last drew it (hud.js _clock)
+  // "Live · Night 3 · dawn in 2:14 · 30 left": the HUD's clock, as it last drew it (hud/clock.js _clock)
   _syncLive() {
     const c = this.ui.hud.c;
     const parts = [];
@@ -253,7 +253,7 @@ export class Pause {
     if (this.liveTxt.textContent !== t) this.liveTxt.textContent = t;
   }
 
-  // the players as the player list last had them (game.js pushRoster)
+  // the players as the player list last had them (client/game/game/players.js pushRoster)
   get _players() {
     return this.ui.roster.players || [];
   }
@@ -273,7 +273,7 @@ export class Pause {
     this.sub.textContent = parts.join(' · ');
   }
 
-  // what leaving costs (server/game.js removePlayer: the starting kit goes along, what was found on top of it drops
+  // what leaving costs (server/game/sessions.js removePlayer: the starting kit goes along, what was found on top of it drops
   // for the team; the last one out ends the run) and who is down and needs a hand
   _syncLeave() {
     const room = this.room;

@@ -45,7 +45,7 @@ const near = (a, b, tol = CMD_DT * 1.01) => Math.abs(a - b) <= tol;
   const where = Object.entries(LOOT_TABLES).filter(([, t]) => t.some((r) => r[0] === ITEM.NUNCHAKU)).map(([z]) => +z);
   const rows = [...where.map((z) => LOOT_TABLES[z]), CONT_TABLES.duffel].map((t) => t.find((r) => r[0] === ITEM.NUNCHAKU));
   check('found, rarely, where one would be: the summer camp, the school, a duffel bag', where.includes(ZONE.SUMMERCAMP) && where.includes(ZONE.SCHOOL) && rows.every((r) => r && r[1] === 1 && r[2] === 1 && r[3] === 1) && where.length <= 3, `zones ${where.join(',')}`);
-  // the numbers against the other melee weapons (the comment on its row in defs.js says these)
+  // the numbers against the other melee weapons (the comment on its row in shared/weapons/nunchaku.js says these)
   const light = [M.WHIP, M.BACKHAND, M.EIGHT, M.SMASH].map((m) => NK_MOVES[m]);
   const dmg = light.reduce((n, m) => n + m.damage * m.hits.length, 0), time = light.reduce((n, m) => n + m.rate, 0), cost = light.reduce((n, m) => n + m.stamina, 0);
   const dps = (w) => w.damage / w.rate;

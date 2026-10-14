@@ -51,7 +51,7 @@ function flightPlane() {
 }
 
 // Where a survivor sits in the car (its frame: front to -Z): the seat cushions, the driver's first. A seated
-// survivor's hips are SEAT_HIP over their feet (characters.js, the sitting pose), so they are put that far under one.
+// survivor's hips are SEAT_HIP over their feet (characters/survivor.js, the sitting pose), so they are put that far under one.
 const SEATS = (PropModels.DRIVE_CAR_SEATS || [{ x: -0.38, y: 0.44, z: -0.14 }, { x: 0.38, y: 0.44, z: -0.14 }, { x: -0.38, y: 0.46, z: 0.62 }, { x: 0.38, y: 0.46, z: 0.62 }]).map((p) => [p.x, p.y, p.z]);
 const SEAT_HIP = 0.42;
 const WHEEL_R = 0.32;

@@ -42,7 +42,7 @@ export function usedIn(item, unlocked = 0, max = 3) {
 
 // ---------------------------------------------------------------- found in
 // The one thing defs.js does not hold: what a melee hit on a tree, a wreck or a rock gives. Mirrors Game.gatherHit
-// (server/game.js) for the knife everyone starts with, as [item, expected count per hit]; hits = how many a tree or
+// (server/game/blows.js) for the knife everyone starts with, as [item, expected count per hit]; hits = how many a tree or
 // a wreck has in it before it is bare. scripts/test-itemguide.js swings at the server to keep the two in step.
 export const GATHER = [
   { name: 'chop trees', hits: 6, gives: [[ITEM.STICK, 1], [ITEM.WOOD, 0.22], [ITEM.HERB, 0.07]] },

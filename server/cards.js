@@ -69,7 +69,7 @@ const DECK_EVERY = 1; // s: a player's decks go to the database at most this oft
 const CROSSING_OK = new Set([CARDOP.WITHDRAW, CARDOP.FORFEIT, CARDOP.DECK, CARDOP.CLOSE, CARDOP.SYNC]);
 
 // ---------------------------------------------------------------- the link to the collections
-// A game in a worker posts to the network thread (room-worker.js RemoteCards). One made in this thread (the tests,
+// A game in a worker posts to the network thread (room-worker.js RemoteCollection). One made in this thread (the tests,
 // the sims, a plain `new Game()`) keeps them here: LocalCards, a CardService of its own on a store in memory - or one
 // shared with other games (the tests: two games of one server, a game and the one it is handed to).
 export class LocalCards {
@@ -93,7 +93,7 @@ export class LocalCards {
 }
 
 export class Cards {
-  // link: where the collections are kept (RemoteCards in a room's worker); none, a LocalCards
+  // link: where the collections are kept (a RemoteCollection in a room's worker); none, a LocalCards
   constructor(game, link = null) {
     this.game = game;
     this.link = link || new LocalCards();

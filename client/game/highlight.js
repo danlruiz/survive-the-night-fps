@@ -38,7 +38,7 @@ const LOOK = {
   subtle: { px: 1.6, alpha: 0.55, lum: 0.36 },
   strong: { px: 2.6, alpha: 0.85, lum: 0.7 },
 };
-const COLOR = [1.0, 0.92, 0.76]; // warm off-white, the glints' colour (entities.js glintTexture)
+const COLOR = [1.0, 0.92, 0.76]; // warm off-white, the glints' colour (entities/glints.js glintTexture)
 const NIGHT_DIM = 0.3; // this much dimmer at full night, when the screen around it is near black
 const FADE_IN = 0.12; // s
 const FADE_OUT = 0.2; // s

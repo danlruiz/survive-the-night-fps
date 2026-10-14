@@ -1373,7 +1373,7 @@ export class Zombies {
     let bd = Infinity;
     const lone = z.ztype === ZTYPE.LEAPER && humans.length > 1;
     for (const h of humans) {
-      if (g.safe(h)) continue; // (dropped and held, or back and not playing yet: game.js hold, resume)
+      if (g.safe(h)) continue; // (dropped and held, or back and not playing yet: game/sessions.js hold, resume)
       const s = h.state;
       const d = walkDist(g.mineNav, z, s.x, s.z, h.under, Math.hypot(s.x - z.x, s.z - z.z));
       let range = z.horde ? 600 : night ? 55 : 26;

@@ -18,7 +18,7 @@ export let W = WORDS[ACT_NOW];
 export const wordsOf = (act) => WORDS[act] || WORDS[WORLD.ISLAND];
 
 // which supply hint k (global.hints / spots / found) is of: the four single parts, then the fuel cans, each of the last
-// (as shared/defs.js supplyRumours reads them)
+// (as shared/defs/escape.js supplyRumours reads them)
 export const supplyOfHint = (k) => Math.min(k, SUPPLIES.length - 1);
 
 export function setAct(act) {

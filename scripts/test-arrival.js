@@ -1,4 +1,4 @@
-// Nobody is hurt while their page builds a new world (server/game.js newWorldForAll, safe, arrived), on the Game itself.
+// Nobody is hurt while their page builds a new world (server/game/sessions.js newWorldForAll, safe, arrived), on the Game itself.
 //
 // What happened (Oct 2026): straight to the mainland (/map2), a player died while their page was still building it -
 // nothing on their screen. The page builds a world in one go, and the mainland takes seconds (more on a slow

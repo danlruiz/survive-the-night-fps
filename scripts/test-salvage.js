@@ -1,4 +1,4 @@
-// Salvage: a survivor tears something down for what it is made of (ACT.SALVAGE, the SALVAGE table in shared/defs.js).
+// Salvage: a survivor tears something down for what it is made of (ACT.SALVAGE, the SALVAGE table in shared/defs/crafting.js).
 // In-process checks against a real Game, with the packets written as Connection.action writes them: from the backpack
 // (part of a stack, or a weapon with rounds in it), from a weapon slot, from what is worn; what cannot be torn down is
 // refused; what does not fit lands at their feet; the table never gives back as much as a recipe takes; and the starting

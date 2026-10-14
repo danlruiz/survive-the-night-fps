@@ -1,7 +1,7 @@
 // What a kind of the dead does on the client beyond what every one of them does (entities/zombies.js): how it sounds,
 // how it steps, and the few hooks of its own - the client twin of server/specials/. A kind with nothing here is drawn,
 // heard and stepped like a walker. What is the same on both ends (how big it is, its blood, its loop and its growl)
-// is on its ZOMBIE_DEFS row (shared/defs.js), not here.
+// is on its ZOMBIE_DEFS row (shared/defs/zombies.js), not here.
 //
 // Voice: firstGrowl / growlGap [min, spread] s before its first growl and between two (Math.random() * spread on top);
 //   pause [chance, s]: now and then a longer silence after one; quicken: the gap is this much shorter (a dog's snarls

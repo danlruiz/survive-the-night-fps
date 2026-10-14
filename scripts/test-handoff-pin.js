@@ -1,5 +1,5 @@
 // A game the new build cannot carry on is carried on by the build that saved it (server/builds.js, rooms.js
-// Lobby.afterFailed / Room pin, index.js serving that build's page and files). docs/deploys.md.
+// Lobby.afterFailed / room.js Room pin, http/static.js serving that build's page and files). docs/deploys.md.
 //
 // Builds before this one are made here: copies of this tree's server/ and shared/, each changed in one way a save
 // cannot survive - another map of the same seed (the stalled train's toolbox a metre off), another state version, an

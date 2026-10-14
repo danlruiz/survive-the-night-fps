@@ -2,7 +2,7 @@
 // on a car, a bullet in a fence post, a grenade beside a barn: the surface that was struck (from the collider's tag,
 // set where the world is built: worldkit.js), the kind of blow (from the weapon), and the mark, the burst of bits
 // and the sound that pair makes. Pure data and pure functions: the client draws from it (render/marks.js,
-// render/effects.js strike), scripts/test-wrecks.js holds it.
+// render/strikefx.js strike), scripts/test-wrecks.js holds it.
 import { STRUCT_DEFS } from './defs.js';
 import { PROPS } from './props.js';
 import { WEAPON_LIST } from './weapons/index.js';

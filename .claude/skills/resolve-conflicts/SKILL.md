@@ -12,8 +12,8 @@ meet, so it is a cheap moment to ask whether the code or the game should be shap
 ## 1. Read the guide
 
 **Read [docs/merge-conflicts.md](../../../docs/merge-conflicts.md) now.** It lists the smells (numbered 1 to 10),
-how to resolve each, and what #354 (weapons in a file each) and #355 (specials in a file each) moved. Every rule
-below points into it.
+how to resolve each, and what #354 (weapons in a file each), #355 (specials in a file each) and the October cleanup
+(the big files split by responsibility) moved. Every rule below points into it.
 
 ## 2. Merge main in
 
@@ -35,7 +35,7 @@ For every conflicted hunk, name its smell from the guide before touching it:
 | `PROTOCOL_VERSION` | 5 | main's number plus one; keep main's history note and add the branch's under the new number |
 | The old one-line `test` script in `package.json` | fixed | take main's line; `npm test` finds `scripts/test-*.js` by name |
 | A recipe id that is an array index (`ACT.CRAFT, 43`) | fixed by #354 | the recipe's id is its item (`ACT.CRAFT, ITEM.X`) |
-| The branch changed code that main moved (weapon rows out of `defs.js`, specials out of `zombies.js`, wave weights out of `game.js`) | 9 | make the branch's change by hand in the code's new home; drop the old copy |
+| The branch changed code that main moved (weapon rows out of `defs.js`, specials out of `zombies.js`, wave weights out of `game.js`; the October cleanup's splits, listed in the guide) | 9 | make the branch's change by hand in the code's new home; drop the old copy |
 | Two features changed the same logic in a big file | 8 | read both sides whole; this is the one kind that can really clash |
 | Generated files (`merge-dist/`, a built bundle) | 10 | never hand-merge; rebuild or drop |
 | Both sides tuned the same number | design | take the numbers that make sense together and say so in the PR's Metrics table |
@@ -47,8 +47,10 @@ If two features clash in what the player gets (not just in the text), do not pic
 A clean merge can still be wrong. Before committing:
 
 - **Kind lists (smell 4).** If the branch adds a zombie kind or main added one, grep for a sibling kind
-  (`rg 'ZTYPE\.SMOKER'`) and make sure the new kind is in every list: green blood, Ember/Blackout scaling, XP, wave
-  weights, bestiary, client tables. Git only shows the lists both sides touched.
+  (`rg 'ZTYPE\.SMOKER'`) and make sure the new kind is everywhere it should be: its `ZOMBIE_DEFS` row's fields (green
+  blood, Ember/Blackout scaling, XP, wave weight, sounds, lod), the bestiary, its specials file and the client's
+  tables (its model in `client/render/models/zombies/`, `client/game/entities/zombiekinds.js`, motifs and sound
+  banks). Git only shows the lists both sides touched.
 - **Moved code (smell 9).** `rg` the branch's new names. Each should live in one place, and that place should exist
   on main.
 - **Renumbered ids.** `rg` for the old number as well as the name.

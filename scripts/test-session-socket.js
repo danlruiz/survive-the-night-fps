@@ -1,4 +1,4 @@
-// A signed-in player's game socket (server/index.js, /ws), against a real server process on a PGlite database of its
+// A signed-in player's game socket (server/sockets.js, /ws), against a real server process on a PGlite database of its
 // own. A handshake that carries a session cookie has its session looked up in the database before the socket gets its
 // seat, and that wait once cost the socket: the upgrade was done from res.cork() when the lookup came back, which in
 // uWebSockets.js v20.52 closes most such sockets straight after they open (close code 1006, 0 ms: its cork() reads the

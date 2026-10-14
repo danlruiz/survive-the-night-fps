@@ -170,7 +170,7 @@ export const methods = {
     p.boardT = this.time;
     const here = new Set();
     for (const q of this.players.values()) if (q.rec) here.add(q.rec);
-    // a game in a room's worker has its records on the network thread, which answers the player itself (rooms.js)
+    // a game in a room's worker has its records on the network thread, which answers the player itself (room.js)
     if (this.records.remote) return this.records.sendBoard(p.session.conn.slot, p.rec, here);
     const { total, rows } = this.records.board(p.rec, here);
     const w = new Writer(1024);

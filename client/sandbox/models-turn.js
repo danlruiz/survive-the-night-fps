@@ -1,7 +1,7 @@
 // Turnaround sheets (loaded by models-test.js when ?turn= is present): characters frozen in a pose and seen from
 // several sides at once, one row per subject, for before/after comparisons of the character models. Uses nothing but
-// createSurvivor(seed) / createZombie(type, seed), so the same page works on an older tree (scripts/clip/turnaround.js
-// lends it there).
+// createSurvivor(seed) / createZombie(type, seed), so the same page works on an older tree (scripts/clip/lib.js
+// lendSandbox lends it there).
 //   ?turn=LIST       subjects, comma separated: s:N a survivor (seed N), sz:N the same survivor turned, z:T[:SEED] a
 //                    zombie of ZTYPE T (the seed picks its variant); l:CODE a custom survivor (the character creator:
 //                    shared/appearance.js lookCode), lz:CODE turned; lr:N a made-up one (randomLook, seed N), lrz:N turned

@@ -1,4 +1,4 @@
-// Coming back into a game with seats free while the old socket is still open on the server (server/game.js handleJoin,
+// Coming back into a game with seats free while the old socket is still open on the server (server/game/sessions.js handleJoin,
 // client/main.js rejoin), against a real server process. The browser notices a lost connection long before the server
 // does (its idle timeout), and goes straight back in; that join says it is coming back (?back=1, Connection.url). It
 // must be given its own body - where it was, with what it had - and the stale socket let go, not be made a second, new

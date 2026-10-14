@@ -50,7 +50,7 @@ const _qU = new THREE.Quaternion();
 const _qL = new THREE.Quaternion();
 const _qTmp = new THREE.Quaternion();
 // weapon mount under the right hand: guns/throwables Rx(-90deg) (barrel along the forearm),
-// melee identity (handle through the fist, blade out of the thumb side) - see weapons.js conventions
+// melee identity (handle through the fist, blade out of the thumb side) - see the weapon space conventions in weapons/parts.js
 const _qMountInvGun = new THREE.Quaternion().setFromEuler(new THREE.Euler(HALF, 0, 0));
 const _qMountInvMelee = new THREE.Quaternion();
 const _e = new THREE.Euler();

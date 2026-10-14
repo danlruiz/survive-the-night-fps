@@ -35,7 +35,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   heardRings: true, // a ring on the minimap, and the dead it woke lit, every time your noise wakes the dead (ui/heard.js); off: once for each kind of noise
   hudScale: 1, // the HUD's size (ui/hud.js, ux-hud.css): a short window at this size gets the compact layout
   // Accessibility
-  cameraShake: 1, // x the view's shake (game.js: explosions, a tank's footfalls, hits, crashes); 0 holds it still
+  cameraShake: 1, // x the view's shake (client/game/game/: explosions, a tank's footfalls, hits, crashes); 0 holds it still
   viewBob: true, // the view rising and falling with each stride (and riding the water, afloat)
   reduceFlashes: false, // muzzle flashes, blasts and lightning drawn far dimmer (render/comfort.js)
   aimMode: 'hold', // 'toggle': a press of the key latches the button on, the next lets go (game/input.js)

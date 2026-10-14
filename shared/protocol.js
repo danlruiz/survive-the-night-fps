@@ -140,8 +140,8 @@ export const ACT = uniqueIds('ACT', {
   HANDCAR: 29, // u8 car (handcar.js): get onto that handcar on the railway
   GEN_SWITCH: 23, // u16 entity id: a generator's switch, on or off ([E] held; a tap is ACT.INTERACT and pours fuel)
   WORN: 30, // u8 which (WORN), u8 what (WORN_DO): the armor or backpack being worn taken off into the grid, dropped or salvaged
-  SALVAGE: 32, // u8 from (SALVAGE_FROM), u16 count: tear that many down for what they are made of (SALVAGE in defs.js)
-  DROP_AMMO: 33, // u8 calibre (AMMO in defs.js), u16 count (0 = all): rounds out of that reserve onto the ground
+  SALVAGE: 32, // u8 from (SALVAGE_FROM), u16 count: tear that many down for what they are made of (SALVAGE in defs/crafting.js)
+  DROP_AMMO: 33, // u8 calibre (AMMO in defs/itemdefs.js), u16 count (0 = all): rounds out of that reserve onto the ground
   UNEQUIP: 34, // u8 weapon slot, u8 backpack index (255 = the first free one): that weapon out of its slot into the backpack
   UNDO_DROP: 35, // (nothing): the last thing this survivor dropped picked up again, a few seconds after (the inventory's Undo)
   SKIP: 36, // (nothing): skip the crossing's cutscene, once everyone connected has asked (PHASE.CROSSING, shared/acts.js)
@@ -189,10 +189,10 @@ export const SIPHON_ID = 0xffdf; // the target of a HOLD.SIPHON (the wreck is na
 // ENDED_UPDATE, ENDED_MAP: the game that went by that code was ended by a deploy - the new server could not carry it
 // over (server/handoff.js), ENDED_MAP because the update makes another map of its seed. It does not come back: the
 // client says so once and stops asking (client/net/comeback.js). A client from before these shows 'Rejected'.
-export const REJECT_REASON = { FULL: 1, VERSION: 2, BAD_NAME: 3, NO_GAME: 4, ENDED_UPDATE: 5, ENDED_MAP: 6, MAP1_FIRST: 7 }; // MAP1_FIRST: a game that starts on the mainland, for a player who has not beaten map 1 (server/index.js map1Gate)
+export const REJECT_REASON = { FULL: 1, VERSION: 2, BAD_NAME: 3, NO_GAME: 4, ENDED_UPDATE: 5, ENDED_MAP: 6, MAP1_FIRST: 7 }; // MAP1_FIRST: a game that starts on the mainland, for a player who has not beaten map 1 (server/sockets.js map1Gate)
 uniqueIds('REJECT_REASON', REJECT_REASON); // (a statement of its own: scripts/test-handoff-pin.js edits the line above)
 // The close code a client's socket goes with when the player pressed "Leave game". Any other close is a drop, and the
-// game holds the player's place for REJOIN_GRACE seconds (server/game.js hold).
+// game holds the player's place for REJOIN_GRACE seconds (server/game/sessions.js hold).
 export const LEFT_CODE = 4001;
 // ...and the one the server closes every socket of a game with when that game moves to the next server on a deploy
 // (server/handoff.js): the client keeps the game on screen and joins the same code again (client/main.js moveBack).
@@ -714,7 +714,7 @@ export const PFLAG = uniqueIds('PFLAG', {
   BACKPACK: 1024, // wearing a backpack (ITEM.BACKPACK): the third-person model carries it
 });
 // PLAYER field 9: what else shows of them. EARS: both hands clapped over the ears (s.ears: a screecher's scream).
-// BURNING: set alight by a flammer (PLAYER_FIRE in defs.js), until it is put out
+// BURNING: set alight by a flammer (PLAYER_FIRE in defs/fire.js), until it is put out
 export const PSTAT = uniqueIds('PSTAT', { EARS: 1, BURNING: 2 });
 // ...and in the five bits above them, the seat of a ride the player sits in + 1 (fair.js; 0: on foot)
 export const PRIDE_SHIFT = 11;
@@ -728,7 +728,7 @@ export const ZSTATUS = uniqueIds('ZSTATUS', { BURNING: 1, BURST: 2, MARKED: 4 })
 export const IF = { POS: 0, COUNT: 1 };
 // STRUCTURE fields
 // BURN (u16): a torch's or a campfire's flame, the server tick it burns out at (low 16 bits), 0 when it is out. Any
-// other piece: 1 while it is on fire (STRUCT_FIRE in defs.js), 0 when it is not
+// other piece: 1 while it is on fire (STRUCT_FIRE in defs/fire.js), 0 when it is not
 export const SF = { POS: 0, HP: 1, STATE: 2, BURN: 3 };
 // PROJECTILE fields
 export const JF = { POS: 0 };

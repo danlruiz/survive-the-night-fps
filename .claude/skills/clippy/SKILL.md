@@ -1,6 +1,6 @@
 ---
 name: clippy
-description: Build or change a Survive The Night model so nothing clips. Covers first-person hands and held items, hand poses, reload, swing and throw moves, third-person holds, worn gear, ground pickups, props, and where the world places them. Use before writing or editing anything in client/render/models/, HAND_POSES or VM in weapons.js, shared/props.js, or prop placement in shared/world.js, shared/rail.js and the place files (clinic, cemetery, fair, mine). Also use when asked about clipping, hands through guns, or items sunk into the ground.
+description: Build or change a Survive The Night model so nothing clips. Covers first-person hands and held items, hand poses, reload, swing and throw moves, third-person holds, worn gear, ground pickups, props, and where the world places them. Use before writing or editing anything in client/render/models/ (a held item's file in weapons/, its vm and poses, HAND_POSES in weapons/hands.js), shared/props.js, or prop placement in shared/world.js, shared/rail.js and the place files (clinic, cemetery, fair, mine). Also use when asked about clipping, hands through guns, or items sunk into the ground.
 ---
 
 # Clippy
@@ -13,8 +13,9 @@ description: Build or change a Survive The Night model so nothing clips. Covers 
    category or placement rule):
    `npm run clip:survey -- --save-baseline shots/clip/base-before.json`.
 3. **Build by the rules.** For each new hand on an item, start from the nearest shared pose, then run
-   `npm run clip:fit -- <item> [--side L] [--act reload --t <s>]`. Paste the printed pose into `HAND_POSES` under a
-   new name and point the item's `VM` entry at it. Never tune a shared pose to fit one item, and never pose by eye.
+   `npm run clip:fit -- <item> [--side L] [--act reload --t <s>]`. Paste the printed pose into the item's file
+   (`client/render/models/weapons/<name>.js`, its `poses`) under a new name and point its `vm` entry at it. Never tune
+   a shared pose to fit one item, and never pose by eye.
 4. **Measure** what you touched:
    - held items: `npm run clip:survey -- --item <name>`
    - after a shared change: `npm run clip:survey -- --baseline shots/clip/base-before.json`

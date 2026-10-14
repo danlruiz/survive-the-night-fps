@@ -1217,7 +1217,7 @@ const beside = (game, p, e, side = -1, off = 0.9) => {
   const c2 = g2.players.get(c.id), a2 = g2.players.get(a.id);
   for (let i = 0; i < 2 * SEC; i++) g2.update();
   check('a deploy in the middle of a ride: every vehicle comes back as it was, where it was', !!same, car2 ? `${g2.vehicles.list.length} vehicles, the car at ${f1(car2.x)}, ${f1(car2.z)} with ${f1(car2.fuel)} Fuel` : 'the car is gone');
-  // (a game brought over waits, frozen, until somebody is back: server/game.js frozen, HANDOFF_FREEZE)
+  // (a game brought over waits, frozen, until somebody is back: server/game/sessions.js frozen, HANDOFF_FREEZE)
   const x2 = car2.x, z2 = car2.z;
   check('...frozen until somebody is back: the car stands where the save had it, everybody in their seat of it', g2.frozen() && car2.x === x2 && car2.z === z2 && car2.seats[0] === c2.id && c2.state.drive === car2.id && a2.state.pass === car2.id, `seats ${car2.seats.join(' ')}`);
   const sess = g2.onOpen({ send() {} });

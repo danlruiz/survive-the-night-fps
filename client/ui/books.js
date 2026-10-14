@@ -1,5 +1,5 @@
 // The two books (the achievements page and the bestiary) and what they put in play (issue #220):
-//   - what the bestiary says of a kind at a glance, worked out from its numbers (shared/defs.js ZOMBIE_DEFS): a danger
+//   - what the bestiary says of a kind at a glance, worked out from its numbers (shared/defs/zombies.js ZOMBIE_DEFS): a danger
 //     level, the facts (health, blow, pace against yours, reach, what it does to walls), "beat it" and "watch for" chips
 //     and the first night it can come
 //   - the counters closest to unlocking, and each lifetime count's next step

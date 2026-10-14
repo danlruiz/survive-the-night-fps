@@ -55,7 +55,7 @@ export function enclosure(x, z, structs, r) {
   return { n, cover: c / BINS };
 }
 
-// Inside the walls or not, with the hysteresis above. update() once per probe (game.js, every 0.2 s).
+// Inside the walls or not, with the hysteresis above. update() once per probe (client/game/game/surroundings.js, every 0.2 s).
 export class HomeSense {
   constructor() {
     this.home = false;

@@ -143,7 +143,7 @@ export function zBat(sr, rng) {
   return finish(out, sr);
 }
 // a bat's wings, leather beating the air: a few quick beats, each a soft low whump with a papery flutter on its edge,
-// so the ones coming in can be heard before they are seen (entities.js plays it over and over while one flies near)
+// so the ones coming in can be heard before they are seen (entities/zombies.js plays it over and over while one flies near)
 export function batFlap(sr, rng) {
   const beats = 3 + Math.floor(rng() * 2);
   const gap = rrange(rng, 0.085, 0.11);

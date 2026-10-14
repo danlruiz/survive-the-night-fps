@@ -739,7 +739,7 @@ const strike = async (a, b) => {
 await service.close();
 
 // ---------------------------------------------------------------- a real server
-// The game in its worker (RemoteCards), the network thread (rooms.js -> CardService) and the database (PGlite): two
+// The game in its worker (RemoteCollection), the network thread (room.js -> CardService) and the database (PGlite): two
 // players over WebSockets open packs, bet, and the bets are paid; the server goes down (its finds written) and comes
 // back up, and what they won is still theirs.
 const freePort = () =>

@@ -4,7 +4,7 @@
 // A struck thing is an exciter - the knock of the weapon, a few milliseconds of noise shaped by how hard and how
 // sharp it is - into a bank of modes: sheet steel rings low and short with a rattle after it, a blade rings high and
 // long, stone hardly rings at all and leaves grit, earth and cloth and rubber only thud. The recorded impacts
-// (audio.js R_*) are laid over these where there is one; these give each weapon its own voice under it.
+// (sound-defs.js R_*) are laid over these where there is one; these give each weapon its own voice under it.
 import { TAU, ModeBank, Biquad, Pink, alloc, finish, softclip } from './dsp.js';
 import { HI, MID } from './synth-blocks.js';
 

@@ -9,7 +9,7 @@ import { bindLabel } from '../../game/binds.js';
 import { shortName } from '../iteminfo.js';
 
 const SLOT_LABELS = ['Primary', 'Pistol', 'Melee', 'Throwable', 'Build tool'];
-// The order [H] takes heals in (Game.quickHeal in game/game.js: change the two together): the big ones first when low
+// The order [H] takes heals in (Game.quickHeal in game/game/inventory.js: change the two together): the big ones first when low
 const HEAL_ORDER = [ITEM.BANDAGE, ITEM.TUNA, ITEM.VENISON, ITEM.PAINKILLERS, ITEM.MEDKIT];
 const HEAL_ORDER_LOW = [ITEM.MEDKIT, ITEM.VENISON, ITEM.BANDAGE, ITEM.TUNA, ITEM.PAINKILLERS];
 const HEAL_LOW = 45;

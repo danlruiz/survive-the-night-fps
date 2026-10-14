@@ -1,4 +1,4 @@
-// Portraits of the dead: the game's own models (models/characters.js createZombie), posed standing and framed whole by
+// Portraits of the dead: the game's own models (models/characters/zombie.js createZombie), posed standing and framed whole by
 // a small WebGL renderer, kept as images for as long as the page lasts. Two pages show them: the bestiary [J]
 // (ui/bestiary.js: drawPortraits, a clear one and the dark smudge of a kind not seen yet) and Dead Hand's cards
 // (ui/cardart.js, which lends a MonsterStage its own renderer and reads a whole batch back at once). One cache for
