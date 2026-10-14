@@ -19,6 +19,7 @@ import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
 import { bestiaryView, onBestiary, onSeen } from '../net/bestiary.js';
 import { GROUP_TAG, kindFacts, dangerOf, firstNight, byFirstNight, dangerPips, chips } from './books.js';
+import { keyHint } from './keycap.js';
 
 // ---------------------------------------------------------------- the book
 const FILTERS = [
@@ -150,12 +151,7 @@ export class Bestiary {
     for (const [k, t] of [
       [() => bindLabel('bestiary'), 'close'],
       ['Esc', 'back / close'],
-    ]) {
-      const s = el('span', 'gh', foot);
-      if (typeof k === 'function') liveText(el('span', 'kbd sm', s), k);
-      else el('span', 'kbd sm', s, k);
-      el('span', '', s, t);
-    }
+    ]) keyHint(foot, 'gh', k, t);
 
     onBestiary(() => this.open && this.render());
     onSeen((list) => {

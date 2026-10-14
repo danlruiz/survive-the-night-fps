@@ -5,6 +5,7 @@ import { planCost } from '../../shared/autocraft.js';
 import { el, svgEl } from './dom.js';
 import { structIcon, itemIcon, glyph } from './icons.js';
 import { liveText, bindLabel, bindPair, hasBind } from '../game/binds.js';
+import { keyHint } from './keycap.js';
 
 // the segment of the ring a pointer offset (screen px from the centre, y down) points at: 0 straight up, clockwise
 export function radialIndex(x, y, n = STRUCT_ORDER.length) {
@@ -55,11 +56,7 @@ export class BuildMenu {
     this.costIngs = [];
     const hint = (pairs) => {
       const row = el('div', 'build-hint', this.root);
-      for (const [k, t] of pairs) {
-        const s = el('span', 'bh', row);
-        liveText(el('span', 'kbd sm', s), k);
-        el('span', '', s, t);
-      }
+      for (const [k, t] of pairs) keyHint(row, 'bh', k, t);
       return row;
     };
     this.hintIdle = hint([
@@ -115,11 +112,7 @@ export class BuildMenu {
     for (const [k, t] of [
       [() => bindPair('fire'), 'pick'],
       [() => bindPair('aim') + ' / Esc', 'close'],
-    ]) {
-      const s = el('span', 'bh', legend);
-      liveText(el('span', 'kbd sm', s), k);
-      el('span', '', s, t);
-    }
+    ]) keyHint(legend, 'bh', k, t);
     this.key = '';
   }
 

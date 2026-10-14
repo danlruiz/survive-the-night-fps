@@ -20,12 +20,13 @@ import { SUPPLIES, SUPPLY_NEED, W } from '../game/act.js'; // (this act's)
 import { el, svgEl, lsGet, lsSet, button } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { renderMapCanvas, renderSeaCanvas, MAP_PX } from './mapcanvas.js';
-import { bindLabel, liveText } from '../game/binds.js';
+import { bindLabel } from '../game/binds.js';
 import { ScreenTabs, screenCame } from './screentabs.js';
 import { badge, setBadge, initial, fmtDist, dirOf, gridRef, placeAt, PING_WORD } from './mapmarks.js';
 import { addMethods } from './mixin.js';
 import { mapPanelMethods } from './mappanel.js';
 import { mapViewMethods, MAX_ZOOM } from './mapview.js';
+import { keyHint } from './keycap.js';
 
 const VEH_LABEL = { 1: 'moped', 2: 'car', 3: 'bicycle' }; // (shared/vehicles.js VEH)
 const TEAM_BESIDE = 14; // m: a teammate's waypoint on your own waypoint's spot is drawn this far east of it
@@ -142,12 +143,7 @@ export class MapScreen {
         ['Space', 'back to me'],
         [() => bindLabel('map'), 'close'], // (keybinds, game/binds.js; X, R and Space are the map's own)
         [() => bindLabel('ping'), 'ping (in game)'],
-      ]) {
-        const s = el('span', 'gh', box);
-        if (typeof k === 'function') liveText(el('span', 'kbd sm', s), k);
-        else el('span', 'kbd sm', s, k);
-        el('span', '', s, t);
-      }
+      ]) keyHint(box, 'gh', k, t);
     }
 
     this.world = null;

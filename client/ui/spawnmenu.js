@@ -9,6 +9,7 @@
 import { ITEM, ITEM_DEFS, AMMO_MAX, ZTYPE, ZOMBIE_DEFS } from '../../shared/defs.js';
 import { el, svgEl, lsGet, lsSet, replay, iconButton, button } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
+import { keyHint } from './keycap.js';
 
 // (a fixed key, not a keybind: the menu is not everybody's, so it has no place in the settings' list)
 export const SPAWN_KEY = 'Backquote';
@@ -257,11 +258,7 @@ export class SpawnMenu {
       ['Shift+Enter', 'spawn, stay open'],
       ['Tab', 'category'],
       ['` / Esc', 'close'],
-    ]) {
-      const s = el('span', 'gh', keys);
-      el('span', 'kbd sm', s, k);
-      el('span', '', s, t);
-    }
+    ]) keyHint(keys, 'gh', k, t);
 
     // the search box keeps the keys: a click on a row, a category or a count never takes the focus off it
     for (const n of [this.list, this.side, qty]) n.addEventListener('mousedown', (e) => e.preventDefault());

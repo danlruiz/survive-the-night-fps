@@ -10,8 +10,9 @@
 import { BOARD_STATS, BOARD_ORDER, BOARD_TOP, boardSort } from '../../shared/protocol.js';
 import { el, svgEl, lsGet, lsSet, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
-import { bindLabel, liveText } from '../game/binds.js';
+import { bindLabel } from '../game/binds.js';
 import { SheetTabs, undock, sheetLeft, sheetCame } from './sheet.js';
+import { keyHint } from './keycap.js';
 
 const STORE = 'stn.board'; // 'all:nights': the list and the column last looked at
 // per stat: column head, its glyph, what it counts
@@ -122,12 +123,9 @@ export class Leaderboard {
       ['Esc', 'close', true],
       ['LMB', 'sort by a column'],
     ]) {
-      const s = el('span', 'gh', keys);
+      const s = keyHint(keys, 'gh', k, t);
       if (lobbyOnly) this.lobbyCloseHint = s;
       else if (typeof k === 'function') this.gameCloseHint = s;
-      if (typeof k === 'function') liveText(el('span', 'kbd sm', s), k);
-      else el('span', 'kbd sm', s, k);
-      el('span', '', s, t);
     }
     this.lobbyCloseHint.hidden = true;
     this._render();
