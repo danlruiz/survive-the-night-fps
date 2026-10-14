@@ -3,6 +3,7 @@
 // continuous emitters (campfire, torches, molotov fires, acid pools, supply-drop smoke).
 import * as THREE from 'three';
 import { IMPACT } from '../../shared/defs.js';
+import { lerp } from '../../shared/rng.js';
 import { getTexture } from './textures.js';
 import { comfort } from './comfort.js';
 import { TEX, LIT, buildAtlas, ParticlePool, DecalPool } from './particles.js';
@@ -18,7 +19,6 @@ const isSpot = (o) => o.isSpotLight;
 // life * rise m high: 84 m) and growing from size0 to size1 m across as it leans with the wind. 21 particles a column.
 const COLUMN = { rate: 0.5, life: 42, rise: 2, size0: 5, size1: 34, alpha: 0.6, wind: [0.9, 0.35] };
 const BLAZE_SEEN = 260; // m: a building fire's flames are emitted for an eye this close
-const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Effects {
   constructor(scene, vmScene, world) {

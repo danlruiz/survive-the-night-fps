@@ -6,9 +6,9 @@
 // of those skins. Every solid goes through shell(), which closes it and turns its faces out.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { lerp } from '../../../shared/rng.js';
 
 const PI = Math.PI;
-export const lerp = (a, b, t) => a + (b - a) * t;
 export const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 export const smooth = (a, b, x) => {
   const t = clamp01((x - a) / (b - a));

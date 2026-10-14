@@ -2,9 +2,10 @@
 // twin the run ends in (here), and the singles that never got away (lightplane.js). Builders as in props.js: (b, r, v)
 // with b a MeshBuilder, r a seeded rng, v the variant; origin at ground centre of the footprint, nose to -Z, the
 // pilot's left at -X. What they are built with is aircraftkit.js.
+import { lerp } from '../../../shared/rng.js';
 import { MeshBuilder, partsToGroup, makeRng } from '../materials.js';
 import { label, weeds } from './propkit.js';
-import { DULL, DIRT, lerp, clamp01, smooth, sub, norm, tint, shell, turn, makeBody, skinPatch, onTh, onSide, band, hoop, outlineSide, skinShape, roundRect, FOIL_COARSE, lifting, panel, surfPatch, blade, acWheel, drum } from './aircraftkit.js';
+import { DULL, DIRT, clamp01, smooth, sub, norm, tint, shell, turn, makeBody, skinPatch, onTh, onSide, band, hoop, outlineSide, skinShape, roundRect, FOIL_COARSE, lifting, panel, surfPatch, blade, acWheel, drum } from './aircraftkit.js';
 import { LP, LIGHT, lightWingAt, LWINGS, LTAILS, LFINS, lightPlane } from './lightplane.js';
 
 const PI = Math.PI;

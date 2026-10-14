@@ -3,6 +3,7 @@
 // Trees come in two LODs: `parts` (near) and `far` (fewer cards / sides), cross-faded by Foliage.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { lerp } from '../../../shared/rng.js';
 import { MAT, MeshBuilder, makeRng, vegetationTime } from '../materials.js';
 import { vegFarMaterial, vegStaticMaterial } from '../vegshading.js';
 
@@ -11,7 +12,6 @@ export { vegetationTime };
 const V3 = THREE.Vector3;
 const UP = new V3(0, 1, 0);
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (a, b, x) => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);

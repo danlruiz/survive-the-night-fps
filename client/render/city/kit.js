@@ -25,7 +25,6 @@ export const rngOf = (seed) => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 };
-export const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------------ a face of a building
 // The face of the box [x0, x1] x [z0, z1] whose outward normal is (nx, nz): where its left end is (seen from

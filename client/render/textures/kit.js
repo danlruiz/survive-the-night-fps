@@ -1,5 +1,6 @@
 // What the texture generators (client/render/textures/*.js) paint with: seeded noise, the canvas and raw-pixel
 // helpers, and the strokes, stains and fields several of them share.
+import { lerp } from '../../../shared/rng.js';
 
 // ------------------------------------------------------------------ math / noise
 export function rngf(seed) {
@@ -12,7 +13,7 @@ export function rngf(seed) {
   };
 }
 export const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
-export const lerp = (a, b, t) => a + (b - a) * t;
+export { lerp };
 export const sstep = (e0, e1, x) => {
   const t = clamp((x - e0) / (e1 - e0));
   return t * t * (3 - 2 * t);

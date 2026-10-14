@@ -1,6 +1,7 @@
 // The faces of a building of the city (citykit.js): its storeys' walls, the window openings cut in them, the glass
 // curtain of an office tower, and what runs up the whole height of it.
-import { TIER, WHITE, CEIL_N, hash, lerp, faceOf, FACES, fp, wallQuad, faceBox, decal } from './kit.js';
+import { lerp } from '../../../shared/rng.js';
+import { TIER, WHITE, CEIL_N, hash, faceOf, FACES, fp, wallQuad, faceBox, decal } from './kit.js';
 
 const CURTAIN = [[0.6, 0.56, 0.44], [0.42, 0.5, 0.5], [0.62, 0.42, 0.36], [0.7, 0.7, 0.66]];
 

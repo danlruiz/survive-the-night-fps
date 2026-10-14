@@ -10,6 +10,7 @@
 // the top of the roadway, z is across it. Nothing here has a collider: nobody walks on the bridge.
 import * as THREE from 'three';
 import { BRIDGE, DAMAGED } from '../../shared/bridge.js';
+import { lerp } from '../../shared/rng.js';
 import { MeshBuilder, partsToGroup } from './materials.js';
 import { createProp } from './models/props.js';
 
@@ -23,7 +24,6 @@ const CHORD = 0.5; // a chord's section
 const POST = 0.34;
 const KERB = 0.28;
 const PIER_FOOT = 22; // a pier goes this far down from the roadway (the sea bed is well under the water line)
-const lerp = (a, b, t) => a + (b - a) * t;
 const hash = (n) => {
   const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return s - Math.floor(s);
