@@ -60,8 +60,8 @@ client/      three.js client (Vite root)
   net/        connection, snapshot decode, interpolation, prediction
   game/       client game state, entity views, input, weather schedule (weather.js)
   render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures (the generators: textures/),
-              materials, models/ (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md
-              before changing them)
+              materials (their shading: vegshading.js, surfaceshading.js), models/ (models, the viewmodel, held / worn
+              items, pickups: read docs/object-clipping.md before changing them)
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
   ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
@@ -1033,7 +1033,7 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 - **Time of day** is one palette table (`KEYS` in `render/environment.js`): colours, light levels, fog, mist,
   haze scatter, shaft strength and base exposure per sun height. Eye adaptation only compensates relative to
   `Environment.adaptRef` (the log-average luminance an open scene has at that light level), clamped 0.7-1.6x.
-- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/materials.js`): building surfaces and painted /
+- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/surfaceshading.js`): building surfaces and painted /
   galvanised props are a Lambert tile plus a normal map baked from the generator's height field
   (`getNormalMap`), and the weathering is NOT in the tile. The tile holds the bare material in RGB and a
   tileable wear field in alpha; the shader lays the coat (paint, rust or moss) over it where that field plus

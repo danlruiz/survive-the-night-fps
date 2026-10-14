@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { WATER_LEVEL } from '../../shared/constants.js';
 import { hash2 } from '../../shared/rng.js';
 import { getTreeVariants, getBushVariants, getRockVariants, getCragVariants, getGrassPatch } from './models/vegetation.js';
-import { VEG } from './materials.js';
+import { VEG } from './vegshading.js';
 import { G } from './globals.js';
 import { groundFields } from './terrain.js';
 import { grassRadius } from './renderer.js';

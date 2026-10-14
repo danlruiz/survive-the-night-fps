@@ -83,6 +83,20 @@ export function getTexture(name, rx, ry) {
   return repeated(t, name, rx, ry);
 }
 
+/** A surface texture repeated to cover its world size per meter of UV (TEXTURE_WORLD_SIZE, or `tile` meters). */
+export function tiledTexture(name, tile) {
+  const t = tile ?? TEXTURE_WORLD_SIZE[name] ?? 1;
+  const [tx, ty] = Array.isArray(t) ? t : [t, t];
+  return getTexture(name, 1 / tx, 1 / ty);
+}
+
+/** The normal map of a surface texture, repeated as tiledTexture repeats the texture. */
+export function tiledNormalMap(name) {
+  const t = TEXTURE_WORLD_SIZE[name] ?? 1;
+  const [tx, ty] = Array.isArray(t) ? t : [t, t];
+  return getNormalMap(name, 1 / tx, 1 / ty);
+}
+
 /**
  * Tangent-space normal map baked from the height field of a surface texture, or null when its generator
  * leaves none. Same repeat convention as getTexture.

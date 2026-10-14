@@ -11,7 +11,7 @@ import { ROAD } from '../../shared/world.js';
 import { MINE_R, PORTAL } from '../../shared/mine.js';
 import { getTexture } from './textures.js';
 import { MultiMesh, ALWAYS } from './multimesh.js';
-import { GROUND_MACRO_GLSL, groundNoiseTexture, VEG } from './materials.js';
+import { GROUND_MACRO_GLSL, groundNoiseTexture, VEG } from './vegshading.js';
 
 
 const TERRAIN_CHUNK = 48; // cells a side of a piece of the terrain mesh (96 m): see buildTerrain

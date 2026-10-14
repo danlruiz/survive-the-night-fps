@@ -3,7 +3,8 @@
 // Shadow maps take no notice of materials, so they are not drawn from the meshes the player sees but from
 // "casters": one or two more meshes per chunk that cover all of its materials at once (same vertices, never seen).
 import * as THREE from 'three';
-import { getMaterial, staticSurface } from './materials.js';
+import { getMaterial } from './materials.js';
+import { staticSurface } from './surfaceshading.js';
 import { createProp, propVariant } from './models/props.js';
 import { PROPS } from '../../shared/props.js';
 import { LIGHT_PROPS } from '../../shared/surfaces.js';

@@ -3,7 +3,8 @@
 // Trees come in two LODs: `parts` (near) and `far` (fewer cards / sides), cross-faded by Foliage.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MAT, MeshBuilder, makeRng, vegetationTime, vegFarMaterial, vegStaticMaterial } from '../materials.js';
+import { MAT, MeshBuilder, makeRng, vegetationTime } from '../materials.js';
+import { vegFarMaterial, vegStaticMaterial } from '../vegshading.js';
 
 export { vegetationTime };
 
