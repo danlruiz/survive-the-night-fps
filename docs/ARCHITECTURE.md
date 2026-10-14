@@ -61,6 +61,8 @@ client/      three.js client (Vite root)
   game/       client game state, entity views, input, weather schedule (weather.js)
   render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
               (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
+              models/weapons/: one file per held item (the client half of shared/weapons/, the throwables, the
+              walkie-talkie): its model, how it is held in first person, its own hand poses; index.js lists them
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
   ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
