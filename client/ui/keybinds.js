@@ -13,7 +13,7 @@ import { BIND_GROUPS, ACTIONS, ACTION, isBindCode, mouseCode } from '../../share
 import { bindsOf, allBinds, keyName, bindLabel, setBind, planBind, resetBind, resetAllBinds, conflictsFor, isDefault, onBindsChange } from '../game/binds.js';
 import { bindsSync, onBindsSync } from '../net/accountbinds.js';
 import { accountState } from '../net/account.js';
-import { el } from './dom.js';
+import { el, button, replay } from './dom.js';
 import { touchMode, TOUCH_CONTROLS } from '../game/touchmode.js';
 
 const NOTE = 'Click a key to change it · Esc cancels · Backspace clears';
@@ -128,13 +128,11 @@ export class KeybindsSection {
     el('label', 'set-label', r, a.label);
     const ctl = el('div', 'set-ctl kb-ctl', r);
     const keys = [0, 1].map((slot) => {
-      const b = el('button', 'kb-key', ctl, '');
-      b.type = 'button';
+      const b = button('kb-key', ctl, '');
       b.addEventListener('click', () => this.listen(a.id, slot));
       return b;
     });
-    const reset = el('button', 'btn btn-ghost kb-btn kb-reset', ctl, 'Reset');
-    reset.type = 'button';
+    const reset = button('btn btn-ghost kb-btn kb-reset', ctl, 'Reset');
     reset.title = 'Back to its default keys';
     reset.addEventListener('click', () => {
       this.cancel();
@@ -289,8 +287,6 @@ export class KeybindsSection {
   flash(action) {
     const r = this.rows[action]?.r;
     if (!r) return;
-    r.classList.remove('kb-flash');
-    void r.offsetWidth;
-    r.classList.add('kb-flash');
+    replay(r, 'kb-flash');
   }
 }

@@ -12,7 +12,7 @@ import { WALK_SPEED, SPRINT_SPEED, LEG_HP, PHASE } from '../../shared/constants.
 import { BESTIARY, bit, seenCount } from '../../shared/bestiary.js';
 import { ACHIEVEMENTS, ACH_BY_ID, ACH_STATS, achProgress } from '../../shared/achievements.js';
 import { BOSS_POOL, FIRST_BOSS, STARTERS, nightBoss, nightTheme, hasJoined, kindsJoining } from '../../shared/nights.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph, achIcon } from './icons.js';
 import { achievementsView, onAchievements, refreshAchievements } from '../net/achievements.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
@@ -210,8 +210,7 @@ export const trackable = (a, v) => !v.unlocked[a.id] && !a.secret;
 
 // the pin on a card: toggles tracking, says when three are already tracked
 export function trackButton(parent, a, v, ui) {
-  const b = el('button', 'bk-pin', parent);
-  b.type = 'button';
+  const b = button('bk-pin', parent);
   const sync = () => {
     const on = isTracked(a.id);
     b.classList.toggle('on', on);
@@ -338,8 +337,7 @@ export class FieldNotes {
     const h = el('div', 'bkn-h', this.root);
     this.title = el('span', 'bkn-title', h, 'Out tonight');
     this.night = el('span', 'bkn-night', h, '');
-    const back = svgEl('button', 'set-close btn-icon', h, glyph('xmark'));
-    back.type = 'button';
+    const back = iconButton('set-close btn-icon', h, glyph('xmark'));
     back.title = 'Close (Esc)';
     back.setAttribute('aria-label', 'Close field notes');
     back.addEventListener('click', () => this.hide());
@@ -360,11 +358,9 @@ export class FieldNotes {
     el('span', 'bkn-night', th, `Up to ${TRACK_MAX}`);
     this.tracked = el('div', 'bkn-tracked', this.root);
     const foot = el('div', 'bkn-foot', this.root);
-    this.bstBtn = el('button', 'bkn-link', foot, 'Bestiary ›');
-    this.bstBtn.type = 'button';
+    this.bstBtn = button('bkn-link', foot, 'Bestiary ›');
     this.bstBtn.addEventListener('click', () => this.ui.cb.onBestiary());
-    const achBtn = el('button', 'bkn-link', foot, 'All achievements ›');
-    achBtn.type = 'button';
+    const achBtn = button('bkn-link', foot, 'All achievements ›');
     achBtn.addEventListener('click', () => this.ui.achPanel.show());
 
     const sync = () => !this.root.hidden && this.render();

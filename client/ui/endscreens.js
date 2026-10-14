@@ -9,7 +9,7 @@
 //             next run, and what can be done now - spend a perk point, invite, leave.
 // Styles: ux-endscreens.css, every rule under one of these roots, sized to hold together at 854 x 480 (150% zoom).
 import './ux-endscreens.css';
-import { el, svgEl, fmtTime } from './dom.js';
+import { el, svgEl, fmtTime, button } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel } from '../game/binds.js';
 import { accountState } from '../net/account.js';
@@ -328,8 +328,7 @@ export class EndScreen {
     this.pollFoot = el('span', 'xend-poll-f', ph, '');
     const opts = el('div', 'xend-poll-o', this.poll);
     this.pollOpts = DIFFICULTY.map((label, i) => {
-      const b = el('button', 'xend-opt', opts);
-      b.type = 'button';
+      const b = button('xend-opt', opts);
       const fill = el('i', 'xend-opt-fill', b);
       el('span', 'kbd sm', b, String(i + 1));
       el('span', 'xend-opt-l', b, label);
@@ -354,8 +353,7 @@ export class EndScreen {
       el('b', 'xend-mrow-h', row, which === 'best' ? 'Best moment' : 'Worst moment');
       const opts = el('div', 'xend-mrow-o', row);
       const chips = MOMENTS.map(([key, label]) => {
-        const b = el('button', 'xend-chip', opts, label);
-        b.type = 'button';
+        const b = button('xend-chip', opts, label);
         b.addEventListener('click', () => this._pickMoment(which, key));
         return { key, b };
       });
@@ -365,8 +363,7 @@ export class EndScreen {
     el('b', 'xend-mrow-h', this.genreRow, 'Do you play survival / FPS games?');
     const gopts = el('div', 'xend-mrow-o', this.genreRow);
     for (const [plays, label] of [[true, 'Yes'], [false, 'No']]) {
-      const b = el('button', 'xend-chip', gopts, label);
-      b.type = 'button';
+      const b = button('xend-chip', gopts, label);
       b.addEventListener('click', () => this._answerGenre(plays));
     }
     this.momentsFoot = el('span', 'xend-poll-f', this.moments, '');
@@ -389,8 +386,7 @@ export class EndScreen {
     this.nextSub = el('span', '', nt, 'Same game · starts on its own');
     const acts = el('div', 'xend-acts', bar);
     const btn = (cls, icon, label, run) => {
-      const b = el('button', 'xend-btn ' + cls, acts);
-      b.type = 'button';
+      const b = button('xend-btn ' + cls, acts);
       svgEl('i', 'xend-btn-i', b, glyph(icon));
       const t = el('span', '', b, label);
       b.addEventListener('click', (e) => {

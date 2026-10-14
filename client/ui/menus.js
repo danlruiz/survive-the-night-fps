@@ -1,6 +1,6 @@
 // Full-screen menus and overlays: splash/title, pause, connection banner. (Death and the end of a run: endscreens.js)
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
-import { el, svgEl, lsGet, lsSet } from './dom.js';
+import { el, svgEl, lsGet, lsSet, button, replay } from './dom.js';
 import { glyph } from './icons.js';
 import { loadRecord } from './records.js';
 import { GameBrowser, GameCreator, phaseText, seatsText, difficultyText } from './games.js';
@@ -57,8 +57,7 @@ export class Splash {
     this.credit = el('div', 'sp-kicker', top, `Co-op survival horror · 1–${MAX_PLAYERS} players`);
     const tools = el('div', 'sp-tools', top);
     const tile = (parent, icon, text, fn, cls = '') => {
-      const b = el('button', 'btn btn-ghost sp-tile' + (cls ? ' ' + cls : ''), parent);
-      b.type = 'button';
+      const b = button('btn btn-ghost sp-tile' + (cls ? ' ' + cls : ''), parent);
       svgEl('i', 'btn-ico', b, glyph(icon));
       const t = el('span', 'sp-tile-t', b, text);
       b.addEventListener('click', fn);
@@ -148,8 +147,7 @@ export class Splash {
     });
     this.name.addEventListener('blur', () => this._syncAs());
     el('span', '', as, ' playing ');
-    this.asWho = el('button', 'sp-link sp-as-v', as, '');
-    this.asWho.type = 'button';
+    this.asWho = button('sp-link sp-as-v', as, '');
     this.asWho.title = 'Choose who to play as';
     this.asWho.addEventListener('click', () => this.character.panel.show());
     // the survivor picker (picker.js): its card stays out of sight, the line above opens the panel; its note (a
@@ -173,15 +171,13 @@ export class Splash {
     this.avatar = el('span', 'sp-av', who, '?');
     this.avatar.setAttribute('aria-hidden', 'true');
     const wt = el('div', 'sp-who-txt', who);
-    this.whoName = el('button', 'sp-who-nm', wt, '');
-    this.whoName.type = 'button';
+    this.whoName = button('sp-who-nm', wt, '');
     this.whoName.addEventListener('click', () => this.ui.accountPanel.show());
     this.whoSub = el('div', 'sp-who-sub', wt, '');
     this.xp = el('div', 'sp-xp', wt);
     this.xpFill = el('i', '', this.xp);
     this.xp.hidden = true;
-    this.signBtn = el('button', 'btn btn-ghost sp-sign', who, 'Sign in');
-    this.signBtn.type = 'button';
+    this.signBtn = button('btn btn-ghost sp-sign', who, 'Sign in');
     this.signBtn.title = 'Sign in or make an account: stats kept on the server, friends';
     this.signBtn.addEventListener('click', () => this.ui.accountPanel.show());
     // ...and their things under it: the level and the perks to pick (lit while one is waiting), the loadout, the
@@ -209,8 +205,7 @@ export class Splash {
     more.setAttribute('aria-label', 'More');
     el('span', 'sp-more-l', more, 'More');
     const link = (text, fn) => {
-      const b = el('button', 'sp-link sp-more-a', more, text);
-      b.type = 'button';
+      const b = button('sp-link sp-more-a', more, text);
       b.addEventListener('click', fn);
       return b;
     };
@@ -427,9 +422,7 @@ export class Splash {
     this.err.textContent = text || 'Connection failed';
     this.err.hidden = !text;
     this._syncBtn();
-    this.err.classList.remove('shake');
-    void this.err.offsetWidth;
-    this.err.classList.add('shake');
+    replay(this.err, 'shake');
     if (text) this._poll(); // (a full or ended game: show it as it is now)
   }
 
@@ -516,9 +509,7 @@ export class Splash {
     this.syncRecord();
     this.character.show();
     this._measure();
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
+    replay(this.root, 'in');
     clearInterval(this._iv);
     this._poll();
     this._iv = setInterval(() => this._poll(), 3000);
@@ -617,8 +608,7 @@ export class Pause {
 
     this.rows = [];
     const row = (into, icon, label, run, cls = '') => {
-      const b = el('button', 'pm-row' + cls, into);
-      b.type = 'button';
+      const b = button('pm-row' + cls, into);
       b.setAttribute('role', 'menuitem');
       svgEl('i', 'pm-ico', b, glyph(icon));
       el('span', 'pm-label', b, label);
@@ -658,8 +648,7 @@ export class Pause {
     // Copy link beside the Invite row (not in it: a button in a button is no button)
     const wrap = (this.inviteWrap = el('div', 'pm-wrap', g));
     this.invite = row(wrap, 'personPlus', 'Invite friends', () => this.ui.invitePanel.show());
-    const copy = (this.copyBtn = el('button', 'pm-copy', wrap));
-    copy.type = 'button';
+    const copy = (this.copyBtn = button('pm-copy', wrap));
     copy.title = 'Copy the invite link';
     svgEl('i', 'pm-copy-ico', copy, glyph('link'));
     this.copyTxt = el('span', '', copy, 'Copy link');
@@ -697,8 +686,7 @@ export class Pause {
     this.askQ = el('span', '', q, 'Leave this game?');
     const btns = el('div', 'pm-ask-btns', ask);
     const choice = (cls, label, i, run) => {
-      const b = el('button', cls, btns);
-      b.type = 'button';
+      const b = button(cls, btns);
       if (i) svgEl('i', 'pm-ico', b, glyph('exit'));
       el('span', '', b, label);
       el('span', 'kbd sm pm-key', b, 'Enter');
@@ -962,9 +950,7 @@ export class Pause {
     if (this.root.hidden) return;
     this.hitBar.hidden = false;
     this._syncHit();
-    this.hitBar.classList.remove('flash');
-    void this.hitBar.offsetWidth;
-    this.hitBar.classList.add('flash');
+    replay(this.hitBar, 'flash');
     clearTimeout(this._hitT);
     this._hitT = setTimeout(() => (this.hitBar.hidden = true), HIT_SHOW_MS);
   }
@@ -996,9 +982,7 @@ export class Pause {
         this._syncLeave();
         if (!this.hitBar.hidden) this._syncHit();
       }, 250);
-      this.root.classList.remove('in');
-      void this.root.offsetWidth;
-      this.root.classList.add('in');
+      replay(this.root, 'in');
     } else {
       this._side(false, false);
       if (this.ui.splash.root.hidden) {
@@ -1038,8 +1022,7 @@ export class InvitePanel {
     this.link.readOnly = true;
     this.link.spellcheck = false;
     this.link.addEventListener('focus', () => this.link.select());
-    const copy = el('button', 'btn btn-ghost pi-copy', row);
-    copy.type = 'button';
+    const copy = button('btn btn-ghost pi-copy', row);
     svgEl('i', 'btn-ico', copy, glyph('link'));
     this.copyTxt = el('span', '', copy, 'Copy invite link');
     copy.addEventListener('click', () => this.copy());
@@ -1093,9 +1076,7 @@ export class InvitePanel {
   show() {
     this.copyTxt.textContent = 'Copy invite link';
     this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
+    replay(this.root, 'in');
   }
 
   hide() {

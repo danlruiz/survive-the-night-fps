@@ -8,11 +8,25 @@ export function el(tag, cls, parent, text) {
   return e;
 }
 
+// A <button type="button">: never submits a form it sits in.
+export function button(cls, parent, text) {
+  const b = el('button', cls, parent, text);
+  b.type = 'button';
+  return b;
+}
+
 // ONLY for trusted, static markup (our own SVG icon strings). Never pass user text here.
 export function svgEl(tag, cls, parent, trustedMarkup) {
   const e = el(tag, cls, parent);
   e.innerHTML = trustedMarkup;
   return e;
+}
+
+// A <button type="button"> holding trusted, static markup (an icon). Never pass user text here.
+export function iconButton(cls, parent, trustedMarkup) {
+  const b = svgEl('button', cls, parent, trustedMarkup);
+  b.type = 'button';
+  return b;
 }
 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);

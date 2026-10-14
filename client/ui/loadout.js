@@ -1,7 +1,7 @@
 import { AMMO_NAMES, ITEM_DEFS, ZOMBIE_DEFS } from '../../shared/defs.js';
 import { LOADOUT_CATALOG, LOADOUT_RARITY, LOADOUT_RARITY_NAMES, LOADOUT_SLOTS, LOADOUT_TYPES, loadoutDef, loadoutTypeName } from '../../shared/loadout.js';
 import { AUCTION, SKULLS, sellerProceeds } from '../../shared/economy.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { Panel } from './games.js';
 import { buyAuctionListing, cancelAuctionListing, fetchAuction, fetchLoadout, listAuctionItem, saveLoadout } from '../net/loadout.js';
@@ -111,8 +111,7 @@ export class LoadoutPanel extends Panel {
     this.guest = el('div', 'ach-note lo-guest', this.body);
     this.guest.hidden = true;
     el('span', '', this.guest, 'Kept in this browser only: clearing its data, a private window or another device and they are out of reach. Sign in and your items and Zombie Skulls move onto your account.');
-    const signIn = el('button', 'btn btn-ghost', this.guest);
-    signIn.type = 'button';
+    const signIn = button('btn btn-ghost', this.guest);
     svgEl('i', 'btn-ico', signIn, glyph('person'));
     el('span', '', signIn, 'Sign in');
     signIn.addEventListener('click', () => {
@@ -125,12 +124,10 @@ export class LoadoutPanel extends Panel {
     this.grid = el('div', 'lo-grid', this.body);
     this.detail = el('div', 'lo-detail', this.body);
 
-    this.refreshB = el('button', 'btn btn-ghost', this.foot, 'Refresh');
-    this.refreshB.type = 'button';
+    this.refreshB = button('btn btn-ghost', this.foot, 'Refresh');
     this.refreshB.addEventListener('click', () => this.refresh());
     el('span', 'gb-gap', this.foot);
-    this.closeB = el('button', 'btn btn-ghost', this.foot, 'Close');
-    this.closeB.type = 'button';
+    this.closeB = button('btn btn-ghost', this.foot, 'Close');
     this.closeB.addEventListener('click', () => this.hide());
   }
   show() {
@@ -243,8 +240,7 @@ export class LoadoutPanel extends Panel {
     for (let i = 0; i < LOADOUT_SLOTS; i++) {
       const owned = byId.get(slots[i]);
       const def = owned && loadoutDef(owned.catalog);
-      const b = el('button', `lo-slot${this.selected && slots[i] === this.selected ? ' on' : ''}`, this.slotBox);
-      b.type = 'button';
+      const b = button(`lo-slot${this.selected && slots[i] === this.selected ? ' on' : ''}`, this.slotBox);
       svgEl('i', `lo-slot-ico${def ? ` r${def.rarity}` : ''}`, b, glyph(def ? typeIcon(def) : 'plus'));
       const t = el('span', 'lo-slot-t', b);
       el('b', '', t, def ? def.name : `Slot ${i + 1}`);
@@ -254,8 +250,7 @@ export class LoadoutPanel extends Panel {
         this.render();
       });
       if (def) {
-        const x = svgEl('button', 'btn-icon lo-slot-x', b, glyph('xmark'));
-        x.type = 'button';
+        const x = iconButton('btn-icon lo-slot-x', b, glyph('xmark'));
         x.title = 'Unequip';
         x.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -281,8 +276,7 @@ export class LoadoutPanel extends Panel {
     for (const owned of items) {
       const def = loadoutDef(owned.catalog);
       if (!def) continue;
-      const b = el('button', `lo-card r${def.rarity}${owned.id === this.selected ? ' on' : ''}`, this.grid);
-      b.type = 'button';
+      const b = button(`lo-card r${def.rarity}${owned.id === this.selected ? ' on' : ''}`, this.grid);
       const top = el('span', 'lo-card-top', b);
       svgEl('i', 'lo-card-ico', top, glyph(typeIcon(def)));
       el('span', 'lo-card-r', top, LOADOUT_RARITY_NAMES[def.rarity]);
@@ -297,8 +291,7 @@ export class LoadoutPanel extends Panel {
     for (const def of missing) {
       const g = silhouette(def, seen);
       const key = `cat:${def.id}`;
-      const b = el('button', `lo-card lo-ghost r${g.rarity}${key === this.selected ? ' on' : ''}`, this.grid);
-      b.type = 'button';
+      const b = button(`lo-card lo-ghost r${g.rarity}${key === this.selected ? ' on' : ''}`, this.grid);
       b.title = `Not found yet · ${g.source}`;
       const top = el('span', 'lo-card-top', b);
       svgEl('i', 'lo-card-ico', top, glyph(typeIcon(def)));
@@ -339,8 +332,7 @@ export class LoadoutPanel extends Panel {
     const equipped = slots.indexOf(owned.id);
     const row = el('div', 'lo-actions', this.detail);
     if (equipped >= 0) {
-      const b = el('button', 'btn btn-ghost', row, `Unequip from slot ${equipped + 1}`);
-      b.type = 'button';
+      const b = button('btn btn-ghost', row, `Unequip from slot ${equipped + 1}`);
       b.disabled = this.busy;
       b.addEventListener('click', () => {
         const next = slots.slice();
@@ -349,8 +341,7 @@ export class LoadoutPanel extends Panel {
       });
     } else {
       for (let i = 0; i < LOADOUT_SLOTS; i++) {
-        const b = el('button', i === 0 ? 'btn btn-blood' : 'btn btn-ghost', row, `Equip ${i + 1}`);
-        b.type = 'button';
+        const b = button(i === 0 ? 'btn btn-blood' : 'btn btn-ghost', row, `Equip ${i + 1}`);
         b.disabled = this.busy;
         b.addEventListener('click', () => {
           const next = slots.map((id) => (id === owned.id ? null : id));
@@ -426,12 +417,10 @@ export class AuctionPanel extends Panel {
     this.sell = el('div', 'ah-sell', this.body);
     this.mine = el('div', 'ah-mine', this.body);
 
-    this.refreshB = el('button', 'btn btn-ghost', this.foot, 'Refresh');
-    this.refreshB.type = 'button';
+    this.refreshB = button('btn btn-ghost', this.foot, 'Refresh');
     this.refreshB.addEventListener('click', () => this.refresh());
     el('span', 'gb-gap', this.foot);
-    this.closeB = el('button', 'btn btn-ghost', this.foot, 'Close');
-    this.closeB.type = 'button';
+    this.closeB = button('btn btn-ghost', this.foot, 'Close');
     this.closeB.addEventListener('click', () => this.hide());
   }
   show() {
@@ -525,8 +514,7 @@ export class AuctionPanel extends Panel {
     const mineIds = new Set((this.data?.mine || []).filter((l) => l.status === 'active').map((l) => l.id));
     for (const l of rows) {
       const def = loadoutDef(l.catalog);
-      const b = el('button', `ah-card r${def.rarity}${l.id === this.selected ? ' on' : ''}`, this.listings);
-      b.type = 'button';
+      const b = button(`ah-card r${def.rarity}${l.id === this.selected ? ' on' : ''}`, this.listings);
       el('span', 'ah-card-r', b, LOADOUT_RARITY_NAMES[def.rarity]);
       el('b', '', b, def.name);
       el('small', '', b, `${def.type} · ${priceText(l.price)} · ${listingTime(l.expiresAt)}${mineIds.has(l.id) ? ' · yours' : ''}`);
@@ -555,13 +543,11 @@ export class AuctionPanel extends Panel {
     el('p', 'ac-note', this.detail, `Expires: ${listingTime(l.expiresAt)}`);
     const row = el('div', 'lo-actions', this.detail);
     if (mineIds.has(l.id)) {
-      const c = el('button', 'btn btn-ghost', row, 'Cancel listing');
-      c.type = 'button';
+      const c = button('btn btn-ghost', row, 'Cancel listing');
       c.disabled = this.busy;
       c.addEventListener('click', () => this.cancel(l.id));
     } else {
-      const b = el('button', 'btn btn-blood', row, 'Buy now');
-      b.type = 'button';
+      const b = button('btn btn-blood', row, 'Buy now');
       b.disabled = this.busy || !this.data?.canTrade || (this.data?.balance || 0) < l.price;
       b.title = !this.data?.canTrade ? 'Sign in to buy' : (this.data?.balance || 0) < l.price ? 'Not enough Zombie Skulls' : '';
       b.addEventListener('click', () => this.buy(l.id));
@@ -608,8 +594,7 @@ export class AuctionPanel extends Panel {
       el('b', '', r, def?.name || 'Loadout item');
       el('span', '', r, `${priceText(l.price)} · ${l.status}${l.status === 'active' ? ` · ${listingTime(l.expiresAt)}` : ''}`);
       if (l.status === 'active') {
-        const c = el('button', 'btn btn-ghost', r, 'Cancel');
-        c.type = 'button';
+        const c = button('btn btn-ghost', r, 'Cancel');
         c.disabled = this.busy;
         c.addEventListener('click', () => this.cancel(l.id));
       }

@@ -1,7 +1,7 @@
 // One feed down the right edge (kills and pickups, newest at the foot), cinematic titles (centre) and toasts
 // (bottom-centre).
 import { ITEM_DEFS } from '../../shared/defs.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, replay } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 
 // ---------------------------------------------------------------- the feed
@@ -129,9 +129,7 @@ export class Notifier {
         last.sub = text;
         if (last === this.current) {
           this.cineSub.textContent = text;
-          this.cineSub.classList.remove('in');
-          void this.cineSub.offsetWidth;
-          this.cineSub.classList.add('in');
+          replay(this.cineSub, 'in');
           // make sure the subtitle gets some screen time
           const remain = last.end - performance.now();
           if (remain < dur * 1000 * 0.7) this._schedule(last, dur * 1000 * 0.7);

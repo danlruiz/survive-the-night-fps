@@ -18,7 +18,7 @@ import './ux-map.css';
 import { ZONE, ZONE_NAMES, ITEM, ITEM_DEFS, SCHEMATICS, SCHEM_BIT, supplyRumours, schematicRumours } from '../../shared/defs.js';
 const VEH_LABEL = { 1: 'moped', 2: 'car', 3: 'bicycle' }; // (shared/vehicles.js VEH)
 import { SUPPLIES, SUPPLY_NEED, W } from '../game/act.js'; // (this act's)
-import { el, svgEl, lsGet, lsSet } from './dom.js';
+import { el, svgEl, lsGet, lsSet, button, replay } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { renderMapCanvas, renderSeaCanvas, MAP_PX } from './mapcanvas.js';
 import { bindLabel, liveText } from '../game/binds.js';
@@ -52,8 +52,7 @@ export class MapScreen {
     this.titleName = el('span', 'map-title', head, 'Harlan Valley');
     el('span', 'mx-grow', head);
     // where you are; a click brings the map back to you
-    this.youBtn = el('button', 'mx-you', head);
-    this.youBtn.type = 'button';
+    this.youBtn = button('mx-you', head);
     this.youBtn.title = 'Back to me (Space)';
     this.coords = el('span', 'map-coords', this.youBtn);
     this.youGrid = el('span', '', this.coords);
@@ -61,8 +60,7 @@ export class MapScreen {
     this.youBtn.addEventListener('click', () => this.backToMe());
     // north up, or turned with you so the way you face is up: kept between openings, and games
     this.headingUp = lsGet(HEADING_KEY, '0') === '1';
-    this.rotBtn = el('button', 'map-rot', head);
-    this.rotBtn.type = 'button';
+    this.rotBtn = button('map-rot', head);
     this.rotBtn.title = 'Turn the map with you (R)';
     svgEl('i', 'map-rot-ico', this.rotBtn, glyph('compass'));
     this.rotTxt = el('span', '', this.rotBtn);
@@ -84,8 +82,7 @@ export class MapScreen {
     this.ruleLeft = el('div', 'mx-rule left', this.view);
     this.pins = el('div', 'mx-pins', this.view);
     // where north is, turned with the map; a click on it turns the map too
-    this.north = el('button', 'map-north', this.view);
-    this.north.type = 'button';
+    this.north = button('map-north', this.view);
     this.north.title = 'North up / facing up (R)';
     const dial = svgEl('i', 'map-north-dial', this.north, glyph('compass'));
     el('b', '', dial, 'N');
@@ -122,8 +119,7 @@ export class MapScreen {
     // ---- small windows: the panel as chips, the key behind a button
     const chips = (this.chipsBox = el('div', 'mx-chips', body));
     this.chipList = el('div', 'mx-chiplist', chips);
-    this.keysBtn = el('button', 'mx-chip mx-keysbtn', chips);
-    this.keysBtn.type = 'button';
+    this.keysBtn = button('mx-chip mx-keysbtn', chips);
     el('span', '', this.keysBtn, 'Key');
     el('span', 'kbd sm', this.keysBtn, '?');
     this.pop = el('div', 'mx-pop', chips);
@@ -366,9 +362,7 @@ export class MapScreen {
     f.style.left = this._u(x) * 100 + '%';
     f.style.top = this._u(z) * 100 + '%';
     f.hidden = false;
-    f.classList.remove('go');
-    void f.offsetWidth;
-    f.classList.add('go');
+    replay(f, 'go');
     clearTimeout(this._flashT);
     this._flashT = setTimeout(() => (f.hidden = true), 1600);
   }
@@ -819,8 +813,7 @@ export class MapScreen {
     rows.forEach((r, i) => {
       let e = pool[i];
       if (!e) {
-        const b = el('button', 'mx-row', box);
-        b.type = 'button';
+        const b = button('mx-row', box);
         const bd = badge('you', '', b);
         const t = el('span', 'mx-row-t', b);
         const title = el('b', '', t);
@@ -913,8 +906,7 @@ export class MapScreen {
         const has = !!(d.unlocked & (1 << SCHEM_BIT[item]));
         const zid = d.schemHints[k];
         const z = !has && zid !== 255 ? this.world.zoneById[zid] : null;
-        const t = el('button', 'mx-schem' + (has ? ' got' : z ? ' rumour' : ' none'), this.schemRow);
-        t.type = 'button';
+        const t = button('mx-schem' + (has ? ' got' : z ? ' rumour' : ' none'), this.schemRow);
         svgEl('i', 'mx-schem-i', t, itemIcon(item));
         el('span', '', t, has ? 'found' : z ? ZONE_NAMES[zid] : 'unknown');
         t.title = ITEM_DEFS[item].name + (has ? ' · found' : z ? ` · rumoured at ${ZONE_NAMES[zid]} (${gridRef(this.world, z.x, z.z)})` : ' · nothing heard of it yet');
@@ -939,8 +931,7 @@ export class MapScreen {
     chips.forEach((c, i) => {
       let e = pool[i];
       if (!e) {
-        const b = el('button', 'mx-chip', this.chipList);
-        b.type = 'button';
+        const b = button('mx-chip', this.chipList);
         const bd = badge('you', '', b);
         const items = el('span', 'mx-chip-items', b);
         const t = el('b', '', b);
@@ -1021,8 +1012,7 @@ export class MapScreen {
     placed.forEach((p, i) => {
       let e = this.pinPool[i];
       if (!e) {
-        const b = el('button', 'mx-pin', this.pins);
-        b.type = 'button';
+        const b = button('mx-pin', this.pins);
         const arrow = svgEl('i', 'mx-pin-arr', b, glyph('arrowUp'));
         const bd = badge('you', '', b);
         const t = el('span', 'mx-pin-t', b);

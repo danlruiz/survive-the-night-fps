@@ -1,5 +1,5 @@
 // Settings: persistence + the settings panel (shared by splash and pause menu).
-import { el, svgEl, lsGet, lsSet, clamp } from './dom.js';
+import { el, svgEl, lsGet, lsSet, clamp, button, iconButton, replay } from './dom.js';
 import { glyph } from './icons.js';
 import { loadRecord, clearRecord } from './records.js';
 import { QUALITY, grassRadius } from '../render/renderer.js';
@@ -310,13 +310,11 @@ export class SettingsPanel {
 
     // the foot: this tab's reset (with how many it would put back), every tab's behind a second click, and Done
     const foot = el('div', 'set-foot ux-foot', card);
-    this.resetTab = el('button', 'btn btn-ghost ux-reset-tab', foot, '');
-    this.resetTab.type = 'button';
+    this.resetTab = button('btn btn-ghost ux-reset-tab', foot, '');
     this.resetTab.addEventListener('click', () => this._resetTab(this.tab));
     const all = (this.allBox = el('div', 'ux-all', foot));
     this.changedHere = el('span', 'ux-changed', all, '');
-    this.allBtn = el('button', 'ux-link', all, 'Reset all tabs…');
-    this.allBtn.type = 'button';
+    this.allBtn = button('ux-link', all, 'Reset all tabs…');
     this.allBtn.title = 'Every setting and every key back to its default';
     this.allBtn.addEventListener('click', () => this._armAll(true));
     this.allAsk = el('span', 'ux-all-ask', all);
@@ -405,8 +403,7 @@ export class SettingsPanel {
       const t = el('div', 'ux-preset-t', c);
       el('b', '', t, p.label);
       el('small', '', t, p.what);
-      const b = el('button', 'btn btn-ghost ux-mini', c, 'Apply');
-      b.type = 'button';
+      const b = button('btn btn-ghost ux-mini', c, 'Apply');
       b.addEventListener('click', () => {
         this.ui._applySettings({ ...this.ui.settings, ...p.set });
         this.sync();
@@ -440,8 +437,7 @@ export class SettingsPanel {
     if (row.hint) el('small', 'set-hint', lab, row.hint);
     const ctl = el('div', 'set-ctl', r);
     // this row back to its default: there only while it is off it (the others keep its room, so the controls line up)
-    const back = svgEl('button', 'ux-row-reset', null, RESET_SVG);
-    back.type = 'button';
+    const back = iconButton('ux-row-reset', null, RESET_SVG);
     back.title = 'Back to the default';
     back.setAttribute('aria-label', `${row.label}: back to the default`);
     back.addEventListener('click', () => {
@@ -475,8 +471,7 @@ export class SettingsPanel {
         },
       };
     } else if (row.type === 'toggle') {
-      const b = el('button', 'set-toggle', ctl);
-      b.type = 'button';
+      const b = button('set-toggle', ctl);
       b.setAttribute('aria-label', row.label);
       el('i', 'knob', b);
       const txt = el('span', 'set-toggle-txt', ctl);
@@ -501,8 +496,7 @@ export class SettingsPanel {
       seg.setAttribute('role', 'group');
       seg.setAttribute('aria-label', row.label);
       const btns = row.options.map((o) => {
-        const b = el('button', 'seg-btn', seg, o);
-        b.type = 'button';
+        const b = button('seg-btn', seg, o);
         b.addEventListener('click', () => {
           this.ui._applySettings({ ...this.ui.settings, [row.k]: o });
           this.sync();
@@ -610,9 +604,7 @@ export class SettingsPanel {
     this._armAll(false);
     this.sync();
     this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
+    replay(this.root, 'in');
   }
 
   hide() {

@@ -3,7 +3,7 @@
 // click outside the card. The lobby itself is client/net/lobby.js.
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
 import { DIFFICULTIES, NIGHTFALL, difficultyLabel } from '../../shared/difficulty.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, iconButton, button, replay } from './dom.js';
 import { isFirstRun, suggestedDifficulty, rememberDifficulty, NEW_DIFFICULTY } from './firstrun.js';
 import { glyph } from './icons.js';
 import { listGames, createGame } from '../net/lobby.js';
@@ -38,8 +38,7 @@ export class Panel {
     const head = el('div', 'set-head', card);
     el('h2', 'set-title', head, title);
     this.sub = el('span', 'set-sub', head, '');
-    const close = svgEl('button', 'set-close btn-icon', head, glyph('xmark'));
-    close.type = 'button';
+    const close = iconButton('set-close btn-icon', head, glyph('xmark'));
     close.title = 'Close';
     close.addEventListener('click', () => this.hide());
     this.body = el('div', 'set-body', card);
@@ -61,9 +60,7 @@ export class Panel {
 
   show() {
     this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
+    replay(this.root, 'in');
   }
 
   hide() {
@@ -82,13 +79,11 @@ export class GameBrowser extends Panel {
     super(ui, parent, 'gb-panel', 'Games');
     this.splash = splash;
     this.list = el('div', 'gb-list', this.body);
-    const refresh = el('button', 'btn btn-ghost', this.foot);
-    refresh.type = 'button';
+    const refresh = button('btn btn-ghost', this.foot);
     el('span', '', refresh, 'Refresh');
     refresh.addEventListener('click', () => this.poll());
     el('span', 'gb-gap', this.foot);
-    const make = el('button', 'btn btn-ghost', this.foot);
-    make.type = 'button';
+    const make = button('btn btn-ghost', this.foot);
     svgEl('i', 'btn-ico', make, glyph('plus'));
     el('span', '', make, 'Create game');
     make.addEventListener('click', () => {
@@ -145,8 +140,7 @@ export class GameBrowser extends Panel {
       const seats = el('div', 'gb-seats', row);
       svgEl('i', 'gb-ico', seats, glyph('people'));
       el('span', '', seats, seatsText(g));
-      const join = el('button', 'btn btn-ghost gb-join', row);
-      join.type = 'button';
+      const join = button('btn btn-ghost gb-join', row);
       // (a game on the mainland: only for whoever has beaten map 1)
       const locked = g.map === 2 && !map1Done();
       join.disabled = g.full || locked || this.splash.joining;
@@ -189,8 +183,7 @@ export class GameCreator extends Panel {
     this.diffHint = el('span', 'set-hint', dl, '');
     const diffSeg = el('div', 'set-seg gc-diff-seg', diffRow);
     this.diffBtns = DIFFICULTIES.map((d) => {
-      const b = el('button', 'seg-btn', diffSeg, d.rank);
-      b.type = 'button';
+      const b = button('seg-btn', diffSeg, d.rank);
       b.addEventListener('click', () => {
         this.difficulty = d.id;
         this.sync();
@@ -206,8 +199,7 @@ export class GameCreator extends Panel {
       [1, 'Map 1'],
       [2, 'Map 2'],
     ].map(([map, label]) => {
-      const b = el('button', 'seg-btn', mapSeg, label);
-      b.type = 'button';
+      const b = button('seg-btn', mapSeg, label);
       b.addEventListener('click', () => {
         if (map === 2 && !map1Done()) return;
         this.map = map;
@@ -229,8 +221,7 @@ export class GameCreator extends Panel {
       [false, 'Anyone'],
       [true, 'Invite only'],
     ].map(([only, label]) => {
-      const b = el('button', 'seg-btn', seg);
-      b.type = 'button';
+      const b = button('seg-btn', seg);
       svgEl('i', 'gc-seg-ico', b, glyph(only ? 'lock' : 'unlock'));
       el('span', '', b, label);
       b.addEventListener('click', () => {
@@ -243,12 +234,10 @@ export class GameCreator extends Panel {
     this.err = el('div', 'gc-err', this.body, '');
     this.err.hidden = true;
 
-    const cancel = el('button', 'btn btn-ghost', this.foot);
-    cancel.type = 'button';
+    const cancel = button('btn btn-ghost', this.foot);
     el('span', '', cancel, 'Cancel');
     cancel.addEventListener('click', () => this.hide());
-    this.go = el('button', 'btn btn-blood', this.foot);
-    this.go.type = 'button';
+    this.go = button('btn btn-blood', this.foot);
     this.goTxt = el('span', '', this.go, 'Create');
     this.go.addEventListener('click', () => this.create());
     this.name.addEventListener('keydown', (e) => {
@@ -277,8 +266,7 @@ export class GameCreator extends Panel {
     if (!choices.includes(this.seats)) choices.push(this.seats);
     choices.sort((a, b) => a - b);
     for (const n of choices) {
-      const b = el('button', 'seg-btn' + (n === this.seats ? ' on' : ''), this.seatSeg, String(n));
-      b.type = 'button';
+      const b = button('seg-btn' + (n === this.seats ? ' on' : ''), this.seatSeg, String(n));
       b.addEventListener('click', () => {
         this.seats = n;
         this.renderSeats();

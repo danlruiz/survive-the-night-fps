@@ -8,7 +8,7 @@
 // leads with what the team did, not with kills). In a game it is the side sheet (sheet.js): down the right-hand side, a row shows only the stat picked,
 // and tabs on its edge go to the player list and Friends; on the splash it stays the card in the middle.
 import { BOARD_STATS, BOARD_ORDER, BOARD_TOP, boardSort } from '../../shared/protocol.js';
-import { el, svgEl, lsGet, lsSet } from './dom.js';
+import { el, svgEl, lsGet, lsSet, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
 import { SheetTabs, undock, sheetLeft, sheetCame } from './sheet.js';
@@ -53,8 +53,7 @@ export class Leaderboard {
     this.count = el('span', 'map-coords', head, '');
     // the cross, or a left press outside the frame, closes it: the game sets onClose
     this.onClose = null;
-    const close = (this.close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('set-close btn-icon map-close', head, glyph('xmark')));
     close.title = 'Close (L)';
     close.setAttribute('aria-label', 'Close leaderboard');
     close.addEventListener('click', () => this.onClose?.());
@@ -82,8 +81,7 @@ export class Leaderboard {
 
     const seg = el('div', 'set-seg lb-lists', frame);
     this.listBtns = LISTS.map(([id, label]) => {
-      const b = el('button', 'seg-btn', seg, label);
-      b.type = 'button';
+      const b = button('seg-btn', seg, label);
       b.addEventListener('click', () => this._choose(id, this.sort));
       return b;
     });
@@ -94,8 +92,7 @@ export class Leaderboard {
     el('span', 'lb-name', hd, 'Player');
     this.sortBtns = BOARD_ORDER.map((k) => {
       const [label, ico, what] = COLS[k];
-      const b = el('button', 'lb-col', hd);
-      b.type = 'button';
+      const b = button('lb-col', hd);
       b.title = what;
       svgEl('i', 'lb-ico', b, glyph(ico));
       el('span', '', b, label);
@@ -254,8 +251,7 @@ export class Leaderboard {
     BOARD_ORDER.forEach((s) => {
       if (s === k) return;
       const j = BOARD_STATS.indexOf(s); // (ranks come in the wire's order)
-      const b = el('button', 'lb-you-other', this.youOthers);
-      b.type = 'button';
+      const b = button('lb-you-other', this.youOthers);
       b.title = `Sort by ${COLS[s][0].toLowerCase()}`;
       el('span', '', b, COLS[s][0]);
       el('b', '', b, me.ranks?.[j] ? `#${num(me.ranks[j])}` : '–');

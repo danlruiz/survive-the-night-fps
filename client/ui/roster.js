@@ -7,7 +7,7 @@
 // Held up, nothing in it takes a click and the pointer stays locked; a click pins it (Game.pinRoster) with the
 // pointer free, and then a click on a player opens their profile (profile.js), docked in the same sheet, and the
 // tabs on its edge go to the leaderboard and Friends.
-import { el, svgEl, clamp } from './dom.js';
+import { el, svgEl, clamp, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { roleList } from '../../shared/roles.js';
 import { healthTier } from './hud2.js';
@@ -39,8 +39,7 @@ export class Roster {
     this.tabs = new SheetTabs(ui, frame, 'players');
     const head = el('div', 'pls-head', frame);
     el('h2', 'pls-title', head, 'Survivors');
-    const close = (this.close = svgEl('button', 'pls-close btn-icon', head, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('pls-close btn-icon', head, glyph('xmark')));
     close.title = 'Close (Esc)';
     close.setAttribute('aria-label', 'Close the player list');
     close.addEventListener('click', () => this.onClose?.());

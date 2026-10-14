@@ -10,7 +10,7 @@
 //                      (all / next up / unlocked / locked), a jump to each group and a sort. Locked ones can be
 //                      tracked (books.js: on the HUD under the objective). A secret one is "???" until it is unlocked.
 //                      A guest's from this browser, an account's from the server, or (show({ friend })) a friend's.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph, achIcon } from './icons.js';
 import { Panel } from './games.js';
 import { tabbed } from './screentabs.js';
@@ -205,8 +205,7 @@ export class AchievementsPanel extends Panel {
     filters.setAttribute('role', 'tablist');
     this.filterBtns = {};
     for (const [k, label] of FILTERS) {
-      const b = el('button', 'bk-seg-b', filters);
-      b.type = 'button';
+      const b = button('bk-seg-b', filters);
       b.setAttribute('role', 'tab');
       el('span', '', b, label);
       const n = el('b', '', b, '');
@@ -216,8 +215,7 @@ export class AchievementsPanel extends Panel {
     this.jumps = el('div', 'bk-jumps', bar);
     this.jumpBtns = {};
     for (const [g, title] of ACH_GROUPS) {
-      const b = el('button', 'bk-jump', this.jumps);
-      b.type = 'button';
+      const b = button('bk-jump', this.jumps);
       el('span', '', b, title);
       const n = el('b', '', b, '');
       b.addEventListener('click', () => this.jump(g));
@@ -243,8 +241,7 @@ export class AchievementsPanel extends Panel {
 
     this.note = el('div', 'ach-note bk-note', this.body);
     this.noteTxt = el('span', '', this.note, '');
-    this.signIn = el('button', 'btn btn-ghost', this.note);
-    this.signIn.type = 'button';
+    this.signIn = button('btn btn-ghost', this.note);
     svgEl('i', 'btn-ico', this.signIn, glyph('person'));
     el('span', '', this.signIn, 'Sign in');
     this.signIn.addEventListener('click', () => {

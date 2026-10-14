@@ -6,7 +6,7 @@
 import { ITEM_DEFS } from '../../shared/defs.js';
 import { cardDef } from '../../shared/cards.js';
 import { LOADOUT_RARITY_NAMES, loadoutDef } from '../../shared/loadout.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
 import { itemIcon } from './icons.js';
 import { cardFace } from './cardface.js';
 
@@ -34,14 +34,11 @@ export class TradeView {
     this.theirsNote = el('p', 'cd-hint', theirs, '');
     const foot = el('div', 'cd-trade-foot', this.root);
     this.status = el('div', 'cd-trade-status', foot);
-    this.readyB = el('button', 'btn', foot, 'Ready');
-    this.readyB.type = 'button';
+    this.readyB = button('btn', foot, 'Ready');
     this.readyB.addEventListener('click', () => this.c.ready(!this.c.s.trade?.ready[0]));
-    this.confirmB = el('button', 'btn btn-blood', foot, 'Confirm');
-    this.confirmB.type = 'button';
+    this.confirmB = button('btn btn-blood', foot, 'Confirm');
     this.confirmB.addEventListener('click', () => this.c.confirm());
-    this.closeB = el('button', 'btn btn-ghost btn-danger', foot, 'Call it off');
-    this.closeB.type = 'button';
+    this.closeB = button('btn btn-ghost btn-danger', foot, 'Call it off');
     this.closeB.addEventListener('click', () => this.c.closeTrade());
   }
 
@@ -95,8 +92,7 @@ export class TradeView {
       .map(Number)
       .filter((i) => !permanentOnly && pack[i] - (this.offer.items[i] || 0) > 0);
     for (const i of items) {
-      const b = svgEl('button', 'cd-item', this.itemsBox, itemIcon(i));
-      b.type = 'button';
+      const b = iconButton('cd-item', this.itemsBox, itemIcon(i));
       el('b', 'cd-n', b, `×${pack[i] - (this.offer.items[i] || 0)}`);
       b.title = `${ITEM_DEFS[i].name}: click for one, shift-click for all`;
       b.addEventListener('click', (e) => this.change('items', i, e.shiftKey ? pack[i] - (this.offer.items[i] || 0) : 1));

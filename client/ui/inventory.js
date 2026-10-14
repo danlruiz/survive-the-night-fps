@@ -20,7 +20,7 @@ import { INVENTORY_SIZE, INVENTORY_MAX, BACKPACK_SLOTS, inventoryCap } from '../
 import { SALVAGE_FROM, WORN, WORN_DO } from '../../shared/protocol.js';
 import { smallestStack } from '../../shared/stacks.js';
 import { planCost } from '../../shared/autocraft.js';
-import { el, svgEl, clamp } from './dom.js';
+import { el, svgEl, clamp, button, iconButton, replay } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { actionsOf, bindLabel } from '../game/binds.js';
 import { CAT_LABEL, statLines, costLine, salvageOf, shortName } from './iteminfo.js';
@@ -232,8 +232,7 @@ export class Inventory {
     this.tabs = new ScreenTabs(this.ui, head, 'inventory', () => this.ui.cb.onCloseInventory());
     const panes = (this.paneBar = el('div', 'ux-panes', wrap));
     const pane = (id, label, key) => {
-      const b = el('button', 'ux-pane', panes);
-      b.type = 'button';
+      const b = button('ux-pane', panes);
       b.dataset.pane = id;
       if (key === 'Q') el('span', 'kbd sm', b, key);
       el('span', 'ux-pane-t', b, label);
@@ -338,8 +337,7 @@ export class Inventory {
     el('span', 'ux-sub-a', ah, 'click to share');
     const pouch = (this.pouchEl = el('div', 'pouch', am));
     this.calEls = AMMO_ITEMS.map((id, cal) => {
-      const b = el('button', 'pouch-cal', pouch);
-      b.type = 'button';
+      const b = button('pouch-cal', pouch);
       b.dataset.cal = cal;
       svgEl('i', 'pc-ico', b, itemIcon(id));
       el('span', 'pc-name', b, AMMO_NAMES[cal]);
@@ -349,8 +347,7 @@ export class Inventory {
     });
     const foot = (this.pouchFoot = el('div', 'pouch-foot', am));
     this.pouchHidden = el('span', 'pf-t', foot, '');
-    const more = (this.pouchMore = el('button', 'pf-more', foot, 'show all'));
-    more.type = 'button';
+    const more = (this.pouchMore = button('pf-more', foot, 'show all'));
     more.addEventListener('click', () => {
       this.ui.sound('ui_click');
       this.showAllAmmo = !this.showAllAmmo;
@@ -412,8 +409,7 @@ export class Inventory {
     this.cardCmp.hidden = true;
     const btns = el('div', 'card-btns', body);
     const btn = (label, key, act) => {
-      const b = el('button', 'card-b', btns);
-      b.type = 'button';
+      const b = button('card-b', btns);
       const t = el('span', 'card-bt', b, label);
       el('span', 'kbd sm', b, key);
       b.addEventListener('click', () => this.sel && this._do(act, this.sel, false));
@@ -435,8 +431,7 @@ export class Inventory {
     this.splitIco = el('i', 'split-ico', sh);
     this.splitName = el('span', 'split-name', sh);
     this.splitOf = el('span', 'split-of', sh);
-    const splitX = svgEl('button', 'btn-icon split-x', sh, glyph('xmark'));
-    splitX.type = 'button';
+    const splitX = iconButton('btn-icon split-x', sh, glyph('xmark'));
     splitX.title = 'Close (Esc)';
     splitX.addEventListener('click', () => this._closeSplit());
     const sr = (this.splitRow = el('div', 'split-row', sp));
@@ -452,18 +447,15 @@ export class Inventory {
     num.autocomplete = 'off';
     num.setAttribute('aria-label', 'How many');
     const sb = (this.splitBtns = el('div', 'split-btns', sp));
-    this.splitDrop = el('button', 'btn split-b', sb, 'Drop');
-    this.splitDrop.type = 'button';
-    this.splitKeep = el('button', 'btn split-b', sb, 'Split');
-    this.splitKeep.type = 'button';
+    this.splitDrop = button('btn split-b', sb, 'Drop');
+    this.splitKeep = button('btn split-b', sb, 'Split');
     this.splitNote = el('div', 'split-note', sp);
     // ...and tearing it down, for anything SALVAGE lists: what the amount picked comes apart into
     const sv = (this.salvEl = el('div', 'salv', sp));
     el('div', 'salv-h', sv, 'Comes apart into');
     this.salvYield = el('div', 'salv-yield', sv);
     this.salvNote = el('div', 'split-note', sv);
-    this.salvBtn = el('button', 'btn split-b salv-b', sv, 'Salvage');
-    this.salvBtn.type = 'button';
+    this.salvBtn = button('btn split-b salv-b', sv, 'Salvage');
 
     // ---- the ammo popover: an amount of a calibre (presets, a slider), dropped for a teammate, or more of it crafted
     const ap = (this.apEl = el('div', 'split apop', root));
@@ -472,8 +464,7 @@ export class Inventory {
     this.apIco = el('i', 'split-ico', ah);
     this.apName = el('span', 'split-name', ah);
     this.apOf = el('span', 'split-of', ah);
-    const apX = svgEl('button', 'btn-icon split-x', ah, glyph('xmark'));
-    apX.type = 'button';
+    const apX = iconButton('btn-icon split-x', ah, glyph('xmark'));
     apX.title = 'Close (Esc)';
     apX.addEventListener('click', () => this._closeAmmo());
     const pre = el('div', 'ap-pre', ap);
@@ -483,8 +474,7 @@ export class Inventory {
       ['Half', (v) => Math.ceil(v / 2)],
       ['All', (v) => v],
     ].map(([t, f]) => {
-      const b = el('button', 'ap-p', pre, t);
-      b.type = 'button';
+      const b = button('ap-p', pre, t);
       b.addEventListener('click', () => this._setAmmo(f(this.inv.ammo[this.apop?.cal] | 0)));
       return { b, f };
     });
@@ -501,12 +491,10 @@ export class Inventory {
     anum.autocomplete = 'off';
     anum.setAttribute('aria-label', 'How many');
     const abt = el('div', 'split-btns', ap);
-    this.apDrop = el('button', 'btn split-b ap-drop', abt);
-    this.apDrop.type = 'button';
+    this.apDrop = button('btn split-b ap-drop', abt);
     this.apDropT = el('span', '', this.apDrop, 'Drop');
     el('span', 'kbd sm', this.apDrop, 'G');
-    this.apCraft = el('button', 'btn split-b', abt, 'Craft');
-    this.apCraft.type = 'button';
+    this.apCraft = button('btn split-b', abt, 'Craft');
     this.apNote = el('div', 'split-note', ap);
 
     // ---- the right-click menu
@@ -525,8 +513,7 @@ export class Inventory {
     u.hidden = true;
     this.undoIco = el('i', 'undo-ico', u);
     this.undoTxt = el('span', 'undo-t', u, '');
-    const ub = (this.undoBtn = el('button', 'undo-b', u));
-    ub.type = 'button';
+    const ub = (this.undoBtn = button('undo-b', u));
     el('span', 'kbd sm', ub, 'Z');
     el('span', '', ub, 'Undo');
     this.undoBar = el('i', 'undo-bar', u);
@@ -1068,8 +1055,7 @@ export class Inventory {
         if (m.lastChild?.className !== 'ctx-sep') el('div', 'ctx-sep', m);
         return;
       }
-      const b = el('button', 'ctx-item' + (it.danger ? ' danger' : ''), m);
-      b.type = 'button';
+      const b = button('ctx-item' + (it.danger ? ' danger' : ''), m);
       b.dataset.k = k;
       b.disabled = !!it.off;
       el('span', 'ctx-l', b, it.label);
@@ -1188,9 +1174,7 @@ export class Inventory {
     if (!s) return;
     const label = SECTIONS.find((x) => x.id === from).label;
     s.note.textContent = this.inv.slots[b] ? `${label} stay together: swap within this section` : 'The backpack keeps the free slots last';
-    s.h.classList.remove('flash');
-    void s.h.offsetWidth;
-    s.h.classList.add('flash');
+    replay(s.h, 'flash');
     clearTimeout(this.flashT);
     this.flashT = setTimeout(() => {
       s.h.classList.remove('flash');
@@ -1534,8 +1518,7 @@ export class Inventory {
     this.quickNone.hidden = items.length > 0;
     for (const id of items) {
       const c = CONSUMABLES[id];
-      const b = el('button', 'ux-q c-cons' + (c.heal ? ' heal' : c.drink || c.stamina ? ' drink' : '') + (c.heal && !c.stamina && full ? ' full' : ''), this.quickEl);
-      b.type = 'button';
+      const b = button('ux-q c-cons' + (c.heal ? ' heal' : c.drink || c.stamina ? ' drink' : '') + (c.heal && !c.stamina && full ? ' full' : ''), this.quickEl);
       b.dataset.item = id;
       svgEl('i', 'ux-q-ico', b, itemIcon(id));
       const t = el('span', 'ux-q-txt', b);
@@ -1710,8 +1693,7 @@ export class Inventory {
       this.throwAlt.textContent = '';
       if (throws.length > 1 || (throws.length === 1 && +throws[0][0] !== (w[3] | 0))) {
         for (const [id, n] of throws) {
-          const b = el('button', 'tw' + (+id === (w[3] | 0) ? ' on' : ''), this.throwAlt);
-          b.type = 'button';
+          const b = button('tw' + (+id === (w[3] | 0) ? ' on' : ''), this.throwAlt);
           b.dataset.item = id;
           b.title = 'Select ' + ITEM_DEFS[id]?.name;
           svgEl('i', 'tw-ico', b, itemIcon(+id));
@@ -1797,9 +1779,7 @@ export class Inventory {
     this.open = open;
     this.root.hidden = !open;
     if (open) {
-      this.root.classList.remove('in');
-      void this.root.offsetWidth;
-      this.root.classList.add('in');
+      replay(this.root, 'in');
       screenCame(this.root); // (from another tab: no animation in)
       this.tabs.sync();
       this.tabs.holdClock(true);

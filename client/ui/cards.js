@@ -20,7 +20,7 @@
 import { cardDef, AB, LA, ROW_NAMES, F, F_NAMES, DECK_SLOTS, validateDeck, rulesText, STARTER } from '../../shared/cards.js';
 import { legalMoves } from '../../shared/cardgame.js';
 import { LOADOUT_RARITY_NAMES, loadoutDef } from '../../shared/loadout.js';
-import { el, svgEl, replay, fmtTime } from './dom.js';
+import { el, svgEl, replay, fmtTime, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { cardFace, cardBack, setPow, ROW_GLYPH } from './cardface.js';
 import { DeckBuilder } from './carddeck.js';
@@ -42,7 +42,6 @@ const TABS = [
 ];
 const PASS_HOLD = 0.6; // seconds Space (or the Pass button) is held to pass
 const FORFEIT_ARM = 3; // seconds the Give up button waits for its second click
-const CPU = -1;
 
 // a deck slot's name for a list: its own, or the leader's deck
 export function deckLabel(c, slot) {
@@ -94,8 +93,7 @@ const guestKeeps = (s) => {
 
 // a hold-to-confirm button: the fill runs along it while it is held, and letting go early calls it off
 function holdButton(parent, cls, label, secs, run) {
-  const b = el('button', `btn cd-hold ${cls}`, parent);
-  b.type = 'button';
+  const b = button(`btn cd-hold ${cls}`, parent);
   el('span', '', b, label);
   el('i', 'cd-hold-fill', b);
   b.style.setProperty('--hold', `${secs}s`);
@@ -148,22 +146,19 @@ export class CardsScreen {
     const seg = el('div', 'set-seg cd-tabs', head);
     this.tabs = new Map();
     for (const [id, label] of TABS) {
-      const b = el('button', 'seg-btn cd-tab', seg);
-      b.type = 'button';
+      const b = button('seg-btn cd-tab', seg);
       el('span', '', b, label);
       const n = el('b', 'cd-badge', b, '');
       n.hidden = true;
       b.addEventListener('click', () => this.show(id));
       this.tabs.set(id, { b, n });
     }
-    const help = svgEl('button', 'btn btn-ghost cd-help', head, glyph('question'));
-    help.type = 'button';
+    const help = iconButton('btn btn-ghost cd-help', head, glyph('question'));
     el('span', '', help, 'How to play');
     help.setAttribute('aria-label', 'How to play Dead Hand');
     help.addEventListener('click', () => this.openGuide());
     this.count = el('span', 'map-coords cd-count', head, '');
-    const close = (this.close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('set-close btn-icon map-close', head, glyph('xmark')));
     close.setAttribute('aria-label', 'Close Dead Hand');
     liveText(close, () => `Close (${bindLabel('cards')})`, 'title');
     close.addEventListener('click', () => this.onClose?.());
@@ -398,8 +393,7 @@ class TableView {
     this.turn = el('div', 'cd-turn', st);
     this.turnT = el('span', 'cd-turn-t', this.turn);
     this.clock = el('b', 'cd-clock', this.turn, '');
-    this.give = el('button', 'btn btn-ghost cd-give', st, 'Give up');
-    this.give.type = 'button';
+    this.give = button('btn btn-ghost cd-give', st, 'Give up');
     this.give.addEventListener('click', () => this.forfeit());
 
     // ---- the sides (left): theirs on top, mine below
@@ -476,8 +470,7 @@ class TableView {
     const P = { root: p, leader, name, lives, counts, total, passed, known, leaderId: 0 };
     if (who === 'me') {
       const acts = el('div', 'cd-acts', p);
-      P.use = el('button', 'btn cd-use', acts, 'Use leader');
-      P.use.type = 'button';
+      P.use = button('btn cd-use', acts, 'Use leader');
       P.use.addEventListener('click', () => this.useLeader());
       P.pass = holdButton(acts, 'cd-pass', 'Pass', PASS_HOLD, () => this.move({ t: 'pass' }));
     }
@@ -595,11 +588,9 @@ class TableView {
     el('p', '', box, `To play a teammate, aim at one standing near you and press ${bindLabel('interact')}: a match (bet a card if you like) or a trade.`);
     el('p', '', box, 'Cards turn up in duffel bags, lockers, trunks and cabinets, and on the bosses. Whatever you find is yours to keep.');
     const row = el('div', 'cd-empty-acts', box);
-    const p = el('button', 'btn btn-blood cd-go', row, 'Practice');
-    p.type = 'button';
+    const p = button('btn btn-blood cd-go', row, 'Practice');
     p.addEventListener('click', () => this.sc.show('practice'));
-    const d = el('button', 'btn', row, 'Build a deck');
-    d.type = 'button';
+    const d = button('btn', row, 'Build a deck');
     d.addEventListener('click', () => this.sc.show('deck'));
   }
 
@@ -622,8 +613,7 @@ class TableView {
     renderStakeList(el('div', 'cd-offer', theirs), s.theirs, 'No item wagered.');
     if (s.phase === 'staking') {
       const acts = el('div', 'cd-over-acts', box);
-      const ready = el('button', 'btn btn-blood', acts, s.ok[0] ? 'Confirmed' : 'Confirm stakes');
-      ready.type = 'button';
+      const ready = button('btn btn-blood', acts, s.ok[0] ? 'Confirmed' : 'Confirm stakes');
       ready.classList.toggle('on', s.ok[0]);
       ready.addEventListener('click', () => c.stakeConfirm(!s.ok[0]));
       el('p', 'cd-hint', box, s.ok[1] ? `${who} has confirmed.` : `Waiting for ${who} to confirm.`);
@@ -800,8 +790,7 @@ class TableView {
         cards.appendChild(f);
       }
       const acts = el('div', 'cd-over-acts', box);
-      const keep = el('button', 'btn btn-blood', acts, 'Keep this hand');
-      keep.type = 'button';
+      const keep = button('btn btn-blood', acts, 'Keep this hand');
       keep.addEventListener('click', () => this.move({ t: 'keep' }));
       return;
     }
@@ -849,12 +838,10 @@ class TableView {
     }
     const acts = el('div', 'cd-over-acts', box);
     if (e?.local) {
-      const again = el('button', 'btn btn-blood', acts, 'Again');
-      again.type = 'button';
+      const again = button('btn btn-blood', acts, 'Again');
       again.addEventListener('click', () => this.sc.views.practice.deal());
     }
-    const done = el('button', 'btn', acts, 'Done');
-    done.type = 'button';
+    const done = button('btn', acts, 'Done');
     done.addEventListener('click', () => {
       c.s.lastEnd = null;
       this.sc.render('all');
@@ -928,8 +915,7 @@ class TableView {
           el('p', 'cd-over-p', box, 'Which row?');
           const acts = el('div', 'cd-over-acts rows', box);
           for (const m of left) {
-            const b = svgEl('button', 'btn cd-rowbtn', acts, glyph(ROW_GLYPH[m.row]));
-            b.type = 'button';
+            const b = iconButton('btn cd-rowbtn', acts, glyph(ROW_GLYPH[m.row]));
             el('span', '', b, ROW_NAMES[m.row]);
             b.addEventListener('click', () => this.finishPicker(m));
           }
@@ -940,8 +926,7 @@ class TableView {
     }
     if (P.cancel) {
       const acts = el('div', 'cd-over-acts', box);
-      const b = el('button', 'btn btn-ghost', acts, 'Cancel');
-      b.type = 'button';
+      const b = button('btn btn-ghost', acts, 'Cancel');
       b.addEventListener('click', () => this.closePicker());
     }
   }
@@ -1131,8 +1116,7 @@ class TableView {
       const opts = this.options();
       const go = opts.find((o) => !o.el);
       if (go) {
-        const b = el('button', 'btn btn-blood cd-play', d, 'Play it');
-        b.type = 'button';
+        const b = button('btn btn-blood cd-play', d, 'Play it');
         b.addEventListener('click', () => this.move(go.m));
       } else if (opts.length) el('p', 'cd-hint', d, opts.length > 1 ? 'Click where it goes, or ↑ ↓ and Enter' : 'Click where it goes, or Enter');
       else el('p', 'cd-hint', d, this.M?.view?.phase === 'play' && this.M.view.turn !== this.M.view.me ? 'Not your turn' : 'It cannot be played now');
@@ -1300,8 +1284,7 @@ class AsksView {
       const row = el('div', 'cd-ask out', box);
       el('b', '', row, a.kind === 'trade' ? `A trade with ${c.name(a.to)}` : `A match with ${c.name(a.to)}${a.bet ? ', for a card' : ''}`);
       this.secs.set(el('span', 'cd-ask-t', row, ''), a);
-      const b = el('button', 'btn btn-ghost', row, 'Withdraw');
-      b.type = 'button';
+      const b = button('btn btn-ghost', row, 'Withdraw');
       b.addEventListener('click', () => c.withdraw());
     }
     this.tick();
@@ -1346,12 +1329,10 @@ class AsksView {
       });
     }
     const acts = el('div', 'cd-ask-acts', row);
-    const yes = el('button', 'btn btn-blood', acts, a.kind === 'trade' ? 'Trade' : 'Play');
-    yes.type = 'button';
+    const yes = button('btn btn-blood', acts, a.kind === 'trade' ? 'Trade' : 'Play');
     yes.disabled = a.kind === 'match' && !!a.bet && !bet;
     yes.addEventListener('click', () => c.answer(a.from, a.kind, true, slot, bet, stake));
-    const no = el('button', 'btn btn-ghost', acts, 'No thanks');
-    no.type = 'button';
+    const no = button('btn btn-ghost', acts, 'No thanks');
     no.addEventListener('click', () => c.answer(a.from, a.kind, false));
   }
 
@@ -1379,8 +1360,7 @@ function betPicker(parent, c, onPick, none = true) {
     onPick(id);
   };
   if (none) {
-    const b = el('button', 'btn cd-nobet sel', box, 'No bet');
-    b.type = 'button';
+    const b = button('btn cd-nobet sel', box, 'No bet');
     cur = b;
     b.addEventListener('click', () => choose(b, 0));
   }
@@ -1462,16 +1442,14 @@ class ChooserView {
     if (inc) {
       const n = el('div', 'cd-ask in', box);
       el('b', '', n, inc.kind === 'trade' ? `${who} asked you to trade` : `${who} has challenged you`);
-      const b = el('button', 'btn', n, 'Answer');
-      b.type = 'button';
+      const b = button('btn', n, 'Answer');
       b.addEventListener('click', () => this.sc.show('asks'));
     }
     if (out) {
       const w = el('div', 'cd-wait', box);
       el('b', '', w, out.kind === 'trade' ? `Waiting for ${who} to answer your trade` : `Waiting for ${who} to take your challenge`);
       this.left = el('span', 'cd-ask-t', w, '');
-      const b = el('button', 'btn btn-ghost', w, 'Withdraw');
-      b.type = 'button';
+      const b = button('btn btn-ghost', w, 'Withdraw');
       b.addEventListener('click', () => c.withdraw());
       return this.tick();
     }
@@ -1498,8 +1476,7 @@ class ChooserView {
     stakePicker(f3, s.loadouts, stake, (ids) => {
       stake = ids;
     });
-    const go = el('button', 'btn btn-blood', m, 'Challenge');
-    go.type = 'button';
+    const go = button('btn btn-blood', m, 'Challenge');
     go.disabled = !!busy;
     go.addEventListener('click', () => c.ask(id, 'match', slot, bet, stake));
     // a trade
@@ -1508,8 +1485,7 @@ class ChooserView {
     svgEl('i', '', th, glyph('container'));
     el('span', '', th, 'Trade');
     el('p', 'cd-hint', t, `Swap found cards and what is in your backpacks. Both of you see both sides, and nothing changes hands until both confirm. Stay within a few steps of ${who}.`);
-    const tr = el('button', 'btn', t, 'Ask to trade');
-    tr.type = 'button';
+    const tr = button('btn', t, 'Ask to trade');
     tr.disabled = !!busy;
     tr.addEventListener('click', () => c.ask(id, 'trade'));
     if (busy) el('p', 'cd-hint warn', box, busy);
@@ -1550,8 +1526,7 @@ class LobbyTablesView {
     if (guest) {
       const note = el('div', 'ach-note cd-lobby-guest', box);
       el('span', '', note, 'Your cards and loadout items are kept in this browser only: clearing its data, a private window or another device and they are out of reach. Sign in and they move onto your account.');
-      const signIn = el('button', 'btn btn-ghost', note);
-      signIn.type = 'button';
+      const signIn = button('btn btn-ghost', note);
       svgEl('i', 'btn-ico', signIn, glyph('person'));
       el('span', '', signIn, 'Sign in');
       // (back to these tables once signed in: the lobby socket joins again as the account, game/cardlobby.js)
@@ -1564,11 +1539,9 @@ class LobbyTablesView {
     if (s.match && !s.match.local) {
       const live = el('div', 'cd-lobby-live', box);
       el('b', '', live, `You are playing ${c.name(s.match.opp)}`);
-      const back = el('button', 'btn btn-blood', live, 'Back to table');
-      back.type = 'button';
+      const back = button('btn btn-blood', live, 'Back to table');
       back.addEventListener('click', () => this.sc.show('table'));
-      const leave = el('button', 'btn btn-ghost', live, 'Give up');
-      leave.type = 'button';
+      const leave = button('btn btn-ghost', live, 'Give up');
       leave.addEventListener('click', () => c.leaveTable());
       return;
     }
@@ -1577,8 +1550,7 @@ class LobbyTablesView {
     el('div', 'fr-h', mineBox, mine ? 'Your open table' : 'Open a table');
     if (mine) {
       el('p', 'cd-hint', mineBox, `Waiting for someone to join with ${deckLabel(c, mine.slot)}.`);
-      const cancel = el('button', 'btn btn-ghost', mineBox, 'Cancel table');
-      cancel.type = 'button';
+      const cancel = button('btn btn-ghost', mineBox, 'Cancel table');
       cancel.addEventListener('click', () => c.leaveTable());
     } else {
       this.slot = c.lastSlot();
@@ -1589,8 +1561,7 @@ class LobbyTablesView {
       const sf = el('div', 'cd-field', mineBox);
       el('span', '', sf, 'Loadout item wager');
       stakePicker(sf, s.loadouts, this.stake, (ids) => (this.stake = ids));
-      const open = el('button', 'btn btn-blood', mineBox, 'Open table');
-      open.type = 'button';
+      const open = button('btn btn-blood', mineBox, 'Open table');
       open.disabled = !s.loaded;
       open.addEventListener('click', () => c.openTable(this.slot, this.stake || []));
       if (!s.loaded) el('p', 'cd-hint warn', mineBox, 'Your collection is still loading.');
@@ -1606,8 +1577,7 @@ class LobbyTablesView {
       el('b', '', who, t.name || c.name(t.host));
       el('span', '', who, `waiting with ${this.tableDeck(t)}`);
       if (t.stake?.length) renderStakeList(el('div', 'cd-lobby-stake', row), t.stake, '');
-      const join = el('button', 'btn btn-ghost', row, 'Join');
-      join.type = 'button';
+      const join = button('btn btn-ghost', row, 'Join');
       join.disabled = !s.loaded || !!mine;
       let stake = [];
       const wager = el('div', 'cd-lobby-stake', row);
@@ -1661,8 +1631,7 @@ class PracticeView {
       [F.SURVIVORS, F_NAMES[F.SURVIVORS]],
       [F.DEAD, F_NAMES[F.DEAD]],
     ]) {
-      const b = el('button', 'seg-btn' + (f === this.opp ? ' on' : ''), seg, label);
-      b.type = 'button';
+      const b = button('seg-btn' + (f === this.opp ? ' on' : ''), seg, label);
       b.addEventListener('click', () => {
         this.opp = f;
         for (const x of seg.children) x.classList.toggle('on', x === b);
@@ -1675,16 +1644,14 @@ class PracticeView {
       ['easy', 'Easy'],
       ['normal', 'Normal'],
     ]) {
-      const b = el('button', 'seg-btn' + (lv === this.level ? ' on' : ''), seg2, label);
-      b.type = 'button';
+      const b = button('seg-btn' + (lv === this.level ? ' on' : ''), seg2, label);
       b.addEventListener('click', () => {
         this.level = lv;
         for (const x of seg2.children) x.classList.toggle('on', x === b);
       });
     }
     const acts = el('div', 'cd-over-acts', box);
-    const go = el('button', 'btn btn-blood', acts, c.s.match?.local ? 'Deal again' : 'Deal');
-    go.type = 'button';
+    const go = button('btn btn-blood', acts, c.s.match?.local ? 'Deal again' : 'Deal');
     go.disabled = !!(c.s.match && !c.s.match.local);
     go.addEventListener('click', () => this.deal());
     if (c.s.match && !c.s.match.local) el('p', 'cd-hint warn', box, 'Finish your match first.');

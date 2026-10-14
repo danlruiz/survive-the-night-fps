@@ -2,7 +2,7 @@
 // making an account; then who you are, what the server has on record for you over every game, your last games,
 // and signing out. The account itself is client/net/account.js. It borrows the lobby's card (games.js) and closes
 // the same ways: the cross, Esc, or a click outside the card.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { Panel } from './games.js';
 import { accountState, onAccountChange, refreshAccount, register, login, logout, myStats } from '../net/account.js';
@@ -80,8 +80,7 @@ export class AccountPanel extends Panel {
       ['signin', 'Sign in'],
       ['register', 'Create account'],
     ].map(([id, label]) => {
-      const b = el('button', 'seg-btn', seg, label);
-      b.type = 'button';
+      const b = button('seg-btn', seg, label);
       b.addEventListener('click', () => this.setTab(id));
       return [id, b];
     });
@@ -130,28 +129,24 @@ export class AccountPanel extends Panel {
     const no = (this.noView = el('div', 'gb-empty ac-none', this.body));
     this.noText = el('p', '', no, '');
     this.noSub = el('p', 'gb-empty-sub', no, '');
-    this.retry = el('button', 'btn btn-ghost ac-retry', no);
-    this.retry.type = 'button';
+    this.retry = button('btn btn-ghost ac-retry', no);
     el('span', '', this.retry, 'Try again');
     this.retry.addEventListener('click', () => refreshAccount().then(() => this.render()));
 
     // ---- foot: signing out, and the friends panel
-    this.outBtn = el('button', 'btn btn-ghost btn-danger', this.foot);
-    this.outBtn.type = 'button';
+    this.outBtn = button('btn btn-ghost btn-danger', this.foot);
     svgEl('i', 'btn-ico', this.outBtn, glyph('exit'));
     this.outTxt = el('span', '', this.outBtn, 'Sign out');
     this.outBtn.addEventListener('click', () => this.signOut());
     el('span', 'gb-gap', this.foot);
-    this.achBtn = el('button', 'btn btn-ghost', this.foot);
-    this.achBtn.type = 'button';
+    this.achBtn = button('btn btn-ghost', this.foot);
     svgEl('i', 'btn-ico', this.achBtn, glyph('trophy'));
     el('span', '', this.achBtn, 'Achievements');
     this.achBtn.addEventListener('click', () => {
       this.hide();
       this.ui.achPanel.show();
     });
-    this.friendsBtn = el('button', 'btn btn-ghost', this.foot);
-    this.friendsBtn.type = 'button';
+    this.friendsBtn = button('btn btn-ghost', this.foot);
     svgEl('i', 'btn-ico', this.friendsBtn, glyph('star'));
     el('span', '', this.friendsBtn, 'Friends');
     this.friendsBtn.addEventListener('click', () => {

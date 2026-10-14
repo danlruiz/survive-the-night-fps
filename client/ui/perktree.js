@@ -11,7 +11,7 @@
 // In a narrow window (browser zoom, a small screen) the timeline gives way to a list: one branch at a time behind
 // tabs, a row a perk with its own Take / Take back, and the same before and after under the row picked out.
 // The Perks panel (progress.js) owns one.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { PERKS, PERK_BY_ID, PERK_GROUPS, BRANCHES, TIER, TIER_NAMES, TIER_LEVELS, PICK_LEVELS, PERK_POINTS, PERK_CAP, NO_PERKS, perkLock, perkDependents, perkMods, perkMask } from '../../shared/progress.js';
 import { ROLES, ROLE_TIER } from '../../shared/roles.js';
@@ -303,8 +303,7 @@ export class PerkTree {
 
   _card(parent, p, area, cls = '') {
     const base = `prk-card ${cls}` + (p.keystone ? ' key' : '');
-    const card = el('button', base, parent);
-    card.type = 'button';
+    const card = button(base, parent);
     card.dataset.id = String(p.id);
     if (area) card.style.gridArea = area;
     const link = p.tier > 0 && p.tier < TIER.COMBO ? el('i', 'prk-in', card) : null;
@@ -324,8 +323,7 @@ export class PerkTree {
     const labels = [...PERK_GROUPS.slice(0, BRANCHES), 'Combinations', 'Keystones'];
     const icons = [...BRANCH_ICON.slice(0, BRANCHES), 'link', 'star'];
     labels.forEach((name, i) => {
-      const b = el('button', 'prk-tab', tabs);
-      b.type = 'button';
+      const b = button('prk-tab', tabs);
       b.setAttribute('role', 'tab');
       svgEl('i', 'prk-tab-ico', b, glyph(icons[i]));
       el('span', 'prk-tab-n', b, name);
@@ -350,11 +348,9 @@ export class PerkTree {
     this.barThen = el('div', 'prk-bar-then', t, '');
     this.barFx = el('div', 'prk-fxbox', bar);
     const acts = el('div', 'prk-bar-acts', bar);
-    this.takeBtn = el('button', 'btn btn-blood prk-take', acts, 'Spend 1 point');
-    this.takeBtn.type = 'button';
+    this.takeBtn = button('btn btn-blood prk-take', acts, 'Spend 1 point');
     this.takeBtn.addEventListener('click', () => this.sel >= 0 && this.onPick?.(this.sel));
-    this.backBtn = el('button', 'btn btn-ghost prk-back', acts, 'Take back');
-    this.backBtn.type = 'button';
+    this.backBtn = button('btn btn-ghost prk-back', acts, 'Take back');
     this.backBtn.addEventListener('click', () => this.sel >= 0 && this.onUnpick?.(this.sel));
     this.barWhy = el('small', 'prk-bar-why', acts, '');
   }
@@ -536,8 +532,7 @@ export class PerkTree {
   _row(parent, p) {
     const st = perkStatus(p.id, this.owned, this.level);
     const row = el('div', `prk-row ${st.state}` + (p.keystone ? ' key' : '') + (p.id === this.sel ? ' sel' : ''), parent);
-    const main = el('button', 'prk-row-main', row);
-    main.type = 'button';
+    const main = button('prk-row-main', row);
     main.dataset.id = String(p.id);
     main.setAttribute('aria-expanded', p.id === this.sel ? 'true' : 'false');
     svgEl('i', 'prk-ico', main, glyph(p.icon));
@@ -556,14 +551,12 @@ export class PerkTree {
     el('span', '', word, st.state === 'lock' ? (perkLock(this.owned, p.id, this.level) === 'level' ? `Level ${p.level}` : 'Locked') : STATE_WORD[st.state]);
     if (st.state === 'own' && this.onUnpick) {
       const why = takeBackWhy(this.owned, p.id);
-      const b = el('button', 'btn btn-ghost prk-row-btn', act, 'Take back');
-      b.type = 'button';
+      const b = button('btn btn-ghost prk-row-btn', act, 'Take back');
       b.disabled = this.busy || !!why;
       b.addEventListener('click', () => this.onUnpick(p.id));
       if (why) el('small', 'prk-row-why', act, why);
     } else if ((st.state === 'open' || st.state === 'full') && this.onPick) {
-      const b = el('button', 'btn prk-row-btn prk-row-take', act, '+ Take');
-      b.type = 'button';
+      const b = button('btn prk-row-btn prk-row-take', act, '+ Take');
       b.disabled = this.busy || st.state !== 'open';
       b.addEventListener('click', () => this.onPick(p.id));
     }

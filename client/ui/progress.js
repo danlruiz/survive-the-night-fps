@@ -5,7 +5,7 @@
 // force at dawn (the server sees to it, Game.setProgress).
 //
 // Also the small pieces the rest of the UI shows it with: the level badge and the XP bar (xpBar).
-import { el } from './dom.js';
+import { el, button } from './dom.js';
 import { Panel } from './games.js';
 import { PerkTree } from './perktree.js';
 import { PerkPick } from './perkpick.js';
@@ -68,8 +68,7 @@ export class ProgressPanel extends Panel {
     const top = (this.top = el('div', 'pg-top'));
     head.insertBefore(top, head.querySelector('.set-close'));
     this.bar = xpBar(top, 'pg-xpb');
-    const pts = (this.pts = el('button', 'pg-pts', top));
-    pts.type = 'button';
+    const pts = (this.pts = button('pg-pts', top));
     pts.addEventListener('click', () => this.view?.pending && this.setMode('quick'));
     this.ptsBig = el('b', 'pg-pts-big', pts, '');
     const ptsR = el('span', 'pg-pts-r', pts);
@@ -86,14 +85,12 @@ export class ProgressPanel extends Panel {
     this.emptySub = el('p', 'gb-empty-sub', this.empty, '');
     this.guest = el('p', 'ac-note pg-note prk-guest', this.body, 'As a guest your progress is kept for this browser, and moves onto your account when you sign in.');
 
-    this.respec = el('button', 'btn btn-ghost btn-danger', this.foot);
-    this.respec.type = 'button';
+    this.respec = button('btn btn-ghost btn-danger', this.foot);
     this.respecT = el('span', '', this.respec, 'Start over');
     this.respec.title = 'Every point back, to spend again';
     this.respec.addEventListener('click', () => this._respec());
     el('span', 'gb-gap', this.foot);
-    const close = el('button', 'btn btn-ghost', this.foot, 'Close');
-    close.type = 'button';
+    const close = button('btn btn-ghost', this.foot, 'Close');
     close.addEventListener('click', () => this.hide());
 
     onProgress((v) => {

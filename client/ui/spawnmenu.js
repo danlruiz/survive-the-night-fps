@@ -7,7 +7,7 @@
 // ("hq": The Hive Queen), its ITEM / ZTYPE key, its category ("ammo", "boss") or, failing those, its letters in order.
 // A trailing number is how many ("walker 5", "9mm x60"). The best fit is picked: Enter spawns it.
 import { ITEM, ITEM_DEFS, AMMO_MAX, ZTYPE, ZOMBIE_DEFS } from '../../shared/defs.js';
-import { el, svgEl, lsGet, lsSet, replay } from './dom.js';
+import { el, svgEl, lsGet, lsSet, replay, iconButton, button } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 
 // (a fixed key, not a keybind: the menu is not everybody's, so it has no place in the settings' list)
@@ -202,8 +202,7 @@ export class SpawnMenu {
     el('span', 'map-title', head, 'Spawn');
     el('span', 'spawn-tag', head, 'Admin');
     this.count = el('span', 'map-coords', head, '');
-    const close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark'));
-    close.type = 'button';
+    const close = iconButton('set-close btn-icon map-close', head, glyph('xmark'));
     close.title = 'Close (` or Esc)';
     close.setAttribute('aria-label', 'Close spawn menu');
     close.addEventListener('click', () => this.onClose?.());
@@ -229,8 +228,7 @@ export class SpawnMenu {
     const qty = el('div', 'set-seg spawn-qty', top);
     qty.title = 'How many';
     this.qtyBtns = QTYS.map(([v, label, tip]) => {
-      const b = el('button', 'seg-btn', qty, label);
-      b.type = 'button';
+      const b = button('seg-btn', qty, label);
       b.title = tip || `${label} at a time`;
       b.addEventListener('click', () => this.setQty(v));
       return b;
@@ -240,8 +238,7 @@ export class SpawnMenu {
     this.side = el('div', 'spawn-side', body);
     this.catBtns = new Map();
     for (const c of SPAWN_CATS) {
-      const b = el('button', 'spawn-cat', this.side);
-      b.type = 'button';
+      const b = button('spawn-cat', this.side);
       el('span', 'spawn-cat-l', b, c.label);
       b.n = el('span', 'spawn-n', b, '');
       b.addEventListener('click', () => this.setCat(c.id));

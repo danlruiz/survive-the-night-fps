@@ -3,7 +3,7 @@
 // they have in force, and a friend request to send them - or theirs to accept or turn down. A guest has no record
 // beyond this game and cannot be asked: they are told apart and said to be one. It borrows the lobby's card
 // (games.js) and closes the same ways: the cross, Esc, or a click outside the card.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { Panel } from './games.js';
 import { duration } from './account.js';
@@ -33,9 +33,8 @@ const SAID = {
   already: (n) => `${n} is your friend already.`,
 };
 
-function button(parent, cls, icon, text, fn) {
-  const b = el('button', 'btn ' + cls, parent);
-  b.type = 'button';
+function actionButton(parent, cls, icon, text, fn) {
+  const b = button('btn ' + cls, parent);
   if (icon) svgEl('i', 'btn-ico', b, glyph(icon));
   el('span', '', b, text);
   b.addEventListener('click', fn);
@@ -79,8 +78,7 @@ export class ProfilePanel extends Panel {
     this.saidEl = el('div', 'fr-said pf-said', this.body, '');
     this.acts = el('div', 'pf-acts', this.foot);
     el('span', 'gb-gap', this.foot);
-    const close = el('button', 'btn btn-ghost', this.foot, 'Close');
-    close.type = 'button';
+    const close = button('btn btn-ghost', this.foot, 'Close');
     close.addEventListener('click', () => this.hide());
 
     onSocialChange(() => this.visible && this.renderActs());
@@ -265,7 +263,7 @@ export class ProfilePanel extends Panel {
     const me = accountState();
     const note = (text) => el('span', 'pf-note', this.acts, text);
     if (p.self) {
-      button(this.acts, 'btn-ghost', 'arrowUp', 'Your perks', () => {
+      actionButton(this.acts, 'btn-ghost', 'arrowUp', 'Your perks', () => {
         this.hide();
         this.ui.progress.show();
       });
@@ -279,14 +277,14 @@ export class ProfilePanel extends Panel {
     const asked = askedByName(p.account);
     if (asked) {
       note(`${p.account} asked to be your friend.`);
-      button(this.acts, 'btn-blood', 'check', 'Accept', () =>
+      actionButton(this.acts, 'btn-blood', 'check', 'Accept', () =>
         this.act(async () => {
           await acceptFriend(asked.id);
           this.said = `You and ${p.account} are friends now.`;
           this.saidOk = true;
         }, 'Could not accept it.')
       ).disabled = this.busy;
-      button(this.acts, 'btn-ghost', 'xmark', 'Turn down', () =>
+      actionButton(this.acts, 'btn-ghost', 'xmark', 'Turn down', () =>
         this.act(async () => {
           await declineFriend(asked.id);
           this.said = 'Turned down.';
@@ -296,7 +294,7 @@ export class ProfilePanel extends Panel {
       return;
     }
     if (requestedName(p.account)) return void note('Friend request sent: waiting for them.');
-    button(this.acts, 'btn-blood', 'personPlus', 'Send friend request', () =>
+    actionButton(this.acts, 'btn-blood', 'personPlus', 'Send friend request', () =>
       this.act(async () => {
         const r = await requestFriend(p.account);
         const said = SAID[r?.result];
