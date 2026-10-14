@@ -10,7 +10,7 @@ import { ENT } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
 import { playerMods } from './loadouts.js';
-import { Herds, HERD_RUSH } from './herd.js';
+import { Herds, HERD_RUSH, STRAY, LOST } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
 import { TRIGGERS, ACTS, STATES, MOVES, AIMS, CHASES, NEARS, STEPS, RELEASES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
 import { GRAV, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
@@ -40,6 +40,8 @@ const HAZE_HIDES = 0.88;
 // go by how far across it is, and a city is a place a few hundred metres across, so they alone leave it near empty
 const CITY_STREET_DEAD = 64;
 const CITY_STREET_SHARE = 0.2; // of the roaming dead that turn up by day, the share that comes back into the city
+const CORPSE_LINGER = 1.6; // s a body lies where it fell before it is gone (sweepCorpses)
+const MAINTAIN_EVERY = 4; // s between the day's looks at how many of the dead are about (keepDayPopulation)
 const ROAM_CLEAR = 75; // none of the roaming dead turns up within this many m of a survivor (spawnRoamer, spawnStreet)
 const GUARDS_CLEAR = 60; // ...nor fills a place back up with a survivor within this many m past its edge
 // Where a run on the map begins (world.start: the car on the island, the bridgehead on the mainland) is left clear: none
@@ -273,7 +275,7 @@ export class Zombies {
       lit: false, // shade: frozen by light
       darkT: 1,
       trapSlow: 1,
-      burst: false, // a Mother whose belly has been torn open (Combat.burstBelly): her babies are out
+      burst: false, // a Mother whose belly has been torn open (burstBelly, specials/mother.js): her babies are out
       legs: 0, // legs shot off (Combat.hitLeg): bit 0 the left, bit 1 the right. One gone it hobbles, both gone it crawls
       legHp: def.legs ? [hp * LEG_HP, hp * LEG_HP] : null, // what each leg still takes (left, right)
       stumbleT: 0, // tripped by a shot in the leg: seconds until it has caught itself
@@ -756,37 +758,9 @@ export class Zombies {
     // Sweep the corpses before the hash is built: it stores indices into g.zombies, so a splice any later would
     // leave everything that asks forNear this tick (a blast, a fire, a trap, the crowd's own spacing) looking at
     // the wrong zombies, or at none.
-    const zs = g.zombies;
-    for (let i = zs.length - 1; i >= 0; i--) {
-      const z = zs[i];
-      if (!z.dead) continue;
-      z.deadT += dt;
-      if (z.deadT > 1.6) {
-        zs.splice(i, 1);
-        g.removeEntity(z);
-      }
-    }
+    this.sweepCorpses(dt);
     this.rebuildHash();
-
-    // who is down in the mine (the survivors here, each zombie in updateOne)
-    const mn = g.mineNav;
-    for (const h of humans) h.under = !!mn && mn.under(h.state);
-    if (mn) mn.refresh();
-    // flow fields: refresh 2 per tick round-robin (to a survivor down in the mine the valley's grid leads nowhere:
-    // the way to them is by a portal, steerLevels). The dead after someone are counted twice a second: a field
-    // solved with the crowd sends those behind a jam round to the next way in (nav.js setCrowd)
-    if (humans.length) {
-      if (g.tick % 10 === 0) {
-        const chasing = this.crowdList;
-        chasing.length = 0;
-        for (const z of zs) if (!z.dead && z.target && !z.under && !z.def.flying) chasing.push(z);
-        g.nav.setCrowd(chasing);
-      }
-      for (let k = 0; k < Math.min(2, humans.length); k++) {
-        const h = humans[this.fieldRR++ % humans.length];
-        if (!h.under) g.nav.computeField(h.id, h.state.x, h.state.z, true);
-      }
-    }
+    this.refreshFields(humans);
 
     if (!this.opener && g.phase === PHASE.DAY && g.day === 1 && humans.length) {
       const t = g.dayLen - g.timeLeft;
@@ -795,50 +769,94 @@ export class Zombies {
     }
 
     // day population maintenance (not during the final stand: its zombies are counted, and need the room under the cap)
-    if (g.phase === PHASE.DAY && !g.escape.active) {
-      this.maintainT -= dt;
-      if (this.maintainT <= 0) {
-        this.maintainT = 4;
-        let alive = 0;
-        let dogs = 0;
-        for (const z of g.zombies) {
-          if (z.dead || z.horde || z.den || z.ward) continue;
-          if (z.pack) dogs++;
-          else if (!z.herd) alive++;
-        }
-        const pop = g.diff.zombies * this.spread();
-        const target = Math.min(Math.max(8, Math.round(62 * pop)), Math.round((22 + g.day * 4 + humans.length * 2) * pop));
-        if (alive < target) this.spawnRoamer(humans);
-        if (dogs < Math.min(Math.max(2, Math.round(18 * pop)), Math.round((4 + g.day * 2) * pop))) this.spawnForestPack(humans);
-      }
-    }
-
-    // horde stragglers stuck far from every survivor are brought back into the fight
-    if ((g.phase === PHASE.NIGHT || g.escape.active) && g.tick % 40 === 0 && humans.length) {
-      for (const z of g.zombies) {
-        if (z.dead || !z.horde || z.boss) continue;
-        if (nearestHuman(humans, z.x, z.z) > 125) z.farT += 2;
-        else z.farT = 0;
-        if (z.farT > 14) {
-          const sp = this.pickHordeSpawn(humans);
-          if (sp) {
-            z.x = sp.x;
-            z.z = sp.z;
-            z.y = groundAt(g.world, sp.x, sp.z, 200, 0.2, false) + (z.def.flying ? 4 : 0);
-            z.vx = z.vz = z.vy = 0;
-            z.state = 0;
-            g.fillHistory(z);
-          }
-          z.farT = 0;
-        }
-      }
-    }
+    if (g.phase === PHASE.DAY && !g.escape.active) this.keepDayPopulation(dt, humans);
+    if ((g.phase === PHASE.NIGHT || g.escape.active) && g.tick % 40 === 0 && humans.length) this.bringBackStragglers(humans);
 
     this.herds.update(dt, humans);
 
+    const zs = g.zombies;
     for (let i = zs.length - 1; i >= 0; i--) {
       const z = zs[i];
       if (!z.dead) this.updateOne(z, dt, humans);
+    }
+  }
+
+  // a body lies CORPSE_LINGER s, then it is gone
+  sweepCorpses(dt) {
+    const g = this.g;
+    const zs = g.zombies;
+    for (let i = zs.length - 1; i >= 0; i--) {
+      const z = zs[i];
+      if (!z.dead) continue;
+      z.deadT += dt;
+      if (z.deadT > CORPSE_LINGER) {
+        zs.splice(i, 1);
+        g.removeEntity(z);
+      }
+    }
+  }
+
+  // who is down in the mine (the survivors here, each zombie in updateOne), and the flow fields to the survivors
+  refreshFields(humans) {
+    const g = this.g;
+    const mn = g.mineNav;
+    for (const h of humans) h.under = !!mn && mn.under(h.state);
+    if (mn) mn.refresh();
+    // flow fields: refresh 2 per tick round-robin (to a survivor down in the mine the valley's grid leads nowhere:
+    // the way to them is by a portal, steerLevels). The dead after someone are counted twice a second: a field
+    // solved with the crowd sends those behind a jam round to the next way in (nav.js setCrowd)
+    if (!humans.length) return;
+    if (g.tick % 10 === 0) {
+      const chasing = this.crowdList;
+      chasing.length = 0;
+      for (const z of g.zombies) if (!z.dead && z.target && !z.under && !z.def.flying) chasing.push(z);
+      g.nav.setCrowd(chasing);
+    }
+    for (let k = 0; k < Math.min(2, humans.length); k++) {
+      const h = humans[this.fieldRR++ % humans.length];
+      if (!h.under) g.nav.computeField(h.id, h.state.x, h.state.z, true);
+    }
+  }
+
+  // every MAINTAIN_EVERY s of day, one more of the roaming dead and one more dog pack while there are fewer than the
+  // day, the difficulty and the team's size call for
+  keepDayPopulation(dt, humans) {
+    const g = this.g;
+    this.maintainT -= dt;
+    if (this.maintainT > 0) return;
+    this.maintainT = MAINTAIN_EVERY;
+    let alive = 0;
+    let dogs = 0;
+    for (const z of g.zombies) {
+      if (z.dead || z.horde || z.den || z.ward) continue;
+      if (z.pack) dogs++;
+      else if (!z.herd) alive++;
+    }
+    const pop = g.diff.zombies * this.spread();
+    const target = Math.min(Math.max(8, Math.round(62 * pop)), Math.round((22 + g.day * 4 + humans.length * 2) * pop));
+    if (alive < target) this.spawnRoamer(humans);
+    if (dogs < Math.min(Math.max(2, Math.round(18 * pop)), Math.round((4 + g.day * 2) * pop))) this.spawnForestPack(humans);
+  }
+
+  // horde stragglers stuck far from every survivor (STRAY m, for LOST s) are brought back into the fight
+  bringBackStragglers(humans) {
+    const g = this.g;
+    for (const z of g.zombies) {
+      if (z.dead || !z.horde || z.boss) continue;
+      if (nearestHuman(humans, z.x, z.z) > STRAY) z.farT += 2;
+      else z.farT = 0;
+      if (z.farT > LOST) {
+        const sp = this.pickHordeSpawn(humans);
+        if (sp) {
+          z.x = sp.x;
+          z.z = sp.z;
+          z.y = groundAt(g.world, sp.x, sp.z, 200, 0.2, false) + (z.def.flying ? 4 : 0);
+          z.vx = z.vz = z.vy = 0;
+          z.state = 0;
+          g.fillHistory(z);
+        }
+        z.farT = 0;
+      }
     }
   }
 
