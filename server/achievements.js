@@ -15,6 +15,7 @@ import { ITEM, ZTYPE, ZONE, CONT, KILLER, EVT } from '../shared/defs.js';
 import { ACH_STATS, ACH_STAT_INDEX, ACH_BY_ID, ACHF, KILL_FEATS } from '../shared/achievements.js';
 import { swimming } from '../shared/swim.js';
 import { handcars } from '../shared/handcar.js';
+import { WORLD } from '../shared/acts.js';
 
 const SEND_EVERY = 3; // seconds: counts are gathered this long before they go out (a feat goes at once)
 const MOVE_MAX = 15; // m/s: further than this between two looks is a respawn or a teleport, not travel
@@ -276,7 +277,7 @@ export class AchievementTracker {
     for (const p of g.players.values()) {
       if (!p.alive || p.zombie) continue;
       if (Math.hypot(p.state.x - car.x, p.state.z - car.z) <= ESCAPE_RADIUS) this.bump(p, 'escapes');
-      if (!this.runDeaths) this.feat(p, 'flawless');
+      if (!this.runDeaths && g.startAct !== WORLD.MAINLAND) this.feat(p, 'flawless'); // (the whole campaign: not a run begun on the mainland)
       this.send(p);
     }
   }

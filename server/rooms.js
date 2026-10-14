@@ -99,7 +99,7 @@ export class Room {
   // the save (Lobby.prepare). from: that save as it was claimed ({ meta, body }), kept until the game is up. pin: the
   // build whose code runs this game instead of this server's ({ id, dir, client, since }: builds.js), because this
   // server's could not read its save
-  constructor(lobby, { code, name, host, inviteOnly, maxPlayers, quick, difficulty, maker = '', restore = null, first = '', created = Date.now(), continues = null, prepared = null, from = null, pin = null }) {
+  constructor(lobby, { code, name, host, inviteOnly, maxPlayers, quick, difficulty, startAct = 1, maker = '', restore = null, first = '', created = Date.now(), continues = null, prepared = null, from = null, pin = null }) {
     this.lobby = lobby;
     this.code = code;
     this.name = name; // as its maker called it ('' for one a quick join made)
@@ -109,6 +109,9 @@ export class Room {
     this.inviteOnly = inviteOnly;
     this.quick = quick;
     this.difficulty = difficultyOf(difficulty).id; // Ember, Nightfall or Blackout (a quick join, and a save from before this, is Nightfall)
+    // the map every run of it begins on: 1 the island, 2 the mainland (acts.js MAINLAND_START). A game that starts on
+    // the mainland is only for whoever has beaten map 1: making one (index.js POST /api/games) and joining (map1First)
+    this.startAct = startAct === 2 ? 2 : 1;
     this.maxPlayers = maxPlayers;
     this.created = created;
     this.emptySince = Date.now(); // (a restored game nobody comes back to closes as any empty one does)
@@ -150,7 +153,7 @@ export class Room {
 
     // (analytics: the game records its matches - only worth it with a database to write them to. achievements and the
     // bestiary: an account's go to the database too, and a guest's to their browser either way)
-    const opts = { ...lobby.gameOpts, maxPlayers, inviteOnly, difficulty: this.difficulty, analytics: !!lobby.matches, achievements: !!lobby.achievements, bestiary: !!lobby.bestiary };
+    const opts = { ...lobby.gameOpts, maxPlayers, inviteOnly, difficulty: this.difficulty, startAct: this.startAct, analytics: !!lobby.matches, achievements: !!lobby.achievements, bestiary: !!lobby.bestiary };
     this.builtAhead = !pin && !!prepared && this.congestion === prepared.congestion;
     if (this.builtAhead) {
       this.worker = prepared.worker;
@@ -196,7 +199,7 @@ export class Room {
   // what the lobby shows of it (its code included: list() only hands out public games', find() only to whoever has it)
   info() {
     const s = this.st;
-    return { code: this.code, name: this.title, players: Math.max(s.players, 0), seats: this.open, max: this.maxPlayers, full: this.noRoom, phase: s.phase, day: s.day, seed: s.seed, inviteOnly: this.inviteOnly, difficulty: this.difficulty, ready: this.ready, ageS: Math.round((Date.now() - this.created) / 1000) };
+    return { code: this.code, name: this.title, players: Math.max(s.players, 0), seats: this.open, max: this.maxPlayers, full: this.noRoom, phase: s.phase, day: s.day, seed: s.seed, inviteOnly: this.inviteOnly, difficulty: this.difficulty, map: this.startAct, ready: this.ready, ageS: Math.round((Date.now() - this.created) / 1000) };
   }
 
   // ---------------------------------------------------------------- sockets
@@ -304,6 +307,7 @@ export class Room {
     w.str(this.title);
     w.u8(this.inviteOnly ? ROOMF.INVITE_ONLY : 0);
     w.str(this.difficulty); // after the flags, so a client from before difficulties never reads it
+    w.u8(this.startAct); // ...and the map every run of it begins on, after that (acts.js WORLD)
     const out = w.bytes();
     if (this.socks[slot]) {
       this.lobby.netMetrics?.wsOut('game_room', out);
@@ -542,7 +546,7 @@ export class Room {
   // since when it has been (pinnedAt)
   meta(match) {
     const build = this.pin?.id || this.lobby.builds?.id || undefined;
-    return { name: this.name, host: this.host, maker: this.maker, first: this.first, inviteOnly: this.inviteOnly, quick: this.quick, maxPlayers: this.maxPlayers, difficulty: this.difficulty, created: this.created, match, build, pinnedAt: this.pin ? this.pin.since : undefined };
+    return { name: this.name, host: this.host, maker: this.maker, first: this.first, inviteOnly: this.inviteOnly, quick: this.quick, maxPlayers: this.maxPlayers, difficulty: this.difficulty, startAct: this.startAct, created: this.created, match, build, pinnedAt: this.pin ? this.pin.since : undefined };
   }
 
   // A game carried on by an older build is not kept on it for ever: when its run is over (after its end screen has had
@@ -762,7 +766,7 @@ export class Lobby {
   }
 
   // A new game, made here as it is (make asks first whether it may be): { room } or { error, status }
-  create({ name = '', host = '', inviteOnly = false, maxPlayers = this.maxPlayers, difficulty, quick = false, maker = '', code = null } = {}) {
+  create({ name = '', host = '', inviteOnly = false, maxPlayers = this.maxPlayers, difficulty, startAct = 1, quick = false, maker = '', code = null } = {}) {
     if (!this.canCreate) return BUSY;
     const seats = Math.max(1, Math.min(this.roomMaxPlayers, Math.floor(+maxPlayers) || this.maxPlayers));
     const room = new Room(this, {
@@ -772,12 +776,13 @@ export class Lobby {
       inviteOnly: !!inviteOnly,
       maxPlayers: seats,
       difficulty,
+      startAct: quick ? 1 : startAct, // (a quick join is always the island)
       quick,
       maker,
     });
     this.rooms.set(room.code, room);
     room.up = this.cluster?.roomUp(room) ?? null;
-    this.log(`game ${room.code} made: ${room.inviteOnly ? 'invite only' : 'public'}, ${seats} seats, ${room.difficulty}${room.quick ? ' (quick join)' : ''} (${this.rooms.size}/${this.maxGames} games)`);
+    this.log(`game ${room.code} made: ${room.inviteOnly ? 'invite only' : 'public'}, ${seats} seats, ${room.difficulty}${room.startAct === 2 ? ', on the mainland' : ''}${room.quick ? ' (quick join)' : ''} (${this.rooms.size}/${this.maxGames} games)`);
     return { room };
   }
 
@@ -802,7 +807,7 @@ export class Lobby {
     let best = null;
     let bestKey = -1;
     for (const room of this.rooms.values()) {
-      if (room.inviteOnly || room.closed || room.noRoom || room.pin) continue; // (pin: an older build's game, for that build's client)
+      if (room.inviteOnly || room.startAct === 2 || room.closed || room.noRoom || room.pin) continue; // (pin: an older build's game, for that build's client)
       const ending = room.st.phase === PHASE.GAMEOVER || room.st.phase === PHASE.VICTORY;
       const key = (ending ? 0 : 1000) + room.open;
       if (key > bestKey) {
@@ -1068,6 +1073,7 @@ export class Lobby {
           inviteOnly: room.inviteOnly,
           maxPlayers: room.maxPlayers,
           difficulty: room.difficulty,
+          startAct: room.startAct,
           quick: room.quick,
           maker: room.maker,
           first: room.first,
@@ -1171,6 +1177,7 @@ export class Lobby {
       inviteOnly: !!m.inviteOnly,
       maxPlayers: Math.max(1, Math.min(this.roomMaxPlayers, Math.floor(+m.maxPlayers) || this.maxPlayers)),
       difficulty: m.difficulty, // absent on a save from before difficulties: the room treats that as Nightfall
+      startAct: m.startAct === 2 ? 2 : 1, // (absent on a save from before map 2 games: the island)
       quick: !!m.quick,
       maker: typeof m.maker === 'string' ? m.maker.slice(0, 80) : '',
       first: cleanTitle(m.first, 16),

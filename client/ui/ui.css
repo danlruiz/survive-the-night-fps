@@ -6227,6 +6227,13 @@ body {
   color: #0b0908;
 }
 
+/* a choice not open yet (the new-game card's Map 2, until map 1 is beaten) */
+.stn-ui .seg-btn:disabled {
+  color: var(--bone-dim);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .stn-ui .set-foot {
   display: flex;
   justify-content: flex-end;

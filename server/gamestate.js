@@ -27,7 +27,7 @@ import { mulberry32 } from '../shared/rng.js';
 export const HANDOFF_RESERVE = +(process.env.HANDOFF_RESERVE_SECONDS || 180); // s a restored player's place is kept
 
 // the run's own numbers (Game constructor and startGame), as they are
-const GAME_FIELDS = ['seed', 'worldPlayed', 'tick', 'time', 'phase', 'day', 'timeLeft', 'restartT', 'supplies', 'supplyHints', 'supplyFound', 'scouted', 'supplyHintSpots', 'supplyClock', 'supplyHelp', 'unlocked', 'schemHints', 'wave', 'bossPending', 'bossId', 'warned', 'shadeWarned', 'escape', 'supplyAt', 'nightStats', 'dropSeq', 'hordeHpMul', 'pace', 'moon', 'lastMoon', 'act', 'checkpoint', 'crossing'];
+const GAME_FIELDS = ['seed', 'startAct', 'worldPlayed', 'tick', 'time', 'phase', 'day', 'timeLeft', 'restartT', 'supplies', 'supplyHints', 'supplyFound', 'scouted', 'supplyHintSpots', 'supplyClock', 'supplyHelp', 'unlocked', 'schemHints', 'wave', 'bossPending', 'bossId', 'warned', 'shadeWarned', 'escape', 'supplyAt', 'nightStats', 'dropSeq', 'hordeHpMul', 'pace', 'moon', 'lastMoon', 'act', 'checkpoint', 'crossing'];
 // what of a player is the connection's or the leaderboard's, or is worked out again (resume starts a client afresh).
 // loadoutEntered: whether this server's loadout service was told they are here (Loadouts.join). The next server has
 // not been, so it comes back false and resume tells it - else every loadout drop and miss of theirs is refused there.

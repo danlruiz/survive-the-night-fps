@@ -31,6 +31,8 @@ export function rejectText(reason, code = '') {
       return 'An update to the game changed the map, so that game could not be carried over and has ended. Start or join a new one.';
     case REJECT_REASON.ENDED_UPDATE:
       return 'An update to the game ended that game: it could not be carried over to the new version. Start or join a new one.';
+    case REJECT_REASON.MAP1_FIRST:
+      return 'That game is on map 2, which opens once you have beaten map 1: fix the car and drive off the island with your team.';
     default:
       return 'Rejected';
   }
@@ -50,7 +52,7 @@ export async function comeBack({ join, code, moved = false, ms = 60_000, every =
     waiting(Math.ceil((until - now()) / 1000));
     const r = await join();
     if (r === true) return '';
-    if (endedByUpdate(r?.reason)) return r.message;
+    if (endedByUpdate(r?.reason) || r?.reason === REJECT_REASON.MAP1_FIRST) return r.message; // (asking again will not change it)
     if (r?.reason === REJECT_REASON.NO_GAME) {
       if (!noGame++) firstNoGame = now();
       if (noGame >= NO_GAME_TRIES && (!moved || now() - firstNoGame >= NO_GAME_MS)) return moved ? 'The game was updated, but your game could not be brought back.' : `Game ${code} has ended: your place there is gone.`;

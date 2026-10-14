@@ -1298,6 +1298,9 @@ export function createMainland(seed) {
     partSpots[partSpots.length - 1].supply = supply;
   };
   const spawnPoints = [];
+  // where the gun crates stand for a game that starts on the mainland (acts.js MAINLAND_START): { x, z, ry }. Not
+  // props: the game puts them down as crates (ENT.CRATE), and only for such a game
+  const startCrates = [];
   // a window with the glass gone (a way in, over the sill), and a city window: as often broken as not
   const hole = (at, w = 1.2, y0 = 1.05, y1 = 2.0) => ({ at, w, y0, y1 });
   const cw = (...a) => (rng.chance(0.55) ? hole(...a) : win(...a));
@@ -1328,6 +1331,9 @@ export function createMainland(seed) {
     b.prop('car', 0, 16, 0.08, { seed: 7 });
     props[props.length - 1].live = true;
     for (let i = 0; i < 8; i++) spawnPoints.push({ x: b.wx(-5 + (i % 4) * 3.2, -2 - Math.floor(i / 4) * 3), z: b.wz(-5 + (i % 4) * 3.2, -2 - Math.floor(i / 4) * 3) });
+    // the gun crates: a row on the road behind where the team stands, a shorter one behind it (clear of the
+    // sandbags at -7, -9 and the car wreck at 5.4, -14)
+    for (const [lx, lz, ry] of [[-3.4, -8.4, 0.1], [-0.8, -8.6, -0.15], [1.8, -8.4, 0.2], [4.4, -8.6, -0.05], [-2.1, -11, 0.25], [0.5, -11.2, -0.2]]) startCrates.push({ x: b.wx(lx, lz), z: b.wz(lx, lz), ry: b.ry + ry });
     // what is left of the last span's end: the edge of the abutment, shut off
     for (const lx of [-3.6, 3.6]) b.prop('jersey_barrier', lx, 37.4, 0, { seed: 1 }); // (the car came through between them)
     b.prop('road_sign', -6.4, 30, PI, { seed: 3 });
@@ -5847,6 +5853,7 @@ export function createMainland(seed) {
     resourceSpawns,
     hordeSpawns,
     spawnPoints,
+    startCrates,
     start,
     car,
     cemetery: null,

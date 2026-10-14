@@ -49,9 +49,9 @@ export class DbStats {
     if (rec.on <= 0 && !this.dirty.has(rec)) this.recs.delete(rec.key);
   }
 
-  // stat: one of BOARD_STATS, or 'xp'
+  // stat: one of BOARD_STATS, 'xp' or 'crossings' (map 1 beaten: migrations/023)
   bump(rec, stat, n = 1) {
-    if (!rec || !(stat === 'xp' || BOARD_STATS.includes(stat))) return;
+    if (!rec || !(stat === 'xp' || stat === 'crossings' || BOARD_STATS.includes(stat))) return;
     rec.add[stat] = Math.min(STAT_MAX, (rec.add[stat] || 0) + n);
     this.dirty.add(rec);
   }
@@ -80,9 +80,20 @@ export class DbStats {
     const key = userId ? `u:${userId}` : idKey(guestId) ? `g:${idKey(guestId)}` : '';
     if (!key) return null;
     await this.flush();
-    const r = (await this.db.query('SELECT xp, perks, respecs FROM player_stats WHERE key = $1', [key])).rows[0];
+    const r = (await this.db.query('SELECT xp, perks, respecs, crossings FROM player_stats WHERE key = $1', [key])).rows[0];
     const xp = r?.xp || 0;
-    return { key, xp, perks: cleanPerks(r?.perks, xp), respecs: r?.respecs || 0, stored: r ? r.perks.map(Number) : [] };
+    return { key, xp, perks: cleanPerks(r?.perks, xp), respecs: r?.respecs || 0, stored: r ? r.perks.map(Number) : [], map1: (r?.crossings || 0) > 0 };
+  }
+
+  // Whether they have beaten map 1 (driven off the island with their team), which opens the games that start on the
+  // mainland to them: signed in, by userId; a guest by guestKey (the SHA-256 of their browser's id, as a JOIN makes
+  // it). -> Promise of a boolean
+  async map1Cleared({ userId = '', guestKey = '' } = {}) {
+    const key = userId ? `u:${userId}` : guestKey ? `g:${guestKey}` : '';
+    if (!key) return false;
+    if (this.recs.get(key)?.add.crossings > 0) return true; // (counted, not written yet)
+    const r = (await this.db.query('SELECT crossings FROM player_stats WHERE key = $1', [key])).rows[0];
+    return (r?.crossings || 0) > 0;
   }
 
   // Their picks are these now (checked by the caller: server/progress.js), if they are still what progressOf read:
@@ -99,14 +110,14 @@ export class DbStats {
     if (!this.dirty.size) return;
     const recs = [...this.dirty];
     this.dirty.clear();
-    const rows = recs.map((r) => ({ key: r.key, user_id: r.userId, name: r.name, kills: r.add.kills || 0, nights: r.add.nights || 0, wins: r.add.wins || 0, revives: r.add.revives || 0, xp: r.add.xp || 0, best_day: r.add.best || 0 }));
+    const rows = recs.map((r) => ({ key: r.key, user_id: r.userId, name: r.name, kills: r.add.kills || 0, nights: r.add.nights || 0, wins: r.add.wins || 0, revives: r.add.revives || 0, xp: r.add.xp || 0, best_day: r.add.best || 0, crossings: r.add.crossings || 0 }));
     const taken = recs.map((r) => r.add);
     for (const r of recs) r.add = {};
     this.flushing = this.db
       .query(
-        `INSERT INTO player_stats (key, user_id, name, kills, nights, wins, revives, xp, best_day)
-         SELECT key, user_id, name, kills, nights, wins, revives, xp, best_day
-           FROM jsonb_to_recordset($1::jsonb) AS x(key text, user_id uuid, name text, kills int, nights int, wins int, revives int, xp int, best_day int)
+        `INSERT INTO player_stats (key, user_id, name, kills, nights, wins, revives, xp, best_day, crossings, map1_at)
+         SELECT key, user_id, name, kills, nights, wins, revives, xp, best_day, crossings, CASE WHEN crossings > 0 THEN now() END
+           FROM jsonb_to_recordset($1::jsonb) AS x(key text, user_id uuid, name text, kills int, nights int, wins int, revives int, xp int, best_day int, crossings int)
          ON CONFLICT (key) DO UPDATE SET
            name = EXCLUDED.name,
            kills = LEAST(${STAT_MAX}, player_stats.kills + EXCLUDED.kills),
@@ -115,6 +126,8 @@ export class DbStats {
            revives = LEAST(${STAT_MAX}, player_stats.revives + EXCLUDED.revives),
            xp = LEAST(${STAT_MAX}, player_stats.xp + EXCLUDED.xp),
            best_day = GREATEST(player_stats.best_day, EXCLUDED.best_day),
+           crossings = LEAST(${STAT_MAX}, player_stats.crossings + EXCLUDED.crossings),
+           map1_at = COALESCE(player_stats.map1_at, EXCLUDED.map1_at),
            last_seen = now()`,
         [JSON.stringify(rows)]
       )
@@ -201,8 +214,8 @@ export class DbStats {
       // (XP adds up; the account keeps its own picks if it has any, else takes the guest's - valid either way, since
       // the XP only grew)
       await t.query(
-        `INSERT INTO player_stats (key, user_id, name, kills, nights, wins, revives, games, deaths, downs, headshots, boss_kills, best_day, play_seconds, first_seen, xp, perks, respecs)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        `INSERT INTO player_stats (key, user_id, name, kills, nights, wins, revives, games, deaths, downs, headshots, boss_kills, best_day, play_seconds, first_seen, xp, perks, respecs, crossings, map1_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
          ON CONFLICT (key) DO UPDATE SET
            xp = LEAST(${STAT_MAX}, player_stats.xp + EXCLUDED.xp),
            perks = CASE WHEN cardinality(player_stats.perks) > 0 THEN player_stats.perks ELSE EXCLUDED.perks END,
@@ -212,8 +225,9 @@ export class DbStats {
            games = player_stats.games + EXCLUDED.games, deaths = player_stats.deaths + EXCLUDED.deaths,
            downs = player_stats.downs + EXCLUDED.downs, headshots = player_stats.headshots + EXCLUDED.headshots,
            boss_kills = player_stats.boss_kills + EXCLUDED.boss_kills, best_day = GREATEST(player_stats.best_day, EXCLUDED.best_day),
-           play_seconds = player_stats.play_seconds + EXCLUDED.play_seconds, first_seen = LEAST(player_stats.first_seen, EXCLUDED.first_seen)`,
-        [`u:${userId}`, userId, username, guest.kills, guest.nights, guest.wins, guest.revives, guest.games, guest.deaths, guest.downs, guest.headshots, guest.boss_kills, guest.best_day, guest.play_seconds, guest.first_seen, guest.xp, guest.perks, guest.respecs]
+           play_seconds = player_stats.play_seconds + EXCLUDED.play_seconds, first_seen = LEAST(player_stats.first_seen, EXCLUDED.first_seen),
+           crossings = player_stats.crossings + EXCLUDED.crossings, map1_at = LEAST(player_stats.map1_at, EXCLUDED.map1_at)`,
+        [`u:${userId}`, userId, username, guest.kills, guest.nights, guest.wins, guest.revives, guest.games, guest.deaths, guest.downs, guest.headshots, guest.boss_kills, guest.best_day, guest.play_seconds, guest.first_seen, guest.xp, guest.perks, guest.respecs, guest.crossings, guest.map1_at]
       );
       // the matches they played as a guest are theirs too
       await t.query('UPDATE match_players SET user_id = $1, guest_key = NULL WHERE guest_key = $2', [userId, g]);

@@ -22,7 +22,7 @@ export class Connection {
     this.bytesOut = 0;
     this.pingAt = 0; // when the ping that is still out was sent
     this.pingNext = 0; // when the next one is due
-    this.room = null; // the game we are in: { code, name, inviteOnly, difficulty } (S2C.ROOM)
+    this.room = null; // the game we are in: { code, name, inviteOnly, difficulty, startAct } (S2C.ROOM)
     this.accounts = new Map(); // player id -> the account they are signed in to, for friend requests and the friend star (S2C.FRIENDS; '' = a guest)
     this.looks = new Map(); // player id -> a custom survivor's look, its bytes (S2C.LOOKS; null: none, the player list's character)
     this.held = null; // messages waiting for release() (hold)
@@ -85,8 +85,10 @@ export class Connection {
         switch (type) {
           case S2C.ROOM: {
             // the difficulty id was added on the end. A server from before it sends a packet that ends at the flags.
-            const room = { code: r.str(), name: r.str(), inviteOnly: !!(r.u8() & ROOMF.INVITE_ONLY), difficulty: NIGHTFALL.id };
+            // (and the map every run begins on, after that: 1 from a server that does not send it)
+            const room = { code: r.str(), name: r.str(), inviteOnly: !!(r.u8() & ROOMF.INVITE_ONLY), difficulty: NIGHTFALL.id, startAct: 1 };
             if (r.left) room.difficulty = r.str();
+            if (r.left) room.startAct = r.u8() === 2 ? 2 : 1;
             this.room = room;
             break;
           }
