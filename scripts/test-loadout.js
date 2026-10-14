@@ -144,6 +144,11 @@ async function persistence() {
 
 function catalogRules() {
   console.log('\n-- loadout catalog rules');
+  // where an item says it is found is where it drops: a boss's own items from that boss, the rest from strongboxes
+  // only (no other container rolls: Game.searchCache) - and from a Tank that comes as the night's boss, which has
+  // none of its own
+  const lying = LOADOUT_CATALOG.filter((d) => (d.source.kind === 'boss' ? !Number.isInteger(d.source.boss) : d.source.kind !== 'container' || d.source.text !== 'Strongboxes and Tank bosses'));
+  check('every item says where it really drops', !lying.length, lying.map((d) => `${d.key}: ${d.source.text}`).join(', '));
   const ids = new Set();
   const keys = new Set();
   for (const def of LOADOUT_CATALOG) {
@@ -640,6 +645,37 @@ async function dropsAfterHandoff() {
   check('...so a boss item that drops there lands in their collection', (await service.collection(owner)).items.length === 1);
 }
 
+// a guest's Zombie Skulls in a real public game: a six-letter room code and a ten-digit seed. The earn's ledger id
+// carries who earned it, and a guest's key is 66 characters: the whole id once ran past what the service takes
+async function guestSkullsInPublicGame() {
+  console.log('\n-- guest Zombie Skulls in a public game');
+  const service = new LoadoutService({ store: new MemoryLoadoutStore() });
+  const game = new Game({ seed: 15, cards: null, loadouts: new LocalLoadouts(service), dayLength: 999, nightLength: 999, godMode: true, log: () => {} });
+  game.code = 'QWERTY';
+  game.seed = 2147483646;
+  const pids = [randomUUID(), randomUUID()];
+  const owners = [`g:${createHash('sha256').update(pids[0]).digest('hex')}`, null];
+  const [guestP, acctP] = [join(game, 'Guest', pids[0]), join(game, 'Acct', pids[1])];
+  const acct = `a:${randomUUID()}`;
+  acctP.rejoinKey = acct;
+  game.loadouts.use(acct);
+  owners[1] = acct;
+  await settle();
+  for (const p of [guestP, acctP]) {
+    game.loadouts.nightReward(p, 3);
+    game.loadouts.bossReward({ id: 65535, ztype: ZTYPE.BOSS_BRUTE }, [p]);
+    game.loadouts.escapeReward(p, true, `victory:1:${p.id}`);
+  }
+  await service.queue;
+  await settle();
+  const [g, a] = await Promise.all(owners.map((o) => service.balance(o)));
+  check('a guest earns their night, boss and escape skulls in a public game', g > 0 && g === a, JSON.stringify([g, a]));
+  game.loadouts.nightReward(guestP, 3);
+  await service.queue;
+  await settle();
+  check('...once each', (await service.balance(owners[0])) === g);
+}
+
 catalogRules();
 await persistence();
 await inRunRules();
@@ -652,6 +688,7 @@ await pityStore();
 await pityInRun();
 await dropsAfterHandoff();
 await bossTeam();
+await guestSkullsInPublicGame();
 
 if (fails.length) {
   console.error(`\n${fails.length} loadout test(s) failed: ${fails.join(', ')}`);

@@ -11,7 +11,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { SERVER_TICK_RATE } from '../shared/constants.js';
-import { ZTYPE, STRUCT, STRUCT_DEFS, ITEM, SCHEM_BIT } from '../shared/defs.js';
+import { ZTYPE, STRUCT, STRUCT_DEFS, ITEM } from '../shared/defs.js';
 import { groundAt, raycastWorld } from '../shared/collision.js';
 
 const seeds = process.argv.slice(2).map(Number).filter((n) => n > 0);

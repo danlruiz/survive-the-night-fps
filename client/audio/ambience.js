@@ -16,6 +16,8 @@
 //    darken under a warm room tone and fewer calls carry in; stepping back out brings the full night back, a touch
 //    louder for a moment. One night theme (s.homeless) leaves the home bed out: nowhere feels safe.
 import { clamp01, smooth, bell, rand, expWait, gustField, windField } from './curves.js';
+import { setPannerPos, gainNode, biquad } from './nodes.js';
+import { LoopLayer } from './loop-layer.js';
 
 const TAU = Math.PI * 2;
 const POOL = 10;
@@ -90,38 +92,19 @@ const REC_BEDS = {
   fire_roar: { gain: 1.05, dry: true },
 };
 
-function setPos(p, x, y, z) {
-  if (p.positionX) {
-    p.positionX.value = x;
-    p.positionY.value = y;
-    p.positionZ.value = z;
-  } else p.setPosition(x, y, z);
-}
-
 // procedural looping bed
-class Bed {
+class Bed extends LoopLayer {
   constructor(amb, bank, dest) {
+    super(amb.ctx, dest);
     this.a = amb;
     this.bank = bank;
-    this.gain = amb.ctx.createGain();
-    this.gain.gain.value = 0;
-    if (dest) this.gain.connect(dest);
-    this.src = null;
-    this.target = 0;
-    this.offAt = 0;
   }
   set(v, now, tc) {
     if (Math.abs(v - this.target) > 0.003) {
       this.target = v;
       this.gain.gain.setTargetAtTime(v, now, tc);
     }
-    if (v > 0.002) {
-      this.offAt = 0;
-      if (!this.src) this._start(now);
-    } else if (this.src) {
-      if (!this.offAt) this.offAt = now + tc * 6 + 1;
-      else if (now > this.offAt) this._stop();
-    }
+    if (this._wanted(v > 0.002, now, tc)) this._start(now);
   }
   _start(now) {
     const pool = this.a.e._pools.get(this.bank);
@@ -135,45 +118,25 @@ class Bed {
     s.start(now, Math.random() * buf.duration);
     this.src = s;
   }
-  _stop() {
-    const s = this.src;
-    this.src = null;
-    this.offAt = 0;
-    try {
-      s.stop();
-    } catch {}
-    s.disconnect();
-  }
 }
 
 // recorded looping bed: random start phase, slow breathing, optional playback-rate modulation
-class RecBed {
+class RecBed extends LoopLayer {
   constructor(amb, key, def, dest) {
+    super(amb.ctx, dest);
     this.a = amb;
     this.key = key;
     this.def = def;
-    this.gain = amb.ctx.createGain();
-    this.gain.gain.value = 0;
-    this.gain.connect(dest);
-    this.head = this.gain; // what the source plays into
     if (def.lp) {
-      const f = amb.ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = def.lp;
-      f.Q.value = 0.5;
+      const f = biquad(amb.ctx, 'lowpass', def.lp, 0.5);
       f.connect(this.gain);
       this.head = f;
     }
     if (def.wet) {
-      const send = amb.ctx.createGain();
-      send.gain.value = def.wet;
+      const send = gainNode(amb.ctx, def.wet);
       this.gain.connect(send);
       send.connect(amb.e._ambSend);
     }
-    this.src = null;
-    this.target = 0;
-    this.offAt = 0;
-    this.rate = 1;
     this.ph = Math.random() * 100;
     this.br = 0.03 + Math.random() * 0.05;
   }
@@ -189,40 +152,12 @@ class RecBed {
       this.target = v;
       if (this.src) this.gain.gain.setTargetAtTime(v, now, tc);
     }
-    if (on) {
-      this.offAt = 0;
-      if (!this.src && buf) this._start(buf, now, tc);
-    } else if (this.src) {
-      if (!this.offAt) this.offAt = now + tc * 6 + 1;
-      else if (now > this.offAt) this._stop();
-    }
+    if (this._wanted(on, now, tc) && buf) this._startFadingIn(buf, now, tc, Math.random() * buf.duration);
   }
   setRate(r, now) {
     if (Math.abs(r - this.rate) < 0.002) return;
     this.rate = r;
     if (this.src) this.src.playbackRate.setTargetAtTime(r, now, 0.4);
-  }
-  _start(buf, now, tc) {
-    const s = this.a.ctx.createBufferSource();
-    s.buffer = buf;
-    s.loop = true;
-    s.playbackRate.value = this.rate;
-    s.connect(this.head);
-    const g = this.gain.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(0, now);
-    g.setTargetAtTime(this.target, now, tc);
-    s.start(now, Math.random() * buf.duration);
-    this.src = s;
-  }
-  _stop() {
-    const s = this.src;
-    this.src = null;
-    this.offAt = 0;
-    try {
-      s.stop();
-    } catch {}
-    s.disconnect();
   }
 }
 
@@ -232,17 +167,11 @@ export class Ambience {
     const c = (this.ctx = engine._ctx);
     this.out = engine._ambIn;
     // the outside beds go through the home duck (a gain and a low-pass), the rest straight to the ambience bus
-    this.homeLP = c.createBiquadFilter();
-    this.homeLP.type = 'lowpass';
-    this.homeLP.frequency.value = 20000;
-    this.homeLP.Q.value = 0.5;
+    this.homeLP = biquad(c, 'lowpass', 20000, 0.5);
     this.homeLP.connect(this.out);
     this.outside = c.createGain();
     this.outside.connect(this.homeLP);
-    this.windLP = c.createBiquadFilter();
-    this.windLP.type = 'lowpass';
-    this.windLP.frequency.value = 3000;
-    this.windLP.Q.value = 0.5;
+    this.windLP = biquad(c, 'lowpass', 3000, 0.5);
     this.windLP.connect(this.outside);
     this.beds = {
       wind: new Bed(this, 'bed_wind', this.windLP),
@@ -255,23 +184,16 @@ export class Ambience {
       home: new Bed(this, 'bed_home', this.out),
     };
     // rain: open sky, or a muffled drumming under a roof
-    this.rainLP = c.createBiquadFilter();
-    this.rainLP.type = 'lowpass';
-    this.rainLP.frequency.value = 12000;
-    this.rainLP.Q.value = 0.4;
+    this.rainLP = biquad(c, 'lowpass', 12000, 0.4);
     this.beds.rain.gain.connect(this.rainLP);
     this.rainLP.connect(this.out);
     // horde chorus also feeds the reverb (distance)
-    const hs = c.createGain();
-    hs.gain.value = 0.4;
+    const hs = gainNode(c, 0.4);
     this.beds.horde.gain.connect(hs);
     hs.connect(engine._ambSend);
 
     // recorded beds; outdoor ones share a muffle for being under cover
-    this.coverLP = c.createBiquadFilter();
-    this.coverLP.type = 'lowpass';
-    this.coverLP.frequency.value = 20000;
-    this.coverLP.Q.value = 0.5;
+    this.coverLP = biquad(c, 'lowpass', 20000, 0.5);
     this.coverLP.connect(this.outside);
     this.rbeds = {};
     for (const [k, d] of Object.entries(REC_BEDS)) this.rbeds[k] = new RecBed(this, k, d, d.rain ? this.rainLP : d.dry ? this.out : this.coverLP);
@@ -396,7 +318,7 @@ export class Ambience {
     if (wantH) this.hrtfN++;
     ch.hrtf = wantH;
     ch.panner.refDistance = ref;
-    setPos(ch.panner, x, y, z);
+    setPannerPos(ch.panner, x, y, z);
     const fc = 400 + 19600 * Math.exp(-d / 90);
     ch.filter.frequency.value = fc > 18000 ? 20000 : fc;
     ch.gain.gain.value = vol;
@@ -413,6 +335,8 @@ export class Ambience {
     return true;
   }
 
+  // a random point dist [min, max] m from the listener in any direction, elev [min, max] m above the ears (ground:
+  // above the feet instead)
   _ring(dist, elev, ground) {
     const e = this.e;
     const ang = Math.random() * TAU;
@@ -431,11 +355,8 @@ export class Ambience {
   // procedural one-shot at a random position around the listener (or at `pos`). Returns the position or null.
   emit(ev, now, when = 0, pos = null, steal = false) {
     const e = this.e;
-    const buf = e._pick(ev.bank);
-    if (!buf) {
-      e._need(ev.bank);
-      return null;
-    }
+    const buf = e._pickOrNeed(ev.bank);
+    if (!buf) return null;
     const p = pos || this._ring(ev.dist, ev.elev, false);
     const rj = ev.rateJit ?? 0.05;
     const rate = (1 + (Math.random() - 0.5) * 2 * rj) * e._rateMul;

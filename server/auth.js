@@ -64,6 +64,13 @@ function checkPassword(v) {
   return pw;
 }
 
+// What a route that needs accounts answers on a server without a database (index.js: the HTTP API)
+export function noAccounts() {
+  throw new HttpError(503, 'Accounts are not set up on this server.');
+}
+// the account a request is signed in to, or a 401 - or the 503 of a server with no accounts (auth: null)
+export const signedIn = (auth, ctx) => (auth ? auth.need(ctx) : noAccounts());
+
 // what a client is told of its own account
 export const publicUser = (u) => ({ id: u.id, username: u.username, email: u.email, createdAt: u.created_at });
 
@@ -146,28 +153,17 @@ export class Auth {
 
   async claimGuest(user, guestId) {
     if (typeof guestId !== 'string' || !guestId) return;
-    if (this.stats) {
+    // (each on its own, and the account is made all the same: a guest with no stats may well have found cards)
+    const moveOver = async (what, move) => {
       try {
-        await this.stats.claimGuest(user.id, user.username, guestId);
+        await move();
       } catch (err) {
-        this.log(`account ${user.username}: guest stats not moved over (${err.message})`); // (the account is made all the same)
+        this.log(`account ${user.username}: guest ${what} not moved over (${err.message})`);
       }
-    }
-    // (on its own: claimGuest above has nothing to do for a guest with no stats, who may well have found cards)
-    if (this.cards) {
-      try {
-        await this.cards.mergeGuest(user.id, guestId);
-      } catch (err) {
-        this.log(`account ${user.username}: guest cards not moved over (${err.message})`);
-      }
-    }
-    if (this.loadouts) {
-      try {
-        await this.loadouts.mergeGuest(user.id, guestId);
-      } catch (err) {
-        this.log(`account ${user.username}: guest loadout items not moved over (${err.message})`);
-      }
-    }
+    };
+    if (this.stats) await moveOver('stats', () => this.stats.claimGuest(user.id, user.username, guestId));
+    if (this.cards) await moveOver('cards', () => this.cards.mergeGuest(user.id, guestId));
+    if (this.loadouts) await moveOver('loadout items', () => this.loadouts.mergeGuest(user.id, guestId));
   }
 
   async logout(ctx) {

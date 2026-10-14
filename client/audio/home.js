@@ -11,6 +11,7 @@ export const HOMELESS_THEMES = new Set(['wings']);
 
 const BINS = 36; // 10 degree sectors of the horizon around the listener
 const TAU = Math.PI * 2;
+const binOf = (a) => ((Math.floor((a / TAU) * BINS) % BINS) + BINS) % BINS; // the sector angle a (radians) falls in
 
 // Hysteresis: it takes more wall to feel at home than to stop feeling it, and a little more distance to leave, so
 // standing at the edge of the base does not flicker between the two. Pressed against the outside of a wall hides
@@ -37,7 +38,7 @@ export function enclosure(x, z, structs, r) {
     const ex = Math.cos(st.yaw) * h;
     const ez = -Math.sin(st.yaw) * h;
     let a0 = Math.atan2(dx - ex, dz - ez);
-    let a1 = Math.atan2(dx + ex, dz + ez);
+    const a1 = Math.atan2(dx + ex, dz + ez);
     // the arc between the two ends that the wall actually spans (the shorter one)
     let span = a1 - a0;
     if (span > Math.PI) span -= TAU;
@@ -46,15 +47,15 @@ export function enclosure(x, z, structs, r) {
       a0 += span;
       span = -span;
     }
-    for (let a = a0; a <= a0 + span + 1e-9; a += TAU / BINS / 2) _bins[(((Math.floor((a / TAU) * BINS) % BINS) + BINS) % BINS)] = 1;
-    _bins[(((Math.floor(((a0 + span) / TAU) * BINS) % BINS) + BINS) % BINS)] = 1;
+    for (let a = a0; a <= a0 + span + 1e-9; a += TAU / BINS / 2) _bins[binOf(a)] = 1;
+    _bins[binOf(a0 + span)] = 1;
   }
   let c = 0;
   for (let i = 0; i < BINS; i++) c += _bins[i];
   return { n, cover: c / BINS };
 }
 
-// Inside the walls or not, with the hysteresis above. update() once per probe (game.js, every 0.2 s).
+// Inside the walls or not, with the hysteresis above. update() once per probe (client/game/game/surroundings.js, every 0.2 s).
 export class HomeSense {
   constructor() {
     this.home = false;

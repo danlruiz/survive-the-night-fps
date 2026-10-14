@@ -1,4 +1,4 @@
-// The rules of a held player (server/game.js hold / resume), on the Game itself: while their connection is gone they are
+// The rules of a held player (server/game/sessions.js hold / resume), on the Game itself: while their connection is gone they are
 // safe - no damage, the dead pick somebody else, a downed one's bleed-out clock stops - they stay where they were, and
 // they come back with the same body, spot, health and backpack; the run does not end for want of them; a held player
 // is let go when REJOIN_GRACE runs out (as a leaver: their kit parked, their finds dropped). The new client is told

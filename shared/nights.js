@@ -1,5 +1,5 @@
 // Night themes: what tonight's horde is made of. A theme is drawn from the map seed and the night number, so the
-// server (which builds the waves, server/game.js startNight) and the client (which warns the team on the dawn
+// server (which builds the waves, server/game/phases.js startNight) and the client (which warns the team on the dawn
 // card, at the dusk horn and on the night's title) each work it out for themselves: nothing crosses the wire.
 import { ZTYPE, ZOMBIE_DEFS } from './defs.js';
 import { mulberry32 } from './rng.js';
@@ -48,7 +48,7 @@ export function kindsJoining(seed, night, act = WORLD.ISLAND) {
 // (the head count is untouched), and a type the night has not unlocked has weight 0 and stays out.
 // from: the first night it can be drawn; needs: the kinds it is about, one of which must have joined (joinNight).
 // warn: what is coming and what to do about it - one line, short enough for the night's title card (85 characters).
-// brief: the same in a few words, for the dusk card under the clock (hud2.js Tonight)
+// brief: the same in a few words, for the dusk card under the clock (tonight.js Tonight)
 // No theme multiplies Tanks: at a fixed head count each one adds 2200 health, as much as twenty walkers.
 // The multipliers are a first pass: measured to keep a night's total health within 15% of a plain one, not played.
 export const NIGHT_THEMES = [

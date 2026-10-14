@@ -1148,6 +1148,29 @@
   opacity: 1;
 }
 
+/* a teammate's roles (shared/roles.js): a small glyph each, side by side over the name */
+.stn-ui .wmk.k-mate .wmk-ico {
+  display: flex;
+  gap: calc(3 * var(--u));
+  color: var(--brass);
+}
+.stn-ui .wmk.k-mate .wmk-ico svg.role {
+  width: calc(15 * var(--u));
+  height: calc(15 * var(--u));
+  min-width: 12px;
+  min-height: 12px;
+}
+
+/* one of the dead a Spotter has marked: the whole team hits it harder */
+.stn-ui .wmk.k-mark {
+  color: var(--blood-lite);
+}
+.stn-ui .wmk.k-mark .wmk-name {
+  font-size: max(10px, calc(11.5 * var(--u)));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .stn-ui .wmk.k-ping {
   color: var(--sick);
 }
@@ -1299,7 +1322,7 @@
   color: var(--amber);
 }
 
-/* ------------------------------------------------------------------ dusk card (hud2.js Tonight) */
+/* ------------------------------------------------------------------ dusk card (tonight.js Tonight) */
 /* a field note under the clock from the horn to nightfall: what tonight brings, one row a thing. Up in full (.open)
    for its first seconds, a row at a time; then the names alone */
 .stn-ui .tonight {
@@ -3486,7 +3509,7 @@
   color: var(--amber);
 }
 
-/* ------------------------------------------------------------------ achievements (ui/achievements.js) */
+/* ------------------------------------------------------------------ achievements (ui/achievements.js, ui/achtoasts.js) */
 /* each tier's colour, for the banner, the cards and the counts */
 .stn-ui .tier-bronze {
   --tc: #c98a52;

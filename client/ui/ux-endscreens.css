@@ -119,6 +119,12 @@
   color: var(--bone);
 }
 
+.stn-ui .xdn-role {
+  flex-basis: 100%;
+  text-align: center;
+  color: var(--good);
+}
+
 .stn-ui .xdn-mate b {
   font-family: var(--f-num);
   font-weight: 500;

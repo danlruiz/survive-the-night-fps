@@ -1160,7 +1160,7 @@ body {
   font-size: max(11px, calc(14 * var(--u)));
 }
 
-/* pinned by a leaper (hud.js): the key to mash under the crosshair, in the prompt's place, over the meter of how far
+/* pinned by a leaper (hud/center.js): the key to mash under the crosshair, in the prompt's place, over the meter of how far
    it is shoved off. The key keeps going down by itself, quickly, to say mash rather than hold, and jolts at each
    real press */
 .stn-ui .shove {

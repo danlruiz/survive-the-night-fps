@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { SOUND, ZONE, ZONE_NAMES } from '../../shared/defs.js';
 import { CEMETERY } from '../../shared/cemetery.js';
 import { mulberry32 } from '../../shared/rng.js';
-import { TEX } from './effects.js';
+import { TEX } from './particles.js';
 
 const MAX_GRAVES = 96;
 const OPEN = 0.8; // how high the broken earth of an opened grave stands, of its height as it bursts

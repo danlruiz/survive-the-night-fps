@@ -4,7 +4,7 @@
 // VEG_TOP), and every splintered top an instance of one more. However many stand cut, it is a handful of draws -
 // none while none does - and nothing a frame: the buffers are filled when a tree is cut, or the eye has moved.
 import * as THREE from 'three';
-import { vegCutMaterial } from './materials.js';
+import { vegCutMaterial } from './vegshading.js';
 import { capParts, trunkAt } from './fallingtrees.js';
 
 const CAP = 256; // cut trees of a variant drawn at the most (the nearest)

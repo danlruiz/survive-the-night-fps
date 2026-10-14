@@ -7,7 +7,7 @@
 // it into, thrown tumbling away from the blast. Splintered ends where it broke. What stands of it is not drawn here
 // but with every other tree cut down to what stands of it (render/cuttrees.js), until dawn.
 import * as THREE from 'three';
-import { vegFellMaterial } from './materials.js';
+import { vegFellMaterial } from './vegshading.js';
 
 export const FALL_T = 2.55; // s from the event to the ground: where the crash sits in each take of tree_fall.ogg
 const REST_T = 3; // s it lies there...

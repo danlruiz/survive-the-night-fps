@@ -4,7 +4,7 @@
 // game, when the screen was opened for them).
 import { cardDef, RAR, STARTER } from '../../shared/cards.js';
 import { ITEM, ITEM_DEFS } from '../../shared/defs.js';
-import { el } from './dom.js';
+import { el, button } from './dom.js';
 import { cardFace, cardBack } from './cardface.js';
 
 const STAGGER = 420; // ms between two cards turning over
@@ -17,8 +17,7 @@ export class RevealView {
     this.sub = el('p', 'cd-hint', this.root, '');
     this.row = el('div', 'cd-reveal-row', this.root);
     const acts = el('div', 'cd-over-acts', this.root);
-    this.take = el('button', 'btn btn-blood', acts, 'Take them');
-    this.take.type = 'button';
+    this.take = button('btn btn-blood', acts, 'Take them');
     this.take.addEventListener('click', () => this.next());
     this.shown = null;
     this.timers = [];

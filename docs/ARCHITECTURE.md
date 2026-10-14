@@ -9,19 +9,26 @@ entity interpolation and server-side lag compensation.
 ```
 shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   constants.js   tick rates, physics, map, timings
-  defs.js        items, weapons, recipes (stations + schematics), structures, containers, car supplies,
-                 zombie types, sounds, events (wire ids)
+  defs.js        re-exports shared/defs/, a module for each kind of thing: items, ammunition and the weapons'
+                 numbers (itemdefs.js), car supplies and schematics (escape.js), fire, structures, recipes and
+                 salvage (crafting.js), zombie kinds (zombies.js), projectiles, sounds, events, zones, loot and
+                 containers. Import from defs.js; a new table goes in the module of its kind
+  ids.js         uniqueIds: a hand-numbered wire id table (SOUND, ZTYPE, EVT...) throws at load on a clash
   items.js       the ids of every item that is not a weapon (defs.js adds the weapons' to make ITEM)
   weapons/       one file per weapon: its id, item def, WEAPONS row, recipe, salvage, kill feat, bullet hole,
                  shot sound and kick. index.js lists them; defs.js, achievements.js, surfaces.js and the
-                 client's game.js build their tables from it (scripts/test-weapons.js holds every one to it)
+                 client's game/game/shots.js build their tables from it (scripts/test-weapons.js holds every one to it)
   protocol.js    Writer/Reader, message ids, quantization, snapshot / command packet / entity update layouts
   layout.js      plans the valley for a seed: the course of Route 9, the lake and ponds, which named places
                  there are (PLACES: the core ones + a random draw) and where, and which the roads join
                  (a spanning tree out from Route 9 + loops)
   world.js       deterministic world generation from a seed: builds the plan - terrain, A*-routed roads,
                  roadside/woodland sites, buildings, props, containers, supply spots, doorways,
-                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it
+                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it.
+                 It calls the stages in world/ in order: terrain.js, roads.js (router.js: the A*),
+                 roadside.js (the sites, the road dressing), places.js (every named place, the mine's
+                 workings), vegetation.js, spawns.js. Both maps share heightfield.js (the samplers),
+                 worldquery.js (floorAt, rayTerrain) and polyline.js (a line as points a metre apart)
   mine.js        the workings under Blackrock Mine: a second level under the heightfield (see The mine below)
   clinic.js      Mercy Clinic and the rule that its wards are dark at noon (see Dark interiors below)
   rail.js        the railway: its heights, the cut and fill, Whitlock Depot, the stalled train (see The railway)
@@ -33,39 +40,63 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
                  the bits and the sound each kind of blow makes on it (see Blows on the world below)
   wrecks.js      a wreck's record of the blows it took, and its alarm (see Blows on the world below)
   trunk.js       a car's boot is forced open, not just searched: the times by weapon, the heaves, which cars (see Blows)
-  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server)
+  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server):
+                 simulatePlayer runs a command through named steps (switchSlot, stepStamina, steer, moveBody,
+                 stepWeapons...). playerstate.js: the simulated state, and copying, comparing, snapping and
+                 fingerprinting it. stamina.js: spending and winning back stamina (a sprint, pedals, a lever, a move)
   nights.js      night themes: nightTheme(seed, night) picks what a night's horde is made of. The server applies
                  it to the wave weights and the client announces it, each from the seed: nothing on the wire
   progress.js    XP, levels and perks: the rules both ends read (see Experience, levels and perks below)
-  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES) and the simulation of their chain
-                 and free handle that both views draw (ChainSim) - see Nunchucks below
+  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES); nunchaku-chain.js the simulation
+                 of their chain and free handle that both views draw (ChainSim) - see Nunchucks below
   achievements.js the achievement list (ids, wire numbers, tiers, groups) and the rules on a player's progress
                  (see Achievements below)
   bestiary.js    the bestiary: every kind of the dead, its vague line and its tip, and what seeing one is (see The
                  bestiary below)
 server/      authoritative game server (uWebSockets.js)
-  index.js       the network thread: sockets, the lobby's HTTP API, static files, /status (see Many games below)
-  rooms.js       the lobby: the games running, routing sockets to them, codes, allowances, the leaderboard's side
+  index.js       the network thread: makes the services and wires them together (see Many games below)
+  sockets.js     its WebSockets: /ws (a game's: seat, the map 1 gate), /cards, /social
+  http/          its HTTP routes: lobby.js (the lobby's API, /api/version, /status), static.js (the client's files),
+                 and the JSON API by resource (accounts, friends, loadout, feedback, progress, stats) over http.js api
+  rooms.js       the lobby: the games running, routing sockets to them, codes, allowances, deploys' restores
+  room.js        one game as the network thread sees it (Room): its worker, its sockets, its records, its handoff
   room-worker.js one game server: a worker thread running one Game and its tick loop
   wire.js        the packed frames the two threads pass sockets' messages in
-  game.js        the simulation of one game (Game), and everything it sends
+  game.js        the simulation of one game (Game): its state, entities, events and tick, with its parts laid on
+  game/          Game's parts, each a `methods` object game.js lays onto Game.prototype (run, phases, escape,
+                 crossing, sessions, input, survivors, harm, items, building, net, ...: game.js's header lists them)
   zombies.js     the dead's AI: targeting, flow fields, melee, and what every special shares (the windup, the flight)
-  specials/      each special kind's own module: its numbers, when it starts its special and what it does (index.js
-                 says how zombies.js dispatches to them)
+  specials/      each special kind's own module: its numbers, when it starts its special, what it does, and what is
+                 its own when it is shot or dies (the Mother's belly, a boomer's blast; index.js says how zombies.js
+                 and combat.js dispatch to them)
   spawns.js      what the dead are made of: the kinds that come out by day, and each night's waves
   director.js    the pacing director (breathers after a peak, the next group early when it is quiet) and tonight's
                  moon: a blood moon now and then, a clear one for a team that is struggling (see Night waves)
+  entkit.js      what the world's entities and side systems share: a system's own random stream in the game's
+                 place (withRng), a survivor's hands, [E] on a moving seat, how an animal on foot moves, addMethods
 client/      three.js client (Vite root)
   index.html, main.js
-  net/        connection, snapshot decode, interpolation, prediction
-  game/       client game state, entity views, input, weather schedule (weather.js)
-  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
-              (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
+  net/        connection, snapshot decode, the JSON API (api.js) and its clients (lobby, account, friends...)
+  game/       client game state, entity views, input, weather schedule (weather.js). game.js is the Game: it builds
+              every subsystem and runs the frame; its methods are in game/game/, one file per responsibility (the
+              world's build, the session, the server's events and notices, shots, the screens, the keys, the
+              inventory, building, [E] and holds, the look target, the HUD, markers, the view...), laid onto it by
+              game/game/index.js. The HUD's mash meter (pinned, on fire): hudmeters.js
+    entities.js   the entity store; each kind's view in entities/ (zombies.js + zombiekinds.js, survivors.js,
+                  structures.js, projectiles.js, ropes.js, glints.js) and the interpolation (entities/samples.js)
+  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures (the generators: textures/),
+              materials (their shading: vegshading.js, surfaceshading.js), models/ (models, the viewmodel, held / worn
+              items, pickups: read docs/object-clipping.md before changing them)
+              models/weapons/: one file per held item (the client half of shared/weapons/, the throwables, the
+              walkie-talkie): its model, how it is held in first person, its own hand poses, how its pickup lies;
+              index.js lists them (its icon: client/ui/icons/<name>.js). parts.js: the shapes, materials and parts
+              they share; hands.js: the hand and arm. weapons.js keeps the world models and the ViewModel
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
-  ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
-              (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
+  ui/         DOM HUD (hud.js with its corners in hud/; hud2.js: compass, world markers; objective.js, tonight.js),
+              field map (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
               contextual key hints (keyhints.js: reads the game state once a frame, owns its one HUD line)
+              icons.js: every SVG icon; a held item's own is icons/<name>.js, named as its model's file
   stats/      the public stats page (/stats, stats.html): main.js fills it, charts.js draws its SVG charts
   sandbox/    standalone dev pages for visually testing modules (not shipped)
 scripts/     dev runner, headless screenshot helper (scripts/shot.js), look-dev harness (scripts/lookdev.js),
@@ -143,8 +174,8 @@ more than its bytes**, so put things into the packets that already flow.
   that command, or when anything else changed the state - detected by comparing against `p.shadow`, the copy
   taken right after the last command, so code that shoves, teleports, arms or disarms a player needs no
   bookkeeping. On a sync the server rounds its own floats to what went on the wire (`snapPlayerState`) so both
-  ends continue from identical numbers. A new field of the simulated state must be added to `copyPlayerState`,
-  `samePlayerState`, `snapPlayerState` (floats), `hashPlayerState`, a `writeSelf` chunk and `readSelf`.
+  ends continue from identical numbers. A new field of the simulated state must be added to `createPlayerState` and
+  `SIM_FIELDS` (`SIM_FLOATS` too for a float) and `hashPlayerState` in `shared/playerstate.js`, a `writeSelf` chunk and `readSelf`.
   Server-driven values the HUD shows (hp, armor, battery, hold progress...) are the status groups: sent when
   they change. `scripts/test-netsync.js` shoves a player on a laggy link and checks both ends agree again
   within a round trip.
@@ -162,7 +193,7 @@ more than its bytes**, so put things into the packets that already flow.
   jump adds `SHOVE_PRESS` to the meter and pushes a `shove` event (which is what lets the input buffer pass a quick
   tap straight through), holding it down adds `SHOVE_HOLD` a second, and letting go takes `SHOVE_SLIP` a second off.
   The meter is predicted like any other field, so mashing needs no rebase; the server throws the leaper off on the
-  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud.js`) and both hands shoving
+  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud/center.js`, filled in by `game/hudmeters.js`) and both hands shoving
   (`ViewModel._push`).
 - **Entities** (`server/snapshot.js` / `client/net/decode.js`, tables `FIELD_COUNT` + `BIT_SLOTS` in both):
   area of interest per kind, creates in full, updates only for changed fields, sorted by id behind a one-byte
@@ -183,11 +214,11 @@ more than its bytes**, so put things into the packets that already flow.
 
 ## Many games on one server: the lobby
 
-One process runs every game. The **network thread** (`server/index.js`) owns the sockets, the HTTP routes and the
+One process runs every game. The **network thread** (`server/index.js`, `sockets.js`, `http/`) owns the sockets, the HTTP routes and the
 leaderboard; **each game is a worker thread of its own** (`server/room-worker.js`: one `Game`, its own 20 Hz tick
 loop, its own valley). So the games share the box's cores, generating a valley (a few hundred ms) in one game holds
 up nobody else, and a game that crashes or runs out of its 512 MB heap ends alone: the network thread closes its
-sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`, `Room`).
+sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`; each one a `Room`, `server/room.js`).
 
 - **Codes and routing.** A game is known by its code: 6 characters for a public game, 10 for an invite-only one,
   from 32 that cannot be misread. `/ws?game=CODE` is that game; `/ws` with none is a quick join (`Lobby.quick`: the
@@ -223,8 +254,9 @@ sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`
   has per-game tick timings and CPU (`load.cpuMs`: ms of CPU that game's thread used per second), the network
   thread's (`net`) and the process RSS; no codes.
 - **Client:** `client/net/lobby.js` (the API, and invite links: `?game=CODE`; while in a game the address bar
-  carries its link), the splash in `ui/menus.js` (Quick join, Browse games, Create game, or the invitation of the
-  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu.
+  carries its link), the splash in `ui/splash.js` (Quick join, Browse games, Create game, or the invitation of the
+  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu
+  (`ui/invite.js`).
 - **Capacity** (`npm run stress -- game|box`, scripts/stress.js; measured 2 Oct 2026 with bots at night 3 on a
   shared 11-core Mac, so read CPU ms per second, not wall-clock ticks): an 8-player game at night uses ~17 ms of
   CPU a second (45 in its worst second), ~62 MB of memory on a 70 MB base, ~2-2.6 KB/s down per player, and the
@@ -266,7 +298,7 @@ JSON file (`server/stats.js`).
   site cannot post with the player's cookie. The same Origin rule decides whether a WebSocket handshake's cookie is
   believed (`sessionToken` in index.js).
 - **Playing signed in.** `/ws`'s upgrade starts looking the cookie up and answers the handshake at once; the socket
-  gets its seat when the lookup is back (`open`, `seat` in index.js), and what it sent meanwhile - its JOIN - is kept
+  gets its seat when the lookup is back (`open`, `seat` in sockets.js), and what it sent meanwhile - its JOIN - is kept
   for then. (Never `res.upgrade` later from `res.cork`: uWebSockets.js v20.52 closes most sockets upgraded that way
   as they open, close code 1006 at 0 ms, uNetworking/uWebSockets#1929; `scripts/test-session-socket.js`.) The socket's
   user data carries `{ id, name, isAdmin }`; `Room.attach` passes it to the worker (`{ t: 'open', user }`), `conn.user`, and
@@ -345,7 +377,7 @@ JSON file (`server/stats.js`).
   count of that stat (`ACH_STATS`: kills, nights, escapes, headshots, revives, crafted, salvaged, trees, distance,
   days) reaches it; a **feat** has none and unlocks when the server sees it happen. The pure rules are there too:
   `applyAchievements` (counts and feats in, what newly unlocked out), `sanitizeProgress`, `mergeProgress`.
-- **In a game** (`server/achievements.js`, `Game.ach`) hooks sit beside the match tracker's (game.js, combat.js,
+- **In a game** (`server/achievements.js`, `Game.ach`) hooks sit beside the match tracker's (Game, combat.js,
   zombies.js, fixtures.js): they only add to the player's counts (`p.ach`) or note a feat. Once a second each
   survivor's position is looked at (distance, the mine, every place in the valley, a swim, a handcar's whole line,
   the Ferris wheel); nothing else is scanned. What a player earned goes out every 3 s, at once for a feat or at
@@ -363,7 +395,7 @@ JSON file (`server/stats.js`).
   /api/achievements/merge`: the greater of each count, every unlock of either, `source = 'guest'`). It is taken on
   trust - a browser can say anything - so it only reaches the two achievement tables, never `player_stats`.
   `GET /api/achievements` is your own record, `GET /api/achievements/:id` a friend's.
-- **On screen** (`client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
+- **On screen** (`client/ui/achtoasts.js`, `client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
   the tier's colour, a shine, confetti for gold, platinum and secrets; queued, ~4 s each; Settings turn banners and
   the chime off; reduced motion takes the movement out; a lifetime count's banner names the next step on it), and the
   profile page from the splash, the pause menu, the account panel and a friend's row: the three counters closest to
@@ -429,7 +461,8 @@ map does, and can be shut to fight and opened again.
   each round, Survivors who take one draw a card. `viewFor(state, side)` is all a player is sent: never the random
   stream, the deck's order or the other hand (beyond cards made known). The top of the file has the state, view, move
   and event shapes. `shared/cardai.js` plays a view (practice, the tests, the e2e bot).
-- **In a game** (`server/cards.js`, `Game.cards`): asks, matches, trades and bets; its header has the whole flow. Every
+- **In a game** (`server/cards.js`, `Game.cards`; its matches and trades in `server/cards/matches.js` and `trades.js`,
+  and what it shares with the lobby's `server/lobbycards.js` in `server/cards/common.js`): asks, matches, trades and bets; its header has the whole flow. Every
   message is `C2S.CARDS` / `S2C.CARDS` (a u8 op and a JSON string: `writeCards`/`readCards` in shared/protocol.js,
   every field checked on the way in), private, sent with the tick's snapshot and only when it changed. A side's turn
   clock stops while that player is away or down; the run ending voids a match and gives the bets back. Packs
@@ -446,8 +479,9 @@ map does, and can be shut to fight and opened again.
   the worker hands items over only once the cards have moved. Signing in brings a guest's cards onto the account
   (`Auth.claimGuest` -> `mergeGuest`). Escrows a game never settled go back to their owners (`roomGone`, and a sweep
   after a day).
-- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `carddeck.js`,
-  `cardtrade.js`, `cardreveal.js`, `cardface.js`; `cards.css`): the table, the deck builder, trades, challenges,
+- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `cardtable.js` and `cardpicker.js`,
+  `carddeck.js`, `cardtrade.js`, `cardasks.js`, `cardchooser.js`, `cardlobby.js`, `cardpractice.js`, `cardreveal.js`,
+  `cardface.js`, `cardwidgets.js`; `cards.css`): the table, the deck builder, trades, challenges,
   practice against the computer (`client/game/cardlocal.js`, no rewards), a pack's reveal and a three-page guide to how
   it plays (`cardguide.js`: offered once, the first time the cards open in a browser, `stn.cards.guide`; "How to play"
   in the head ever after). Card art is the game's
@@ -475,7 +509,7 @@ row of its own, so the same browser signing in again later moves what it earned 
 has a `loadout_skull_ledger` row and normalized entries; earn events from a game use stable ledger ids and an hourly
 cap, while auction buys debit buyer and credit seller minus the fee in the same transaction that moves the item. Guests
 may browse and earn but must sign in to buy or sell. The main menu's Loadout and Auction House panels read the same
-service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
+service (`client/net/loadout.js`; `client/ui/loadout.js`, `client/ui/auction.js`); a guest's reads carry their browser id in the `X-STN-Guest`
 header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
 The pledge window (`shared/pledge.js`, `server/pledge.js`, `client/ui/pledge.js`) is where Skulls are spent in a game.
@@ -581,7 +615,7 @@ server spawned with an IPC channel stops the same way on the message `'shutdown'
   game (`Lobby.restore`: claim, then a `Room` under the same code, given that worker or a new one with the save in its
   `workerData`) as soon as the store says one is there (`listen`), for any already waiting when it starts, and for a
   socket, an invite card, a page or `/api/version` asking for a code it does not have yet (they wait for it, as a socket
-  waits for a session: index.js `open`, `Lobby.settle`). The worker makes its `Game` from the save; a save it cannot use
+  waits for a session: sockets.js `open`, `Lobby.settle`). The worker makes its `Game` from the save; a save it cannot use
   is reported (`restoreFailed`) and the room closes. Then, if the save names a build and this server may start it, the
   game is started again by that build (`Lobby.afterFailed`, below); failing that, the lobby remembers that code for half an
   hour with why (`Lobby.ended`, `wasLost`), and whoever comes for it is turned away with `REJECT_REASON.ENDED_MAP` (the
@@ -737,6 +771,13 @@ screen). `scripts/test-airfield-hints.js` holds them.
   Passage Mines under the river). `world.car` is the plane there (`plane: true`), so everything that asks for "the
   car" - the reach, the supplies, the final stand - asks for it. What the island has and it lacks (railway, fair,
   clinic, cemetery) is `null`; its `mine` is the passage.
+  - *The code*: `createMainland` makes the kit and the places' hiding spots and calls the stages in `shared/mainland/`
+    in a fixed order (they draw from its random stream): `plan.js` (where everything is, from the picture),
+    `terrain.js` (the heightfield), `roads.js` (the roads, graded into it), `citykit.js`, `buildings.js`
+    and `city.js` (Town Center), `docks.js`, `homes.js`, `places.js`, `mountains.js` (the tunnels' galleries, the
+    cliffs' walls), `airfield.js`, `sites.js` (the land a body walks to, the roadside sites, the farm, the road signs,
+    hoardings and poles), `passage.js` (the mines, the quarry's pit), `vegetation.js`, `spawns.js` and `fieldmap.js`; `consts.js` holds
+    the measures.
   - *The layout* (`shared/mainland-layout.js`) is the picture, traced: the sea and its islands and Pine Lake as
     outlines (even-odd), the river's middle line with its width, the creek, the mountains' outlines, the tunnels, every
     road with its class (main, secondary, dirt, trail; the suburbs' and the village's lanes), the areas of houses, the
@@ -799,7 +840,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
     middle), `zone.minor` (a lesser place: smaller letters), `landmark.city` (named inside the city: written only
     zoomed in), and `world.marks` (the picture's marks: the town, the church, the industry, the gas station, the
     airport, the camps, the mouths of the tunnels and the mines, the quarry and its pit, the lighthouse, the radio tower,
-    the water tower). `client/ui/mapmainland.js` draws the mainland's field map from them: paper, the water in blue with
+    the water tower). `client/ui/mapmainland.js` (its layers in `client/ui/mainland/`) draws the mainland's field map from them: paper, the water in blue with
     its shallows and a light rim round every islet, the mountains in lit and shaded faces with their crests inked and no
     outline, a stamp for every tree as the picture draws them, the roads by its legend, the city's ring road, its marks
     and its legend in the corner of the sea.
@@ -875,19 +916,19 @@ screen). `scripts/test-airfield-hints.js` holds them.
   the gun crates (`Game.startCrates`, at `world.startCrates`; [E] drops a gun, its magazines and the stock). Each of its
   wipes starts a new run there, on a new mainland (`startGame`), never on the island. Only a player who has
   beaten map 1 (`crossings` in the stats, `map1_at` in the database) may create one or take a seat in one
-  (`map1Gate` in server/index.js, `REJECT_REASON.MAP1_FIRST`); admins may always. Quick join never picks one. A late joiner joins the act being played:
+  (`map1Gate` in server/sockets.js, `REJECT_REASON.MAP1_FIRST`); admins may always. Quick join never picks one. A late joiner joins the act being played:
   beside the team, or at the act's start, with `starterKit(day)`.
 - **Difficulty** (shared/difficulty.js) is the game's, so it holds on both maps: the mainland's days (`dayLen`: the
   arrival day and the longer days after it, times `diff.day`), its hordes and the runway stand (`hordeSize`), the dead
   themselves, the loot, and the bridgehead's floor, whose rounds and bandages move as the starting kit's do
   (`diff.ammo`, `diff.bandages`: 48 rounds and 2 bandages on Ember, 24 and 1 on Nightfall, 16 and 1 on Blackout).
-- **The plane** (`suppliesOf(act)` in defs.js: `PLANE_PARTS` has the shape of `SUPPLIES`, four parts and the fuel by
+- **The plane** (`suppliesOf(act)` in `defs/escape.js`: `PLANE_PARTS` has the shape of `SUPPLIES`, four parts and the fuel by
   threes, so the global state, the rumours and the objective tracker read either). Every run deals its parts round
   the whole map, a place apiece, as the island deals the car's (`placeSupplies`): `world.partSpots[k].supply` says
   which part a spot is for - one part's own set place (Layout 12's), or a hiding place any part fits (`HIDE.ANY`, the
-  propeller too) or any but the propeller (`HIDE.SMALL`), made from the floor loot points with room round them.
-  A restart at the bridge rolls a new mainland (a new seed: new lots, loot and deal; the same map), so no two tries
-  are alike.
+  propeller too) or any but the propeller (`HIDE.SMALL`), made from the floor loot points with room round them
+  (`shared/mainland/hiding.js`). A restart at the bridge rolls a new mainland (a new seed: new lots, loot and deal;
+  the same map), so no two tries are alike.
 - **The runway stand** (`RUNWAY` in acts.js, `updateEscape`): two things to hold in turn - the fuel truck while it
   pumps (`escape.stage` 0), then the plane while its engines warm (1) - then the plane goes only while no more than
   `RUNWAY.CLEAR` of the dead stand on the strip ahead of it (`onRunway`, `NOTIFY.RUNWAY_BLOCKED`). Its groups appear
@@ -921,7 +962,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   building, and frame times, through `launchChrome`). act2-shots builds the same mainland in node and checks every
   camera against it before the shot is taken (`pickCam`: in nothing solid, in no tree's crown, nothing between it
   and its subject); a run of it is one section or two (`--only`), well inside a browser's life.
-- **The city's kit** (`client/render/citykit.js`, called by `StaticWorld` for a world with `world.city`). It
+- **The city's kit** (`client/render/citykit.js` + `city/`, called by `StaticWorld` for a world with `world.city`). It
   writes triangles straight into the static world's merged buffers, in a building's own frame: a face is cut into
   bays (`STYLE`), every window an opening with reveals and something in it (glass, shards, the dark, boards -
   `windowState`, by a hash of the building's seed, so it is the same on every client), and from near its frame,
@@ -929,7 +970,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   courses, a fire escape, balconies, a drainpipe, ivy, damp, cracks, a ghost sign), the roof (`roofOf`: parapet,
   tank, plant, stair head, hoarding), a storey broken open (`openStorey`: slab edges with their steel, columns,
   rooms papered each its own way) and a slab under the sky (`terrace`). Marks come from one atlas (`GEN.city`,
-  `CITY_ATLAS` in textures.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
+  `CITY_ATLAS` in textures/city.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
   `citygrime` (blended: soot, rust, stains). A glass tower is a curtain wall (`curtainWall`): a band of steel at
   each slab, glass from mullion to mullion over it - whole, hanging broken, or gone, and through the gone ones the
   storey behind (its floor, the slab over it, columns, a desk); a burnt-out place is its own brick or concrete
@@ -1036,7 +1077,7 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 - **Time of day** is one palette table (`KEYS` in `render/environment.js`): colours, light levels, fog, mist,
   haze scatter, shaft strength and base exposure per sun height. Eye adaptation only compensates relative to
   `Environment.adaptRef` (the log-average luminance an open scene has at that light level), clamped 0.7-1.6x.
-- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/materials.js`): building surfaces and painted /
+- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/surfaceshading.js`): building surfaces and painted /
   galvanised props are a Lambert tile plus a normal map baked from the generator's height field
   (`getNormalMap`), and the weathering is NOT in the tile. The tile holds the bare material in RGB and a
   tileable wear field in alpha; the shader lays the coat (paint, rust or moss) over it where that field plus
@@ -1052,18 +1093,19 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 
 ## Audio
 
-- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up) and most
+- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up by `banks.js`) and most
   now have a CC0 recording over it (`audio/samples/*.ogg`, table `REC` in `samples.js`: decode rate, `lazy`, and
   the `[start, dur, ...]` slice table of a multi-take sprite). A recording is used once it has decoded; until then,
-  or for good if it fails to load, the procedural bank plays. `R_*` defs in `audio.js` bind a recording to a sound
+  or for good if it fails to load, the procedural bank plays. `R_*` defs in `sound-defs.js` bind a recording to a sound
   (`vol` is relative to the sound's own, calibrated against the procedural bank it replaces; `layer` keeps the bank
   underneath; `far` crossfades to a distant-perspective recording). To add one: drop the Ogg in `samples/`, add
   its `REC` entry and CREDITS.md row (CC0 only), point an `R_*` def at it.
 - **Score** (`audio/music.js`): recorded stems crossfaded by game state over the generative score - menu theme,
   sparse daytime tones, night drone, a "dread" layer that follows the nearest zombie, the horde's taiko (muffled
   until something is close) and the boss theme, all in or around D minor. Each generative layer gives way to its
-  stem once loaded. Stingers (`STINGERS` in `audio.js`) are recorded cues too, with the procedural ones behind them.
-- **Zombie voices** are chosen on the client (`entities.js`): shambling zombies moan (`SOUND.ZOMBIE_MOAN`),
+  stem once loaded. Stingers (`STINGERS` in `sound-defs.js`) are recorded cues too, with the procedural ones behind them.
+- **Zombie voices** are chosen on the client (`game/entities/zombies.js`, a kind's own cadence, pitch and steps in
+  `zombiekinds.js`): shambling zombies moan (`SOUND.ZOMBIE_MOAN`),
   hunting ones growl, each at its own stable pitch (`e.voice`, passed as `rate`); each carries a breathing loop
   (the engine only plays the nearest few); a kill is followed by the body hitting the ground (`SOUND.BODY_FALL`,
   `delay`). Special infected, dogs and bosses have their own recorded sets. Voices of the `zombie` category
@@ -1187,8 +1229,8 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
   Loot and the casket (`CONT.CASKET`, table `crypt`) are `ZONE.CEMETERY`; the crypt's supply spot is the chapel's.
   `world.cemetery` holds the graves (`{ x, y, z, yaw }`: where one of the dead stands up, and which way it faces),
   `inside(x, z)` for the fenced ground, and what the field map draws.
-- **The rule** (`server/cemetery.js`, `Game.cemetery`) is called from five places in `server/game.js` (a new run,
-  sunrise, the start of each wave, the tick, `/cemetery`) and one in `Zombies.updateOne`. A wave that starts with a
+- **The rule** (`server/cemetery.js`, `Game.cemetery`) is called from five places in `Game` (a new run, sunrise, the
+  start of each wave, the tick, `/cemetery`) and one in `Zombies.updateOne`. A wave that starts with a
   survivor within `CEMETERY.NEAR` takes `CEMETERY.SHARE` of its walkers and runners out of its queue into
   `Cemetery.pending`; until they are up they wait in a wave of their own that never starts by the clock
   (`Cemetery.share`, pushed onto `Game.waves`), so the horde the HUD counts does not change. Each is given a grave
@@ -1200,7 +1242,7 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
   `Zombies.updateOne` hands it to `Cemetery.climb`, which only raises it (`riseDepth`: two heaves) and holds
   `ZANIM.RISE`. Nothing else knows: the hitbox goes with `z.y`, so `raycastWorld` stops a shot at the terrain before
   it reaches what is still under it, and the client draws the zombie where it is replicated, the terrain covering
-  the rest. `poseRise` (`characters.js`) is the body meanwhile: arms overhead, then hands on the grass, then a knee
+  the rest. `poseRise` (`characters/pose.js`) is the body meanwhile: arms overhead, then hands on the grass, then a knee
   over the lip.
 - **On the client** (`client/render/cemetery.js`, `Game.graves`): the broken earth of every grave is one
   `InstancedMesh`, in the scene from the moment the valley loads (warm-up), an instance scaled to nothing until its
@@ -1213,7 +1255,7 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
 
 ## Deer: wildlife that can be hunted
 
-The deer (`server/deer.js`, shared numbers in `shared/deer.js`, the view in `client/game/deer.js` and
+The deer (`server/deer.js`, the pack's hunt in `server/deer/pack.js`, shared numbers in `shared/deer.js`, the view in `client/game/deer.js` and
 `client/render/models/deer.js`) are an entity kind of their own, `ENT.DEER` (fields: position, yaw, a `DANIM` state,
 the coat in the create), kept in `game.deer` - not a zombie type with a flag. That was the choice between two kinds of
 work: a zombie type would have had every system that walks `game.zombies` skip it (the horde's size and waves and
@@ -1392,7 +1434,8 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
   are the vehicle's) and `simulatePlayer` hands the command to `driveStep`. The client predicts with the same code,
   so a driver is corrected only for what the server alone knows: a zombie struck, damage, fuel poured in, a
   breakdown. A passenger (`s.pass`, `s.passN`) is put in their seat by the server each tick and predicts nothing.
-- **The server** (`server/vehicles.js`, `Game.vehicles`) keeps one `ENT.VEHICLE` each (`VF`, `VFLAG`): parks an
+- **The server** (`server/vehicles.js`, `Game.vehicles`; with `server/vehicles/contact.js` for what a car hits, `damage.js`
+  for what it takes, `work.js` for the [E] holds and `debug.js` for `/veh`) keeps one `ENT.VEHICLE` each (`VF`, `VFLAG`): parks an
   empty one as a box (snapped to what the wire carries, so both ends have the same box) with a cost in the nav
   field, rolls a driverless one to a stop, carries the passengers, lets the dead strike the body before whoever
   is inside (`shield`), runs the dead over (`strike`), makes the engine's and the horn's noise, and holds the
@@ -1432,7 +1475,7 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
   own are on the controls, from its shoulders), so looking down or round shows a trunk and legs, and the eye is our
   own head's. The team's vehicles are on the field map and the minimap (`marks`). The models are
   `client/render/models/vehicles.js` (as found, running, broken down - bonnet up, a corner down, hazards blinking -
-  and burnt out), the driven car's cabin is `props.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
+  and burnt out), the driven car's cabin is `props-vehicles.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
   legs fit), the sounds `client/audio/synth-vehicle.js`.
 - **Saved** with the game (`Vehicles.save` / `load` in `server/gamestate.js`): every vehicle with its state, fuel,
   body and who sat where; the players' own fields ride in their saved state.
@@ -1468,7 +1511,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     their `EVT.SHOT`, the mounted gun's too) - every pellet of a shotgun leaves its hole, nothing new is on the wire,
     and the server's own `EVT.IMPACT` for the same round is dropped (`sameAsOwn`);
   - a blast is `EVT.EXPLOSION`: rays out from it scorch and pit what stands round it.
-- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code, a cell per kind) in one
+- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code: `textures/marks.js`, a cell per kind) in one
   mesh: one draw call, lit like the wall it lies on, no draw call at all while there are none. `MarkPool` (no
   three.js in it) is a ring of `MARK_RING` (400) that the newest overwrite - a hundred rounds into one wall cost
   what one does - each fading out after `MARK_LIFE`, plus `MARK_KEPT` slots that stay until given back (a wreck's
@@ -1482,7 +1525,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   draws, and `Chips`, one instanced mesh of small solid bits (splinters, grit, flakes, clods, shards, the scrap a
   wreck gives up, which flies to the hand of whoever earned it). Nothing is updated or drawn while nothing is in
   the air.
-- **Props that react** (`client/render/wrecks.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
+- **Props that react** (`client/render/wrecks.js`, `wreck.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
   its vertices live on the card, so a prop that is to change is *lifted*: `StaticWorld.lift` cuts its stretch out
   of every material's runs (and the shadow casters'; `MultiMesh.cut`), `StaticWorld.pieces` builds its triangles
   again, and the `LiftBatch` draws them - one mesh per material for every lifted prop there is, culled prop by
@@ -1490,7 +1533,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   and at no other time: a valley of wrecks at rest costs those few draw calls and no work. Only liftable props are
   recorded when the world is built (`liftable`: what gives scrap, and `LIGHT_PROPS`). A light prop (a barrel, a
   crate, a chair) rocks on its base from a blow and is put back the moment it settles.
-- **Wrecks** (`shared/wrecks.js`, `Game.wreckHit`, `Wreck` in `client/render/wrecks.js`). A blow on a wreck is put
+- **Wrecks** (`shared/wrecks.js`, `Game.wreckHit`, `Wreck` in `client/render/wreck.js`). A blow on a wreck is put
   on its record beside the salvage left in it (`Game.gather`: `hits`, up to `WRECK_HITS_MAX`, each where it landed,
   which way and with what) and sent to everybody (`EVT.WRECK`); who joins or comes back is sent every record whole
   (`WRECKF.REPLAY`, with `EVT.STRIPPED` as before); a save keeps them; dawn forgets them (`EVT.REGROWN`), and every
@@ -1548,7 +1591,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   off 45% of the time. A knife never does either. Ringing, it calls the dead every 3 s with the noise any sound
   makes (`Zombies.noise`, 85 m; it spawns nothing, unlike a trunk's alarm) for 18 s, or until a blow on the bonnet
   end kills it. One alarm a wreck a day. The salvage a hit gives is untouched by any of this.
-- **Sounds** (`client/audio/synth-strike.js`, `STRIKE_MAP` in `audio.js`, `Audio.strike(name)`): a struck thing is
+- **Sounds** (`client/audio/synth-strike.js`, `STRIKE_MAP` in `sound-defs.js`, `Audio.strike(name)`): a struck thing is
   an exciter into a bank of modes, with the recorded impact laid over it where there is one, pitched by weapon.
 
 ## Gameplay systems (iteration 2)
@@ -1609,7 +1652,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   The backpack does not come off (`ACT.WORN`) while a slot past 24 holds anything, so the locked slots stay empty.
   Worn, it sets `PFLAG.BACKPACK`, and the third-person survivor carries the item's own model on its back.
   The backpack sorts itself (`sortInventory`): each item's stacks merged and the open slots ordered by `BAG_TIER`
-  (defs.js), then item id and size: deterministic, and the locked slots are never touched. It runs whenever
+  (`defs/itemdefs.js`), then item id and size: deterministic, and the locked slots are never touched. It runs whenever
   something is picked up (`giveItem`: the ground, searches, harvesting, salvage's yield; not a craft, whose result
   the client predicts in place) or dropped (`ACT.DROP_SLOT`): `p.invSort`, applied once in `sendTick` before the
   inventory goes out. A split (`p.splitKeep`) is left apart. There is no Sort button.
@@ -1625,7 +1668,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   from the bridgehead, and one the team has is rumoured nowhere - 255.) Installing all
   of them enables the engine hold-interaction, which starts the final stand (`game.escape`). The stand is
   sized from the night of the same number (`hordeSize()` × `FINAL_STAND_SIZE`, the `FINAL_STAND_*` constants
-  in `server/game.js`) and re-read from the survivors still alive whenever a group is due; wanderers near a
+  in `server/game/escape.js`) and re-read from the survivors still alive whenever a group is due; wanderers near a
   survivor join it and count, the rest are removed as at nightfall, and the day's upkeep stops for its length.
   The warm-up (`Game.updateEscape`) only counts down while a survivor on their feet is within `ESCAPE_RADIUS`
   of the car; otherwise it stalls where it is, and the stand keeps coming on its own clock. A warm engine ends
@@ -1650,7 +1693,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   Every night's boss (`bossPending`, drawn by `nightBoss(seed, night)` in `shared/nights.js` from `BOSS_POOL`; night 1
   is always The Brute) comes in with wave `BOSS_WAVE`; `Game.spawnBosses` scales its health by `BOSS_HP_PER_PLAYER`
   and `BOSS_HP_PER_NIGHT` (a Tank by `TANK_BOSS_HP` as well). The client draws the same boss from the seed
-  (`nightBossText` in `client/ui/hud2.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
+  (`tonightBrief` in `client/ui/tonight.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
   `NOTIFY.BOSS` says when it arrives. A day's length is `dayLength(day)` in `shared/constants.js` (`Game.dayLen`):
   long on days 1 and 2, then `DAY_SHRINK` shorter each day down to `DAY_LENGTH`. A boss drops its loot (`bossLoot`, default 8 rolls) only if it dies before
   the dawn sun sets it alight (`z.onFire`, `Combat.killZombie`); the sun's kill goes to the killfeed as `KILLER.WORLD`.
@@ -1681,8 +1724,8 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
 - **Power: the generator and its floodlights** (`STRUCT.GENERATOR` 11, `STRUCT.FLOODLIGHT` 12; numbers and the cone in
   `shared/power.js`, the rule in `server/power.js`, the client in `client/game/power.js`). Both are ordinary structures
   (they block, the dead break them, they count to `MAX_STRUCTURES`); everything else hangs off three hooks in
-  `server/game.js`: `Power.update` at the top of `updateStructures`, `Power.interact` in `interact` and
-  `ACT.GEN_SWITCH` (u16 entity id) in `handleAction`. A generator's tank is `e.burnLeft` (seconds) and its switch
+  `server/game/`: `Power.update` at the top of `updateStructures` (building.js), `Power.interact` in `interact`
+  (interact.js) and `ACT.GEN_SWITCH` (u16 entity id) in `handleAction` (input.js). A generator's tank is `e.burnLeft` (seconds) and its switch
   `e.off`; it runs while the switch is on and there is fuel. Each tick `Power.update` burns the fuel of the running ones,
   raises their hum through `Zombies.noise` every `GEN_HUM_EVERY` (with `game.rng` swapped for the module's own stream
   for the call: the noise scatters where each zombie heads, and a generator must not shift what the rest of a seeded
@@ -1711,7 +1754,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   looks for a clear line every third tick (`batSees`) and comes straight down the first one it gets - a doorway,
   a window, the top of a wall with no roof over it, or the survivor stepping outside.
 - **Fire and burning.** `Combat.ignite(z, attacker, weapon, time)` gives a zombie the burn status (`BURN` in
-  defs.js; `z.burnT` seconds left, `z.burnBy` / `z.burnWeapon` for the kill). `Zombies.updateOne` ticks it
+  `defs/fire.js`; `z.burnT` seconds left, `z.burnBy` / `z.burnWeapon` for the kill). `Zombies.updateOne` ticks it
   through `damageZombie` with `{ fire, dot }` (`fire`: burnt corpse, no loot; `dot`: one small tick of a
   continuous hurt, so it rarely cries out). More fire tops the time back up, it never stacks. It is replicated as
   `ZSTATUS.BURNING` in the zombie's `ZF.STATUS` field (also set while the dawn sun burns the horde), which is all
@@ -1781,7 +1824,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   it for a carrier who is down, dead, turned, pinned, roped, away or gone, and clears a stray `s.hmg` on anyone
   else.
 - **The stray cat in a survivor's arms** (`server/cats.js`, `client/game/catcarry.js`, the poses in
-  `client/render/models/cat.js`, `weapons.js` (`ViewModel.holdCat`) and `characters.js` (`s.cradle`, `cradleAt`,
+  `client/render/models/cat.js`, `weapons.js` (`ViewModel.holdCat`) and `characters/survivor.js` (`s.cradle`, `cradleAt`,
   `solvePet`)). `[E]` on the cat is `ACT.INTERACT` on its entity (reach and walls as for an item: `PICK_RADIUS.CAT`);
   `Cats.lift` takes it out of its wandering (`CAT_MODE.HELD`) and sets `s.pet`, the one field of the player
   simulation it touches: no weapon goes off, swings or reloads (the hands skip the weapon block, as with `s.hmg`), the
@@ -1859,7 +1902,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   its view ray passes within `FIXTURE_PICK` of the spot inside `INTERACT_REACH` with nothing in the way
   (`canReach`), the server allows `FIXTURE_REACH`. A pull (`Fixtures.ringBell`) sends `NOTIFY.BELL` and the
   tolls follow from `Fixtures.update`: each is a `SOUND.BELL_TOLL` with no radius (everyone hears it; the `bell`
-  category in audio.js carries it across the map) and a `Zombies.noise` of `NOISE.BELL`. A call
+  category in sound-defs.js carries it across the map) and a `Zombies.noise` of `NOISE.BELL`. A call
   (`Fixtures.callPlane`) spends `RADIO_BATTERIES`, aims `flySupplyDrop` at the caller (pushed a crate's width
   clear of whatever stands beside them, the heading off a stream of its own: the game's is not drawn from) and
   makes a `NOISE.RADIO`; `calledDay` keeps it to one a day, and `phase` to the day. The client keeps what it knows
@@ -1895,7 +1938,10 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   builds it again if the list says another (the list can arrive after the entity's create).
   The models are procedural (`client/render/models/humans.js`: the head and the body's lofted surfaces;
   `people.js`: a whole person from a look - clothes, hair, hats, kit, the dead's injuries; `looks.js`: the roster's
-  looks and `deadLook`, what turns one; `deadlooks.js`: the walkers' variants and the specials' bodies). A head is
+  looks and `deadLook`, what turns one; `deadlooks.js`: the walkers' variants and the specials' bodies). Each kind of
+  the dead has its model, gait and swing in `zombies/<kind>.js`, gathered into tables by `zombies/index.js` the way
+  `server/specials/` is; `characters/` poses and instances them (`pose.js`, `gait.js`, `zombie.js`, and the survivors'
+  `survivor.js` and `survivorrig.js`), and `characters.js` re-exports what the rest of the client imports. A head is
   one surface by azimuth and elevation with a painted face in the same layout (`CR.FACE` / `CR.FACE_Z`, 2 x 2 cells
   of the now 4 x 8 character atlas); the torso, arms and legs are each one lofted surface weighted across the spine,
   elbows and knees, and clothing is the visible surface of those lofts cut where a garment ends. Every survivor is
@@ -1941,7 +1987,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     look earlier in the game). Not in `S2C.PLAYERS`, which goes out again whenever a rounded ping changes; a game of
     roster survivors sends no `S2C.LOOKS` at all. No protocol bump: it is all trailing bytes and a message an
     older client ignores.
-  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters.js getSurvivorRig`, cached as
+  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters/survivorrig.js getSurvivorRig`, cached as
     `${ref}|h` / `${ref}|z`; a custom one about 1.5 MB with both, counted by the instances holding it and let go
     past the eight last used: `evictLooks`). Your own is built at join, under the load. Another player's is built by
     `client/game/lookwarm.js` one model at a time between frames (6-20 ms each), and until both are built they are
@@ -1966,7 +2012,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   `checkOnAir` puts the change in the player list the same tick (`PLF.ON_AIR`), and `game/radio.js` on each
   client routes that peer through the radio (`Voice.setRadio`, held open 400 ms past the key coming up), plays
   the squelch and keeps the static loop up (`AudioEngine.radioStatic`) while anybody is on the air. Keying it
-  opens the microphone as push-to-talk does. Each `VoiceSource` in `audio.js` mixes a positional path with a
+  opens the microphone as push-to-talk does. Each `VoiceSource` in `voice-chat.js` mixes a positional path with a
   band-limited radio path that takes over as the speaker leaves earshot (or the area of interest).
 - **Death lasts until dawn** (`DAWN_RETURN` in constants.js). A survivor who dies becomes a player-zombie
   (`killPlayer`, then `spawnPlayerZombie`). `startDay` calls `returnFallen`: every player who is dead or a zombie
@@ -1983,7 +2029,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   not drops. A survivor who dies drops all they carry (`dropAll`); one who leaves the game takes along what they
   were handed at the start (`p.kit`, recorded by `spawnHuman`) and drops only the rest (`parkKit`, see Joining a
   run in progress below), so a reconnect neither litters nor doubles the kit.
-- **Coming and going.** `Game.admitJoin` gives each address (`conn.ip`, from `clientAddress` in `index.js`:
+- **Coming and going.** `Game.admitJoin` gives each address (`conn.ip`, from `clientAddress` in `netaddr.js`:
   behind a proxy it is the forwarded one) two lobbies' worth of joins at once and one more every `JOIN_EVERY`
   seconds; past that a join is refused as "server full". The "joined" / "left" chat lines have one allowance for
   everybody (`GREET_EVERY`): once it is used up players come and go unannounced, the player list still shows them.
@@ -2016,13 +2062,14 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   lightning light, wind (`Foliage.update` drives `G.uWind`: trees bend trunk and crown together, grass and bushes
   lean; the ambience plays the same wind), ground mist, the flashlight beam's haze (post.js, denser in rain), and
   rain streaks and splashes (`render/weatherfx.js`, kept out from under `world.roofs`).
-- **The inventory screen** (`client/ui/inventory.js`, the crafting column in `client/ui/crafting.js`). The game does
+- **The inventory screen** (`client/ui/inventory.js`, its parts in `client/ui/inventory/`: the kit strip, the backpack, the
+  item card, the menu, dragging, the popovers; the crafting column in `client/ui/crafting.js`). The game does
   not pause under it, so every action is one click or one key: a click selects (the item card under the backpack
   says what it is, with a button and key for each action), a double-click does the main thing, a right click opens a
   menu of drop amounts, and F use · S split · G drop one (Shift+G all) · X salvage · Z undo act on what is under the
   pointer, else what is selected. The keys are the screen's own listener: the game's input is off while it is open,
   and a key bound to opening a screen (`MENU_KEYS`) is left to the game. The backpack is grouped into sections in
-  the order the server's Sort leaves it (`SECTIONS`, `BAG_TIER`), and a drag only swaps within one. Recipes are
+  the order the server's Sort leaves it (`SECTIONS` in `inventory/backpack.js`, `BAG_TIER`), and a drag only swaps within one. Recipes are
   grouped by what stops them (ready, needs a station, missing materials, locked), after "For what you carry" (the
   ready ones that feed what is held: `carryWhy`, each with a Craft button); the one selected has a quantity that
   `craftRun` caps. The layout (`ux-inventory.css`, issue #224) is a header with health and stamina (`setVitals`, from
@@ -2030,7 +2077,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   compares a gun or a vest with the one held) and Crafting; type has a rem floor so browser zoom enlarges it, and
   below `COMPACT` (1280 x 720 at 125% zoom and smaller) one panel shows at a time under tabs that Q / E switch.
 - **The tracked recipe** (`client/game/tracked.js`): one recipe at a time in `localStorage['stn.tracked']`, client
-  only. The HUD checklist under the objective tracker (`Tracked` in `ui/hud2.js`), the "needed for" line on pickup
+  only. The HUD checklist under the objective tracker (`Tracked` in `ui/objective.js`), the "needed for" line on pickup
   prompts and the "may hold" line on containers whose table can roll a missing ingredient (`mayHold` in
   `itemguide.js`) read it; the backpack marks the stacks it would use. Crafting it untracks it.
 - **Item guide** (`client/game/itemguide.js`): the "Used in" and "Found in" lines of the inventory's item card are
@@ -2088,7 +2135,7 @@ half of what is on screen is not animated at all.
   means "winding up", which is how others see the whirl. A move counts once in `fireCount`; which move it was is
   not sent - a watching client works it out the way the rules would (`NunchakuTP.swing`). `scripts/test-nunchucks.js`
   holds all of it, a client predicting it over a laggy link included.
-- **The chain** (`ChainSim`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
+- **The chain** (`ChainSim`, `shared/nunchaku-chain.js`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
   is a rigid rod on the chain: two point masses at its radius of gyration (so it turns like a stick, not a
   dumbbell), a rope constraint from the chain's far eye to the hand's (never longer than the chain; slack when it
   is nearer), capsules for the arms, the head and the trunk, the other handle. The links between are drawn, not simulated: an arc

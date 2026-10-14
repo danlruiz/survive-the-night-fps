@@ -98,7 +98,7 @@ export function variantsOf(type, make = createProp, max = 12) {
     let m;
     try {
       m = modelOf(type, s, make);
-    } catch (e) {
+    } catch {
       break;
     }
     let h = m.pos.length;

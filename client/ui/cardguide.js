@@ -5,14 +5,14 @@
 //
 // Keys: the arrows and Enter page through it; Esc (Game.onKey -> CardsScreen.back) steps back a page, and out of it
 // from the first. Leaving it goes back to the view it was opened over (the chooser, the decks, a pack to open...).
-import { el, svgEl, lsGet, lsSet } from './dom.js';
+import { el, svgEl, lsGet, lsSet, button } from './dom.js';
 import { glyph, itemIcon } from './icons.js';
 import { cardFace, ROW_GLYPH } from './cardface.js';
 import { F, F_PERKS, ROW_NAMES } from '../../shared/cards.js';
 import { ITEM } from '../../shared/defs.js';
 import { bindLabel } from '../game/binds.js';
 
-export const GUIDE_KEY = 'stn.cards.guide'; // 'seen' (went through it) | 'skipped' (said not now): offered once either way
+const GUIDE_KEY = 'stn.cards.guide'; // 'seen' (went through it) | 'skipped' (said not now): offered once either way
 export const guideOffered = () => lsGet(GUIDE_KEY, '') !== '';
 const markGuide = (how) => {
   if (lsGet(GUIDE_KEY, '') !== 'seen') lsSet(GUIDE_KEY, how);
@@ -137,24 +137,20 @@ export class GuideView {
     const nav = el('div', 'cdg-nav', box);
     const dots = el('div', 'cdg-dots', nav);
     PAGES.forEach((_, i) => {
-      const d = el('button', 'cdg-dot' + (i === this.page ? ' on' : ''), dots);
-      d.type = 'button';
+      const d = button('cdg-dot' + (i === this.page ? ' on' : ''), dots);
       d.setAttribute('aria-label', `Page ${i + 1}`);
       d.addEventListener('click', () => this.go(i));
     });
     const acts = el('div', 'cdg-acts', nav);
     if (this.page > 0) {
-      const b = el('button', 'btn btn-ghost', acts, 'Back');
-      b.type = 'button';
+      const b = button('btn btn-ghost', acts, 'Back');
       b.addEventListener('click', () => this.go(this.page - 1));
     } else {
-      const b = el('button', 'btn btn-ghost', acts, 'Skip');
-      b.type = 'button';
+      const b = button('btn btn-ghost', acts, 'Skip');
       b.addEventListener('click', () => this.done());
     }
     const last = this.page === PAGES.length - 1;
-    const next = el('button', 'btn btn-blood cdg-next', acts, last ? 'Got it' : 'Next');
-    next.type = 'button';
+    const next = button('btn btn-blood cdg-next', acts, last ? 'Got it' : 'Next');
     next.addEventListener('click', () => (last ? this.done() : this.go(this.page + 1)));
     next.focus({ preventScroll: true });
   }
@@ -166,14 +162,12 @@ export class GuideView {
     el('p', 'cdg-lead', box, 'Three quick pages on how it plays: the rounds, the cards, and where to find a game.');
     el('p', 'cd-hint', box, 'You can come back to them any time: How to play, at the top.');
     const acts = el('div', 'cdg-acts', box);
-    const yes = el('button', 'btn btn-blood cdg-next', acts, 'Show me');
-    yes.type = 'button';
+    const yes = button('btn btn-blood cdg-next', acts, 'Show me');
     yes.addEventListener('click', () => {
       this.ask = false;
       this.go(0);
     });
-    const no = el('button', 'btn btn-ghost', acts, 'Not now');
-    no.type = 'button';
+    const no = button('btn btn-ghost', acts, 'Not now');
     no.addEventListener('click', () => {
       markGuide('skipped');
       this.leave(true);

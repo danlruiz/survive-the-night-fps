@@ -11,7 +11,7 @@ process.env.HANDOFF_RESERVE_SECONDS = '6';
 process.env.HANDOFF_FREEZE_SECONDS = '0'; // (the restored game runs on at once: its waiting for its players is scripts/test-handoff-safe.js)
 const { Game } = await import('../server/game.js');
 const { envelope, encode, decode, HandoffError } = await import('../server/handoff.js');
-const { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT } = await import('../shared/protocol.js');
+const { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } = await import('../shared/protocol.js');
 const { PHASE, SLOT_BUILD } = await import('../shared/constants.js');
 const { ITEM, STRUCT, ZTYPE, COL } = { ...(await import('../shared/defs.js')), ...(await import('../shared/collision.js')) };
 const { randomUUID } = await import('node:crypto');
@@ -216,6 +216,8 @@ const TRANSIENT = [
   /^game\.lookIds\b/,
   // (the armed cars' next chirp: it comes at once on the new server; and their colliders, found again from the valley)
   /^game\.(armedT|trunkCols)\b/,
+  // (when the Scouts last looked about them: they look again at once on the new server, server/roles.js)
+  /^game\.roles\.scoutT\b/,
   /^game\.(ents|all|freeIds|gens|deer|cats|projectiles|areas)\b/, // (the registry is checked above; the deer, the cat and what was in flight start afresh)
   // a player: their connection, and what resume starts afresh for the client that comes back
   /^players\.\*\.(session|rec|view|shadow|cmdQueue|cmdBudget|hx|hy|hz|selfSync|away|arriving|ts|invDirty|invSort|selfCache|globalCache|listVer|snapTick|ackSent|greeted|loadoutEntered)\b/,

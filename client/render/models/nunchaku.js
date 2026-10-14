@@ -1,5 +1,5 @@
 // Nunchucks: the moves, and the two views of them (first person: NunchakuFP, used by weapons.js's ViewModel; third
-// person: NunchakuTP, used by characters.js's SurvivorInstance). The rules - which move, when its blows land, what
+// person: NunchakuTP, used by characters/survivor.js's SurvivorInstance). The rules - which move, when its blows land, what
 // they do - are shared/nunchaku.js and playersim.js; nothing here decides anything. This is what it looks like.
 //
 // One handle is in a hand (the driver's) and goes where that hand's track takes it; the other is on the end of the
@@ -22,7 +22,7 @@ import { ChainSim, NK_GEOM, NK_CHAIN, NK_MOVE, NK_MOVES, NK, NK_JOINTS, NK_COL }
 const PI = Math.PI;
 const EYE = NK_GEOM.grip + NK_GEOM.eye; // from a hand's grip to its handle's eye
 const HAND_Y = 0.083, HAND_X = 0.032; // from the wrist to the middle of the grip: along the hand, and into the palm
-const COCK = 0.62, COCK_SIN = Math.sin(COCK), COCK_COS = Math.cos(COCK); // how far a wrist cocks sideways (rad)
+const COCK = 0.62, COCK_SIN = Math.sin(COCK); // how far a wrist cocks sideways (rad)
 const LOOSE_SIN = Math.sin(0.85); // ...and how far a handle tips in a hand that has loosened on it to let it turn (the whirl)
 const EL_MIN = -0.25, EL_MAX = 1.9;
 const ELBOW_COST = 0.3; // how far the elbow swings out and up from where it hangs (rad)
@@ -383,7 +383,6 @@ class Hand {
 }
 
 const TRAIL_N = 30;
-export const NK_TRAIL_N = TRAIL_N;
 const MOVE_CLIP = ['whip', 'backhand', 'eight', 'smash', 'lunge', 'sweep', 'retreat', 'heavy', 'heavy', 'heavy'];
 
 /**
@@ -1137,7 +1136,7 @@ export class NunchakuCore {
     // sure of it, loosely where it is not - with a speed that never jumps: it rolls over the fist, it does not flip.
     // (The forearm it is measured against is this frame's and does not move with it - above - so this has one
     // answer, the same however many times it is asked for in a frame.)
-    let azV = h.azV, azA = h.azA, azRem = h.azA;
+    let azV = h.azV, azRem = h.azA;
     for (let i = 0; i < 2; i++) {
       cost(el);
       const c = -h.d0.dot(h.f);
@@ -1155,7 +1154,6 @@ export class NunchakuCore {
             let a = Math.atan2(_e.crossVectors(_c, _d).dot(h.f), _c.dot(_d));
             // (followed round the same way it was going: half a turn behind is not suddenly half a turn ahead)
             a -= Math.round((a - h.azA) / (PI * 2)) * PI * 2;
-            azA = a;
             let rem = a;
             if (d > 0) {
               const w = 14 + 150 * smooth(clamp((sure - 0.05) / 0.6, 0, 1)), e = Math.exp(-w * d), n = (h.azV + w * a) * d;
@@ -1268,10 +1266,8 @@ function spring(x, v, k, c, dt) {
 }
 
 // ---------------------------------------------------------------- the simulated half, drawn
-const _z = new THREE.Vector3(0, 0, 1);
-
 /** The other handle, the chain's links and the streak behind them as meshes, placed from a core in its rig space. */
-export class ChainMeshes {
+class ChainMeshes {
   constructor(geo, material, trail = true) {
     this.handle = new THREE.Mesh(geo.handle, material);
     this.handle.frustumCulled = false;
@@ -1388,7 +1384,6 @@ export class NunchakuFP {
     }
   }
 }
-export const NK_AUTHOR = { K, P6, KS, PS };
 
 // ---------------------------------------------------------------- third person
 // The same moves on a survivor's body, seen from outside. The hands' tracks are the first person's own, carried from
@@ -1410,7 +1405,7 @@ const TP_BODY = {
   retreat: [[0.05, 0.5, -0.05, 0.08, 0.02, -0.3, 2], [0.14, -0.4, -0.1, -0.08, 0.03, -0.6, 5], [0.38, -0.25, -0.05, -0.04, 0.02, -0.45, 0]],
   heavy: [[0.07, -0.6, -0.1, -0.1, 0.02, -0.2, 2], [0.14, 0.65, 0.35, 0.14, 0.14, 0.8, 5], [0.3, 0.5, 0.25, 0.1, 0.12, 0.7, 2], [0.74, 0.2, 0.1, 0.04, 0.05, 0.4, 0]],
 };
-/** The body's own clips, rest poses and whirl: FP's, carried to a chest with these proportions (P: characters.js humanP). */
+/** The body's own clips, rest poses and whirl: FP's, carried to a chest with these proportions (P: characters/skeleton.js humanP). */
 export function tpBody(P) {
   const k = (P.uarmLen + P.farmLen) / (FP.L1 + FP.L2);
   const cy = P.shoulderY - P.chestY;
@@ -1461,7 +1456,7 @@ export function tpBody(P) {
 
 const _qc = new THREE.Quaternion(), _pc = new THREE.Vector3(), _sc = new THREE.Vector3();
 export class NunchakuTP {
-  /** geo: { handle, link } (weapons.js getNunchakuGeo(false)); P: the body's proportions. */
+  /** geo: { handle, link } (weapons/nunchaku.js getNunchakuGeo(false)); P: the body's proportions. */
   constructor(geo, material, P) {
     this.body = tpBody(P);
     this.core = new NunchakuCore(this.body);

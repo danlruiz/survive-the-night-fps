@@ -35,6 +35,12 @@ export function isShadowFrustum(object, frustum) {
   return yes;
 }
 
+// An attribute's onUpload: once its buffer is on the graphics card, its copy in memory is let go of (the static world's
+// and the terrain's are hundreds of megabytes on the mainland)
+export function dropArray() {
+  this.array = null;
+}
+
 /** A chunk for runs that are always drawn when in the frustum. */
 export const ALWAYS = { on: true, near: 0 };
 

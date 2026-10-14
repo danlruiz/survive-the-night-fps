@@ -4,6 +4,7 @@
 import { PHASE } from '../shared/constants.js';
 import { ZTYPE, SOUND, NOTIFY } from '../shared/defs.js';
 import { groundAt } from '../shared/collision.js';
+import { humanWithin } from './specials/util.js';
 
 export const HERD_RUSH = 5; // m/s roused: faster than a survivor walks, slower than a sprint
 const HERD_MIN = 10; // zombies in a herd
@@ -17,8 +18,8 @@ const STALL = 75; // ...or after this long without getting there (s): something 
 const FAR = 48; // a member further than this from its place follows the flow field instead of walking straight at it
 const LOOK = 0.3; // s between a member's looks along the straight line to its place (a hunting zombie's losT)
 const LAG = 12; // a member with no way to its place, this much further from the waypoint than the herd: left behind (m)
-const LOST = 14; // ...and after this long of it a straggler (s; what Zombies.update gives the horde's)
-const STRAY = 125; // a straggler is put back with the herd when every survivor is this far from it (m; the horde's too)
+export const LOST = 14; // ...and after this long of it a straggler (s; what Zombies.update gives the horde's)
+export const STRAY = 125; // a straggler is put back with the herd when every survivor is this far from it (m; the horde's too)
 const UNSEEN = 75; // ...and this far from where it turns up (m; as near as the roaming dead turn up by day)
 const ROUSE = 20; // s the whole herd stays on a survivor one of them noticed (then only those still sensing them)
 const SEARCH = 12; // s it mills about where the noise came from / where it lost its quarry
@@ -79,10 +80,10 @@ export class Herds {
       const x = pts[at * 2];
       const z = pts[at * 2 + 1];
       if (!this.routeOk(x, z) || Math.hypot(x - car.x, z - car.z) < SPAWN_CLEAR || Math.hypot(x - start.x, z - start.z) < SPAWN_CLEAR || g.nav.isBlocked(x, z)) continue;
-      let ok = true;
-      for (const p of humans) if (Math.hypot(p.state.x - x, p.state.z - z) < SPAWN_CLEAR) ok = false;
-      for (const o of this.list.values()) if (Math.hypot(o.cx - x, o.cz - z) < APART) ok = false;
-      if (!ok) continue;
+      if (humanWithin(humans, x, z, SPAWN_CLEAR)) continue;
+      let apart = true;
+      for (const o of this.list.values()) if (Math.hypot(o.cx - x, o.cz - z) < APART) apart = false;
+      if (!apart) continue;
       const id = ++this.seq;
       const h = {
         id,
@@ -158,6 +159,12 @@ export class Herds {
     h.fieldT = 0;
   }
 
+  // the waypoint onto point h.at of road h.road
+  toRoadPoint(h) {
+    const pts = this.g.world.roads[h.road].pts;
+    this.setWaypoint(h, pts[h.at * 2], pts[h.at * 2 + 1]);
+  }
+
   // onto another road that passes within `reach` m of the waypoint (not the one it is on or just came off)
   turnOff(h, reach) {
     const g = this.g;
@@ -190,8 +197,7 @@ export class Herds {
     h.road = pick;
     h.at = pickAt;
     h.dir = pickDir;
-    const pts = roads[pick].pts;
-    this.setWaypoint(h, pts[pickAt * 2], pts[pickAt * 2 + 1]);
+    this.toRoadPoint(h);
     return true;
   }
 
@@ -211,8 +217,7 @@ export class Herds {
       return;
     }
     h.at += h.dir * k;
-    const pts = g.world.roads[h.road].pts;
-    this.setWaypoint(h, pts[h.at * 2], pts[h.at * 2 + 1]);
+    this.toRoadPoint(h);
   }
 
   // back to the nearest road from wherever the chase ended
@@ -232,8 +237,7 @@ export class Herds {
     }
     h.prev = -1;
     h.dir = this.pickDir(h.road, h.at) || h.dir;
-    const pts = roads[h.road].pts;
-    this.setWaypoint(h, pts[h.at * 2], pts[h.at * 2 + 1]);
+    this.toRoadPoint(h);
     h.restT = 4 + g.rng() * 6;
   }
 
@@ -430,9 +434,7 @@ export class Herds {
         zz = h.cz;
         if (!free(x, zz)) continue;
       }
-      let seen = false;
-      for (const p of humans) seen = seen || Math.hypot(p.state.x - z.x, p.state.z - z.z) < STRAY || Math.hypot(p.state.x - x, p.state.z - zz) < UNSEEN;
-      if (seen) continue;
+      if (humanWithin(humans, z.x, z.z, STRAY) || humanWithin(humans, x, zz, UNSEEN)) continue;
       z.x = x;
       z.z = zz;
       z.y = groundAt(g.world, x, zz, 200, 0.2, false);

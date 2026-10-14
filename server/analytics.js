@@ -3,7 +3,7 @@
 // network thread, which writes them to Postgres (server/db/migrations/002_matches.sql has the tables, one column per
 // field below). Without a sink it is a no-op: no match is ever opened, and every hook returns on its first line.
 //
-// The game calls one-line hooks where things happen (game.js, combat.js, zombies.js, deer.js, fixtures.js). Those on
+// The game calls one-line hooks where things happen (game/, combat.js, zombies.js, deer.js, fixtures.js). Those on
 // hot paths (shots, hits, damage, kills) only bump counters on the stint the player carries (p.ts) or on the match;
 // a record goes out only for a match, a stint, a night, a sample or one of the rare events.
 //

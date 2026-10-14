@@ -11,17 +11,17 @@
 // The portraits and the turntable are drawn by a small WebGL renderer of their own (client/ui/stage.js).
 import { CHARACTERS, CHARACTER_COUNT } from '../../shared/characters.js';
 import { randomLook, lookKey, lookCode, fromLookCode, mulberry } from '../../shared/appearance.js';
-import { el, svgEl, lsGet, lsSet } from './dom.js';
+import { el, svgEl, lsGet, lsSet, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { customs, getCustom, MAX_CUSTOMS, takeNote, onCustomsChange } from './customs.js';
 import { getStage, looksModule, releaseStage } from './stage.js';
 import { CreatorPanel } from './creator.js';
 
 export { releaseStage };
-export const CHARACTER_KEY = 'stn.character';
+const CHARACTER_KEY = 'stn.character';
 export const RANDOM = 'random';
-export const STRANGER = 'stranger';
+const STRANGER = 'stranger';
 const isCustom = (v) => typeof v === 'string' && v.startsWith('c:');
 const customOf = (v) => (isCustom(v) ? getCustom(v.slice(2)) : null);
 
@@ -33,12 +33,12 @@ export function storedChoice() {
   const n = Number(v);
   return v !== RANDOM && Number.isInteger(n) && n >= 0 && n < CHARACTER_COUNT ? n : RANDOM;
 }
-export function storeChoice(v) {
+function storeChoice(v) {
   lsSet(CHARACTER_KEY, typeof v === 'number' ? String(v | 0) : v);
 }
 
 // The stranger: the one on the turntable is the one the next join is (made up when there is none, kept until then)
-export const STRANGER_KEY = 'stn.stranger';
+const STRANGER_KEY = 'stn.stranger';
 let strangerNow = null; // { code, values }
 function stranger() {
   if (strangerNow) return strangerNow.values;
@@ -49,7 +49,7 @@ function stranger() {
   return values;
 }
 /** Another stranger, made up now (a click of the Stranger's dice; every join, for the next). */
-export function rollStranger() {
+function rollStranger() {
   const values = randomLook(mulberry((Math.random() * 2 ** 32) >>> 0));
   strangerNow = { code: lookCode(values), values };
   lsSet(STRANGER_KEY, strangerNow.code);
@@ -108,25 +108,21 @@ export class CharacterCard {
     else parent.appendChild(this.root);
     el('span', 'sp-field-l', this.root, 'Survivor');
     const row = el('div', 'cp-row', this.root);
-    this.prev = svgEl('button', 'btn btn-ghost cp-arrow', row, glyph('arrowLeft'));
-    this.prev.type = 'button';
+    this.prev = iconButton('btn btn-ghost cp-arrow', row, glyph('arrowLeft'));
     this.prev.title = 'Previous survivor';
     this.prev.setAttribute('aria-label', 'Previous survivor');
-    this.face = el('button', 'cp-face', row);
-    this.face.type = 'button';
+    this.face = button('cp-face', row);
     this.face.title = 'Choose who to play as';
     this.img = el('img', 'cp-img', this.face);
     this.img.alt = '';
     this.q = el('span', 'cp-q', this.face, '?');
     this.dice = svgEl('span', 'cp-q cp-dice', this.face, glyph('dice'));
-    const txt = el('button', 'cp-txt', row);
-    txt.type = 'button';
+    const txt = button('cp-txt', row);
     txt.title = 'Choose who to play as';
     this.name = el('span', 'cp-name', txt, '');
     this.role = el('span', 'cp-role', txt, '');
     this.line = el('span', 'cp-line', txt, '');
-    this.next = svgEl('button', 'btn btn-ghost cp-arrow', row, glyph('arrowRight'));
-    this.next.type = 'button';
+    this.next = iconButton('btn btn-ghost cp-arrow', row, glyph('arrowRight'));
     this.next.title = 'Next survivor';
     this.next.setAttribute('aria-label', 'Next survivor');
     this.note = el('p', 'cp-note', this.root, '');
@@ -183,7 +179,7 @@ export class CharacterCard {
 }
 
 // ---------------------------------------------------------------- the picker
-export class CharacterPanel extends Panel {
+class CharacterPanel extends Panel {
   constructor(ui, parent, card) {
     super(ui, parent, 'cp-panel', 'Survivors');
     this.card = card;
@@ -204,8 +200,7 @@ export class CharacterPanel extends Panel {
     for (const ch of CHARACTERS) this.cell(this.grid, ch.id, ch.name, ch.role);
     this.cell(this.grid, RANDOM, 'Random', 'Any of the ten');
     this.cell(this.grid, STRANGER, 'Stranger', 'Made up each time');
-    const done = el('button', 'btn btn-blood cp-done', this.foot);
-    done.type = 'button';
+    const done = button('btn btn-blood cp-done', this.foot);
     el('span', '', done, 'Done');
     done.addEventListener('click', () => this.hide());
     this.creator = new CreatorPanel(ui, parent, {
@@ -235,8 +230,7 @@ export class CharacterPanel extends Panel {
   }
 
   cell(parent, v, label, role, cls = '') {
-    const b = el('button', 'cp-cell' + (cls ? ' ' + cls : ''), parent);
-    b.type = 'button';
+    const b = button('cp-cell' + (cls ? ' ' + cls : ''), parent);
     const f = el('span', 'cp-cface', b);
     if (v === RANDOM) el('span', 'cp-q', f, '?');
     else if (v === STRANGER) svgEl('span', 'cp-q cp-dice', f, glyph('dice'));
@@ -290,8 +284,7 @@ export class CharacterPanel extends Panel {
     // what can be done from here: make one like a roster survivor, change or copy one's own
     this.acts.textContent = '';
     const act = (label, fn, title = '') => {
-      const b = el('button', 'btn btn-ghost cp-act', this.acts, label);
-      b.type = 'button';
+      const b = button('btn btn-ghost cp-act', this.acts, label);
       if (title) b.title = title;
       b.addEventListener('click', fn);
     };

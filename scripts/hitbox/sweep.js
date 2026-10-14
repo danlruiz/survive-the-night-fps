@@ -263,7 +263,7 @@ export async function drawnWorld(world, log = () => {}) {
         for (let t = 0; t < kind.length; t++) kind[t] = GLASS.has(mo.mat[t]) ? 1 : kindOf(mo.mat[t]);
         for (let i = 0; i < mo.pos.length; i += 3) r = Math.max(r, Math.hypot(mo.pos[i], mo.pos[i + 2]));
         m = { pos: mo.pos, kind, grid: gridOf(mo.pos, 0.6), r };
-      } catch (e) {
+      } catch {
         m = null;
       }
       models.set(key, m);

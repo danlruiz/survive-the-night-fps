@@ -1,5 +1,5 @@
 // A smoker's smoke (ZTYPE.SMOKER, AREA.SMOKE): how deep in a cloud an eye is. The server only puts the clouds down
-// (server/combat.js); what they do is on the client, which thickens the haze around a survivor whose eye is in one
+// (server/specials/smoker.js); what they do is on the client, which thickens the haze around a survivor whose eye is in one
 // (render/environment.js, the `smoke` override) until they cannot see past a few metres.
 
 // SMOKE.edge: the outer share of a cloud's radius that thins out to nothing (an eye walking in sees it close in, not a

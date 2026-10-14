@@ -7,7 +7,8 @@
 // down the /social socket: a message, a request, a friend's presence changing. A change of the list there is only
 // a nudge to ask for the list again (a burst of them asks once). The socket is open for as long as this page is
 // signed in, and comes back on its own after a drop, waiting longer each time.
-import { call, post } from './lobby.js';
+import { call, post, socketUrl } from './api.js';
+import { listeners } from './listeners.js';
 import { onAccountChange, refreshAccount } from './account.js';
 
 const st = {
@@ -19,8 +20,8 @@ const st = {
   outgoing: [], // [{ id, username, at }]: you asked them
 };
 const convs = new Map(); // friend id -> { messages: [{ id, from, to, body, at, read }] oldest first, more, loaded, loading, error, v }
-const subs = new Set();
-const hears = new Set();
+const changes = listeners();
+const events = listeners();
 let me = null; // { id, username }
 let openId = ''; // the conversation on screen: whatever comes in on it is read as it comes
 let helloUnread = 0; // the socket's count, until the list has come
@@ -35,40 +36,17 @@ const readT = new Map(); // friend id -> timer: a "read" about to go to the serv
 const sameId = (a, b) => String(a) === String(b);
 const lower = (s) => String(s || '').toLowerCase();
 
-function changed() {
-  for (const fn of subs) {
-    try {
-      fn(st);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-}
-
-function tell(ev) {
-  for (const fn of hears) {
-    try {
-      fn(ev);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-}
+const changed = () => changes.emit(st);
+const tell = (ev) => events.emit(ev);
 
 // fn(state) whenever the lists, a presence, an unread count or a conversation changes; returns the way to stop
-export function onSocialChange(fn) {
-  subs.add(fn);
-  return () => subs.delete(fn);
-}
+export const onSocialChange = changes.on;
 
 // fn(event) for what is worth telling the player about as it happens (returns the way to stop):
 //   { t: 'dm', message, from: { id, username } }   a message from a friend (not one of yours)
 //   { t: 'request', who: { id, username } }       someone asked to be your friend
 //   { t: 'accepted', who: { id, username } }      someone said yes to your request
-export function onSocialEvent(fn) {
-  hears.add(fn);
-  return () => hears.delete(fn);
-}
+export const onSocialEvent = events.on;
 
 export const socialState = () => st;
 export const friend = (id) => st.friends.find((f) => sameId(f.id, id)) || null;
@@ -345,11 +323,10 @@ function markReadHere(id) {
 function connect() {
   clearTimeout(wsTimer);
   if (ws || !me) return;
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   let opened = false;
   let s;
   try {
-    s = ws = new WebSocket(`${proto}://${location.host}/social`);
+    s = ws = new WebSocket(socketUrl('/social'));
   } catch {
     ws = null;
     return retry();

@@ -37,17 +37,17 @@ for (const seed of [1, 7, 4242]) {
 const src = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 // (the atlas is packed as the module loads, and throws when a cell no longer fits: importing it is the check)
 const { CITY_ATLAS } = await import('../client/render/textures.js');
-check("the city's atlas has room for the plate's cell, and draws it", !!CITY_ATLAS.road_airport && src('client/render/textures.js').includes("cell(ctx, 'road_airport'"), JSON.stringify(CITY_ATLAS.road_airport));
-check("the start's billboard sells the airfield", src('client/render/textures.js').includes("text('CALDER FIELD', ") && !src('client/render/textures.js').includes("text('PINE HOLLOW'"));
+check("the city's atlas has room for the plate's cell, and draws it", !!CITY_ATLAS.road_airport && src('client/render/textures/city.js').includes("cell(ctx, 'road_airport'"), JSON.stringify(CITY_ATLAS.road_airport));
+check("the start's billboard sells the airfield", src('client/render/textures/atlas.js').includes("text('CALDER FIELD', ") && !src('client/render/textures/atlas.js').includes("text('PINE HOLLOW'"));
 check("the island's map has a note by the bridge: 'to airfield'", src('client/ui/mapscreen.js').includes("el('i', 'mx-note', this.bridgeLab, 'to airfield')"));
-check("the car's radio says the owner's line word for word", src('client/game/game.js').includes("const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';") && src('client/game/game.js').includes('if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();'));
+check("the car's radio says the owner's line word for word", src('client/game/game/notices.js').includes("const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';") && src('client/game/game/notices.js').includes('if (arg === ITEM.CAR_BATTERY && this.act !== WORLD.MAINLAND) this.carRadio();'));
 
 // the radio's two voices: both files there, both loaded as recordings, one of the two picked each time
 const takes = ['am_michael', 'af_bella'];
 check('both radio takes are in the game', takes.every((t) => existsSync(new URL(`../client/audio/radio/car-radio-${t}.mp3`, import.meta.url)) && statSync(new URL(`../client/audio/radio/car-radio-${t}.mp3`, import.meta.url)).size < 400_000));
 const { REC } = await import('../client/audio/samples.js');
 check('...each a recording the audio engine knows', takes.every((t) => REC[`vo_radio_${t}`]) && src('client/audio/samples.js').includes("import.meta.glob('./radio/car-radio-*.mp3'"));
-check('...and the radio picks one of the two at random', src('client/game/game.js').includes("const CAR_RADIO_TAKES = ['vo_radio_am_michael', 'vo_radio_af_bella'];") && src('client/game/game.js').includes('CAR_RADIO_TAKES[Math.floor(Math.random() * CAR_RADIO_TAKES.length)]'));
+check('...and the radio picks one of the two at random', src('client/game/game/notices.js').includes("const CAR_RADIO_TAKES = ['vo_radio_am_michael', 'vo_radio_af_bella'];") && src('client/game/game/notices.js').includes('CAR_RADIO_TAKES[Math.floor(Math.random() * CAR_RADIO_TAKES.length)]'));
 
 console.log(fails.length ? `\n${fails.length} FAILED` : '\nall passed');
 process.exit(fails.length ? 1 : 0);

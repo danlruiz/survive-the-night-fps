@@ -13,6 +13,7 @@
 import { MAP_HALF, GRID_N, GRID_STEP, WATER_LEVEL } from './constants.js';
 import { ZONE } from './defs.js';
 import { mulberry32, smoothstep, clamp } from './rng.js';
+import { resample } from './polyline.js';
 
 export const MINE_R = 1.9; // half the width of a drift (m)
 export const MINE_H = 3; // floor to roof: nothing that jumps reaches it (a survivor's head gets to 2.7)
@@ -108,7 +109,7 @@ export function planMine({ seed, zones, heights, heightAt, roadDistAt, taken }) 
     const ea = elbow(P1, A);
     const eb = elbow(Q1, B);
     const ctrl = [[A.x, A.z], P1, ...(ea ? [ea] : []), J, ...(eb ? [eb] : []), Q1, [B.x, B.z]];
-    const line = resample(rounded(ctrl));
+    const line = resampleToEnd(rounded(ctrl));
     let jx = 0;
     for (let i = 1; i < line.n; i++) if (Math.hypot(line.x[i] - J[0], line.z[i] - J[1]) < Math.hypot(line.x[jx] - J[0], line.z[jx] - J[1])) jx = i;
     line.jx = jx;
@@ -194,7 +195,7 @@ function workings({ rng, A, B, main, bays, heights, heightAt, roadDistAt, dry, i
         const r = rng.range(3.6, 5.2);
         const mid = [main.x[c] + Math.sin(a1) * len * 0.55, main.z[c] + Math.cos(a1) * len * 0.55];
         const end = [mid[0] + Math.sin(a2) * len * 0.45, mid[1] + Math.cos(a2) * len * 0.45];
-        const g = resample([[main.x[c], main.z[c]], mid, end]);
+        const g = resampleToEnd([[main.x[c], main.z[c]], mid, end]);
         g.y = new Float64Array(g.n);
         let ok = true;
         for (let i = 0; i < g.n && ok; i++) {
@@ -445,7 +446,7 @@ export function planPassage({ seed, a, b, via, heights, heightAt, roadDistAt, ha
   const A = portal(a, via[0]);
   const B = portal(b, via[via.length - 1]);
   const ctrl = [[A.x, A.z], [A.x + A.dx * RUN, A.z + A.dz * RUN], ...via, [B.x + B.dx * RUN, B.z + B.dz * RUN], [B.x, B.z]];
-  const main = resample(rounded(ctrl));
+  const main = resampleToEnd(rounded(ctrl));
   let jx = 0;
   for (let i = 1; i < main.n; i++) if (Math.hypot(main.x[i] - via[0][0], main.z[i] - via[0][1]) < Math.hypot(main.x[jx] - via[0][0], main.z[jx] - via[0][1])) jx = i;
   main.jx = jx;
@@ -512,28 +513,10 @@ function bayPlan(line, rng) {
   return bays;
 }
 
-// a polyline as points a metre apart (the last gap as near that as the length allows): { x, z, n, len }
-function resample(pts) {
-  let len = 0;
-  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  const n = Math.max(2, Math.round(len) + 1);
-  const x = new Float64Array(n);
-  const z = new Float64Array(n);
-  const step = len / (n - 1);
-  let seg = 1;
-  let done = 0; // length of the segments before `seg`
-  for (let i = 0; i < n; i++) {
-    const at = i * step;
-    while (seg < pts.length - 1 && done + Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]) < at) {
-      done += Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]);
-      seg++;
-    }
-    const sl = Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]) || 1;
-    const t = clamp((at - done) / sl, 0, 1);
-    x[i] = pts[seg - 1][0] + (pts[seg][0] - pts[seg - 1][0]) * t;
-    z[i] = pts[seg - 1][1] + (pts[seg][1] - pts[seg - 1][1]) * t;
-  }
-  x[n - 1] = pts[pts.length - 1][0];
-  z[n - 1] = pts[pts.length - 1][1];
-  return { x, z, n, len };
+// a polyline as points a metre apart, its last point on the line's end (polyline.js): { x, z, n, len }
+function resampleToEnd(pts) {
+  const line = resample(pts);
+  line.x[line.n - 1] = pts[pts.length - 1][0];
+  line.z[line.n - 1] = pts[pts.length - 1][1];
+  return line;
 }

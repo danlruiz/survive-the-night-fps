@@ -158,7 +158,6 @@ export class Onboarding {
   moment() {
     const g = this.game;
     const gl = g.global;
-    const s = g.prediction.state;
     const rp = g.renderPos;
     const day = gl.phase === PHASE.DAY && !gl.finale;
     // the nearest of the dead, and which of those seen last time are gone (dead, or out of reach)

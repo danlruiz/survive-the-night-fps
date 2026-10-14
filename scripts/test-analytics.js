@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { Game } from '../server/game.js';
 import { SAMPLE_EVERY, itemName } from '../server/analytics.js';
 import { LEFT_CODE, C2S, S2C, CAR_ID, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
-import { PHASE, EYE_HEIGHT, SLOT_BUILD, ESCAPE_RADIUS, GAME_OVER_DELAY } from '../shared/constants.js';
+import { PHASE, EYE_HEIGHT, SLOT_BUILD, GAME_OVER_DELAY } from '../shared/constants.js';
 import { ITEM, ZTYPE, KILLER, STRUCT, SUPPLIES, SUPPLY_NEED } from '../shared/defs.js';
 import { raycastWorld } from '../shared/collision.js';
 

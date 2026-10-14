@@ -1,4 +1,4 @@
-// Nobody is hurt while they cannot be playing (server/game.js safe / arrived / frozen), on the Game itself.
+// Nobody is hurt while they cannot be playing (server/game/sessions.js safe / arrived / frozen), on the Game itself.
 //
 // What happened (6 Oct 2026): a player died "during game updated". A held player was already safe, but the moment
 // their reloaded page sent its JOIN they had their body back - and the page then built the valley and its shaders

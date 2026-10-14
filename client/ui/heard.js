@@ -7,7 +7,7 @@ import { lsGet, lsSet } from './dom.js';
 
 const KEY = 'stn.heard'; // the kinds of noise already named in this browser
 
-export const HEARD_NAMES = {
+const HEARD_NAMES = {
   [HEARD.GUNSHOT]: 'Gunshot',
   [HEARD.BLAST]: 'Explosion',
   [HEARD.MOLOTOV]: 'Molotov',

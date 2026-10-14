@@ -12,7 +12,7 @@ import { CRAFT_FEW, CRAFT_MAX, craftRun, copyInv, planFor } from '../game/bulkcr
 import { planCost } from '../../shared/autocraft.js';
 import { trackedId, setTracked, onTracked } from '../game/tracked.js';
 import { foundIn, sourcesOf } from '../game/itemguide.js';
-import { el, svgEl, clamp, lsGet, lsSet } from './dom.js';
+import { el, svgEl, clamp, lsGet, lsSet, button } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
 import { CAT_LABEL, statLines, costLine } from './iteminfo.js';
 
@@ -140,8 +140,7 @@ export class Crafting {
     for (const t of CRAFT_TABS) {
       const recs = t.id === 'all' ? null : RECIPES.filter((r) => craftTab(r.out) === t.id).sort((a, b) => craftRank(a) - craftRank(b));
       if (recs && !recs.length) continue;
-      const b = el('button', 'ct', tabBar);
-      b.type = 'button';
+      const b = button('ct', tabBar);
       b.dataset.tab = t.id;
       el('span', 'ct-lab', b, t.label);
       const tab = { id: t.id, label: t.label, b, n: el('span', 'ct-n', b), ready: -1 };
@@ -174,8 +173,7 @@ export class Crafting {
 
   // a recipe's row in the list
   _row(r, tab) {
-    const b = el('button', 'rr');
-    b.type = 'button';
+    const b = button('rr');
     b.dataset.id = r.id;
     svgEl('i', 'rr-ico', b, itemIcon(r.out));
     const txt = el('span', 'rr-txt', b);

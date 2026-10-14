@@ -7,18 +7,19 @@
 // its key and from the pause menu; the cross, its key, Esc or a click outside the frame closes it (the game sets
 // onClose); Esc on a page goes back to the cards.
 //
-// The portraits are the game's own models (models/characters.js createZombie), drawn by a small WebGL renderer of its
+// The portraits are the game's own models (models/characters/zombie.js createZombie), drawn by a small WebGL renderer of its
 // own the first time the book opens (or the pause menu's field notes ask: warm()), kept as images, and the renderer
 // let go of again (ui/portrait.js, which Dead Hand's cards draw their dead with too). A locked card is only given the
 // smudge: no clear portrait of a kind not seen is put in the page.
 import { ZOMBIE_DEFS } from '../../shared/defs.js';
 import { BESTIARY, BESTIARY_GROUPS, SEEN_RANGE, bit, seenCount } from '../../shared/bestiary.js';
 import { pics, drawPortraits } from './portrait.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
 import { bestiaryView, onBestiary, onSeen } from '../net/bestiary.js';
 import { GROUP_TAG, kindFacts, dangerOf, firstNight, byFirstNight, dangerPips, chips } from './books.js';
+import { keyHint } from './keycap.js';
 
 // ---------------------------------------------------------------- the book
 const FILTERS = [
@@ -67,8 +68,7 @@ export class Bestiary {
       this.groupNs.set(g, [el('b', '', c, ''), BESTIARY.filter((e) => e.group === g)]);
       el('span', '', c, title);
     }
-    const close = (this.close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('set-close btn-icon map-close', head, glyph('xmark')));
     close.setAttribute('aria-label', 'Close bestiary');
     liveText(close, () => `Close (${bindLabel('bestiary')})`, 'title');
     close.addEventListener('click', () => this.onClose?.());
@@ -88,8 +88,7 @@ export class Bestiary {
     seg.setAttribute('role', 'tablist');
     this.filterBtns = {};
     for (const [k, label] of FILTERS) {
-      const b = el('button', 'bk-seg-b', seg);
-      b.type = 'button';
+      const b = button('bk-seg-b', seg);
       b.setAttribute('role', 'tab');
       el('span', '', b, label);
       const n = el('b', '', b, '');
@@ -128,8 +127,7 @@ export class Bestiary {
     this.grid = el('div', 'bst-grid bk-kinds', sec);
     this.cards = new Map(); // ztype -> { card, img, name, tag, meta, text }
     for (const e of BESTIARY) {
-      const card = el('button', `bst-card bk-kind locked grp-${e.group}`, this.grid);
-      card.type = 'button';
+      const card = button(`bst-card bk-kind locked grp-${e.group}`, this.grid);
       card.addEventListener('click', () => this.openPage(e.t));
       const pic = el('div', 'bst-pic', card);
       const img = el('img', '', pic);
@@ -153,12 +151,7 @@ export class Bestiary {
     for (const [k, t] of [
       [() => bindLabel('bestiary'), 'close'],
       ['Esc', 'back / close'],
-    ]) {
-      const s = el('span', 'gh', foot);
-      if (typeof k === 'function') liveText(el('span', 'kbd sm', s), k);
-      else el('span', 'kbd sm', s, k);
-      el('span', '', s, t);
-    }
+    ]) keyHint(foot, 'gh', k, t);
 
     onBestiary(() => this.open && this.render());
     onSeen((list) => {
@@ -308,8 +301,7 @@ export class Bestiary {
     const p = this.page;
     p.textContent = '';
     p.className = `bk-page grp-${e.group}`;
-    const back = el('button', 'bk-page-back btn btn-ghost', p);
-    back.type = 'button';
+    const back = button('bk-page-back btn btn-ghost', p);
     svgEl('i', 'btn-ico', back, glyph('arrowLeft'));
     el('span', '', back, 'Every kind');
     back.addEventListener('click', () => this.closePage());

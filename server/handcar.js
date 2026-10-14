@@ -5,12 +5,12 @@
 // by itself until it stops. What their prediction cannot know of is settled here, and puts the rider's state
 // right (a rebase, as a knockback is): two cars on one stretch of line running into each other, and the dead on
 // the line - a car going at any speed knocks them out of its way, and a big one stops it dead.
-import { SERVER_DT, INTERACT_REACH, INTERACT_SLACK, EYE_HEIGHT } from '../shared/constants.js';
+import { SERVER_DT } from '../shared/constants.js';
 import { SOUND } from '../shared/defs.js';
 import { ENT } from '../shared/protocol.js';
 import { HANDCAR, handcars, rollCar, cartCarry, carFrame } from '../shared/handcar.js';
-import { canReach, groundAt } from '../shared/collision.js';
-import { eyeHeight } from '../shared/playersim.js';
+import { groundAt } from '../shared/collision.js';
+import { interactReady, boardBlocked, reachesSeat } from './entkit.js';
 
 const BOARD_SLACK = 0.3; // seconds of a car's travel the client may have drawn it behind where it is ([E] on a moving car)
 const MIN_GAP = HANDCAR.half * 2 + 0.05; // two cars on one stretch keep at least this far between their middles
@@ -188,14 +188,9 @@ export class Handcars {
     const g = this.g;
     const s = p.state;
     const e = this.cars[k];
-    if (!e || e.removed || e.rider || s.cart || s.ride || s.pinned || s.pulled || s.hmg) return; // (hmg: arms full of the mounted gun)
-    if (g.time - p.interactT < 0.15) return;
-    p.interactT = g.time;
+    if (!e || e.removed || e.rider || boardBlocked(s) || !interactReady(g, p)) return;
     carFrame(g.world.rail.main, e.s, _f);
-    const ey = s.y + eyeHeight(s);
-    const ty = _f.y + HANDCAR.pick.y;
-    if (Math.hypot(_f.x - s.x, ty - ey, _f.z - s.z) > Math.hypot(INTERACT_REACH, HANDCAR.pick.r) + INTERACT_SLACK + Math.abs(e.v) * BOARD_SLACK) return;
-    if (!canReach(g.world, s.x, ey, s.z, _f.x, ty, _f.z, s.y + EYE_HEIGHT)) return;
+    if (!reachesSeat(g.world, s, _f.x, _f.y + HANDCAR.pick.y, _f.z, HANDCAR.pick.r, Math.abs(e.v) * BOARD_SLACK)) return;
     this.seat(p, e);
     g.sound(SOUND.RIDE_BOARD, _f.x, _f.y + 0.5, _f.z, 25);
   }

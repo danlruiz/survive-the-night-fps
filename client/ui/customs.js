@@ -17,7 +17,7 @@ import { lsGet, lsSet } from './dom.js';
 
 export { NAME_MAX, cleanName };
 export const MAX_CUSTOMS = CUSTOMS_MAX;
-export const CUSTOMS_KEY = 'stn.customs';
+const CUSTOMS_KEY = 'stn.customs';
 const PERSIST_KEY = 'stn.persistAsked';
 
 let list = null; // [{ id, name, values, made, updatedAt }]

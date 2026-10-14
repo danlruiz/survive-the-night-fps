@@ -28,7 +28,6 @@ function runBot(idx) {
     const pending = [];
     let seq = 0;
     let yaw = Math.random() * 6.28;
-    let t = 0;
     let lastTick = 0;
     let synced = false; // got the first server state
     const store = {
@@ -186,7 +185,6 @@ function runBot(idx) {
         }
       }
       for (let k = 0; k < CMDS_PER_PACKET; k++) {
-        t += CMD_DT;
         let buttons = 0;
         let pitch = -0.05;
         let slot = 255;

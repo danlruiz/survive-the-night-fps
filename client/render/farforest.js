@@ -11,7 +11,7 @@
 // nearest first (filled again when the eye has moved FILL_MOVE): the near cards write the depth first and the ones
 // behind them are thrown away before they are shaded.
 import * as THREE from 'three';
-import { VEG } from './materials.js';
+import { VEG } from './vegshading.js';
 
 // which picture a tree variant (world.js TREE_TYPES) is drawn by: 0 a conifer, 1 a broadleaf (the dead have none)
 const CARD = [0, 0, 0, -1, -1, 1, -1];
@@ -28,7 +28,7 @@ const OUTLINE = [
   [[-0.04, 0], [0.04, 0], [0.5, 0.3], [0.5, 0.74], [0.2, 0.86], [-0.2, 0.86], [-0.5, 0.74], [-0.5, 0.3]],
 ];
 const FILL_MOVE = 14; // m the eye moves before the cards are put in order again
-const FAR = 1750; // past the camera's far plane on the mainland (game.js FAR_BIG): no card is drawn there
+const FAR = 1750; // past the camera's far plane on the mainland (client/game/game/world.js FAR_BIG): no card is drawn there
 const BINS = 160;
 
 let _tex = null;

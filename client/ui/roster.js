@@ -7,11 +7,13 @@
 // Held up, nothing in it takes a click and the pointer stays locked; a click pins it (Game.pinRoster) with the
 // pointer free, and then a click on a player opens their profile (profile.js), docked in the same sheet, and the
 // tabs on its edge go to the leaderboard and Friends.
-import { el, svgEl, clamp } from './dom.js';
+import { el, svgEl, clamp, iconButton } from './dom.js';
 import { glyph } from './icons.js';
+import { roleList } from '../../shared/roles.js';
 import { healthTier } from './hud2.js';
-import { bindLabel, liveText } from '../game/binds.js';
+import { bindLabel } from '../game/binds.js';
 import { SheetTabs, dock, undock, sheetLeft, sheetCame } from './sheet.js';
+import { keyHint } from './keycap.js';
 
 const IN_RUN = (st) => st === 'alive' || st === 'downed';
 const elapsed = (s) => {
@@ -38,8 +40,7 @@ export class Roster {
     this.tabs = new SheetTabs(ui, frame, 'players');
     const head = el('div', 'pls-head', frame);
     el('h2', 'pls-title', head, 'Survivors');
-    const close = (this.close = svgEl('button', 'pls-close btn-icon', head, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('pls-close btn-icon', head, glyph('xmark')));
     close.title = 'Close (Esc)';
     close.setAttribute('aria-label', 'Close the player list');
     close.addEventListener('click', () => this.onClose?.());
@@ -64,19 +65,11 @@ export class Roster {
     // what a click does, held up and pinned
     const keys = el('div', 'pls-keys', frame);
     const held = (this.heldKeys = el('div', 'pls-keyset', keys));
-    let s = el('span', 'pls-key', held);
-    el('span', 'kbd sm', s, 'LMB');
-    el('span', '', s, 'pin it, then pick a player');
-    s = el('span', 'pls-key', held);
-    liveText(el('span', 'kbd sm', s), () => bindLabel('board'));
-    el('span', '', s, 'leaderboard');
+    keyHint(held, 'pls-key', 'LMB', 'pin it, then pick a player');
+    keyHint(held, 'pls-key', () => bindLabel('board'), 'leaderboard');
     const pinned = (this.pinnedKeys = el('div', 'pls-keyset', keys));
-    s = el('span', 'pls-key', pinned);
-    el('span', 'kbd sm', s, 'LMB');
-    el('span', '', s, 'a player’s profile');
-    s = el('span', 'pls-key', pinned);
-    liveText(el('span', 'kbd sm', s), () => bindLabel('players'));
-    el('span', '', s, 'close');
+    keyHint(pinned, 'pls-key', 'LMB', 'a player’s profile');
+    keyHint(pinned, 'pls-key', () => bindLabel('players'), 'close');
     this.setPinned(false);
   }
 
@@ -137,7 +130,7 @@ export class Roster {
     // (the health of a row moves its place in the list: a rebuild then, but not for every point lost)
     const rowKey = (i) => {
       const p = list[i];
-      return [i, p.id, p.name, st(i), p.kills | 0, Math.round((p.ping || 0) / 5), p.talking ? 1 : 0, p.radio ? 1 : 0, p.self ? 1 : 0, friend[i] ? 1 : 0, p.level | 0].join('|');
+      return [i, p.id, p.name, st(i), p.kills | 0, Math.round((p.ping || 0) / 5), p.talking ? 1 : 0, p.radio ? 1 : 0, p.self ? 1 : 0, friend[i] ? 1 : 0, p.level | 0, p.perks >>> 0].join('|');
     };
     const key = [down, up, out].map((g) => g.map(rowKey).join(';')).join('/') + (this.pinned ? '!' : '');
     if (key !== this.key) {
@@ -187,6 +180,8 @@ export class Roster {
     const top = el('div', 'pls-top', main);
     el('span', 'pls-name', top, p.name || '???');
     if (p.self) el('small', 'pls-you', top, 'you');
+    // their roles (shared/roles.js): what the team can count on them for
+    for (const r of roleList(p.perks || 0)) svgEl('i', 'pls-ico pls-role', top, glyph(r.icon)).title = `${r.name}: ${r.text}`;
     if (friend) svgEl('i', 'pls-ico pls-friend', top, glyph('star')).title = 'Your friend';
     if (p.radio) svgEl('i', 'pls-ico pls-radio', top, glyph('radio')).title = 'On the walkie-talkie';
     if (p.talking) svgEl('i', 'pls-ico pls-mic', top, glyph('mic')).title = 'Talking';

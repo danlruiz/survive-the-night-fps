@@ -1,29 +1,18 @@
 // Dead Hand in the lobby: a small host in the network thread for no-bet 1v1 tables that do not belong to a run.
 // It reuses the shared rules engine and the same CardService collection/deck storage as in-run matches.
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { C2S, S2C, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, PROTOCOL_VERSION, Writer, Reader, readCards, writeCards } from '../shared/protocol.js';
-import { cardDef, cleanFound, defaultDeck, F, validateDeck, DECK_SLOTS } from '../shared/cards.js';
+import { cleanFound, validateDeck } from '../shared/cards.js';
 import * as CG from '../shared/cardgame.js';
-import { cleanMove } from './cards.js';
+import { ALLOW_BURST, ALLOW_EVERY, cryptoRand, cleanMove, cleanStakeItems, chooseDeck, loadoutViews, sideOf, keepEvents } from './cards/common.js';
 import { idKey } from './stats.js';
 
-const cryptoRand = () => randomBytes(4).readUInt32LE(0) / 0x100000000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ALLOW_BURST = 20;
-const ALLOW_EVERY = 0.2;
-const EVENTS_MAX = 200;
 const NAME_MAX = 16;
 const TABLE_MAX = 64;
 const XFER_RETRY_MAX = 5;
 const XFER_RETRY_BASE = 500;
-const STARTER_SLOTS = new Map([
-  [-1, F.SURVIVORS],
-  [-2, F.DEAD],
-]);
 
-const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
-const LOADOUT_ITEM_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const STAKE_MAX = 12;
 const cleanName = (v) =>
   String(v || '')
     .replace(/[^\p{L}\p{N} _\-.'!?&#]/gu, '')
@@ -37,19 +26,6 @@ function allow(st, now, burst = ALLOW_BURST, every = ALLOW_EVERY) {
   if (st.allow.n + 1 > burst) return false;
   st.allow.n++;
   return true;
-}
-
-function cleanStakeItems(d) {
-  const raw = Array.isArray(d?.stake) ? d.stake : Array.isArray(d?.items) ? d.items : [];
-  if (raw.length > STAKE_MAX) return null;
-  const out = [];
-  const seen = new Set();
-  for (const id of raw) {
-    if (typeof id !== 'string' || !LOADOUT_ITEM_RE.test(id) || seen.has(id)) return null;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
 }
 
 export class LobbyCards {
@@ -197,16 +173,7 @@ export class LobbyCards {
   }
 
   deckFor(p, slot) {
-    if (slot === undefined || slot === null) slot = -1;
-    if (STARTER_SLOTS.has(slot)) return { deck: defaultDeck(STARTER_SLOTS.get(slot)) };
-    if (!int(slot, 0, DECK_SLOTS - 1)) return { error: CARDNOTE.DECK, arg: 'slot' };
-    if (!p.owner) return { error: CARDNOTE.NOKEY };
-    if (!p.loaded) return { error: CARDNOTE.LOADING };
-    const kept = p.decks.find((dk) => dk.slot === slot);
-    if (!kept) return { error: CARDNOTE.DECK, arg: 'empty' };
-    const deck = { leader: kept.leader, cards: { ...kept.cards } };
-    const v = validateDeck(deck, p.found);
-    return v.ok ? { deck } : { error: CARDNOTE.DECK, arg: String(v.errors?.[0] || 'invalid') };
+    return chooseDeck(slot, !!p.owner, p);
   }
 
   deckStillValid(p, deck) {
@@ -239,11 +206,7 @@ export class LobbyCards {
   }
 
   stakeView(ids, p) {
-    const byId = new Map((p?.loadouts || []).map((it) => [it.id, it]));
-    return (ids || []).map((id) => {
-      const it = byId.get(id);
-      return it ? { id: it.id, catalog: it.catalog } : { id, catalog: 0 };
-    });
+    return loadoutViews(ids, p?.loadouts);
   }
 
   openTable(p, d) {
@@ -329,9 +292,7 @@ export class LobbyCards {
     m.sides.forEach((s, side) => {
       const p = this.present(s);
       if (!p) return;
-      const mine = events?.length ? CG.eventsFor(events, side) : [];
-      if (p.events.length + mine.length > EVENTS_MAX) p.events.length = 0;
-      else p.events.push(...mine);
+      keepEvents(p, events, side);
     });
     this.sendMatch(m);
   }
@@ -339,7 +300,7 @@ export class LobbyCards {
   stake(p, d) {
     const m = this.matchOf(p);
     if (!m || m.phase !== 'staking') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
+    const side = sideOf(m, p.id);
     const st = this.stakeFor(p, d.items || d.stake || [], m);
     if (st.error) return this.note(p, st.error);
     m.sides[side].stake = st.items;
@@ -351,7 +312,7 @@ export class LobbyCards {
   stakeConfirm(p, d) {
     const m = this.matchOf(p);
     if (!m || m.phase !== 'staking') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
+    const side = sideOf(m, p.id);
     const st = this.stakeFor(p, m.sides[side].stake || [], m);
     if (st.error) return this.note(p, st.error);
     m.sides[side].ok = d.on !== false;
@@ -379,7 +340,7 @@ export class LobbyCards {
   move(p, d) {
     const m = this.matchOf(p);
     if (!m || m.phase !== 'live') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
+    const side = sideOf(m, p.id);
     if (d.v !== m.ver) {
       this.write(p, CARDMSG.MATCH, this.matchMsg(m, side, p));
       return this.note(p, CARDNOTE.STALE);
@@ -403,12 +364,12 @@ export class LobbyCards {
       return this.finish(m);
     }
     if (m.phase === 'locking') {
-      const side = m.sides.findIndex((s) => s.pid === p.id);
+      const side = sideOf(m, p.id);
       m.reason = reason || 'forfeit';
       if (m.forfeitWinner !== 0 && m.forfeitWinner !== 1) m.forfeitWinner = side === 0 ? 1 : 0;
       return;
     }
-    const side = m.sides.findIndex((s) => s.pid === p.id);
+    const side = sideOf(m, p.id);
     const r = CG.applyMove(m.state, side, { t: 'forfeit' });
     if (r.ok) this.changed(m, r.events);
     if (reason && m.state.phase !== 'over') m.reason = reason;
@@ -534,7 +495,7 @@ export class LobbyCards {
         p.loadouts = p.loadoutsLoaded && Array.isArray(m.items) ? m.items : [];
         this.write(p, CARDMSG.COLL, this.collFor(p));
         const match = this.matchOf(p);
-        if (match) this.write(p, CARDMSG.MATCH, this.matchMsg(match, match.sides.findIndex((s) => s.pid === p.id), p));
+        if (match) this.write(p, CARDMSG.MATCH, this.matchMsg(match, sideOf(match, p.id), p));
       }
       return;
     }

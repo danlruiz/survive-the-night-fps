@@ -334,7 +334,7 @@ const playOut = async (cs, until = null, max = 3000) => {
   B.clear();
   await playOut([A, B], () => m.state.phase === 'play' && m.state.turn >= 0 && !m.state.pending);
   const side = m.state.turn;
-  const [mover, other] = m.sides[0].pid === A.id ? (side === 0 ? [A, B] : [B, A]) : side === 0 ? [B, A] : [A, B];
+  const [mover] = m.sides[0].pid === A.id ? (side === 0 ? [A, B] : [B, A]) : side === 0 ? [B, A] : [A, B];
   const clock0 = m.state.clock;
   await run(secs(2));
   const ran = clock0 - m.state.clock;
@@ -604,7 +604,6 @@ const strike = async (a, b) => {
   const a0 = await count(A, BET_A);
   const b0 = await count(B, BET_A);
   const a = A.p();
-  const b = B.p();
   A.clear();
   B.clear();
   const t = await openTrade(A, B);
@@ -739,7 +738,7 @@ const strike = async (a, b) => {
 await service.close();
 
 // ---------------------------------------------------------------- a real server
-// The game in its worker (RemoteCards), the network thread (rooms.js -> CardService) and the database (PGlite): two
+// The game in its worker (RemoteCollection), the network thread (room.js -> CardService) and the database (PGlite): two
 // players over WebSockets open packs, bet, and the bets are paid; the server goes down (its finds written) and comes
 // back up, and what they won is still theirs.
 const freePort = () =>

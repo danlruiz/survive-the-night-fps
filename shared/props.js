@@ -554,4 +554,3 @@ export function unitOf(type, k) {
   return u === 'each' ? k : u ? u[k] || 0 : 0;
 }
 export const boxesOf = (c) => c?.boxes || NONE;
-export const cylsOf = (c) => c?.cyls || NONE;

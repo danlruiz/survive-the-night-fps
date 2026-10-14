@@ -9,6 +9,7 @@ import { HOLD, BELL_ID, RADIO_ID } from '../../shared/protocol.js';
 import { canReach } from '../../shared/collision.js';
 import { fixtureSpots, FIXTURE_PICK, RADIO_BATTERIES, RADIO_NO } from '../../shared/fixtures.js';
 import { bindTag } from './binds.js';
+import { rayNear } from './pickray.js';
 
 export class FixtureUI {
   constructor(game) {
@@ -20,15 +21,8 @@ export class FixtureUI {
   // does the view ray pass within FIXTURE_PICK of sp, inside INTERACT_REACH of the eye, with no wall in between?
   // (what Entities.pick asks of an entity)
   aimed(sp, ox, oy, oz, dx, dy, dz, reachTop) {
-    const rx = sp.x - ox;
-    const ry = sp.y - oy;
-    const rz = sp.z - oz;
-    const t = rx * dx + ry * dy + rz * dz;
+    const t = rayNear(ox, oy, oz, dx, dy, dz, sp.x, sp.y, sp.z, FIXTURE_PICK);
     if (t < 0 || t >= INTERACT_REACH) return false;
-    const px = rx - dx * t;
-    const py = ry - dy * t;
-    const pz = rz - dz * t;
-    if (px * px + py * py + pz * pz > FIXTURE_PICK * FIXTURE_PICK) return false;
     return canReach(this.g.world, ox, oy, oz, sp.x, sp.y, sp.z, reachTop);
   }
 

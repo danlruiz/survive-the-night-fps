@@ -1,6 +1,6 @@
 // The player's own record: the last runs they finished and their bests over every run, kept in this browser's
 // localStorage and nowhere else - nothing in here is sent to the server. The end screen and the splash show it,
-// the settings panel clears it. Game.trackRun (game/game.js) decides which runs count.
+// the settings panel clears it. Game.trackRun (game/game/session.js) decides which runs count.
 //
 // Stored as JSON under 'stn.runs':
 //   { v: 1,

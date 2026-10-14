@@ -1,8 +1,8 @@
 // Procedural sounds of the survivor-built generator and its floodlights (pure, like synth.js: (sampleRate, rng) ->
 // Float32Array). The set is a small single-cylinder petrol engine: about 26 firings a second through a short
 // exhaust, tappets ticking at twice that, the governor hunting a little, and now and then a stroke that half-misses.
-import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { HI, MID, LO, addNorm, thump, noise, modal, metalClick, bubbles } from './synth.js';
+import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, finish, softclip } from './dsp.js';
+import { HI, MID, LO, addNorm, thump, noise, modal, metalClick, bubbles, finishLoop, pulseTrain } from './synth-blocks.js';
 
 const IDLE = 26; // firings per second at its working speed
 // the exhaust: what a firing pulse rings in
@@ -10,24 +10,13 @@ const PIPE = [{ f: 104, d: 0.03, a: 1 }, { f: 212, d: 0.018, a: 0.7 }, { f: 395,
 
 // Firing pulses at rate(t) firings a second, each a short burst scaled by amp(t); every ninth half-misses.
 function firing(sr, rng, dur, rate, amp) {
-  const n = Math.ceil(dur * sr);
-  const ex = new Float32Array(n);
-  const len = Math.floor(0.0022 * sr);
-  let ph = 0.7;
   let k = 0;
-  for (let i = 0; i < n; i++) {
-    const t = i / sr;
-    ph += (rate(t) * (1 + (rng() - 0.5) * 0.05)) / sr;
-    if (ph < 1) continue;
-    ph -= 1;
-    const a = amp(t) * (++k % 9 === 4 ? 0.35 : 1) * (0.8 + rng() * 0.3);
-    for (let j = 0; j < len && i + j < n; j++) ex[i + j] += (rng() * 2 - 1) * (1 - j / len) * a;
-  }
-  return ex;
+  const jittered = (i) => rate(i / sr) * (1 + (rng() - 0.5) * 0.05);
+  return pulseTrain(sr, rng, Math.ceil(dur * sr), Math.floor(0.0022 * sr), 0.7, jittered, (i) => amp(i / sr) * (++k % 9 === 4 ? 0.35 : 1) * (0.8 + rng() * 0.3));
 }
 
 // the running set, as a seamless loop
-export function loopGenset(sr, rng) {
+function loopGenset(sr, rng) {
   const L = 3;
   const X = 0.25;
   const dur = L + X;
@@ -57,9 +46,7 @@ export function loopGenset(sr, rng) {
     out[i] = pipe.run(ex[i]) + tap.run(tk[i]) * 0.5 + rum.run(br.next()) * 0.35 + fan.run(pk.next()) * 0.06 + 0.05 * Math.sin((TAU * IDLE * 2 * i) / sr);
   }
   softclip(out, 1.6);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 // engine strokes through the exhaust, for the two one-shots: rate and loudness as functions of time
@@ -74,7 +61,7 @@ function strokes(sr, rng, dur, rate, amp) {
 
 // the cord pulled: the recoil starter's ratchet, two strokes that do not catch, then it does and runs up to speed.
 // The loop is already sounding underneath by then, so this fades out under it.
-export function genStart(sr, rng) {
+function genStart(sr, rng) {
   const out = alloc(sr, 1.9);
   const cord = noise(sr, rng, 0.4, { bp: [1700, 1.4], sweep: [900, 2600], env: hann });
   for (let i = 0; i < cord.length; i++) cord[i] *= 0.35 + 0.65 * (Math.sin((TAU * lerp(55, 120, i / cord.length) * i) / sr) > 0 ? 1 : 0); // the pawl
@@ -90,7 +77,7 @@ export function genStart(sr, rng) {
 }
 
 // it dies: the strokes come slower and weaker, one last cough, the flywheel ticks to a stop
-export function genStop(sr, rng) {
+function genStop(sr, rng) {
   const out = alloc(sr, 1.5);
   const run = strokes(sr, rng, 1.1, (t) => lerp(IDLE, 4, Math.min(1, t / 1.0) ** 0.7), (t) => Math.max(0, 1 - t / 1.1) ** 0.8);
   addNorm(out, run, sr, 0, 1);
@@ -116,7 +103,7 @@ export function genFuel(sr, rng) {
 }
 
 // a floodlight coming on (or going out): the contactor's clack and the lamp's short hum
-export function floodSwitch(sr, rng) {
+function floodSwitch(sr, rng) {
   const out = alloc(sr, 0.32);
   addNorm(out, thump(sr, 190, 80, 0.008, 0.02), sr, 0, 0.9);
   addNorm(out, metalClick(sr, rng, rrange(rng, 2200, 2800), 0.01), sr, 0.002, 0.6);

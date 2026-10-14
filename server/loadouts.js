@@ -313,8 +313,11 @@ export class Loadouts {
     this.link.post({ op: 'grant', id, owner: p.rejoinKey, catalog, source });
     this.game.sendChat(p, 0, CHATF.SYSTEM, `Loadout item found: ${loadoutName(catalog)}. It is in your Loadout collection.`);
   }
+  // (the service takes ids of 96 characters at most: a guest's key, 66 of them, goes in as its first 24 hex digits -
+  // a hash already, and still unique among guests - or a public game's guests never earned a skull)
   skullId(kind, owner, key) {
-    return `${this.game.code || 'game'}:${this.game.seed}:${kind}:${key}:${owner.replace(':', '_')}`;
+    const who = owner.startsWith('g:') ? owner.slice(0, 26) : owner;
+    return `${this.game.code || 'game'}:${this.game.seed}:${kind}:${key}:${who.replace(':', '_')}`;
   }
   skulls(p, amount, source, key) {
     if (!p?.rejoinKey || amount <= 0) return;

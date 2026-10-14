@@ -5,9 +5,10 @@
 //   - the wire codec that lives outside shared/ (CODEC_FILES): how a snapshot is written and read, and how the client
 //     reads every other message. A change to any of them is a change to what the two ends say to each other, even
 //     without a protocol bump: a page of another compat is loaded again rather than misread the next server.
-// A change to how a message is written anywhere else (server/game.js's events, chat, inventory...) is read by
-// client code too - connection.js, decode.js, or client/game/game.js; the last is not hashed (most client deploys
-// change it), so a change to a message it reads must bump PROTOCOL_VERSION, as any change to the protocol always has.
+// A change to how a message is written anywhere else (Game's events, chat, inventory... in server/game/) is read by
+// client code too - connection.js, decode.js, or the client's Game (client/game/game/); the last is not hashed (most
+// client deploys change it), so a change to a message it reads must bump PROTOCOL_VERSION, as any change to the
+// protocol always has.
 import { createHash } from 'node:crypto';
 import { closeSync, openSync, readdirSync, readSync } from 'node:fs';
 import { join } from 'node:path';

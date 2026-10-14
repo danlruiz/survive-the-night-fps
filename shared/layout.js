@@ -230,11 +230,7 @@ export function planLayout(rng, relief, rrng = rng) {
         const len = Math.min((MAP_HALF - Math.sign(dx * dir) * C[0]) / Math.abs(dx), (MAP_HALF - Math.sign(dz * dir) * C[1]) / Math.abs(dz));
         return { len, belly: bellies[k] * len };
       });
-      const curve = (s) => {
-        const a = arms[s < 0 ? 1 : 0];
-        const o = (a.belly * (1 - Math.cos(PI * Math.min(1, Math.abs(s) / a.len)))) / 2;
-        return [C[0] + dx * s - dz * o, C[1] + dz * s + dx * o];
-      };
+      // (the curve at s along an arm: C + (dx, dz) * s, pushed sideways by belly * (1 - cos(PI * |s| / len)) / 2)
       // how much the curve turns per metre at s (it bends towards its belly: the heading falls as the belly grows)
       const bend = (s) => {
         const a = arms[s < 0 ? 1 : 0];

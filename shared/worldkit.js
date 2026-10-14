@@ -388,3 +388,15 @@ const CONT_H = {
   [CONT.FRIDGE]: 1.0,
   [CONT.STRONGBOX]: 0.5,
 };
+
+// one of a weighted list [[what, weight], ...], drawn with one number from rng
+export function pickWeighted(rng, list) {
+  let total = 0;
+  for (const [, w] of list) total += w;
+  let r = rng() * total;
+  for (const [what, w] of list) {
+    r -= w;
+    if (r <= 0) return what;
+  }
+  return list[0][0];
+}

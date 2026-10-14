@@ -5,9 +5,9 @@
 // cone. The yard is laid out on the flattest open strip of the valley, so any seed will do.
 // usage: node scripts/test-power.js [seed]
 import { Game } from '../server/game.js';
-import { C2S, S2C, ACT, ENT, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
+import { C2S, S2C, ACT, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { MAP_HALF, PHASE, SLOT_BUILD, SLOT_MELEE, MAX_STRUCTURES, NOISE } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, STRUCT, STRUCT_DEFS, STRUCT_ORDER, ZTYPE, ZANIM, NOTIFY, WEAPONS } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, STRUCT, STRUCT_DEFS, STRUCT_ORDER, ZTYPE, NOTIFY, WEAPONS } from '../shared/defs.js';
 import { groundAt, COL } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { GEN_RANGE, GEN_POUR, GEN_FUEL_UNIT, GEN_TANK, GEN_HUM, GEN_HUM_EVERY, GEN_STEP, FLOOD_RANGE, FLOOD_HALF, genState, genOn, genFuel, genRunning, genPour, floodAim, inFloodCone } from '../shared/power.js';

@@ -1,12 +1,13 @@
 // The grip fitter's engine (fit-grip.js; docs/object-clipping.md, "Fitting a hand pose"). Under node, with the DOM
-// stubbed: builds the real ViewModel of a tree (client/render/models/weapons.js), poses it the way the models sandbox
-// does, turns the held item (or the prop being used) into a signed distance field in the hand's own frame, and closes
-// a hand pose round it: the palm seated on the surface, each finger closed until it touches, the thumb laid along it.
+// stubbed: builds the real ViewModel of a tree (client/render/models/weapons.js, the items' files in weapons/), poses
+// it the way the models sandbox does, turns the held item (or the prop being used) into a signed distance field in the
+// hand's own frame, and closes a hand pose round it: the palm seated on the surface, each finger closed until it
+// touches, the thumb laid along it.
 //
 // The hand is the one getHandGeo builds: finger knuckles, phalanx lengths and radii (FINGERS, PHALANX_R) and the thumb
-// joint (THUMB_MCP) come from weapons.js itself; the palm surface below repeats getHandGeo's glove palm numbers. A pose's
-// geometry is right-hand space: the wrist at the origin, fingers along -Y, the palm facing -X; a left hand is the right
-// one mirrored in X, so its item is mirrored into right-hand space here.
+// joint (THUMB_MCP) come from weapons/hands.js itself (through weapons.js VM_DEBUG); the palm surface below repeats
+// getHandGeo's glove palm numbers. A pose's geometry is right-hand space: the wrist at the origin, fingers along -Y,
+// the palm facing -X; a left hand is the right one mirrored in X, so its item is mirrored into right-hand space here.
 import './dom-stub.js';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
