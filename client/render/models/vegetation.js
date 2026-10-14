@@ -4,10 +4,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { lerp } from '../../../shared/rng.js';
-import { MAT, MeshBuilder, makeRng, vegetationTime } from '../materials.js';
+import { MAT, MeshBuilder, makeRng } from '../materials.js';
 import { vegFarMaterial, vegStaticMaterial } from '../vegshading.js';
-
-export { vegetationTime };
 
 const V3 = THREE.Vector3;
 const UP = new V3(0, 1, 0);
