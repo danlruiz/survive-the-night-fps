@@ -63,8 +63,8 @@ client/      three.js client (Vite root)
               (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
-  ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
-              (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
+  ui/         DOM HUD (hud.js with its corners in hud/; hud2.js: compass, world markers; objective.js, tonight.js),
+              field map (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
               contextual key hints (keyhints.js: reads the game state once a frame, owns its one HUD line)
   stats/      the public stats page (/stats, stats.html): main.js fills it, charts.js draws its SVG charts
   sandbox/    standalone dev pages for visually testing modules (not shipped)
@@ -162,7 +162,7 @@ more than its bytes**, so put things into the packets that already flow.
   jump adds `SHOVE_PRESS` to the meter and pushes a `shove` event (which is what lets the input buffer pass a quick
   tap straight through), holding it down adds `SHOVE_HOLD` a second, and letting go takes `SHOVE_SLIP` a second off.
   The meter is predicted like any other field, so mashing needs no rebase; the server throws the leaper off on the
-  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud.js`) and both hands shoving
+  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud/center.js`) and both hands shoving
   (`ViewModel._push`).
 - **Entities** (`server/snapshot.js` / `client/net/decode.js`, tables `FIELD_COUNT` + `BIT_SLOTS` in both):
   area of interest per kind, creates in full, updates only for changed fields, sorted by id behind a one-byte
@@ -223,8 +223,9 @@ sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`
   has per-game tick timings and CPU (`load.cpuMs`: ms of CPU that game's thread used per second), the network
   thread's (`net`) and the process RSS; no codes.
 - **Client:** `client/net/lobby.js` (the API, and invite links: `?game=CODE`; while in a game the address bar
-  carries its link), the splash in `ui/menus.js` (Quick join, Browse games, Create game, or the invitation of the
-  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu.
+  carries its link), the splash in `ui/splash.js` (Quick join, Browse games, Create game, or the invitation of the
+  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu
+  (`ui/invite.js`).
 - **Capacity** (`npm run stress -- game|box`, scripts/stress.js; measured 2 Oct 2026 with bots at night 3 on a
   shared 11-core Mac, so read CPU ms per second, not wall-clock ticks): an 8-player game at night uses ~17 ms of
   CPU a second (45 in its worst second), ~62 MB of memory on a 70 MB base, ~2-2.6 KB/s down per player, and the
@@ -446,8 +447,9 @@ map does, and can be shut to fight and opened again.
   the worker hands items over only once the cards have moved. Signing in brings a guest's cards onto the account
   (`Auth.claimGuest` -> `mergeGuest`). Escrows a game never settled go back to their owners (`roomGone`, and a sweep
   after a day).
-- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `carddeck.js`,
-  `cardtrade.js`, `cardreveal.js`, `cardface.js`; `cards.css`): the table, the deck builder, trades, challenges,
+- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `cardtable.js`,
+  `carddeck.js`, `cardtrade.js`, `cardasks.js`, `cardchooser.js`, `cardlobby.js`, `cardpractice.js`, `cardreveal.js`,
+  `cardface.js`, `cardwidgets.js`; `cards.css`): the table, the deck builder, trades, challenges,
   practice against the computer (`client/game/cardlocal.js`, no rewards), a pack's reveal and a three-page guide to how
   it plays (`cardguide.js`: offered once, the first time the cards open in a browser, `stn.cards.guide`; "How to play"
   in the head ever after). Card art is the game's
@@ -1646,7 +1648,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   Every night's boss (`bossPending`, drawn by `nightBoss(seed, night)` in `shared/nights.js` from `BOSS_POOL`; night 1
   is always The Brute) comes in with wave `BOSS_WAVE`; `Game.spawnBosses` scales its health by `BOSS_HP_PER_PLAYER`
   and `BOSS_HP_PER_NIGHT` (a Tank by `TANK_BOSS_HP` as well). The client draws the same boss from the seed
-  (`nightBossText` in `client/ui/hud2.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
+  (`tonightBrief` in `client/ui/tonight.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
   `NOTIFY.BOSS` says when it arrives. A day's length is `dayLength(day)` in `shared/constants.js` (`Game.dayLen`):
   long on days 1 and 2, then `DAY_SHRINK` shorter each day down to `DAY_LENGTH`. A boss drops its loot (`bossLoot`, default 8 rolls) only if it dies before
   the dawn sun sets it alight (`z.onFire`, `Combat.killZombie`); the sun's kill goes to the killfeed as `KILLER.WORLD`.
@@ -2027,7 +2029,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   compares a gun or a vest with the one held) and Crafting; type has a rem floor so browser zoom enlarges it, and
   below `COMPACT` (1280 x 720 at 125% zoom and smaller) one panel shows at a time under tabs that Q / E switch.
 - **The tracked recipe** (`client/game/tracked.js`): one recipe at a time in `localStorage['stn.tracked']`, client
-  only. The HUD checklist under the objective tracker (`Tracked` in `ui/hud2.js`), the "needed for" line on pickup
+  only. The HUD checklist under the objective tracker (`Tracked` in `ui/objective.js`), the "needed for" line on pickup
   prompts and the "may hold" line on containers whose table can roll a missing ingredient (`mayHold` in
   `itemguide.js`) read it; the backpack marks the stacks it would use. Crafting it untracks it.
 - **Item guide** (`client/game/itemguide.js`): the "Used in" and "Found in" lines of the inventory's item card are
