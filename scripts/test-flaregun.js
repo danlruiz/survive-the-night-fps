@@ -63,7 +63,6 @@ const run = (ticks, fn) => {
     game.update();
   }
 };
-const count = (p, item) => p.inv.reduce((n, it) => n + (it && it.item === item ? it.count : 0), 0);
 const skyflares = () => game.projectiles.filter((e) => e.ptype === PROJ.SKYFLARE);
 
 // ---------------------------------------------------------------- the workbench

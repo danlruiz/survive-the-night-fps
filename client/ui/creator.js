@@ -11,9 +11,9 @@
 import { APPEARANCE, normalize, relevant, optionsFor, randomLook, rerollSection, defaults } from '../../shared/appearance.js';
 import { SECTIONS } from '../../shared/wardrobe.js';
 import { CHARACTERS } from '../../shared/characters.js';
-import { el, svgEl } from './dom.js';
+import { el, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { saveCustom, deleteCustom, getCustom, noteFor, cleanName, customs, NAME_MAX, MAX_CUSTOMS } from './customs.js';
 import { getStage, looksModule } from './stage.js';
 
@@ -41,8 +41,7 @@ export class CreatorPanel extends Panel {
     this.nameIn.setAttribute('aria-label', 'Name your survivor');
     this.nameIn.addEventListener('input', () => (this.nameIn.value = this.nameIn.value.slice(0, NAME_MAX)));
     const tools = el('div', 'cr-tools', left);
-    const all = svgEl('button', 'btn btn-ghost cr-roll', tools, glyph('dice'));
-    all.type = 'button';
+    const all = iconButton('btn btn-ghost cr-roll', tools, glyph('dice'));
     el('span', '', all, 'Roll everything');
     all.title = 'A whole new survivor, made up';
     all.addEventListener('click', () => this.set(randomLook()));
@@ -70,29 +69,24 @@ export class CreatorPanel extends Panel {
     tabs.setAttribute('role', 'tablist');
     this.tabBtns = new Map();
     for (const s of SECTIONS) {
-      const b = el('button', 'cr-tab', tabs, s.label);
-      b.type = 'button';
+      const b = button('cr-tab', tabs, s.label);
       b.setAttribute('role', 'tab');
       b.addEventListener('click', () => this.tab(s.key));
       this.tabBtns.set(s.key, b);
     }
-    this.roll = svgEl('button', 'btn btn-ghost cr-roll cr-roll-sec', bar, glyph('dice'));
-    this.roll.type = 'button';
+    this.roll = iconButton('btn btn-ghost cr-roll cr-roll-sec', bar, glyph('dice'));
     this.rollTxt = el('span', '', this.roll, '');
     this.roll.addEventListener('click', () => this.set(rerollSection(this.values, this.section)));
     this.fields = el('div', 'cr-fields', right);
     this.fields.setAttribute('role', 'tabpanel');
     // ---- the foot: delete (one of theirs), cancel, save
-    this.del = el('button', 'btn btn-ghost cr-del', this.foot, 'Delete');
-    this.del.type = 'button';
+    this.del = button('btn btn-ghost cr-del', this.foot, 'Delete');
     this.del.addEventListener('click', () => this.remove());
     el('span', 'cr-gap', this.foot);
     this.msg = el('span', 'cr-msg', this.foot, '');
-    const cancel = el('button', 'btn btn-ghost', this.foot, 'Cancel');
-    cancel.type = 'button';
+    const cancel = button('btn btn-ghost', this.foot, 'Cancel');
     cancel.addEventListener('click', () => this.hide());
-    const save = el('button', 'btn btn-blood cr-save', this.foot);
-    save.type = 'button';
+    const save = button('btn btn-blood cr-save', this.foot);
     el('span', '', save, 'Save');
     save.addEventListener('click', () => this.save());
     // turning them by hand
@@ -209,8 +203,7 @@ export class CreatorPanel extends Panel {
     ctl.setAttribute('role', 'group');
     ctl.setAttribute('aria-label', f.label);
     for (const o of optionsFor(this.values, f.key)) {
-      const b = el('button', 'cr-opt', ctl, o.label);
-      b.type = 'button';
+      const b = button('cr-opt', ctl, o.label);
       const on = this.values[f.key] === o.name;
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', String(on));
@@ -227,8 +220,7 @@ export class CreatorPanel extends Panel {
     ctl.setAttribute('role', 'group');
     ctl.setAttribute('aria-label', f.label);
     for (const o of A.offered(f)) {
-      const b = el('button', 'cr-swatch', ctl);
-      b.type = 'button';
+      const b = button('cr-swatch', ctl);
       if (o.hex !== undefined) b.style.background = hex(o.hex);
       else {
         b.classList.add('cr-swatch-none');

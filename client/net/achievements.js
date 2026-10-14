@@ -13,8 +13,9 @@
 //   { v: 1, stats: { stat: n }, unlocked: { id: ms }, day, pending }
 //   day      the last day a game was joined on as a guest, in days since 1970 by this browser's clock
 //   pending  earned as a guest since it was last merged into an account
-import { call, post } from './lobby.js';
-import { accountState, onAccountChange } from './account.js';
+import { call, post } from './api.js';
+import { listeners } from './listeners.js';
+import { accountState, onSignIn } from './account.js';
 import { ACH_BY_ID, ACH_BY_N, ACHF, ACHIEVEMENTS, sanitizeProgress, applyAchievements } from '../../shared/achievements.js';
 
 const KEY = 'stn.achievements';
@@ -52,28 +53,13 @@ const st = {
   loading: false,
   error: '',
 };
-const changeSubs = new Set();
-const unlockSubs = new Set();
-const emit = (subs, ...args) => {
-  for (const fn of subs) {
-    try {
-      fn(...args);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-};
+const changes = listeners();
+const unlocks = listeners();
 
 // fn() whenever a record changes (an unlock, a sign-in, the account's record arriving); returns the way to stop
-export function onAchievements(fn) {
-  changeSubs.add(fn);
-  return () => changeSubs.delete(fn);
-}
+export const onAchievements = changes.on;
 // fn([achievement]) when some unlock in front of the player (the banner); returns the way to stop
-export function onUnlock(fn) {
-  unlockSubs.add(fn);
-  return () => unlockSubs.delete(fn);
-}
+export const onUnlock = unlocks.on;
 
 // The record the profile page shows: the account's while signed in, else this browser's.
 // -> { stats, unlocked: { id: ms }, account: bool, loading, error }
@@ -101,8 +87,8 @@ export function achievementEvent(flags, add, ns) {
     // next look at the profile page)
     const user = accountState().user;
     if (st.account && user && st.accountFor === user.id) for (const a of list) st.account.unlocked[a.id] ||= Date.now();
-    if (list.length) emit(unlockSubs, list);
-    emit(changeSubs);
+    if (list.length) unlocks.emit(list);
+    changes.emit();
     return;
   }
   const rec = load();
@@ -113,8 +99,8 @@ export function achievementEvent(flags, add, ns) {
   );
   rec.pending = true;
   save(rec);
-  if (fresh.length) emit(unlockSubs, fresh.map((id) => ACH_BY_ID.get(id)));
-  emit(changeSubs);
+  if (fresh.length) unlocks.emit(fresh.map((id) => ACH_BY_ID.get(id)));
+  changes.emit();
 }
 
 // A game was joined, as a guest (account: false) or as an account (whose days the server counts): a guest's first
@@ -128,8 +114,8 @@ export function joinedGame(account) {
   const fresh = applyAchievements(rec, { days: 1 });
   rec.pending = true;
   save(rec);
-  if (fresh.length) emit(unlockSubs, fresh.map((id) => ACH_BY_ID.get(id)));
-  emit(changeSubs);
+  if (fresh.length) unlocks.emit(fresh.map((id) => ACH_BY_ID.get(id)));
+  changes.emit();
 }
 
 // ---------------------------------------------------------------- the account
@@ -146,13 +132,13 @@ export async function refreshAchievements() {
     st.accountFor = '';
     st.loading = false;
     st.error = '';
-    emit(changeSubs);
+    changes.emit();
     return;
   }
   st.loading = true;
   st.error = '';
   if (st.accountFor !== user.id) st.account = null;
-  emit(changeSubs);
+  changes.emit();
   try {
     const rec = load();
     let body;
@@ -172,7 +158,7 @@ export async function refreshAchievements() {
     st.error = err.message || 'Could not load your achievements';
   }
   st.loading = false;
-  emit(changeSubs);
+  changes.emit();
 }
 
 // a friend's record (they must be on your friends list): { stats, unlocked: { id: ms } }
@@ -184,17 +170,7 @@ let started = false;
 export function startAchievementsSync() {
   if (started) return;
   started = true;
-  let user = '';
-  onAccountChange((a) => {
-    const id = a.user?.id || '';
-    if (id === user) return;
-    user = id;
-    refreshAchievements();
-  });
-  if (accountState().user) {
-    user = accountState().user.id;
-    refreshAchievements();
-  }
+  onSignIn(() => refreshAchievements());
 }
 
 export const ACH_TOTAL = ACHIEVEMENTS.length;

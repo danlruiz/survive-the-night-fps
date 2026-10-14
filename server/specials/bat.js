@@ -1,7 +1,7 @@
 // The bat (def.flying): swarms that dive at a survivor in the open and wheel round the roofs of wherever they hide
 import { ZANIM, SOUND, KILLER } from '../../shared/defs.js';
 import { raycastWorld, ColliderGrid, makeBox, rayCollider, CYL, COL } from '../../shared/collision.js';
-import { turn } from './util.js';
+import { turn, MAP_EDGE } from './util.js';
 
 const BAT_SHUT_OUT = 8; // a bat's state, next to 0 (hunting) and 7 (peeling off after a bite): walls are in its way
 const BAT_LOW_PASS = 8; // s a shut-out bat spends low round the building between passes over the top
@@ -114,7 +114,7 @@ export const methods = {
     z.x += z.vx * dt;
     z.y += z.vy * dt + Math.sin(time * 9) * 0.03;
     z.z += z.vz * dt;
-    const lim = this.g.world.half - 4;
+    const lim = this.g.world.half - MAP_EDGE;
     z.x = Math.max(-lim, Math.min(lim, z.x));
     z.z = Math.max(-lim, Math.min(lim, z.z));
     const gr = g.world.heightAt(z.x, z.z);

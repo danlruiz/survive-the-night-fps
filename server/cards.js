@@ -47,126 +47,29 @@
 // Once the game is saved for the next server (room-worker.js 'save', freeze), nothing a player sends is acted on
 // and no pack is opened here: what happened after the save would be lost with this game, while what the network
 // thread had been told (cards found, cards traded) would stand.
-import { randomUUID, randomBytes } from 'node:crypto';
 import { S2C, CARDOP, CARDMSG, CARDNOTE, CARD_JSON_MAX, Writer, readCards, writeCards } from '../shared/protocol.js';
 import { PHASE, CARD_ASK_TTL, TRADE_REACH, TRADE_BREAK } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, BOSS_PACK_CHANCE } from '../shared/defs.js';
-import { cardDef, validateDeck, defaultDeck, rollPack, cleanDeck, cleanFound, F, DECK_SLOTS } from '../shared/cards.js';
+import { ITEM, BOSS_PACK_CHANCE } from '../shared/defs.js';
+import { cardDef, validateDeck, rollPack, cleanDeck, cleanFound, DECK_SLOTS } from '../shared/cards.js';
 import * as CG from '../shared/cardgame.js';
 import { eyeHeight } from '../shared/playersim.js';
-import { invCap, addItem, freeSlot } from './inventory.js';
 import { CardService, MemoryCardStore, PACK_CAP } from './usercards.js';
-import { isLoadoutStack } from './loadouts.js';
+import { withRng, addMethods } from './entkit.js';
+import { D, ALLOW_BURST, ALLOW_EVERY, cryptoRand, int, cleanStakeItems, chooseDeck, sideOf } from './cards/common.js';
+import { matchMethods, inPlay } from './cards/matches.js';
+import { tradeMethods } from './cards/trades.js';
 
-const cryptoRand = () => randomBytes(4).readUInt32LE(0) / 0x100000000;
-const ALLOW_BURST = 20; // C2S.CARDS a player may send in a row...
-const ALLOW_EVERY = 0.2; // ...then one every this many seconds
 const ASK_MAX = 3; // asks a player may have out at once
 const ASK_EVERY = 3; // s between two asks of theirs
-const OFFER_CARDS_MAX = 16; // kinds of card on one side of a trade (both sides' moves stay within usercards.js MOVES_MAX)
-const OFFER_ITEMS_MAX = 12; // kinds of item
-const OFFER_LOADOUT_MAX = 12; // permanent loadout item instances
-const OFFER_N_MAX = 99;
 const OUT_MAX = 24; // one-off messages held for a player (a client away gets them when it is back)
-const EVENTS_MAX = 200; // a match's events held for a player between two MATCHes (more: the table alone says it)
 const NAME_MAX = 24;
 const RETRY_MAX = 60; // s: a payout that failed is tried again after 2, 4, 8 ... up to this
-const D = { COLL: 1, DECKS: 2, ASKS: 4, MATCH: 8, TRADE: 16, ALL: 31 };
-// deck slots an ask or an answer may name besides the four kept ones: the starter decks everyone has
-const STARTER_SLOTS = new Map([
-  [-1, F.SURVIVORS],
-  [-2, F.DEAD],
-]);
 const DECK_EVERY = 1; // s: a player's decks go to the database at most this often (the latest of each slot; deckQ)
 // what may be done during the crossing (the cutscene): nothing that starts anything
 const CROSSING_OK = new Set([CARDOP.WITHDRAW, CARDOP.FORFEIT, CARDOP.DECK, CARDOP.CLOSE, CARDOP.SYNC]);
-const MOVE_T = new Set(['redraw', 'keep', 'play', 'leader', 'choose', 'pass', 'forfeit']);
-const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
-const LOADOUT_ITEM_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const STAKE_MAX = 12;
-const tradeCount = (inv, item) => inv.reduce((n, s) => n + (s && !isLoadoutStack(s) && s.item === item ? s.count : 0), 0);
-function removeTradeItem(inv, item, count) {
-  let left = count;
-  for (let i = inv.length - 1; i >= 0 && left > 0; i--) {
-    const s = inv[i];
-    if (!s || isLoadoutStack(s) || s.item !== item) continue;
-    const take = Math.min(s.count, left);
-    s.count -= take;
-    left -= take;
-    if (s.count <= 0) inv[i] = null;
-  }
-  return count - left;
-}
-
-// A move as the engine takes it, built only of what a move has (shared/cardgame.js): null when it is not one
-export function cleanMove(m) {
-  if (!m || typeof m !== 'object' || !MOVE_T.has(m.t)) return null;
-  const out = { t: m.t };
-  for (const k of ['uid', 'row', 'target', 'pick']) {
-    if (m[k] === undefined || m[k] === null) continue;
-    if (!int(m[k], -1, 65535)) return null;
-    out[k] = m[k];
-  }
-  if (m.discard !== undefined && m.discard !== null) {
-    if (!Array.isArray(m.discard) || m.discard.length > 2 || !m.discard.every((v) => int(v, 0, 65535))) return null;
-    out.discard = [...m.discard];
-  }
-  return out;
-}
-
-// What goes on one side of a trade: { cards: { id: n }, items: [[item, n]] } (duplicates added up), or null
-function cleanOffer(d) {
-  const cards = {};
-  const items = new Map();
-  const loadouts = [];
-  const loadoutSeen = new Set();
-  if (d.cards !== undefined) {
-    if (!d.cards || typeof d.cards !== 'object' || Array.isArray(d.cards)) return null;
-    const keys = Object.keys(d.cards);
-    if (keys.length > OFFER_CARDS_MAX) return null;
-    for (const k of keys) {
-      const id = +k;
-      const n = d.cards[k];
-      if (!int(id, 1, 32767) || !cardDef(id) || !int(n, 0, OFFER_N_MAX)) return null;
-      if (n) cards[id] = n;
-    }
-  }
-  if (d.items !== undefined) {
-    if (!Array.isArray(d.items) || d.items.length > OFFER_ITEMS_MAX) return null;
-    for (const row of d.items) {
-      if (!Array.isArray(row) || row.length !== 2) return null;
-      const [item, n] = row;
-      const def = int(item, 1, 255) ? ITEM_DEFS[item] : null;
-      if (!def || def.cat === 'card' || def.cat === 'schem' || def.cat === 'ammo' || !int(n, 1, 9999)) return null;
-      items.set(item, (items.get(item) || 0) + n);
-    }
-  }
-  if (d.loadouts !== undefined) {
-    if (!Array.isArray(d.loadouts) || d.loadouts.length > OFFER_LOADOUT_MAX) return null;
-    for (const id of d.loadouts) {
-      if (typeof id !== 'string' || !LOADOUT_ITEM_RE.test(id) || loadoutSeen.has(id)) return null;
-      loadoutSeen.add(id);
-      loadouts.push(id);
-    }
-  }
-  return { cards, items: [...items], loadouts };
-}
-
-function cleanStakeItems(d) {
-  const raw = Array.isArray(d?.stake) ? d.stake : Array.isArray(d?.items) ? d.items : [];
-  if (raw.length > STAKE_MAX) return null;
-  const out = [];
-  const seen = new Set();
-  for (const id of raw) {
-    if (typeof id !== 'string' || !LOADOUT_ITEM_RE.test(id) || seen.has(id)) return null;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------- the link to the collections
-// A game in a worker posts to the network thread (room-worker.js RemoteCards). One made in this thread (the tests,
+// A game in a worker posts to the network thread (room-worker.js RemoteCollection). One made in this thread (the tests,
 // the sims, a plain `new Game()`) keeps them here: LocalCards, a CardService of its own on a store in memory - or one
 // shared with other games (the tests: two games of one server, a game and the one it is handed to).
 export class LocalCards {
@@ -190,7 +93,7 @@ export class LocalCards {
 }
 
 export class Cards {
-  // link: where the collections are kept (RemoteCards in a room's worker); none, a LocalCards
+  // link: where the collections are kept (a RemoteCollection in a room's worker); none, a LocalCards
   constructor(game, link = null) {
     this.game = game;
     this.link = link || new LocalCards();
@@ -302,7 +205,7 @@ export class Cards {
       if (side) Object.assign(side, { x: p.state.x, y: p.state.y, z: p.state.z });
     }
     for (const m of [...this.matches.values()]) {
-      const side = m.sides.findIndex((s) => s.pid === p.id);
+      const side = sideOf(m, p.id);
       if (side < 0 || m.voided) continue;
       if (m.phase === 'live') {
         const r = CG.applyMove(m.state, side, { t: 'forfeit' });
@@ -389,7 +292,7 @@ export class Cards {
     this.asks = keep;
   }
   busy(pid) {
-    for (const m of this.matches.values()) if ((m.phase === 'staking' || m.phase === 'live' || m.phase === 'locking') && !m.voided && m.sides.some((s) => s.pid === pid)) return true;
+    for (const m of this.matches.values()) if (inPlay(m) && m.sides.some((s) => s.pid === pid)) return true;
     for (const t of this.trades.values()) if (t.sides.some((s) => s.pid === pid)) return true;
     return false;
   }
@@ -397,17 +300,7 @@ export class Cards {
   // The deck a player plays with: one of their four (slot 0-3, checked against what they have) or a starter deck
   // (slot -1 the Survivors', -2 the Dead's). -> { deck } or { error: CARDNOTE, arg }
   deckFor(p, slot) {
-    if (slot === undefined || slot === null) slot = -1;
-    if (STARTER_SLOTS.has(slot)) return { deck: defaultDeck(STARTER_SLOTS.get(slot)) };
-    if (!int(slot, 0, DECK_SLOTS - 1)) return { error: CARDNOTE.DECK, arg: 'slot' };
-    if (!p.rejoinKey) return { error: CARDNOTE.NOKEY };
-    const o = this.own.get(p.rejoinKey);
-    if (!o?.loaded) return { error: CARDNOTE.LOADING };
-    const kept = o.decks.find((dk) => dk.slot === slot);
-    if (!kept) return { error: CARDNOTE.DECK, arg: 'empty' };
-    const deck = { leader: kept.leader, cards: { ...kept.cards } };
-    const v = validateDeck(deck, o.found);
-    return v.ok ? { deck } : { error: CARDNOTE.DECK, arg: String(v.errors?.[0] || 'invalid') };
+    return chooseDeck(slot, !!p.rejoinKey, this.own.get(p.rejoinKey));
   }
   // What an owner has offered or bet here already, card -> n (except: a trade left out, when its offer is replaced).
   // A bet being put up counts; once it is in the escrow the collection no longer has it.
@@ -489,9 +382,9 @@ export class Cards {
       const b = this.betFor(p, d.bet);
       if (b.error) return this.note(p, b.error);
       bet = b.bet;
-      const st = this.stakeFor(p, d.stake || d.items || []);
-      if (st.error) return this.note(p, st.error);
-      stake = st.items;
+      const sk = this.stakeFor(p, d.stake || d.items || []);
+      if (sk.error) return this.note(p, sk.error);
+      stake = sk.items;
     }
     st.askT = g.time;
     this.asks.push({ from: p.id, to: q.id, kind, slot, bet, stake, until: g.time + CARD_ASK_TTL });
@@ -544,439 +437,6 @@ export class Cards {
     }
     this.dropAsks((x) => x.from === p.id || x.to === p.id || x.from === q.id || x.to === q.id);
     this.startMatch([q, p], [theirs.deck, mine.deck], [a.bet, myBet.bet], [theirStake.items, myStake.items]);
-  }
-
-  // ---------------------------------------------------------------- matches
-  side(p, bet = 0, stake = []) {
-    const owner = p.rejoinKey || '';
-    return { pid: p.id, owner, name: p.name, bet, stake: [...(stake || [])], stakeInfo: this.stakeView(stake || [], owner), ok: false };
-  }
-  startMatch(players, decks, bets, stakes = [[], []]) {
-    const id = randomUUID();
-    const hasStake = stakes.some((s) => s?.length);
-    const m = { id, sides: players.map((p, i) => this.side(p, bets[i], stakes[i])), state: null, phase: hasStake ? 'staking' : 'locking', ver: 0, seed: Math.floor(this.rng() * 0x100000000) >>> 0, decks, locks: null, pays: null, voided: '', reason: '' };
-    this.matches.set(id, m);
-    for (const s of m.sides) this.dirty(s.pid, D.MATCH);
-    if (hasStake) return;
-    this.lockMatch(m);
-  }
-  lockMatch(m) {
-    if (m.phase !== 'locking') m.phase = 'locking';
-    const cardMoves = m.sides.filter((s) => s.bet).map((s) => [s.owner, `m:${m.id}`, s.bet, 1]);
-    const loadoutMoves = m.sides.flatMap((s) => (s.stake || []).map((id) => [s.owner, id]));
-    m.locks = { cards: !cardMoves.length, loadouts: !loadoutMoves.length };
-    for (const s of m.sides) this.dirty(s.pid, D.MATCH);
-    if (!cardMoves.length && !loadoutMoves.length) return this.go(m);
-    if (cardMoves.length) this.xfer(`${m.id}:lock`, 'lock', cardMoves, m.id);
-    if (loadoutMoves.length) this.xfer(`${m.id}:loadout_wager_lock`, 'loadout_wager_lock', loadoutMoves, m.id);
-  }
-  finishLock(m, part) {
-    if (!m || m.phase !== 'locking') return;
-    m.locks ||= { cards: true, loadouts: true };
-    m.locks[part] = true;
-    if (!m.locks.cards || !m.locks.loadouts) return;
-    if (m.forfeitWinner === 0 || m.forfeitWinner === 1) {
-      m.phase = 'paying';
-      return this.settleMatch(m, 'pay', m.forfeitWinner);
-    }
-    if (m.voided) {
-      m.phase = 'paying';
-      return this.settleMatch(m, 'back', -1);
-    }
-    this.go(m);
-  }
-  // the bets are in (or there were none): it is played
-  go(m) {
-    m.state = CG.newMatch({ seed: m.seed, decks: m.decks });
-    m.decks = null;
-    m.phase = 'live';
-    m.ver = 1;
-    for (const s of m.sides) this.dirty(s.pid, D.MATCH);
-  }
-  // the match a player is playing (or whose bets are going in), or null
-  matchOf(pid) {
-    for (const m of this.matches.values()) if ((m.phase === 'staking' || m.phase === 'live' || m.phase === 'locking') && !m.voided && m.sides.some((s) => s.pid === pid)) return m;
-    return null;
-  }
-  stakeView(ids, owner = '') {
-    const byId = new Map((this.loadoutColl(owner)?.items || []).map((it) => [it.id, it]));
-    return (ids || []).map((id) => {
-      const it = byId.get(id);
-      return it ? { id: it.id, catalog: it.catalog } : { id, catalog: 0 };
-    });
-  }
-  // ...or the one they finished, still being paid out (what MATCH shows them)
-  matchFor(pid) {
-    let last = null;
-    for (const m of this.matches.values()) {
-      if (!m.sides.some((s) => s.pid === pid)) continue;
-      if ((m.phase === 'staking' || m.phase === 'live' || m.phase === 'locking') && !m.voided) return m;
-      last = m;
-    }
-    return last;
-  }
-  // the table changed: a new version, and what happened to each side, which goes out with it
-  changed(m, events) {
-    m.ver++;
-    m.sides.forEach((s, side) => {
-      const st = this.ofP.get(s.pid);
-      if (!st || this.game.players.get(s.pid) !== this.present(s)) return;
-      st.dirty |= D.MATCH;
-      const mine = events?.length ? CG.eventsFor(events, side) : [];
-      if (st.events.length + mine.length > EVENTS_MAX) st.events.length = 0;
-      else st.events.push(...mine);
-    });
-  }
-  move(p, d) {
-    const m = this.matchOf(p.id);
-    if (!m || m.phase !== 'live') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
-    if (d.v !== m.ver) {
-      this.dirty(p.id, D.MATCH);
-      return this.note(p, CARDNOTE.STALE);
-    }
-    const move = cleanMove(d.move);
-    if (!move) return this.note(p, CARDNOTE.MOVE, 'bad');
-    const r = CG.applyMove(m.state, side, move);
-    if (!r.ok) {
-      this.dirty(p.id, D.MATCH);
-      return this.note(p, CARDNOTE.MOVE, String(r.error || 'refused').slice(0, 60));
-    }
-    this.changed(m, r.events);
-    if (m.state.phase === 'over') this.end(m);
-  }
-  forfeit(p) {
-    const m = this.matchOf(p.id);
-    if (!m) return this.note(p, CARDNOTE.NOMATCH);
-    if (m.phase === 'staking') return this.void(m, 'forfeit');
-    if (m.phase === 'locking') {
-      const side = m.sides.findIndex((s) => s.pid === p.id);
-      if (m.forfeitWinner !== 0 && m.forfeitWinner !== 1) m.forfeitWinner = side === 0 ? 1 : 0;
-      m.reason = 'forfeit';
-      return;
-    }
-    const r = CG.applyMove(m.state, m.sides.findIndex((s) => s.pid === p.id), { t: 'forfeit' });
-    if (r.ok) this.changed(m, r.events);
-    if (m.state.phase === 'over') this.end(m);
-  }
-  stake(p, d) {
-    const m = this.matchOf(p.id);
-    if (!m || m.phase !== 'staking') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
-    const st = this.stakeFor(p, d.items || d.stake || [], m);
-    if (st.error) return this.note(p, st.error);
-    m.sides[side].stake = st.items;
-    m.sides[side].stakeInfo = this.stakeView(st.items, m.sides[side].owner);
-    for (const s of m.sides) {
-      s.ok = false;
-      this.dirty(s.pid, D.MATCH);
-    }
-  }
-  stakeConfirm(p, d) {
-    const m = this.matchOf(p.id);
-    if (!m || m.phase !== 'staking') return this.note(p, CARDNOTE.NOMATCH);
-    const side = m.sides.findIndex((s) => s.pid === p.id);
-    const st = this.stakeFor(p, m.sides[side].stake || [], m);
-    if (st.error) return this.note(p, st.error);
-    m.sides[side].ok = d.on !== false;
-    for (const s of m.sides) this.dirty(s.pid, D.MATCH);
-    if (!m.sides.every((s) => s.ok)) return;
-    for (const s of m.sides) {
-      const pl = this.present(s);
-      const chk = pl ? this.stakeFor(pl, s.stake || [], m) : { error: CARDNOTE.GONE };
-      if (chk.error) return this.void(m, 'not_owned');
-    }
-    this.lockMatch(m);
-  }
-  // the rules ended it: the bets to the winner, or back on a draw
-  end(m) {
-    if (m.phase !== 'live') return;
-    const res = m.state.result || { winner: -1, reason: 'lives' };
-    m.reason = res.reason || '';
-    m.phase = 'paying';
-    this.settleMatch(m, res.winner === 0 || res.winner === 1 ? 'pay' : 'back', res.winner);
-  }
-  // called off: nobody wins; bets back (once they are in: a lock still under way is waited for, onXfered)
-  void(m, reason) {
-    if (m.voided || m.phase === 'paying') return;
-    m.voided = reason;
-    m.reason = reason;
-    if (m.phase === 'staking') return this.finish(m, true);
-    if (m.phase === 'locking') return;
-    m.phase = 'paying';
-    this.settleMatch(m, 'back', -1);
-  }
-  settleMatch(m, how, winner = -1) {
-    const hasCards = m.sides.some((s) => s.bet);
-    const hasLoadouts = m.sides.some((s) => (s.stake || []).length);
-    m.pays = { cards: !hasCards, loadouts: !hasLoadouts };
-    if (!hasCards && !hasLoadouts) return this.finish(m, true);
-    const esc = `m:${m.id}`;
-    if (hasCards) {
-      const moves = how === 'pay' && (winner === 0 || winner === 1) ? m.sides.map((s) => [esc, m.sides[winner].owner, s.bet, 1]) : m.sides.map((s) => [esc, s.owner, s.bet, 1]);
-      this.xfer(`${m.id}:${how}`, how, moves, m.id);
-    }
-    if (hasLoadouts) {
-      const moves = [];
-      for (let i = 0; i < 2; i++) {
-        const to = how === 'pay' && (winner === 0 || winner === 1) ? m.sides[winner].owner : m.sides[i].owner;
-        for (const item of m.sides[i].stake || []) moves.push([m.sides[i].owner, to, item]);
-      }
-      this.xfer(`${m.id}:loadout_wager_${how}`, `loadout_wager_${how}`, moves, m.id);
-    }
-  }
-  finishPay(m, part) {
-    if (!m || m.phase !== 'paying') return;
-    m.pays ||= { cards: true, loadouts: true };
-    m.pays[part] = true;
-    if (m.pays.cards && m.pays.loadouts) this.finish(m, true);
-  }
-  // Over and settled (paid: the bets are where the outcome sends them): the last table, then MATCH_END, to whoever of
-  // the two is still here
-  finish(m, paid) {
-    this.matches.delete(m.id);
-    const winner = m.state?.result?.winner ?? -1;
-    m.sides.forEach((s, side) => {
-      const p = this.present(s);
-      const st = p && this.ofP.get(p.id);
-      if (!st) return;
-      if (st.dirty & D.MATCH && m.state && !this.matchOf(p.id)) {
-        st.dirty &= ~D.MATCH;
-        this.out(p, CARDMSG.MATCH, this.matchMsg(m, side, st));
-      }
-      const outcome = m.voided ? 'void' : winner === side ? 'win' : winner === 1 - side ? 'loss' : 'draw';
-      this.out(p, CARDMSG.MATCH_END, { opp: m.sides[1 - side].pid, outcome, reason: m.reason, bet: { mine: s.bet, theirs: m.sides[1 - side].bet, paid }, stake: this.stakeEnd(m, side, paid) });
-    });
-  }
-  matchMsg(m, side, st) {
-    return { me: side, opp: m.sides[1 - side].pid, v: m.ver, bet: m.sides.map((s) => s.bet), stake: this.stakeMsg(m, side), view: m.state ? CG.viewFor(m.state, side) : null, events: st.events.splice(0) };
-  }
-  stakeMsg(m, side) {
-    const me = m.sides[side];
-    const them = m.sides[1 - side];
-    return {
-      phase: m.phase === 'staking' ? 'staking' : m.phase === 'locking' ? 'locking' : '',
-      mine: me.stakeInfo || this.stakeView(me.stake || [], me.owner),
-      theirs: them.stakeInfo || this.stakeView(them.stake || [], them.owner),
-      loadouts: this.stakeView((this.loadoutColl(me.owner)?.items || []).map((it) => it.id), me.owner),
-      ok: [!!me.ok, !!them.ok],
-    };
-  }
-  stakeEnd(m, side, paid) {
-    const mine = m.sides[side];
-    const theirs = m.sides[1 - side];
-    return { mine: mine.stakeInfo || this.stakeView(mine.stake || [], mine.owner), theirs: theirs.stakeInfo || this.stakeView(theirs.stake || [], theirs.owner), paid };
-  }
-
-  // ---------------------------------------------------------------- trades
-  tradeOf(pid) {
-    for (const t of this.trades.values()) if (t.sides.some((s) => s.pid === pid)) return t;
-    return null;
-  }
-  openTrade(a, b) {
-    const t = { id: ++this.seq, sides: [a, b].map((p) => ({ ...this.side(p), offer: { cards: {}, items: [], loadouts: [] }, ready: false, ok: false, x: p.state.x, y: p.state.y, z: p.state.z })), phase: 'open', escrow: null, xfer: '' };
-    this.trades.set(t.id, t);
-    for (const s of t.sides) this.dirty(s.pid, D.TRADE);
-  }
-  tradeMsg(t, i) {
-    const me = t.sides[i];
-    const them = t.sides[1 - i];
-    const byOwner = (owner) => new Map((this.loadoutColl(owner)?.items || []).map((it) => [it.id, it]));
-    const mineLoadouts = byOwner(me.owner);
-    const theirLoadouts = byOwner(them.owner);
-    const oneLoadout = (m, id) => {
-      const it = m.get(id);
-      return it ? { id: it.id, catalog: it.catalog } : { id, catalog: 0 };
-    };
-    const offer = (s, m) => ({ cards: { ...s.offer.cards }, items: s.offer.items.map((it) => [...it]), loadouts: (s.offer.loadouts || []).map((id) => oneLoadout(m, id)) });
-    return {
-      with: them.pid,
-      mine: offer(me, mineLoadouts),
-      theirs: offer(them, theirLoadouts),
-      loadouts: [...mineLoadouts.values()].map((it) => ({ id: it.id, catalog: it.catalog })),
-      ready: [me.ready, them.ready],
-      ok: [me.ok, them.ok],
-      committing: t.phase === 'committing',
-    };
-  }
-  unready(t) {
-    for (const s of t.sides) {
-      s.ready = false;
-      s.ok = false;
-      this.dirty(s.pid, D.TRADE);
-    }
-  }
-  offer(p, d) {
-    const t = this.tradeOf(p.id);
-    if (!t || t.phase !== 'open') return this.note(p, CARDNOTE.NOTRADE);
-    if (!this.standing(p)) return this.note(p, CARDNOTE.CANT);
-    const o = cleanOffer(d);
-    if (!o) return this.note(p, CARDNOTE.ITEMS);
-    const ids = Object.keys(o.cards);
-    const other = t.sides.find((s) => s.pid !== p.id);
-    const hasCards = ids.length || Object.keys(other.offer.cards || {}).length;
-    const hasBackpackItems = o.items.length || (other.offer.items || []).length;
-    const hasLoadouts = o.loadouts.length || (other.offer.loadouts || []).length;
-    if (hasLoadouts && (hasCards || hasBackpackItems)) return this.note(p, CARDNOTE.MIXED);
-    if (ids.length) {
-      if (!p.rejoinKey) return this.note(p, CARDNOTE.NOKEY);
-      if (!this.own.get(p.rejoinKey)?.loaded) return this.note(p, CARDNOTE.LOADING);
-      for (const id of ids) if (this.spare(p.rejoinKey, +id, t) < o.cards[id]) return this.note(p, CARDNOTE.CARDS, +id);
-    }
-    if (o.loadouts.length) {
-      if (!p.rejoinKey) return this.note(p, CARDNOTE.NOKEY);
-      if (!this.loadoutColl(p.rejoinKey)?.loaded) return this.note(p, CARDNOTE.LOADING);
-      for (const id of o.loadouts) if (!this.hasLoadout(p.rejoinKey, id, t)) return this.note(p, CARDNOTE.LOADOUT);
-    }
-    for (const [item, n] of o.items) if (tradeCount(p.inv, item) < n) return this.note(p, CARDNOTE.ITEMS, item);
-    t.sides.find((s) => s.pid === p.id).offer = o;
-    this.game.loadouts?.tradeLock(t.id, p.rejoinKey, o.loadouts || []);
-    this.unready(t);
-  }
-  ready(p, d) {
-    const t = this.tradeOf(p.id);
-    if (!t || t.phase !== 'open') return this.note(p, CARDNOTE.NOTRADE);
-    const s = t.sides.find((x) => x.pid === p.id);
-    if (d.on) s.ready = true;
-    else this.unready(t);
-    for (const x of t.sides) this.dirty(x.pid, D.TRADE);
-  }
-  confirm(p) {
-    const t = this.tradeOf(p.id);
-    if (!t || t.phase !== 'open') return this.note(p, CARDNOTE.NOTRADE);
-    if (!t.sides.every((s) => s.ready)) return this.note(p, CARDNOTE.NOTREADY);
-    t.sides.find((x) => x.pid === p.id).ok = true;
-    for (const x of t.sides) this.dirty(x.pid, D.TRADE);
-    if (t.sides.every((s) => s.ok)) this.commit(t);
-  }
-  // could this player take these items, with those going out first? (a clone of their backpack: Game.giveItem's rules)
-  fits(p, outgoing, incoming) {
-    const inv = p.inv.map((s) => s && { ...s });
-    const weapons = [...p.state.weapons];
-    for (const [item, n] of outgoing) removeTradeItem(inv, item, n);
-    const cap = invCap(p);
-    for (const [item, n] of incoming) {
-      if (ITEM_DEFS[item].cat === 'weapon') {
-        let left = n;
-        const slot = WEAPONS[item].slot;
-        if (!weapons[slot]) {
-          weapons[slot] = item;
-          left--;
-        }
-        for (; left > 0; left--) {
-          const i = freeSlot(inv, cap);
-          if (i < 0) return false;
-          inv[i] = { item, count: 1 };
-        }
-      } else if (addItem(inv, item, n, cap) > 0) return false;
-    }
-    return true;
-  }
-  // the items out of their backpack, into the trade's keeping: [[item, count, mag]] (a gun keeps its magazine, a vest
-  // its points)
-  takeItems(p, items) {
-    const out = [];
-    for (const [item, n] of items) {
-      if ((ITEM_DEFS[item].stack || 1) > 1) {
-        out.push([item, removeTradeItem(p.inv, item, n), null]);
-        continue;
-      }
-      let left = n;
-      for (let i = p.inv.length - 1; i >= 0 && left > 0; i--) {
-        const s = p.inv[i];
-        if (!s || isLoadoutStack(s) || s.item !== item) continue;
-        p.inv[i] = null;
-        out.push([item, s.count, s.mag ?? null]);
-        left -= s.count;
-      }
-    }
-    p.invDirty = p.invSort = true;
-    this.game.syncThrow(p);
-    return out;
-  }
-  // items held by a trade to whoever of that side is here, or onto the ground where they were
-  handOver(side, items) {
-    const g = this.game;
-    const p = this.present(side);
-    const live = p && p.alive && !p.zombie;
-    const at = p ? p.state : side;
-    for (const [item, count, mag] of items || []) {
-      if (!count) continue;
-      const taken = live ? g.giveItem(p, item, count, mag ?? undefined) : 0;
-      if (taken > 0) g.pickupEvent(p, item, taken);
-      if (taken < count) g.dropItem(item, count - taken, at.x, at.y, at.z, { spread: 0.8, mag: mag ?? undefined });
-    }
-  }
-  commit(t) {
-    const g = this.game;
-    const [a, b] = t.sides.map((s) => this.present(s));
-    if (!a || !b) return this.endTrade(t, 'left');
-    if (!this.standing(a) || !this.standing(b)) return this.endTrade(t, 'cancelled');
-    if (this.apart(a, b) > TRADE_REACH) return this.endTrade(t, 'too_far');
-    for (let i = 0; i < 2; i++) {
-      const s = t.sides[i];
-      for (const [card, n] of Object.entries(s.offer.cards)) if (this.spare(s.owner, +card, t) < n) return this.endTrade(t, 'not_owned');
-      for (const id of s.offer.loadouts || []) if (!this.hasLoadout(s.owner, id, t)) return this.endTrade(t, 'not_owned');
-      for (const [item, n] of s.offer.items) if (tradeCount([a, b][i].inv, item) < n) return this.endTrade(t, 'changed');
-    }
-    if (t.sides.some((s) => (s.offer.loadouts || []).length) && t.sides.some((s) => Object.keys(s.offer.cards).length || s.offer.items.length)) return this.endTrade(t, 'changed');
-    if (!this.fits(a, t.sides[0].offer.items, t.sides[1].offer.items) || !this.fits(b, t.sides[1].offer.items, t.sides[0].offer.items)) return this.endTrade(t, 'no_room');
-    t.escrow = [this.takeItems(a, t.sides[0].offer.items), this.takeItems(b, t.sides[1].offer.items)];
-    [a, b].forEach((p, i) => Object.assign(t.sides[i], { x: p.state.x, y: p.state.y, z: p.state.z }));
-    const moves = [];
-    for (let i = 0; i < 2; i++) for (const [card, n] of Object.entries(t.sides[i].offer.cards)) moves.push([t.sides[i].owner, t.sides[1 - i].owner, +card, n]);
-    const loadoutMoves = [];
-    for (let i = 0; i < 2; i++) for (const id of t.sides[i].offer.loadouts || []) loadoutMoves.push([t.sides[i].owner, t.sides[1 - i].owner, id]);
-    if (!moves.length && !loadoutMoves.length) return this.closeTrade(t, true);
-    t.phase = 'committing';
-    t.xfers = { cards: !moves.length, loadouts: !loadoutMoves.length, loadoutApplied: false };
-    for (const s of t.sides) {
-      this.use(s.owner);
-      this.dirty(s.pid, D.TRADE);
-    }
-    if (moves.length) {
-      t.xfer = `${randomUUID()}:trade`;
-      this.xfer(t.xfer, 'trade', moves, t.id);
-    }
-    if (loadoutMoves.length) {
-      t.loadoutXfer = `${randomUUID()}:loadout_trade`;
-      this.xfer(t.loadoutXfer, 'loadout_trade', loadoutMoves, t.id);
-    }
-    g.log(`trade ${t.sides[0].name} - ${t.sides[1].name}: ${moves.length} card move(s), ${loadoutMoves.length} loadout item(s) going through`);
-  }
-  applyLoadoutTrade(t) {
-    if (t.xfers?.loadoutApplied) return;
-    t.xfers.loadoutApplied = true;
-    for (const s of t.sides) {
-      const ids = s.offer.loadouts || [];
-      if (!ids.length) continue;
-      const p = this.present(s);
-      if (p) this.game.loadouts?.removeRunCopies(p, ids);
-    }
-  }
-  finishTradeXfer(t, part) {
-    if (!t || t.phase !== 'committing') return;
-    t.xfers ||= { cards: true, loadouts: true, loadoutApplied: false };
-    t.xfers[part] = true;
-    if (!t.xfers.cards || !t.xfers.loadouts) return;
-    this.applyLoadoutTrade(t);
-    this.closeTrade(t, true);
-  }
-  // struck (done: the items change hands) or not (back to whoever put them in)
-  closeTrade(t, done, why = 'done') {
-    this.trades.delete(t.id);
-    this.game.loadouts?.tradeUnlock(t.id);
-    if (t.escrow) {
-      this.handOver(t.sides[0], t.escrow[done ? 1 : 0]);
-      this.handOver(t.sides[1], t.escrow[done ? 0 : 1]);
-    }
-    if (t.phase === 'committing') for (const s of t.sides) this.unuse(s.owner);
-    t.sides.forEach((s, i) => this.out(this.present(s), CARDMSG.TRADE_END, { with: t.sides[1 - i].pid, why: done ? 'done' : why }));
-  }
-  // called off (one being committed goes through all the same)
-  endTrade(t, why) {
-    if (t.phase !== 'open') return;
-    this.closeTrade(t, false, why);
   }
 
   // ---------------------------------------------------------------- decks
@@ -1041,13 +501,8 @@ export class Cards {
   bossDrop(z) {
     const g = this.game;
     if (this.rng() >= BOSS_PACK_CHANCE) return;
-    const rng = g.rng;
-    g.rng = this.rng; // (Game.dropItem scatters what it drops by game.rng)
-    try {
-      g.dropItem(ITEM.SEALED_PACK, 1, z.x, z.y, z.z, { spread: 2 + this.rng() * 2, life: 400 });
-    } finally {
-      g.rng = rng;
-    }
+    // (Game.dropItem scatters what it drops by game.rng)
+    withRng(g, this.rng, () => g.dropItem(ITEM.SEALED_PACK, 1, z.x, z.y, z.z, { spread: 2 + this.rng() * 2, life: 400 }));
   }
 
   // ---------------------------------------------------------------- the clocks (Game.update: only while the run is on)
@@ -1226,11 +681,11 @@ export class Cards {
     if (bits & D.ASKS) this.write(conn, CARDMSG.ASKS, { asks: this.asksFor(p) });
     if (bits & D.MATCH) {
       const m = this.matchFor(p.id);
-      if (m) this.write(conn, CARDMSG.MATCH, this.matchMsg(m, m.sides.findIndex((s) => s.pid === p.id), st));
+      if (m) this.write(conn, CARDMSG.MATCH, this.matchMsg(m, sideOf(m, p.id), st));
     }
     if (bits & D.TRADE) {
       const t = this.tradeOf(p.id);
-      if (t) this.write(conn, CARDMSG.TRADE, this.tradeMsg(t, t.sides.findIndex((s) => s.pid === p.id)));
+      if (t) this.write(conn, CARDMSG.TRADE, this.tradeMsg(t, sideOf(t, p.id)));
     }
     for (const [op, data] of st.out) this.write(conn, op, data);
     st.out.length = 0;
@@ -1275,3 +730,6 @@ export class Cards {
       }
   }
 }
+
+addMethods(Cards, matchMethods); // (the matches: server/cards/matches.js)
+addMethods(Cards, tradeMethods); // (the trades: server/cards/trades.js)

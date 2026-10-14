@@ -13,13 +13,13 @@ import { ACT } from '../../shared/protocol.js';
 import { GEN_RANGE, GEN_HOLD, GEN_TANK, FLOOD_RANGE, FLOOD_HALF, FLOOD_PITCH, FLOOD_LENS_UP, FLOOD_LENS_FWD, genOn, genFuel, genRunning, genPour, floodAim, inFloodCone } from '../../shared/power.js';
 import { G } from '../render/globals.js';
 import { getTexture } from '../render/textures.js';
-import { TEX } from '../render/effects.js';
+import { TEX } from '../render/particles.js';
 import { FLOOD_LENS, GEN_EXHAUST, powerReachRing } from '../render/models/power.js';
 import { bindTag } from './binds.js';
 
 // How many floodlights light the world at once: the nearest lit ones to the eye. Every lit pixel pays for every
 // light in the scene, so the pool is small (the scene has 3 spot and 6 point lights besides).
-export const FLOOD_SPOTS = 3;
+const FLOOD_SPOTS = 3;
 const SPOT_REACH = 95; // a floodlight further from the eye than this takes no light of the pool (m)
 const FLOOD_COLOR = 0xdce8ff; // a cold lamp, to tell it from torchlight and the flashlight
 const FLOOD_POWER = 21; // the pool light's intensity at night...

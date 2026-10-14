@@ -73,11 +73,11 @@ check('a melee weapon: how it strikes', badBlow.length === 0, list(badBlow));
 
 // ---------------------------------------------------------------- the client
 const noModel = WEAPON_LIST.filter((w) => !(worldWeaponTris(w.id) > 0));
-check('each one has a model (client/render/models/weapons.js BUILDERS)', noModel.length === 0, list(noModel));
+check('each one has a model (its build in client/render/models/weapons/<name>.js)', noModel.length === 0, list(noModel));
 const noVM = WEAPON_LIST.filter((w) => !VM_DEBUG.VM[w.id] || !(viewModelTris(w.id) > 0));
-check('...a viewmodel (VM)', noVM.length === 0, list(noVM));
+check('...a viewmodel (its vm there)', noVM.length === 0, list(noVM));
 const noIcon = WEAPON_LIST.filter((w) => !hasItemIcon(w.id));
-check('...and an icon (client/ui/icons.js)', noIcon.length === 0, list(noIcon));
+check('...and an icon (client/ui/icons/<name>.js)', noIcon.length === 0, list(noIcon));
 
 // ---------------------------------------------------------------- recipe ids
 check("a recipe's id is the item it makes, and RECIPE_BY_ID finds every one by it", RECIPES.every((r) => r.id === r.out && RECIPE_BY_ID.get(r.id) === r) && RECIPE_BY_ID.size === RECIPES.length);

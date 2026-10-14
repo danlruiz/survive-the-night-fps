@@ -54,7 +54,6 @@ function save(o) {
 }
 
 export const onboardingDone = () => loadOnboarding().done;
-export const stepDone = (id) => !!loadOnboarding().steps[id];
 export const tipSeen = (id) => !!loadOnboarding().tips[id];
 
 export function markStep(id) {
@@ -122,7 +121,7 @@ export function rememberDifficulty(id) {
 //   danger   0..1, the dead close by (Game.danger)
 export const ZOMBIE_NEAR = 40;
 export const HARVEST_NEAR = 16;
-export const MOVE_FAR = 20;
+const MOVE_FAR = 20;
 const calm = (c) => c.day && !(c.danger > 0.2);
 
 export const CORE = [

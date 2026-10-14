@@ -7,7 +7,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, ENT, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { MAP_HALF, PHASE, SPRINT_SPEED, SERVER_DT } from '../shared/constants.js';
-import { ITEM, ZTYPE, ZONE, STRUCT, SOUND, NOTIFY, RECIPES, RECIPE_BY_ID, CONSUMABLES, WEAPONS, EVT } from '../shared/defs.js';
+import { ITEM, ZTYPE, ZONE, STRUCT, SOUND, NOTIFY, RECIPES, RECIPE_BY_ID, CONSUMABLES, WEAPONS } from '../shared/defs.js';
 import { groundAt, deepWaterAt } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { DEER, DANIM, DEER_LOOT, DEER_HEAD, deerHitbox } from '../shared/deer.js';

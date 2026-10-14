@@ -4,6 +4,7 @@ import { NIGHTFALL } from '../../shared/difficulty.js';
 import { CHARACTER_NONE } from '../../shared/characters.js';
 import { writeLook, readLook } from '../../shared/appearance.js';
 import { rejectText } from './comeback.js';
+import { socketUrl } from './api.js';
 
 // A join whose socket closes before the server has answered it (no WELCOME, no REJECT) is tried again after these
 // waits (ms) before it fails. Seen in production (Oct 2026): now and then the socket is gone ~20 ms after the server
@@ -32,8 +33,7 @@ export class Connection {
   // page coming back into a game it was just playing (main.js rejoin): the server gives it its body even while the
   // old socket is still open there (Game.handleJoin), where a join without it is another tab, a player of its own
   url(code = '', back = false) {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/ws${code ? `?game=${encodeURIComponent(code)}${back ? '&back=1' : ''}` : ''}`;
+    return socketUrl(`/ws${code ? `?game=${encodeURIComponent(code)}${back ? '&back=1' : ''}` : ''}`);
   }
 
   // pid: who this browser is to the leaderboard (identity.js). code: as for url. character: the survivor chosen (shared/

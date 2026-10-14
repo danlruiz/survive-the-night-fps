@@ -4,7 +4,7 @@
 // player's profile (from the list) and Friends dock into the same place (dock) instead of opening as cards in the
 // middle. Going between the list and the leaderboard is the game's (ui.sheetGo: Game.sheetGo), since each takes
 // the pointer its own way; Friends is a panel over whichever of them is up.
-import { el, svgEl } from './dom.js';
+import { el, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel } from '../game/binds.js';
 import { onSocialChange, unreadCount, socialState } from '../net/friends.js';
@@ -39,7 +39,7 @@ export function undock(ui, keepProfile = false) {
   if (!keepProfile && docked(ui.profile)) ui.profile.hide();
 }
 
-export function syncTabs() {
+function syncTabs() {
   for (const r of rails) r.sync();
 }
 
@@ -66,8 +66,7 @@ export class SheetTabs {
     this.root = el('nav', 'pls-tabs', parent);
     this.root.setAttribute('aria-label', 'Players, leaderboard and friends');
     this.btns = TABS.map(([id, ico, label, bind]) => {
-      const b = svgEl('button', 'pls-tab', this.root, glyph(ico));
-      b.type = 'button';
+      const b = iconButton('pls-tab', this.root, glyph(ico));
       b.dataset.tab = id;
       b.setAttribute('aria-label', label);
       b.addEventListener('pointerenter', () => (b.title = bind ? `${label} (${bindLabel(bind)})` : label));

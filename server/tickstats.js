@@ -1,5 +1,5 @@
 // Tick timing: how long ticks take, where a slow one spent its time and how late the loop's timer fired.
-// Game.update stamps the clock after each of its sections (begin / mark / end); server/index.js reports how late
+// Game.update stamps the clock after each of its sections (begin / mark / end); server/room-worker.js reports how late
 // each wake of the tick loop was (late) and closes a window every 10 s for the [stats] line and /status (roll).
 // No game state in here, so scripts/sim-smoke.js can feed record() a made-up series of tick times.
 // Costs one performance.now() per section; the buffers are fixed and a tick allocates nothing.

@@ -1,5 +1,5 @@
 // The recipe a survivor is working towards (the crafting panel's "Track on HUD"): one at a time, kept in localStorage so
-// it lasts through closing the inventory, a reload and a rejoin. Client only. The HUD's checklist (hud2.js), the pickup
+// it lasts through closing the inventory, a reload and a rejoin. Client only. The HUD's checklist (objective.js), the pickup
 // prompts (Game.updateLookTarget) and the inventory all read it from here. No DOM.
 import { RECIPE_BY_ID, ITEM_DEFS, STATION_NAMES, SCHEM_BIT } from '../../shared/defs.js';
 import { foundIn } from './itemguide.js';

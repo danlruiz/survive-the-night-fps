@@ -58,30 +58,33 @@ const bump = (c, dir, bytes, messages) => {
     c.messagesOut += messages;
   }
 };
+// the counter kept under key in map, made when there is none
+const counterIn = (map, key) => map.get(key) || map.set(key, counter()).get(key);
+// the place in the ring of the bucket that starts at start (it holds an older bucket while that one is not reached yet)
+const ringSlot = (ring, size, start) => ring[((start / size) % ring.length + ring.length) % ring.length];
 const bucketFor = (ring, size, start) => {
-  const i = ((start / size) % ring.length + ring.length) % ring.length;
-  const b = ring[i];
+  const b = ringSlot(ring, size, start);
   return b.start === start ? b : null;
 };
-const sumWindow = (ring, size, now, windowMs) => {
-  const out = counter();
+// fn(bucket) for each bucket of the ring kept inside the last windowMs, newest first
+const eachInWindow = (ring, size, now, windowMs, fn) => {
   const current = Math.floor(now / size) * size;
   const after = now - windowMs;
   for (let start = current; start > after; start -= size) {
     const b = bucketFor(ring, size, start);
-    if (b) addCounter(out, b.total);
+    if (b) fn(b);
   }
+};
+const sumWindow = (ring, size, now, windowMs) => {
+  const out = counter();
+  eachInWindow(ring, size, now, windowMs, (b) => addCounter(out, b.total));
   return out;
 };
 const sumWindowByChannel = (ring, size, now, windowMs) => {
   const out = new Map();
-  const current = Math.floor(now / size) * size;
-  const after = now - windowMs;
-  for (let start = current; start > after; start -= size) {
-    const b = bucketFor(ring, size, start);
-    if (!b) continue;
-    for (const [channel, c] of b.channels) addCounter(out.get(channel) || out.set(channel, counter()).get(channel), c);
-  }
+  eachInWindow(ring, size, now, windowMs, (b) => {
+    for (const [channel, c] of b.channels) addCounter(counterIn(out, channel), c);
+  });
   return out;
 };
 const series = (ring, size, now, count) => {
@@ -183,11 +186,11 @@ export class NetworkMetrics {
     const minute = this.bucket(this.minutes, MINUTE_MS, mStart);
     const hour = this.bucket(this.hours, HOUR_MS, hStart);
     bump(this.total, dir, bytes, messages);
-    bump(this.channel(channel), dir, bytes, messages);
+    bump(counterIn(this.channels, channel), dir, bytes, messages);
     bump(minute.total, dir, bytes, messages);
-    bump(this.bucketChannel(minute, channel), dir, bytes, messages);
+    bump(counterIn(minute.channels, channel), dir, bytes, messages);
     bump(hour.total, dir, bytes, messages);
-    bump(this.bucketChannel(hour, channel), dir, bytes, messages);
+    bump(counterIn(hour.channels, channel), dir, bytes, messages);
   }
 
   wsIn(channel, bytes) {
@@ -207,16 +210,8 @@ export class NetworkMetrics {
   }
 
   bucket(ring, size, start) {
-    const i = ((start / size) % ring.length + ring.length) % ring.length;
-    return ring[i].start === start ? ring[i] : resetBucket(ring[i], start);
-  }
-
-  channel(channel) {
-    return this.channels.get(channel) || this.channels.set(channel, counter()).get(channel);
-  }
-
-  bucketChannel(bucket, channel) {
-    return bucket.channels.get(channel) || bucket.channels.set(channel, counter()).get(channel);
+    const b = ringSlot(ring, size, start);
+    return b.start === start ? b : resetBucket(b, start);
   }
 
   snapshot({ players = 0, sockets = 0 } = {}) {

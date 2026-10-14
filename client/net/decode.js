@@ -67,21 +67,23 @@ export function readSnapshot(r, c) {
   return sync;
 }
 
+// the dead left in tonight's horde (0xffff: none to count, -1)
+function readHordeLeft(r) {
+  const v = r.u16();
+  return v === 0xffff ? -1 : v;
+}
+
 // prev: the global state so far. Between full states the server only sends the clocks.
 export function readGlobal(r, prev) {
   if (!r.u8()) {
     const timeLeft = r.u16() / 10;
-    const v = r.u16();
-    return { ...prev, timeLeft, hordeLeft: v === 0xffff ? -1 : v };
+    return { ...prev, timeLeft, hordeLeft: readHordeLeft(r) };
   }
   const g = {
     phase: r.u8(),
     day: r.u8(),
     timeLeft: r.u16() / 10,
-    hordeLeft: (() => {
-      const v = r.u16();
-      return v === 0xffff ? -1 : v;
-    })(),
+    hordeLeft: readHordeLeft(r),
     bossId: r.u16(),
     supplies: [r.u8(), r.u8(), r.u8(), r.u8(), r.u8()],
     hints: [r.u8(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8()],

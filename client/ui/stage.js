@@ -1,6 +1,6 @@
 // The splash's own little renderer for survivors (the picker, client/ui/picker.js, and the character creator,
 // client/ui/creator.js): portraits (cached as images) and a turntable, drawn with the real survivor models, the same
-// ones the game draws (models/characters.js createSurvivor). Made the first time the splash wants one and let go of
+// ones the game draws (models/characters/survivor.js createSurvivor). Made the first time the splash wants one and let go of
 // when the game starts (releaseStage).
 //
 // A survivor here is a reference: a roster id (shared/characters.js), or a custom survivor's look key ('a:<code>':

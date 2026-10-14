@@ -1,4 +1,4 @@
-// What a deploy does to a page that is playing (client/net/moveback.js, server/index.js /api/version and the build
+// What a deploy does to a page that is playing (client/net/moveback.js, server/http/lobby.js /api/version and the build
 // written into the page), with the client's own Connection against real servers behind a stand-in for the edge.
 //   - the rules alone: the page goes back in as it is unless the protocol or the code both ends run (compat) changed;
 //     a client-only change is loaded later; when to give up on a game (an update ended it: at once; no such game: three
@@ -16,7 +16,7 @@ import { createServer, connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { C2S, PROTOCOL_VERSION, REJECT_REASON, MOVED_CODE, Writer, writeInput } from '../shared/protocol.js';
+import { PROTOCOL_VERSION, REJECT_REASON, MOVED_CODE } from '../shared/protocol.js';
 import { moveBack, verdictFor, joinVerdict, pageBuild, NO_GAME_MS, mayReload, reloadedInto, RELOAD_MAX, RELOAD_MS, RELOAD_LOOP_TEXT } from '../client/net/moveback.js';
 import { compatOf, CODEC_FILES } from '../server/compat.js';
 import { Connection } from '../client/net/connection.js';

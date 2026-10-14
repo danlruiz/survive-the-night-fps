@@ -86,6 +86,11 @@ export function fbm(noise, x, y, octaves = 4, lacunarity = 2, gain = 0.5) {
 
 export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
+// an angle (radians) brought into [-PI, PI]
+export const wrapAngle = (a) => {
+  a %= Math.PI * 2;
+  return a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a;
+};
 export function smoothstep(e0, e1, x) {
   const t = clamp((x - e0) / (e1 - e0), 0, 1);
   return t * t * (3 - 2 * t);

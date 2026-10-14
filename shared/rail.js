@@ -20,6 +20,7 @@ import { mulberry32, smoothstep, clamp } from './rng.js';
 import { makeBox } from './collision.js';
 import { ROAD, DEPOT_TRACK } from './layout.js';
 import { MINE_H } from './mine.js';
+import { resample } from './polyline.js';
 
 const PI = Math.PI;
 const NC = { collide: false };
@@ -797,28 +798,4 @@ function frame(t, a, half) {
   const tx = (p1[0] - p0[0]) / l;
   const tz = (p1[1] - p0[1]) / l;
   return { x: (p0[0] + p1[0]) / 2, z: (p0[1] + p1[1]) / 2, y: at(a)[2], ry: Math.atan2(tx, tz), tx, tz };
-}
-
-// a polyline as points a metre apart (the last gap as near that as the length allows): { x, z, n }
-function resample(pts) {
-  let len = 0;
-  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  const n = Math.max(2, Math.round(len) + 1);
-  const x = new Float64Array(n);
-  const z = new Float64Array(n);
-  const step = len / (n - 1);
-  let seg = 1;
-  let done = 0; // length of the segments before `seg`
-  for (let i = 0; i < n; i++) {
-    const at = i * step;
-    while (seg < pts.length - 1 && done + Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]) < at) {
-      done += Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]);
-      seg++;
-    }
-    const sl = Math.hypot(pts[seg][0] - pts[seg - 1][0], pts[seg][1] - pts[seg - 1][1]) || 1;
-    const t = clamp((at - done) / sl, 0, 1);
-    x[i] = pts[seg - 1][0] + (pts[seg][0] - pts[seg - 1][0]) * t;
-    z[i] = pts[seg - 1][1] + (pts[seg][1] - pts[seg - 1][1]) * t;
-  }
-  return { x, z, n };
 }

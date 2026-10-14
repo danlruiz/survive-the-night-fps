@@ -25,14 +25,15 @@ A new or changed item ships under 3 mm in every state the survey draws it in. Ex
 
 - **Real size, in metres.** A 6.4 cm grenade is 0.064. Never shrink, scale or hide anything to get rid of a clip. Move
   the hand, the grip or the item instead.
-- **Weapon space** (`client/render/models/weapons.js`; the world, held and ground models all share it). The origin is
-  the centre of the right hand's grip, where the palm wraps. The barrel or blade points along -Z, and up is +Y.
+- **Weapon space** (each held item's `build` in `client/render/models/weapons/<name>.js`; the world, held and ground
+  models all share it). The origin is the centre of the right hand's grip, where the palm wraps. The barrel or blade points along -Z, and up is +Y.
   - Guns: the pistol grip runs up +Y through the fist.
   - Melee: the handle runs along Z through the fist, with the edge or face toward -Y.
   - Throwables: the long axis is +Y.
 
   The hand and the third-person mount are both placed on that origin, so a model built off it is held off it.
-- **Hand space** (`HAND_POSES`): the wrist is at the origin, the fingers point along -Y and the palm faces -X. The left
+- **Hand space** (`HAND_POSES`: the shared ones in `client/render/models/weapons/hands.js`, an item's own in its
+  file's `poses`): the wrist is at the origin, the fingers point along -Y and the palm faces -X. The left
   hand is the right one mirrored in X.
 - **Prop space** (`shared/props.js`): the origin is at ground level in the centre of the footprint, and the front
   faces -Z. The model fills `size`. The `boxes` / `cyls` colliders are the prop's solid shape for every clip check, so
@@ -56,9 +57,17 @@ their faces pointing out. An open or inside-out part makes its numbers meaningle
 
 ## 3. A new held item: first person
 
-1. Add the builder to `BUILDERS`, built in weapon space at real size.
-2. Add a `VM` entry. `kind` (`rifle`, `shotgun`, `pistol`, `melee`, `throw` or `radio`) picks the animations and the
-   `TUCK` off walls. A new kind needs its own `TUCK` entry. `rGrip` / `lGrip` are the grip points.
+Every held item is one file, `client/render/models/weapons/<name>.js` (a weapon's has the same name as its
+`shared/weapons/` file), with its line in each of the two lists in `weapons/index.js`. The header of that index lists
+the fields a file exports: `id`, `build`, `vm`, and optionally `lay` and `poses`. Its icon is
+`client/ui/icons/<name>.js`, with its lines in `client/ui/icons/index.js`. `scripts/test-weapons.js` fails a weapon
+that misses any of them.
+
+1. Write its `build`, in weapon space at real size, from the shapes in `weapons/parts.js` (copy the nearest item's
+   file).
+2. Write its `vm` entry. `kind` (`rifle`, `shotgun`, `pistol`, `melee`, `throw` or `radio`) picks the animations and
+   the `TUCK` off walls (`client/render/models/weapons.js`). A new kind needs its own `TUCK` entry. `rGrip` / `lGrip`
+   are the grip points.
 3. **Give every hand on it a pose fitted to it.** Start `rPose` (and `lGrip.pose`, and `magPose`) on the nearest
    shared pose, then:
 
@@ -68,7 +77,8 @@ their faces pointing out. An open or inside-out part makes its numbers meaningle
    npm run clip:fit -- <item> --side L --act reload --t 0.69 # a reload hold
    ```
 
-   Paste each printed pose into `HAND_POSES` under a new name and point the `VM` entry at it. Every clearance it
+   Paste each printed pose into the file's `poses` under a new name (`weapons/index.js` adds it to `HAND_POSES`; a
+   name already there throws) and point the `vm` entry at it. Every clearance it
    prints should be >= 0. Never reuse a shared pose for a different shape: `grip` is a fist made for a 3 cm handle,
    and every throwable held in it sank 19-38 mm. Never tune a shared pose to fit your item either, because it breaks
    every other item that uses it.
@@ -78,11 +88,11 @@ their faces pointing out. An open or inside-out part makes its numbers meaningle
 5. **Moves between holds.** A reload or swing moves the hand from one hold to another. Give each end its own pose
    (`st.poseA` / `st.poseB`), route the hand round the item (`st.arc`), and keep the elbow clear (`st.poleA` /
    `st.poleB`, `poleR` / `poleL`). An elbow pole is usually the fix for one forearm through the other hand. A throw
-   opens the hand at `THROW_RELEASE`, when the item leaves it, and not before.
+   opens the hand at `THROW_RELEASE` (`weapons.js`), when the item leaves it, and not before.
 6. The viewmodel's near plane is 0.01 m. Keep the hip pose so nothing comes close to the eye (`nearZ` in the check).
    Never draw the viewmodel into the world's depth: the tuck handles walls.
 
-## 4. A new held item: third person (`characters.js`)
+## 4. A new held item: third person (`client/render/models/characters/survivor.js`)
 
 - `holdFor` maps the item to a hold. A gun is a pistol hold in slot 1 and a rifle hold otherwise, a melee weapon is a
   melee hold, and anything else is a throw hold. Add a case if that is wrong for your item.
@@ -97,8 +107,9 @@ their faces pointing out. An open or inside-out part makes its numbers meaningle
 
 - `BUILD` items are set down on their lowest vertex (`REST_SINK`, `REST_LIFT`, `REST_AT`). Build them with the base at
   y = 0 anyway.
-- Weapons and `HELD_LAY` items go through `weaponPickup`, laid on their side and placed by their own vertices. Give a
-  new throwable a `HELD_LAY` entry if it should lie some other way.
+- Weapons and held items with a `lay` go through `weaponPickup`, laid on their side and placed by their own vertices.
+  Give the item's file a `lay` (`weapons/index.js` gathers them in `PICKUP_LAY`) if it should lie some other way; a
+  throwable without one keeps its own model in `pickups.js`.
 - Look at the item in the props sheet from low (`pitch=6`, to catch sinking or floating) and from above (`pitch=35`,
   to catch parts inside each other).
 

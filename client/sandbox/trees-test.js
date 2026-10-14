@@ -5,7 +5,7 @@
 //   seed=<n>: the blast's random throws
 import * as THREE from 'three';
 import { getTreeVariants } from '../render/models/vegetation.js';
-import { VEG } from '../render/materials.js';
+import { VEG } from '../render/vegshading.js';
 import { FallingTrees } from '../render/fallingtrees.js';
 
 const Q = new URLSearchParams(location.search);

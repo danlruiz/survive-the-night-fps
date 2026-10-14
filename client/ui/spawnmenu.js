@@ -7,8 +7,9 @@
 // ("hq": The Hive Queen), its ITEM / ZTYPE key, its category ("ammo", "boss") or, failing those, its letters in order.
 // A trailing number is how many ("walker 5", "9mm x60"). The best fit is picked: Enter spawns it.
 import { ITEM, ITEM_DEFS, AMMO_MAX, ZTYPE, ZOMBIE_DEFS } from '../../shared/defs.js';
-import { el, svgEl, lsGet, lsSet, replay } from './dom.js';
+import { el, svgEl, lsGet, lsSet, replay, iconButton, button } from './dom.js';
 import { itemIcon, glyph } from './icons.js';
+import { keyHint } from './keycap.js';
 
 // (a fixed key, not a keybind: the menu is not everybody's, so it has no place in the settings' list)
 export const SPAWN_KEY = 'Backquote';
@@ -18,7 +19,7 @@ const RECENT_MAX = 10;
 const ZOMBIE_MAX = 20; // what one /spawn makes at most
 
 // the sidebar, in this order. Items go under their ITEM_DEFS category (ITEM_CAT), zombies under zombie or boss
-export const SPAWN_CATS = [
+const SPAWN_CATS = [
   { id: 'all', label: 'Everything' },
   { id: 'recent', label: 'Recent' },
   { id: 'weapon', label: 'Weapons', words: ['weapons', 'guns', 'melee'] },
@@ -90,7 +91,7 @@ export function spawnCatalog() {
 }
 
 /** "walker 5" -> { tokens: ['walker'], qty: 5 }. A number on its own is a search ("308"), not how many. */
-export function parseQuery(text) {
+function parseQuery(text) {
   const raw = String(text || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   let qty = null;
   if (raw.length > 1) {
@@ -133,7 +134,7 @@ function scoreWord(e, t) {
 }
 
 /** How well the query's words fit an entry (0: not at all). A plural fits the singular ("walkers"). */
-export function scoreEntry(e, tokens) {
+function scoreEntry(e, tokens) {
   let total = 0;
   for (const t of tokens) {
     let s = scoreWord(e, t);
@@ -145,7 +146,7 @@ export function scoreEntry(e, tokens) {
 }
 
 /** The entries that fit, best first. recent: keys, most recent first (they win a tie). */
-export function searchSpawns(catalog, tokens, recent = []) {
+function searchSpawns(catalog, tokens, recent = []) {
   const out = [];
   catalog.forEach((e, i) => {
     const s = scoreEntry(e, tokens);
@@ -202,8 +203,7 @@ export class SpawnMenu {
     el('span', 'map-title', head, 'Spawn');
     el('span', 'spawn-tag', head, 'Admin');
     this.count = el('span', 'map-coords', head, '');
-    const close = svgEl('button', 'set-close btn-icon map-close', head, glyph('xmark'));
-    close.type = 'button';
+    const close = iconButton('set-close btn-icon map-close', head, glyph('xmark'));
     close.title = 'Close (` or Esc)';
     close.setAttribute('aria-label', 'Close spawn menu');
     close.addEventListener('click', () => this.onClose?.());
@@ -229,8 +229,7 @@ export class SpawnMenu {
     const qty = el('div', 'set-seg spawn-qty', top);
     qty.title = 'How many';
     this.qtyBtns = QTYS.map(([v, label, tip]) => {
-      const b = el('button', 'seg-btn', qty, label);
-      b.type = 'button';
+      const b = button('seg-btn', qty, label);
       b.title = tip || `${label} at a time`;
       b.addEventListener('click', () => this.setQty(v));
       return b;
@@ -240,8 +239,7 @@ export class SpawnMenu {
     this.side = el('div', 'spawn-side', body);
     this.catBtns = new Map();
     for (const c of SPAWN_CATS) {
-      const b = el('button', 'spawn-cat', this.side);
-      b.type = 'button';
+      const b = button('spawn-cat', this.side);
       el('span', 'spawn-cat-l', b, c.label);
       b.n = el('span', 'spawn-n', b, '');
       b.addEventListener('click', () => this.setCat(c.id));
@@ -260,11 +258,7 @@ export class SpawnMenu {
       ['Shift+Enter', 'spawn, stay open'],
       ['Tab', 'category'],
       ['` / Esc', 'close'],
-    ]) {
-      const s = el('span', 'gh', keys);
-      el('span', 'kbd sm', s, k);
-      el('span', '', s, t);
-    }
+    ]) keyHint(keys, 'gh', k, t);
 
     // the search box keeps the keys: a click on a row, a category or a count never takes the focus off it
     for (const n of [this.list, this.side, qty]) n.addEventListener('mousedown', (e) => e.preventDefault());

@@ -416,7 +416,7 @@ check('nearly every valley has the workings', cut >= SEEDS.length - 1, `${cut} o
     const p = A1.p();
     let bad = 0;
     for (let k = 0; k < 40; k++) {
-      const e = game.dropItem(ITEM.SCRAP, 1, m.x[i], m.y[i], m.z[i]);
+      game.dropItem(ITEM.SCRAP, 1, m.x[i], m.y[i], m.z[i]);
       const it = game.items[game.items.length - 1];
       if (!it || !under(it) || mine.sdf(it.x, it.z) > -0.15 || Math.abs(it.y - mine.floorOf(it.x, it.z)) > 0.3) bad++;
     }

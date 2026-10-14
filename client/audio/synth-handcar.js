@@ -2,15 +2,15 @@
 // Float32Array. One loop, the car rolling at its working speed (10 m/s): steel wheels on steel rail, the frame
 // rattling over the sleepers, and every 12 m rail joint knocked twice, once by each axle. The car plays it faster
 // or slower with its speed (client/game/handcar.js), so the joints come round as often as they would.
-import { TAU, Biquad, ModeBank, Brown, Pink, normalize, softclip, dcBlock, loopify } from './dsp.js';
-import { LO } from './synth.js';
+import { TAU, Biquad, ModeBank, Brown, Pink, softclip } from './dsp.js';
+import { LO, finishLoop } from './synth-blocks.js';
 
 const JOINT = 1.2; // seconds between two rail joints at 10 m/s: the loop
 const AXLES = 0.15; // ...and between the two axles going over one
 const WHEEL = [{ f: 690, d: 0.03, a: 1 }, { f: 1610, d: 0.02, a: 0.7 }, { f: 2870, d: 0.012, a: 0.45 }, { f: 4150, d: 0.007, a: 0.3 }];
 const ROLL = [{ f: 205, d: 0.02, a: 1 }, { f: 470, d: 0.012, a: 0.6 }, { f: 1130, d: 0.006, a: 0.3 }];
 
-export function loopHandcar(sr, rng) {
+function loopHandcar(sr, rng) {
   const L = JOINT;
   const X = 0.15;
   const n = Math.ceil((L + X) * sr);
@@ -44,9 +44,7 @@ export function loopHandcar(sr, rng) {
     out[i] = rum.run(br.next()) * 0.22 + roll.run(pk.next() * 0.05 + rattle * 0.3) * 0.3 + hiss.run(pk.next()) * 0.015 + ring.run(ex[i]) * 1.5 + body.run(thumps[i]) * 3;
   }
   softclip(out, 1.4);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 export const HANDCAR_DEFS = [{ bank: 'loop_handcar', n: 1, sr: LO, gen: loopHandcar }];

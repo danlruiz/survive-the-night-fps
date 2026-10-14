@@ -1,5 +1,5 @@
-// Settings: persistence + the settings panel (shared by splash and pause menu).
-import { el, svgEl, lsGet, lsSet, clamp } from './dom.js';
+// The settings panel (shared by splash and pause menu). How the settings are kept: settingsstore.js.
+import { el, svgEl, lsGet, lsSet, button, iconButton, replay } from './dom.js';
 import { glyph } from './icons.js';
 import { loadRecord, clearRecord } from './records.js';
 import { QUALITY, grassRadius } from '../render/renderer.js';
@@ -7,102 +7,7 @@ import { KeybindsSection } from './keybinds.js';
 import { ACTIONS } from '../../shared/binds.js';
 import { isDefault, onBindsChange } from '../game/binds.js';
 import './ux-settings.css';
-import { touchDevice } from '../game/touchmode.js';
-
-const KEY = 'stn.settings';
-
-export const DEFAULT_SETTINGS = Object.freeze({
-  sensitivity: 1.0,
-  aimSensitivity: 1.0,
-  fov: 75,
-  masterVolume: 0.4,
-  musicVolume: 0.6,
-  sfxVolume: 0.9,
-  voiceVolume: 1, // 100% = the level the mix is balanced at (audio.js VOICE_BUS); the slider runs to 200%
-  voiceDuck: true,
-  motifs: true, // a short phrase in the music for each kind of special as it comes and again as it closes in (audio/motifs.js)
-  quality: 'medium',
-  grassDistance: 1, // x the quality preset's grass radius (0: no grass at all)
-  renderScale: 1,
-  ps1: false,
-  ps1Strength: 0.5,
-  highlight: 'subtle', // the outline on what [E] would act on (game/highlight.js): off / subtle / strong
-  pushToTalk: true,
-  invertY: false,
-  rawMouse: true,
-  fullscreen: true,
-  weaponSway: true,
-  keyHints: true,
-  tutorial: true, // the onboarding coach on a player's first playthrough, and the first-time tips after it (game/onboarding.js)
-  holdToDrop: true, // the drop key has to be held a moment (game/drophold.js), so a stray press keeps the gun
-  showFps: true,
-  achBanners: true, // a banner when an achievement unlocks (ui/achievements.js)...
-  achSound: true, // ...and its chime
-  heardRings: true, // a ring on the minimap, and the dead it woke lit, every time your noise wakes the dead (ui/heard.js); off: once for each kind of noise
-  hudScale: 1, // the HUD's size (ui/hud.js, ux-hud.css): a short window at this size gets the compact layout
-  // Accessibility
-  cameraShake: 1, // x the view's shake (game.js: explosions, a tank's footfalls, hits, crashes); 0 holds it still
-  viewBob: true, // the view rising and falling with each stride (and riding the water, afloat)
-  reduceFlashes: false, // muzzle flashes, blasts and lightning drawn far dimmer (render/comfort.js)
-  aimMode: 'hold', // 'toggle': a press of the key latches the button on, the next lets go (game/input.js)
-  sprintMode: 'hold',
-  crouchMode: 'hold',
-  touchControls: 'auto', // on-screen controls (game/touchmode.js): auto = on a phone or a tablet
-  touchLook: 1, // how far a finger's drag turns the view
-  touchSize: 1, // the touch buttons' size
-});
-
-const NUM_RANGES = {
-  sensitivity: [0.1, 3],
-  aimSensitivity: [0.25, 2],
-  fov: [60, 100],
-  masterVolume: [0, 1],
-  musicVolume: [0, 1],
-  sfxVolume: [0, 1],
-  voiceVolume: [0, 2],
-  renderScale: [0.5, 1],
-  grassDistance: [0, 3],
-  ps1Strength: [0.1, 1],
-  cameraShake: [0, 1],
-  hudScale: [0.75, 1.5],
-  touchLook: [0.2, 3],
-  touchSize: [0.75, 1.4],
-};
-const ENUMS = {
-  quality: ['low', 'medium', 'high', 'ultra'],
-  highlight: ['off', 'subtle', 'strong'],
-  aimMode: ['hold', 'toggle'],
-  sprintMode: ['hold', 'toggle'],
-  crouchMode: ['hold', 'toggle'],
-  touchControls: ['auto', 'on', 'off'],
-};
-
-export function sanitizeSettings(s) {
-  const out = { ...DEFAULT_SETTINGS };
-  if (s && typeof s === 'object') {
-    for (const k of Object.keys(NUM_RANGES)) {
-      const v = Number(s[k]);
-      if (Number.isFinite(v)) out[k] = clamp(v, NUM_RANGES[k][0], NUM_RANGES[k][1]);
-    }
-    for (const k in ENUMS) if (ENUMS[k].includes(s[k])) out[k] = s[k];
-    for (const k of ['pushToTalk', 'voiceDuck', 'invertY', 'rawMouse', 'fullscreen', 'weaponSway', 'keyHints', 'tutorial', 'holdToDrop', 'showFps', 'ps1', 'achBanners', 'achSound', 'viewBob', 'reduceFlashes', 'heardRings', 'motifs']) if (typeof s[k] === 'boolean') out[k] = s[k];
-  }
-  return out;
-}
-
-export function loadSettings() {
-  let s = null;
-  try {
-    s = JSON.parse(lsGet(KEY, 'null'));
-  } catch {}
-  // a phone's first visit: the settings a phone can run (the low preset, at a little under its own pixels)
-  if (!s && touchDevice()) return sanitizeSettings({ quality: 'low', renderScale: 0.85, grassDistance: 0.7 });
-  return sanitizeSettings(s);
-}
-
-export function saveSettings(s) {
-  lsSet(KEY, JSON.stringify(s));
-}
+import { DEFAULT_SETTINGS } from './settingsstore.js';
 
 // is a setting off its default? (a slider's value is a float: near enough is the same)
 const changed = (s, k) => (typeof DEFAULT_SETTINGS[k] === 'number' ? Math.abs(s[k] - DEFAULT_SETTINGS[k]) > 1e-6 : s[k] !== DEFAULT_SETTINGS[k]);
@@ -310,13 +215,11 @@ export class SettingsPanel {
 
     // the foot: this tab's reset (with how many it would put back), every tab's behind a second click, and Done
     const foot = el('div', 'set-foot ux-foot', card);
-    this.resetTab = el('button', 'btn btn-ghost ux-reset-tab', foot, '');
-    this.resetTab.type = 'button';
+    this.resetTab = button('btn btn-ghost ux-reset-tab', foot, '');
     this.resetTab.addEventListener('click', () => this._resetTab(this.tab));
     const all = (this.allBox = el('div', 'ux-all', foot));
     this.changedHere = el('span', 'ux-changed', all, '');
-    this.allBtn = el('button', 'ux-link', all, 'Reset all tabs…');
-    this.allBtn.type = 'button';
+    this.allBtn = button('ux-link', all, 'Reset all tabs…');
     this.allBtn.title = 'Every setting and every key back to its default';
     this.allBtn.addEventListener('click', () => this._armAll(true));
     this.allAsk = el('span', 'ux-all-ask', all);
@@ -405,8 +308,7 @@ export class SettingsPanel {
       const t = el('div', 'ux-preset-t', c);
       el('b', '', t, p.label);
       el('small', '', t, p.what);
-      const b = el('button', 'btn btn-ghost ux-mini', c, 'Apply');
-      b.type = 'button';
+      const b = button('btn btn-ghost ux-mini', c, 'Apply');
       b.addEventListener('click', () => {
         this.ui._applySettings({ ...this.ui.settings, ...p.set });
         this.sync();
@@ -440,8 +342,7 @@ export class SettingsPanel {
     if (row.hint) el('small', 'set-hint', lab, row.hint);
     const ctl = el('div', 'set-ctl', r);
     // this row back to its default: there only while it is off it (the others keep its room, so the controls line up)
-    const back = svgEl('button', 'ux-row-reset', null, RESET_SVG);
-    back.type = 'button';
+    const back = iconButton('ux-row-reset', null, RESET_SVG);
     back.title = 'Back to the default';
     back.setAttribute('aria-label', `${row.label}: back to the default`);
     back.addEventListener('click', () => {
@@ -475,8 +376,7 @@ export class SettingsPanel {
         },
       };
     } else if (row.type === 'toggle') {
-      const b = el('button', 'set-toggle', ctl);
-      b.type = 'button';
+      const b = button('set-toggle', ctl);
       b.setAttribute('aria-label', row.label);
       el('i', 'knob', b);
       const txt = el('span', 'set-toggle-txt', ctl);
@@ -501,8 +401,7 @@ export class SettingsPanel {
       seg.setAttribute('role', 'group');
       seg.setAttribute('aria-label', row.label);
       const btns = row.options.map((o) => {
-        const b = el('button', 'seg-btn', seg, o);
-        b.type = 'button';
+        const b = button('seg-btn', seg, o);
         b.addEventListener('click', () => {
           this.ui._applySettings({ ...this.ui.settings, [row.k]: o });
           this.sync();
@@ -610,9 +509,7 @@ export class SettingsPanel {
     this._armAll(false);
     this.sync();
     this.root.hidden = false;
-    this.root.classList.remove('in');
-    void this.root.offsetWidth;
-    this.root.classList.add('in');
+    replay(this.root, 'in');
   }
 
   hide() {

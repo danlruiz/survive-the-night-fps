@@ -1,4 +1,4 @@
-// Salvage: a survivor tears something down for what it is made of (ACT.SALVAGE, the SALVAGE table in shared/defs.js).
+// Salvage: a survivor tears something down for what it is made of (ACT.SALVAGE, the SALVAGE table in shared/defs/crafting.js).
 // In-process checks against a real Game, with the packets written as Connection.action writes them: from the backpack
 // (part of a stack, or a weapon with rounds in it), from a weapon slot, from what is worn; what cannot be torn down is
 // refused; what does not fit lands at their feet; the table never gives back as much as a recipe takes; and the starting
@@ -7,7 +7,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, SALVAGE_FROM, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { INVENTORY_SIZE, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_THROW, SLOT_BUILD } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO, AMMO_ITEMS } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO } from '../shared/defs.js';
 
 const seed = +(process.argv[2] || 4242);
 const game = new Game({ seed, godMode: true, dayLength: 3600, log: () => {} });
@@ -25,7 +25,7 @@ function client(name) {
       const t = r.u8();
       if (t === S2C.WELCOME) c.id = r.u16();
       else if (t === S2C.INVENTORY) {
-        // (as Game.onInventory reads it, client/game/game.js)
+        // (as Game.onInventory reads it, client/game/game/inventory.js)
         for (let i = 0; i < INVENTORY_SIZE; i++) {
           const item = r.u8();
           const count = r.u16();

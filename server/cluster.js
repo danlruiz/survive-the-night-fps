@@ -21,6 +21,8 @@ export const DEAD_S = 10; // without a heartbeat for this long a server is gone
 const GONE_S = 60; // ...and after this long its rows are deleted
 const STALE_S = 30; // a game row of ours not refreshed in this long is of a game that is not here
 const NOTIFY_MAX = 7900; // NOTIFY's payload is at most 8000 bytes
+// a game's row written again as it is now (beat, roomUp)
+const GAME_ROW_UPSERT = 'ON CONFLICT (code) DO UPDATE SET server_id = EXCLUDED.server_id, invite_only = EXCLUDED.invite_only, maker = EXCLUDED.maker, info = EXCLUDED.info, updated_at = now()';
 
 // Where the proxy reaches this server: CLUSTER_ADDR, else Railway's private network (railnet0: its IPv6 address, the
 // one every Railway environment routes), else the first IPv4 address of another interface, else this box (a proxy on
@@ -96,7 +98,7 @@ export class Cluster {
       await this.db.query(
         `INSERT INTO cluster_games (code, server_id, invite_only, maker, info, updated_at)
          SELECT g.code, $1, g.invite_only, g.maker, g.info, now() FROM jsonb_to_recordset($2::jsonb) AS g(code text, invite_only boolean, maker text, info jsonb)
-         ON CONFLICT (code) DO UPDATE SET server_id = EXCLUDED.server_id, invite_only = EXCLUDED.invite_only, maker = EXCLUDED.maker, info = EXCLUDED.info, updated_at = now()`,
+         ${GAME_ROW_UPSERT}`,
         [this.id, JSON.stringify(rooms.map((r) => ({ code: r.code, invite_only: r.inviteOnly, maker: r.maker || null, info: r.info() })))]
       );
     }
@@ -143,7 +145,7 @@ export class Cluster {
     return this.db
       .query(
         `INSERT INTO cluster_games (code, server_id, invite_only, maker, info, updated_at) VALUES ($1, $2, $3, $4, $5, now())
-         ON CONFLICT (code) DO UPDATE SET server_id = EXCLUDED.server_id, invite_only = EXCLUDED.invite_only, maker = EXCLUDED.maker, info = EXCLUDED.info, updated_at = now()`,
+         ${GAME_ROW_UPSERT}`,
         [room.code, this.id, room.inviteOnly, room.maker || null, JSON.stringify(room.info())]
       )
       .catch((err) => this.log(`cluster: game ${room.code} not listed (${err.message})`));

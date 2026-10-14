@@ -11,7 +11,7 @@
 // usage: node scripts/test-fair.js [seed] (VERBOSE=1: the numbers behind each check)
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, SNAP, ENT, HOLD, FAIR_GEN_ID, FAIR_TANK_ID, PROTOCOL_VERSION, Writer, Reader, playerRide, qangle16, qpitch, writeInput } from '../shared/protocol.js';
-import { BTN, SERVER_TICK_RATE, CMD_RATE, NOISE, PHASE, PLAYER_MAX_HP, INTERACT_REACH } from '../shared/constants.js';
+import { BTN, SERVER_TICK_RATE, CMD_RATE, NOISE, PHASE, PLAYER_MAX_HP } from '../shared/constants.js';
 import { ITEM, AMMO, NOTIFY, ZONE, ZTYPE, ZANIM } from '../shared/defs.js';
 import { WHEEL, CAROUSEL, GEN, RIDE_SEATS, seatPos, seatRise, seatLow } from '../shared/fair.js';
 import { readSnapshot, readHeader, readGlobal, readSelf, readEntities, readEvents } from '../client/net/decode.js';

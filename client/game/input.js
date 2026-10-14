@@ -22,9 +22,12 @@ const HOLD_BTN = {
   aim: BTN.ALT,
 };
 
+export const LOOK_PER_PX = 0.0022; // radians the view turns per pixel of look, at sensitivity 1
+const PITCH_MAX = 1.54; // radians the view looks up or down at most (short of straight, where the yaw would flip)
+
 // a code that is still answered with the controls off (the inventory, the map, the pause menu): the key that opened
 // something shuts it, Esc backs out, and Enter opens the chat from the inventory (Y does not: as in Half-Life, it is a
-// key of play). The pause menu keeps Enter for its own rows (menus.js Pause).
+// key of play). The pause menu keeps Enter for its own rows (pause.js Pause).
 const MENU_ACTIONS = new Set(['inventory', 'map', 'board', 'bestiary', 'cards', 'perks', 'achievements', 'players']);
 function passesMenus(code) {
   if (code === 'Escape') return true;
@@ -78,25 +81,7 @@ export class Input {
         mx = Math.max(-300, Math.min(300, mx));
         my = Math.max(-300, Math.min(300, my));
       }
-      const c = this.cursor;
-      if (c) {
-        // (held to a circle, so turning the pointer the other way answers at once however far it was pushed)
-        c.x += mx;
-        c.y += my;
-        const l = Math.hypot(c.x, c.y);
-        if (l > c.r) {
-          c.x *= c.r / l;
-          c.y *= c.r / l;
-        }
-        return;
-      }
-      const k = 0.0022 * this.sensitivity;
-      this.yaw -= mx * k;
-      this.pitch -= my * k * (this.invertY ? -1 : 1);
-      if (this.pitch > 1.54) this.pitch = 1.54;
-      if (this.pitch < -1.54) this.pitch = -1.54;
-      this.lookDX += mx;
-      this.lookDY += my;
+      this.turn(mx, my);
     });
     // A mouse button only counts pressed under the lock: a click on the map or in the inventory never reaches the weapon
     document.addEventListener('mousedown', (e) => {
@@ -188,9 +173,15 @@ export class Input {
   // a look by a finger on the screen: dx, dy in screen pixels (touchpad.js scales them)
   look(dx, dy) {
     if (!this.locked) return;
+    this.turn(dx, dy); // (the build ring: the finger points at a piece, as the mouse does)
+  }
+
+  // a look by the mouse or a finger (dx, dy in pixels): it moves the build ring's cursor while that is up, else turns
+  // the view
+  turn(dx, dy) {
     const c = this.cursor;
     if (c) {
-      // (the build ring: the finger points at a piece, as the mouse does)
+      // (held to a circle, so turning the pointer the other way answers at once however far it was pushed)
       c.x += dx;
       c.y += dy;
       const l = Math.hypot(c.x, c.y);
@@ -200,11 +191,11 @@ export class Input {
       }
       return;
     }
-    const k = 0.0022 * this.sensitivity;
+    const k = LOOK_PER_PX * this.sensitivity;
     this.yaw -= dx * k;
     this.pitch -= dy * k * (this.invertY ? -1 : 1);
-    if (this.pitch > 1.54) this.pitch = 1.54;
-    if (this.pitch < -1.54) this.pitch = -1.54;
+    if (this.pitch > PITCH_MAX) this.pitch = PITCH_MAX;
+    if (this.pitch < -PITCH_MAX) this.pitch = -PITCH_MAX;
     this.lookDX += dx;
     this.lookDY += dy;
   }

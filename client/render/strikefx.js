@@ -3,7 +3,7 @@
 // a wreck gives up - are small solid pieces of one instanced mesh (Chips) that fall, bounce, lie a while and go.
 // Nothing here runs while nothing is in the air: Chips.update returns at once, and its mesh is not drawn.
 import * as THREE from 'three';
-import { TEX, LIT } from './effects.js';
+import { TEX, LIT } from './particles.js';
 import { SURF, BLOW, bitsFor } from '../../shared/surfaces.js';
 
 const CHIP_MAX = 220;

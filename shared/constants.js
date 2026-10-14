@@ -26,7 +26,7 @@ export const MAX_STRUCTURES = 320;
 
 // ---- FROZEN CORE FEEL (issue #277) -------------------------------------------------------------------------------
 // Walk, sprint and crouch speed, the turned survivor's speed and the stamina numbers below, and each zombie kind's
-// `speed` in shared/defs.js ZOMBIE_DEFS, are the game's core feel: almost every system and test is built on them.
+// `speed` in shared/defs/zombies.js ZOMBIE_DEFS, are the game's core feel: almost every system and test is built on them.
 // They are frozen. Do not retune them to fix a balance problem; retune through the multipliers in
 // shared/difficulty.js (or the thing being balanced) instead. Changing one is a design decision for the owner, made on
 // purpose after playtests, never a side effect: scripts/test-frozen.js fails until it is updated with them.
@@ -121,7 +121,7 @@ export const ENGINE_START_TIME = 2.2; // start the car once every supply is inst
 // action the moment it arrives, while the commands that moved the player there are still batched on the client or
 // queued for the next tick - up to about 0.1 s of movement. A prompt on screen must never be refused for distance.
 export const INTERACT_REACH = 3.3;
-export const PICK_RADIUS = { ITEM: 0.5, CACHE: 0.75, CRATE: 1.1, DOWNED: 1.1, CAT: 0.45, MATE: 0.5 }; // structures: structPickRadius in defs.js
+export const PICK_RADIUS = { ITEM: 0.5, CACHE: 0.75, CRATE: 1.1, DOWNED: 1.1, CAT: 0.45, MATE: 0.5 }; // structures: structPickRadius in defs/structures.js
 // a standing teammate is aimed at around their chest (Dead Hand's [E]: a match or a trade, server/cards.js)
 export const MATE_PICK_Y = 1.2;
 // Dead Hand (shared/cards.js, server/cards.js): a trade is struck within TRADE_REACH metres and called off past

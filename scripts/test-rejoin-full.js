@@ -1,4 +1,4 @@
-// Coming back into a full game (server/rooms.js attach, server/game.js handleJoin / takeOver) against a real server
+// Coming back into a full game (server/room.js attach, server/game/sessions.js handleJoin / takeOver) against a real server
 // process. A lost connection is often noticed by the browser long before the server: the old socket stays open on the
 // server (until its idle timeout) and still fills a seat. The same browser joining again must get its own body back
 // at once - the stale socket is let go - and not be told the game is full; anyone else is still turned away. Then the

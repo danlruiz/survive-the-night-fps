@@ -7,7 +7,7 @@
 // survivor sees in the wards is what their own light falls on.
 import * as THREE from 'three';
 import { smoothstep } from '../../shared/rng.js';
-import { mesh } from './mine.js';
+import { mesh, noise3 } from './mine.js';
 
 const STEP = 1.2; // a face is cut into pieces no longer than this, so the dark and the stains vary along it
 const TILE = 0.6; // the floor's lino tiles
@@ -15,27 +15,6 @@ const DADO = 1.3; // the walls are painted green up to here above the floor, cre
 // paint by kind of piece, as multipliers of the texture (a grey concrete tile: over 1 lifts it to pale plaster, so
 // that by the door from reception, where the day still reaches, the passage is no darker than the room it leaves)
 const TINT = { low: [0.6, 0.86, 0.74], high: [1.4, 1.34, 1.12], ceil: [1.15, 1.13, 1.02], tileA: [1.05, 1.08, 0.98], tileB: [0.5, 0.66, 0.6], board: [0.8, 0.64, 0.48] };
-
-// blotches: smooth value noise on a lattice, 0..1
-function hash3(x, y, z) {
-  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(z | 0, 2147483647)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-function noise3(x, y, z) {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const zi = Math.floor(z);
-  const su = (x - xi) * (x - xi) * (3 - 2 * (x - xi));
-  const sv = (y - yi) * (y - yi) * (3 - 2 * (y - yi));
-  const sw = (z - zi) * (z - zi) * (3 - 2 * (z - zi));
-  const l = (a, b, t) => a + (b - a) * t;
-  return l(
-    l(l(hash3(xi, yi, zi), hash3(xi + 1, yi, zi), su), l(hash3(xi, yi + 1, zi), hash3(xi + 1, yi + 1, zi), su), sv),
-    l(l(hash3(xi, yi, zi + 1), hash3(xi + 1, yi, zi + 1), su), l(hash3(xi, yi + 1, zi + 1), hash3(xi + 1, yi + 1, zi + 1), su), sv),
-    sw,
-  );
-}
 
 // The faces of the signs: one canvas, the board of the car park's sign in its upper two thirds (2 : 1) and the strip
 // over the door below it. -> { map, uv: per kind [u0, v0, u1, v1] }

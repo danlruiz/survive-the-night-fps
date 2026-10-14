@@ -1,7 +1,8 @@
 // Central list of every pre-rendered sound bank + a pure render entry point shared by the
 // synthesis worker and the main-thread fallback.
 import { SFX_DEFS } from './synth.js';
-import { AMB_DEFS, MUSIC_DEFS, STINGER_DEFS } from './synth-amb.js';
+import { AMB_DEFS } from './synth-amb.js';
+import { MUSIC_DEFS, STINGER_DEFS } from './synth-music.js';
 import { FIXTURE_DEFS } from './synth-fixtures.js';
 import { POWER_DEFS } from './synth-power.js';
 import { HANDCAR_DEFS } from './synth-handcar.js';
@@ -11,7 +12,8 @@ import { FLARE_DEFS } from './synth-flare.js';
 import { BRIDGE_DEFS } from './synth-bridge.js';
 import { STRIKE_DEFS } from './synth-strike.js';
 import { NUNCHAKU_DEFS } from './synth-nunchaku.js';
-import { mulberry32, hashString, forestIR, hallIR, openIR, roomIR, chans } from './dsp.js';
+import { mulberry32, hashString, chans } from './dsp.js';
+import { forestIR, hallIR, openIR, roomIR } from './synth-ir.js';
 
 export const ALL_DEFS = [...SFX_DEFS, ...AMB_DEFS, ...MUSIC_DEFS, ...STINGER_DEFS, ...FIXTURE_DEFS, ...POWER_DEFS, ...HANDCAR_DEFS, ...VEHICLE_DEFS, ...THROW_DEFS, ...FLARE_DEFS, ...BRIDGE_DEFS, ...STRIKE_DEFS, ...NUNCHAKU_DEFS];
 export const DEF_BY_BANK = new Map(ALL_DEFS.map((d) => [d.bank, d]));

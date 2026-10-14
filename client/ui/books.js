@@ -1,5 +1,5 @@
 // The two books (the achievements page and the bestiary) and what they put in play (issue #220):
-//   - what the bestiary says of a kind at a glance, worked out from its numbers (shared/defs.js ZOMBIE_DEFS): a danger
+//   - what the bestiary says of a kind at a glance, worked out from its numbers (shared/defs/zombies.js ZOMBIE_DEFS): a danger
 //     level, the facts (health, blow, pace against yours, reach, what it does to walls), "beat it" and "watch for" chips
 //     and the first night it can come
 //   - the counters closest to unlocking, and each lifetime count's next step
@@ -12,7 +12,8 @@ import { WALK_SPEED, SPRINT_SPEED, LEG_HP, PHASE } from '../../shared/constants.
 import { BESTIARY, bit, seenCount } from '../../shared/bestiary.js';
 import { ACHIEVEMENTS, ACH_BY_ID, ACH_STATS, achProgress } from '../../shared/achievements.js';
 import { BOSS_POOL, FIRST_BOSS, STARTERS, nightBoss, nightTheme, hasJoined, kindsJoining } from '../../shared/nights.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
+import { num } from './format.js';
 import { glyph, achIcon } from './icons.js';
 import { achievementsView, onAchievements, refreshAchievements } from '../net/achievements.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
@@ -22,7 +23,6 @@ import { bindLabel } from '../game/binds.js';
 export const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum' };
 export const TIER_RANK = { bronze: 0, silver: 1, gold: 2, platinum: 3 };
 export const GROUP_TAG = { horde: 'Horde', special: 'Special', boss: 'Boss' };
-export const num = (n) => (n | 0).toLocaleString('en-US');
 export const km = (m) => `${(m >= 10000 ? Math.floor(m / 1000) : Math.floor(m / 100) / 10).toLocaleString('en-US')} km`;
 export const amount = (a, n) => (a.unit === 'm' ? km(n) : num(n));
 
@@ -37,7 +37,7 @@ export function dangerOf(t) {
   const r = threat(d) / threat(WALKER);
   return Math.max(1, Math.min(5, Math.round(1 + Math.log10(Math.max(r, 1e-3)) * 2)));
 }
-export const DANGER_HELP = 'Danger: its health times the damage it does a second, against a walker (1). Each step is about three times the last.';
+const DANGER_HELP = 'Danger: its health times the damage it does a second, against a walker (1). Each step is about three times the last.';
 
 // the first night it can come on the island, and how: [night, words]
 export function firstNight(t) {
@@ -149,7 +149,7 @@ export const nextOnCount = (a) => (a.stat ? COUNTERS[a.stat].find((x) => x.goal 
 // Stored as JSON under 'stn.achTracked': { v: 1, ids: [achievement id] }, three at the most. One that unlocks drops
 // off the HUD by itself (it stays in the list until untracked or another takes its place).
 const TRACK_KEY = 'stn.achTracked';
-export const TRACK_MAX = 3;
+const TRACK_MAX = 3;
 let tracked = null;
 const trackSubs = new Set();
 
@@ -187,11 +187,11 @@ export function reloadTracked() {
   saveTracked(loadTracked());
 }
 export const onTracked = (fn) => (trackSubs.add(fn), () => trackSubs.delete(fn));
-export const isTracked = (id) => loadTracked().includes(id);
+const isTracked = (id) => loadTracked().includes(id);
 // the tracked ones still locked in this record, in the order they were tracked
-export const trackedLocked = (v) => loadTracked().map((id) => ACH_BY_ID.get(id)).filter((a) => a && !v.unlocked[a.id]);
+const trackedLocked = (v) => loadTracked().map((id) => ACH_BY_ID.get(id)).filter((a) => a && !v.unlocked[a.id]);
 // -> 'on', 'off', or 'full' (three tracked and still locked: one has to go first)
-export function toggleTrack(id, v) {
+function toggleTrack(id, v) {
   const ids = loadTracked().slice();
   const at = ids.indexOf(id);
   if (at >= 0) {
@@ -210,8 +210,7 @@ export const trackable = (a, v) => !v.unlocked[a.id] && !a.secret;
 
 // the pin on a card: toggles tracking, says when three are already tracked
 export function trackButton(parent, a, v, ui) {
-  const b = el('button', 'bk-pin', parent);
-  b.type = 'button';
+  const b = button('bk-pin', parent);
   const sync = () => {
     const on = isTracked(a.id);
     b.classList.toggle('on', on);
@@ -338,8 +337,7 @@ export class FieldNotes {
     const h = el('div', 'bkn-h', this.root);
     this.title = el('span', 'bkn-title', h, 'Out tonight');
     this.night = el('span', 'bkn-night', h, '');
-    const back = svgEl('button', 'set-close btn-icon', h, glyph('xmark'));
-    back.type = 'button';
+    const back = iconButton('set-close btn-icon', h, glyph('xmark'));
     back.title = 'Close (Esc)';
     back.setAttribute('aria-label', 'Close field notes');
     back.addEventListener('click', () => this.hide());
@@ -360,11 +358,9 @@ export class FieldNotes {
     el('span', 'bkn-night', th, `Up to ${TRACK_MAX}`);
     this.tracked = el('div', 'bkn-tracked', this.root);
     const foot = el('div', 'bkn-foot', this.root);
-    this.bstBtn = el('button', 'bkn-link', foot, 'Bestiary ›');
-    this.bstBtn.type = 'button';
+    this.bstBtn = button('bkn-link', foot, 'Bestiary ›');
     this.bstBtn.addEventListener('click', () => this.ui.cb.onBestiary());
-    const achBtn = el('button', 'bkn-link', foot, 'All achievements ›');
-    achBtn.type = 'button';
+    const achBtn = button('bkn-link', foot, 'All achievements ›');
     achBtn.addEventListener('click', () => this.ui.achPanel.show());
 
     const sync = () => !this.root.hidden && this.render();

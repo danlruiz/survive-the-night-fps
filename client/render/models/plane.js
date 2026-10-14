@@ -15,7 +15,7 @@ const WHITE = [0.82, 0.82, 0.78];
 
 export const ENGINE_X = [-9.95, -4.95, 4.95, 9.95];
 export const ENGINE_Y = 2.05;
-export const PROP_Z = -6.62;
+const PROP_Z = -6.62;
 export const PROP_R = 2.05;
 
 // fuselage cross-sections along Z: centre height y, width w, height h

@@ -20,6 +20,7 @@ import { GEN, RIDE_SEATS, SEAT_PICK, seatPos, seatLow, isWheelSeat } from '../..
 import { canReach } from '../../shared/collision.js';
 import { FairView } from '../render/fair.js';
 import { bindTag } from './binds.js';
+import { rayNear } from './pickray.js';
 
 const CMDS_PER_TICK = CMD_RATE / SERVER_TICK_RATE;
 const M24 = 1 << 24;
@@ -220,15 +221,8 @@ export class FairClient {
     let bestT = INTERACT_REACH;
     // (the same test Entities.pick makes: the ray passes within r of the point, inside reach, with no wall between)
     const aim = (x, y, z, r) => {
-      const rx = x - ox;
-      const ry = y - oy;
-      const rz = z - oz;
-      const t = rx * dx + ry * dy + rz * dz;
-      if (t < 0 || t > bestT + r) return false;
-      const px = rx - dx * t;
-      const py = ry - dy * t;
-      const pz = rz - dz * t;
-      if (px * px + py * py + pz * pz > r * r || t >= bestT || !canReach(g.world, ox, oy, oz, x, y, z, reachTop)) return false;
+      const t = rayNear(ox, oy, oz, dx, dy, dz, x, y, z, r);
+      if (t < 0 || t >= bestT || !canReach(g.world, ox, oy, oz, x, y, z, reachTop)) return false;
       bestT = t;
       return true;
     };

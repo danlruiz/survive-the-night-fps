@@ -1,5 +1,5 @@
 // Achievements in a game: what each player does that counts towards one (shared/achievements.js has the list and
-// the rules). Game builds one as this.ach; the game's code calls one-line hooks where things happen (game.js,
+// the rules). Game builds one as this.ach; the game's code calls one-line hooks where things happen (game/,
 // combat.js, zombies.js, fixtures.js), as it does for the match analytics. Hooks only bump counts on the player
 // (p.ach) or note a feat; nothing is scanned per tick but the once-a-second look at where each survivor is.
 //

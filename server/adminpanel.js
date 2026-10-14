@@ -35,7 +35,7 @@ import { PHASE } from '../shared/constants.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MESSAGE_MAX = 200; // a message to players (a chat line is 140; "[Admin] " and a little more)
-const REASON_MAX = 100; // why a game was closed or a player removed (it has to fit a close frame: rooms.js closeReason)
+const REASON_MAX = 100; // why a game was closed or a player removed (it has to fit a close frame: room.js closeReason)
 const INCIDENTS_MAX = 50;
 const AUDIT_PAGE = 50;
 const ACCOUNTS_MAX = 25;
@@ -415,7 +415,6 @@ export class AdminPanel {
     const w = s.tick?.window;
     const budget = s.tick?.budgetMs || 50;
     const p99 = w?.p99Ms || 0;
-    const net = this.net();
     return {
       code: room.code,
       name: room.title,

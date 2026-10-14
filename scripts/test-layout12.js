@@ -19,8 +19,8 @@ import { createMainland } from '../shared/mainland.js';
 import { PLACES } from '../shared/mainland-layout.js';
 import { Nav } from '../server/nav.js';
 import { Game } from '../server/game.js';
-import { ZONE, ZONE_NAMES, KILLER } from '../shared/defs.js';
-import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, MAINLAND_SIZE } from '../shared/acts.js';
+import { ZONE, KILLER } from '../shared/defs.js';
+import { ARRIVAL_DAY, MAINLAND_DAY_MORE, MAINLAND_SIZE } from '../shared/acts.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, STAMINA_MAX, NIGHT_LENGTH, WALK_SPEED, dayLength } from '../shared/constants.js';
 import { groundAt } from '../shared/collision.js';
@@ -261,7 +261,6 @@ for (const seed of SEEDS) {
   const northRadio = Math.min(...radio.map((sp) => detour(fromOpen, fromRunway, sp)));
   // south: the bridgehead -> the passage's west mouth, through it, its east mouth -> the runway (the far side's own
   // walk, North Pass shut)
-  const south = fromShut(...mw) + mine.length + fromRunwayShut(...me);
   const pumpOnSouth = Math.min(...pump.map((sp) => Math.min(...mine.main.x.map((x, i) => Math.hypot(x - sp.x, mine.main.z[i] - sp.z)))));
   const southRadio = Math.min(...radio.map((sp) => fromRunwayShut(sp.x, sp.z) * 2)); // (from the airport up the north road and back)
   const northPump = fromRunway(...me) * 2 + mine.length; // (from the airport down to the passage and back, at the least)

@@ -17,8 +17,9 @@ import { trunkCar, hasBootLid } from '../../shared/trunk.js';
 import { dqpos } from '../../shared/protocol.js';
 import { Marks, markCorners } from '../render/marks.js';
 import { StrikeFx } from '../render/strikefx.js';
-import { Wrecks, strokeCorners, roomAt } from '../render/wrecks.js';
-import { TEX } from '../render/effects.js';
+import { Wrecks } from '../render/wrecks.js';
+import { strokeCorners, roomAt } from '../render/wreck.js';
+import { TEX } from '../render/particles.js';
 
 const PANE_HALF = 0.022; // half the thickness a pane is drawn with (StaticWorld: 0.04), and a hair
 export const PANE_SHOTS = 4; // bullets a window pane takes before it falls out (a shotgun's pattern is that many)

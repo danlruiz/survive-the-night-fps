@@ -1,7 +1,7 @@
 // Crafting several at once (Shift / Ctrl+click on a recipe in the inventory screen). The protocol has no "craft n":
 // a bulk craft is the ordinary ACT.CRAFT sent n times, so the client has to know beforehand how many the server
 // will take - each one it refuses is a "Not enough materials" or "Inventory full" toast. craftRun repeats the checks
-// of Game.craft (server/game.js) and the slot rules of server/inventory.js craft by craft: paying frees slots and
+// of Game.craft (server/game/crafting.js) and the slot rules of server/inventory.js craft by craft: paying frees slots and
 // stacks fill up, so the answer is not a division. No DOM in here: sim-smoke holds it against the server, so
 // change the two together.
 import { ITEM_DEFS, WEAPONS, AMMO_MAX } from '../../shared/defs.js';

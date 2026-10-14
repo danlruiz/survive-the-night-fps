@@ -11,20 +11,20 @@
 // In a narrow window (browser zoom, a small screen) the timeline gives way to a list: one branch at a time behind
 // tabs, a row a perk with its own Take / Take back, and the same before and after under the row picked out.
 // The Perks panel (progress.js) owns one.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { PERKS, PERK_BY_ID, PERK_GROUPS, BRANCHES, TIER, TIER_NAMES, TIER_LEVELS, PICK_LEVELS, PERK_POINTS, PERK_CAP, NO_PERKS, perkLock, perkDependents, perkMods, perkMask } from '../../shared/progress.js';
 import { ROLES, ROLE_TIER } from '../../shared/roles.js';
 
 export const BRANCH_ICON = ['heart', 'headshot', 'search', 'cross', 'bolt', 'star', 'link'];
-export const BRANCH_LINE = ['Hard to put down', 'Quicker and surer with a gun', 'More out of the valley', 'Keeping the team on its feet', 'Getting there, and not being seen'];
+const BRANCH_LINE = ['Hard to put down', 'Quicker and surer with a gun', 'More out of the valley', 'Keeping the team on its feet', 'Getting there, and not being seen'];
 const names = (ids) => ids.map((id) => PERK_BY_ID[id].name);
 export const andList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a.at(-1)}`);
 const orList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} or ${a.at(-1)}`);
 const CAP_PCT = Math.round(PERK_CAP * 100);
 
 // What each perk does, in the few words a card has room for (the full sentence is PERKS' text)
-export const PERK_SHORT = {
+const PERK_SHORT = {
   0: '+10 max health',
   1: 'Sprint drain −15%',
   3: 'Heal 25% faster',
@@ -92,7 +92,7 @@ export function takeBackWhy(owned, id) {
 }
 
 // "Survivor · Tier 3 · after Field Medic", what a perk is and where it hangs
-export function perkKind(p, { after = false } = {}) {
+function perkKind(p, { after = false } = {}) {
   if (p.keystone) return `Keystone · level ${p.level} · one per survivor`;
   if (p.tier === TIER.COMBO) return `Combination · level ${p.level}`;
   const head = `${PERK_GROUPS[p.group]} · ${TIER_NAMES[p.tier]} · level ${p.level}`;
@@ -146,7 +146,7 @@ const STATS = {
   reviveSelf: ['Health back a revive', 'add'],
 };
 
-export function fmtStat(k, v) {
+function fmtStat(k, v) {
   const kind = STATS[k]?.[1] ?? 'mul';
   if (v === NO_PERKS[k]) return '—';
   switch (kind) {
@@ -168,7 +168,7 @@ export function fmtStat(k, v) {
 
 // What taking (or, for one you have, taking back) a perk does to your numbers: { back, rows: [{ key, label, from, to,
 // capped }], nothing }. capped: the 25% limit took some of what the perk says; nothing: it changes no number at all.
-export function perkChange(owned, id) {
+function perkChange(owned, id) {
   const p = PERK_BY_ID[id];
   const back = owned.includes(id);
   const rest = owned.filter((o) => o !== id);
@@ -183,7 +183,7 @@ export function perkChange(owned, id) {
 }
 
 // Fill a before-and-after box (cleared first) for a perk
-export function fillChange(box, owned, id) {
+function fillChange(box, owned, id) {
   box.textContent = '';
   const c = perkChange(owned, id);
   el('div', 'prk-fx-h', box, c.back ? 'Taking it back' : 'What it changes for you');
@@ -303,8 +303,7 @@ export class PerkTree {
 
   _card(parent, p, area, cls = '') {
     const base = `prk-card ${cls}` + (p.keystone ? ' key' : '');
-    const card = el('button', base, parent);
-    card.type = 'button';
+    const card = button(base, parent);
     card.dataset.id = String(p.id);
     if (area) card.style.gridArea = area;
     const link = p.tier > 0 && p.tier < TIER.COMBO ? el('i', 'prk-in', card) : null;
@@ -324,8 +323,7 @@ export class PerkTree {
     const labels = [...PERK_GROUPS.slice(0, BRANCHES), 'Combinations', 'Keystones'];
     const icons = [...BRANCH_ICON.slice(0, BRANCHES), 'link', 'star'];
     labels.forEach((name, i) => {
-      const b = el('button', 'prk-tab', tabs);
-      b.type = 'button';
+      const b = button('prk-tab', tabs);
       b.setAttribute('role', 'tab');
       svgEl('i', 'prk-tab-ico', b, glyph(icons[i]));
       el('span', 'prk-tab-n', b, name);
@@ -350,11 +348,9 @@ export class PerkTree {
     this.barThen = el('div', 'prk-bar-then', t, '');
     this.barFx = el('div', 'prk-fxbox', bar);
     const acts = el('div', 'prk-bar-acts', bar);
-    this.takeBtn = el('button', 'btn btn-blood prk-take', acts, 'Spend 1 point');
-    this.takeBtn.type = 'button';
+    this.takeBtn = button('btn btn-blood prk-take', acts, 'Spend 1 point');
     this.takeBtn.addEventListener('click', () => this.sel >= 0 && this.onPick?.(this.sel));
-    this.backBtn = el('button', 'btn btn-ghost prk-back', acts, 'Take back');
-    this.backBtn.type = 'button';
+    this.backBtn = button('btn btn-ghost prk-back', acts, 'Take back');
     this.backBtn.addEventListener('click', () => this.sel >= 0 && this.onUnpick?.(this.sel));
     this.barWhy = el('small', 'prk-bar-why', acts, '');
   }
@@ -536,8 +532,7 @@ export class PerkTree {
   _row(parent, p) {
     const st = perkStatus(p.id, this.owned, this.level);
     const row = el('div', `prk-row ${st.state}` + (p.keystone ? ' key' : '') + (p.id === this.sel ? ' sel' : ''), parent);
-    const main = el('button', 'prk-row-main', row);
-    main.type = 'button';
+    const main = button('prk-row-main', row);
     main.dataset.id = String(p.id);
     main.setAttribute('aria-expanded', p.id === this.sel ? 'true' : 'false');
     svgEl('i', 'prk-ico', main, glyph(p.icon));
@@ -556,14 +551,12 @@ export class PerkTree {
     el('span', '', word, st.state === 'lock' ? (perkLock(this.owned, p.id, this.level) === 'level' ? `Level ${p.level}` : 'Locked') : STATE_WORD[st.state]);
     if (st.state === 'own' && this.onUnpick) {
       const why = takeBackWhy(this.owned, p.id);
-      const b = el('button', 'btn btn-ghost prk-row-btn', act, 'Take back');
-      b.type = 'button';
+      const b = button('btn btn-ghost prk-row-btn', act, 'Take back');
       b.disabled = this.busy || !!why;
       b.addEventListener('click', () => this.onUnpick(p.id));
       if (why) el('small', 'prk-row-why', act, why);
     } else if ((st.state === 'open' || st.state === 'full') && this.onPick) {
-      const b = el('button', 'btn prk-row-btn prk-row-take', act, '+ Take');
-      b.type = 'button';
+      const b = button('btn prk-row-btn prk-row-take', act, '+ Take');
       b.disabled = this.busy || st.state !== 'open';
       b.addEventListener('click', () => this.onPick(p.id));
     }

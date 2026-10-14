@@ -3,7 +3,7 @@
 import { ZTYPE, ZANIM, SOUND, KILLER, IMPACT, STRUCT_DEFS } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, rayCollider, COL } from '../../shared/collision.js';
-import { GRAV, turn } from './util.js';
+import { GRAV, turn, humanWithin } from './util.js';
 
 // The zombie dog's hunt (def.hitRun). It runs in, bites once (a snap or a lunge), and breaks off (special state 7,
 // breakOff) to DOG_RUN_MIN-MAX m from its prey, circles there at DOG_CIRCLE of its pace, and comes back in DOG_CD_MIN-MAX s
@@ -11,7 +11,7 @@ import { GRAV, turn } from './util.js';
 // lunge never crosses anything the survivors built (lungeClear): a dog does not jump a barricade.
 const DOG_RUN_MIN = 6;
 const DOG_RUN_MAX = 10;
-export const DOG_CIRCLE = 0.55;
+const DOG_CIRCLE = 0.55;
 const DOG_CD_MIN = 2;
 const DOG_CD_MAX = 4;
 const DOG_PACK_GAP = 0.45;
@@ -70,11 +70,8 @@ export const methods = {
     for (let tries = 0; tries < 12; tries++) {
       const d = dens[Math.floor(g.rng() * dens.length)];
       if (Math.hypot(d.x - car.x, d.z - car.z) < 80 || this.nearStart(d.x, d.z, 20)) continue;
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - d.x, h.state.z - d.z) < 80) ok = false;
-      if (!ok) continue;
-      for (const o of g.zombies) if (o.pack && !o.dead && Math.hypot(o.homeX - d.x, o.homeZ - d.z) < 40) ok = false;
-      if (!ok) continue;
+      if (humanWithin(humans, d.x, d.z, 80)) continue;
+      if (g.zombies.some((o) => o.pack && !o.dead && Math.hypot(o.homeX - d.x, o.homeZ - d.z) < 40)) continue;
       const n = 2 + Math.floor(g.rng() * (g.day >= 3 ? 3 : g.day >= 2 ? 2 : 1));
       return this.spawnPack(d.x, d.z, n, { hpMul: 1 + 0.05 * g.day });
     }
@@ -98,6 +95,35 @@ export const methods = {
       z.howlT = 25;
       g.sound(SOUND.DOG_HOWL, z.x, z.y + 0.7, z.z, 110);
     }
+  },
+
+  // A dog's hit-and-run (special state 7, Zombies.updateOne): it peels off to one side after a bite, then comes back in;
+  // the state is over once its time is up or it has no prey. Writes the way it goes in out and returns its pace x
+  // (0: no prey, it goes nowhere)
+  breakingOff(z, dt, target, tx, tz, dist, out) {
+    z.stateT -= dt;
+    if (z.stateT <= 0 || !target) z.state = 0;
+    if (!target) return 0;
+    const l = dist || 1;
+    if (!z.def.hitRun) {
+      const side = z.flank >= 0 ? 1 : -1;
+      out.x = (-(tz - z.z) * side - (tx - z.x) * 0.5) / l;
+      out.z = ((tx - z.x) * side - (tz - z.z) * 0.5) / l;
+      return 1;
+    }
+    // out to runD at an angle, then round its prey there, easing in or out to hold that far off
+    const ax = (z.x - tx) / l;
+    const az = (z.z - tz) / l;
+    const s = z.runSide;
+    if (dist < z.runD) {
+      out.x = ax * 0.8 - az * s * 0.6;
+      out.z = az * 0.8 + ax * s * 0.6;
+      return 1;
+    }
+    const k = Math.max(-0.6, Math.min(0.6, (z.runD - dist) * 0.3));
+    out.x = -az * s + ax * k;
+    out.z = ax * s + az * k;
+    return DOG_CIRCLE;
   },
 
   // a dog that has bitten (or snapped and missed) breaks off, circles, and comes back in later
@@ -316,6 +342,13 @@ export const acts = {
     z.chargeZ = az / l;
     z.state = 9;
     z.stateT = DOG_RAM_T;
+  },
+};
+
+export const aims = {
+  // a dog squaring up to the piece it rams
+  12(z, dt) {
+    z.yaw = turn(z.yaw, Math.atan2(z.ramX, z.ramZ), dt * 10);
   },
 };
 

@@ -1,6 +1,7 @@
 // A Dead Hand socket for the splash/lobby. It uses the same card frames as an in-run game, but has no world socket.
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, writeCards, readCards } from '../../shared/protocol.js';
 import { playerId } from './identity.js';
+import { socketUrl } from './api.js';
 
 export class LobbyCardsConnection {
   constructor(handlers = {}) {
@@ -11,14 +12,9 @@ export class LobbyCardsConnection {
     this.r = new Reader(new ArrayBuffer(0));
   }
 
-  url() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/cards`;
-  }
-
   connect(name) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
-    const ws = new WebSocket(this.url());
+    const ws = new WebSocket(socketUrl('/cards'));
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onopen = () => {

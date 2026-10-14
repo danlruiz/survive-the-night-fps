@@ -1,5 +1,5 @@
 // Experience, levels and perks: what a player earns over every game they play, and the small bonuses they pick
-// with it. Pure rules, the same on both ends: the server awards the XP (server/game.js, at the points the
+// with it. Pure rules, the same on both ends: the server awards the XP (server/game/experience.js, at the points the
 // leaderboard's stats are bumped) and keeps it with the rest of a player's record (stats.js / dbstats.js), the
 // client only shows it.
 //
@@ -13,7 +13,7 @@ import { ZTYPE, ZOMBIE_DEFS } from './defs.js';
 // What each thing a survivor does is worth. All first guesses: nobody has played them yet.
 export const XP = {
   kill: 5, // one of the rank and file (walkers, runners, dogs, bats)
-  kinds: Object.fromEntries(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].xp).map((t) => [t, ZOMBIE_DEFS[t].xp])), // each kind's row's xp (shared/defs.js)
+  kinds: Object.fromEntries(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].xp).map((t) => [t, ZOMBIE_DEFS[t].xp])), // each kind's row's xp (shared/defs/zombies.js)
   headshot: 2, // on top of the kill
   boss: 150,
   revive: 40,

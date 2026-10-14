@@ -100,7 +100,7 @@ const times = q.has('ts') ? q.get('ts').split(',').map(Number) : null;
 const DT = 1 / 60;
 const total = (pulse || nk ? 1 : 0) + (times ? Math.max(...times) : T);
 let time = 0, nkAt = 0, shot = 0;
-const handR = inst.bones[15]; // HAND_R (characters.js)
+const handR = inst.bones[15]; // HAND_R (characters/skeleton.js)
 const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 50);
 const aim = () => {
   const c = (q.get('cam') || '0.5,0.15,0.75').split(',');

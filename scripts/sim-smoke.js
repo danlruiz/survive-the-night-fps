@@ -16,7 +16,7 @@ import { createPlayerState, copyPlayerState, simulatePlayer, radioKeyed } from '
 import { MAP_HALF, WATER_LEVEL } from '../shared/constants.js';
 import { COL, BOX, footprintContains } from '../shared/collision.js';
 import { HARVEST, harvestAt, harvestPrompt, strippedKey, needLines } from '../client/game/harvest.js';
-import { SLOT_PISTOL, SLOT_MELEE } from '../shared/constants.js';
+import { SLOT_PISTOL, SLOT_MELEE, ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constants.js';
 import { ITEM_DEFS, SCHEMATICS, SCHEM_BIT, schematicRumours } from '../shared/defs.js';
 import { raycastWorld, groundAt } from '../shared/collision.js';
 import { NIGHT_THEMES, nightTheme, nightBoss, BOSS_POOL, FIRST_BOSS, SPECIALS, joinNight, kindsJoining } from '../shared/nights.js';
@@ -3274,7 +3274,6 @@ check('ping broadcast', B.pings > 0);
 }
 
 // the escape is the team's to make (a game of its own, two survivors, day 3)
-import { ESCAPE_TIME, ESCAPE_RADIUS, ESCAPE_DRIVE_TIME } from '../shared/constants.js'; // (here, beside the checks that use them)
 {
   const g = new Game({ seed, log: () => {}, godMode: true });
   const join = (name) => {

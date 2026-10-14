@@ -129,7 +129,7 @@ export function powerReachRing() {
   return guide(ringGeo);
 }
 /** the ground a floodlight lights, about: a fan FLOOD_RANGE long ahead of it (-Z) */
-export function floodFan() {
+function floodFan() {
   fanGeo ||= new THREE.RingGeometry(2, FLOOD_RANGE - 0.5, 20, 1, PI / 2 - FLOOD_HALF, FLOOD_HALF * 2).rotateX(-PI / 2);
   return guide(fanGeo);
 }

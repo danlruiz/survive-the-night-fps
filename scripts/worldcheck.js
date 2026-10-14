@@ -3,7 +3,7 @@
 import { TREE_TYPES, ROCK_TYPES } from '../shared/world.js';
 import { gatePoint } from '../shared/layout.js';
 import { ZONE, CONT_DEFS } from '../shared/defs.js';
-import { PROPS, collidersOf, planOf } from '../shared/props.js';
+import { collidersOf, planOf } from '../shared/props.js';
 import { COL, footprintContains, pushCircle, canReach, groundAt } from '../shared/collision.js';
 import { simulatePlayer, createPlayerState } from '../shared/playersim.js';
 import { BTN, CMD_RATE, GRID_STEP, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, STEP_HEIGHT, WATER_LEVEL } from '../shared/constants.js';

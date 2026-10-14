@@ -1,12 +1,13 @@
 // Every weapon, one file each. A weapon's file holds all there is to it on both sides of the wire: its item id, its
 // item definition (ITEM_DEFS), its numbers (WEAPONS), its recipe, what it salvages into, the feat a kill with it counts
 // for, and for a gun the size of its bullet holes, the shot the others hear and the kick in first person. defs.js,
-// achievements.js, surfaces.js and the client's game.js build their tables from this list.
+// achievements.js, surfaces.js and the client's shots (client/game/game/shots.js) build their tables from this list.
 //
 // To add a weapon: a new file here, and its line in each of the two lists below (kept in file-name order, so two new
-// weapons only meet on a line when their names sort next to each other). The client draws it from
-// client/render/models/weapons.js (a builder in BUILDERS, a VM entry) and client/ui/icons.js (ITEM_ICONS).
-// scripts/test-weapons.js checks that every weapon here has all of that.
+// weapons only meet on a line when their names sort next to each other). The client draws it from a file of the same
+// name in client/render/models/weapons/ (its model builder, its first-person vm entry, its hand poses and how its
+// pickup lies: see that folder's index.js) and its icon from one in client/ui/icons/; each of those folders has an
+// index.js list to add it to as well. scripts/test-weapons.js checks that every weapon here has all of that.
 //
 // The fields of a weapon's file:
 //   key        its name in ITEM (ITEM.REVOLVER)
@@ -18,10 +19,11 @@
 //   feat       the achievement a kill with it counts for (achievements.js KILL_FEATS), or null
 //   (melee only)
 //   blow       the key in BLOW of how it strikes (surfaces.js blowOf: the marks it leaves)
+//   pry        s it takes to force a car's boot open with it (trunk.js PRY.time)
 //   (guns only, not melee)
 //   hole       its bullet hole's size next to a rifle's (surfaces.js shotScale), or null for 1
-//   shotSound  the key in SOUND of the shot the others hear (client game.js), or null for none
-//   kick       optional: first-person [muzzle flash scale, camera shake] (client game.js; default [1, 0.06])
+//   shotSound  the key in SOUND of the shot the others hear (client/game/game/shots.js), or null for none
+//   kick       optional: first-person [muzzle flash scale, camera shake] (client/game/game/shots.js; default [1, 0.06])
 
 import ak47 from './ak47.js';
 import atRifle from './at-rifle.js';

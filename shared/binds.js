@@ -1,7 +1,7 @@
 // Keybinds: every action a player presses, the keys it is on unless they rebind it, and what a bind may be. The
 // client keeps a player's own binds (client/game/binds.js: this browser's localStorage, and their account when they
-// are signed in); the server only checks what it is asked to keep (server/index.js /api/me/binds). Nothing here goes
-// over the game's socket: a bind changes which key sends a button, never the button.
+// are signed in); the server only checks what it is asked to keep (server/http/accounts.js /api/me/binds). Nothing
+// here goes over the game's socket: a bind changes which key sends a button, never the button.
 //
 // A bind is a KeyboardEvent.code - the physical key, so W is forward on an AZERTY keyboard too, where it is labelled Z
 // - or a mouse button as 'Mouse0'..'Mouse4' (left, middle, right, back, forward). Each action has two, a primary and a

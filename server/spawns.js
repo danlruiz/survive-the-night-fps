@@ -7,7 +7,7 @@ import { ZTYPE, ZOMBIE_DEFS } from '../shared/defs.js';
 import { nightRank } from '../shared/acts.js';
 import { nightTheme, joinNight, hasJoined, kindsJoining } from '../shared/nights.js';
 
-// the kinds a night's waves are drawn from, in ZTYPE order: every one whose row has a wave weight (shared/defs.js)
+// the kinds a night's waves are drawn from, in ZTYPE order: every one whose row has a wave weight (shared/defs/zombies.js)
 const WAVE_KINDS = Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].wave);
 
 export const SPAWN_SPREAD = 4; // a horde group is scattered this far round the spot picked for it (Game.spawnHordeGroup)
@@ -47,7 +47,7 @@ export function nightWaves(g, n, humans, total) {
   for (let k = 0; k < NIGHT_WAVES; k++) {
     const count = Math.max(3, Math.round(total * shares[k]));
     const sp = k / (NIGHT_WAVES - 1); // later waves bring more specials
-    // (each kind's weight is its row's wave: shared/defs.js ZOMBIE_DEFS. A dog pick is a pack of 2-3; each screecher's
+    // (each kind's weight is its row's wave: shared/defs/zombies.js ZOMBIE_DEFS. A dog pick is a pack of 2-3; each screecher's
     // scream brings a crowd of its own, SCREECH_* in specials/screecher.js)
     const weights = WAVE_KINDS.map((t) => [t, ZOMBIE_DEFS[t].wave(n, sp)]);
     // one new kind a night: each stays out of the horde until its night comes

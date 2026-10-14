@@ -3,7 +3,7 @@
 // before there was a ceiling; above it, the frames in between reuse what the last one made.
 import * as THREE from 'three';
 
-// A zombie further off than POSE_NEAR m (where its far copy is drawn: models/characters.js LOD_FAR) is posed - its
+// A zombie further off than POSE_NEAR m (where its far copy is drawn: models/characters/zombie.js LOD_FAR) is posed - its
 // limbs worked out - at most POSE_HZ times a second. Where it stands and which way it faces is every frame's.
 export const POSE_NEAR = 15, POSE_HZ = 80;
 

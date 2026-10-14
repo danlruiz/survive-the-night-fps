@@ -35,6 +35,7 @@ const checkId = (v) => {
   return v.toLowerCase();
 };
 const msgOut = (r) => ({ id: r.id, from: r.sender_id, to: r.recipient_id, body: r.body, at: r.created_at, read: !!r.read_at });
+const requestOut = (r) => ({ id: r.id, username: r.username, at: r.created_at });
 
 export class Social {
   // lobby: where everyone is playing (rooms.js Lobby: playingRoom, onPresence). cluster: the other servers behind the
@@ -63,6 +64,10 @@ export class Social {
   // (a /social socket open on this server)
   online(userId) {
     return (this.socks.get(userId)?.size || 0) > 0;
+  }
+  // online or playing here: then this server keeps their friends list (friendCache)
+  around(userId) {
+    return this.online(userId) || this.lobby.playingRoom(userId);
   }
 
   // Map(id -> { status: 'playing' (and the game) | 'online' | 'offline', game }) for these accounts: on this server, or
@@ -93,7 +98,7 @@ export class Social {
     const hit = this.friendCache.get(userId);
     if (hit) return hit;
     const ids = new Set((await this.db.query('SELECT friend_id FROM friendships WHERE user_id = $1', [userId])).rows.map((r) => r.friend_id));
-    if (this.online(userId) || this.lobby.playingRoom(userId)) this.friendCache.set(userId, ids);
+    if (this.around(userId)) this.friendCache.set(userId, ids);
     return ids;
   }
 
@@ -116,7 +121,7 @@ export class Social {
           await this.writes.get(userId);
           const st = (await this.statuses([userId])).get(userId);
           this.pushAll([...(await this.friendIds(userId))], { t: 'friends', why: 'presence', who: { id: userId }, status: st.status });
-          if (!this.online(userId) && !this.lobby.playingRoom(userId)) {
+          if (!this.around(userId)) {
             this.friendCache.delete(userId);
             await this.db.query('UPDATE users SET last_seen_at = now() WHERE id = $1', [userId]);
           }
@@ -142,10 +147,13 @@ export class Social {
     const text = JSON.stringify(msg);
     for (const ws of set) {
       try {
-        this.netMetrics?.wsOut('social', text);
-        ws.send(text, false);
+        this.sendText(ws, text);
       } catch {}
     }
+  }
+  sendText(ws, text) {
+    this.netMetrics?.wsOut('social', text);
+    ws.send(text, false);
   }
   // a push from another server: what this one keeps of the friends lists changes with it
   heardPush({ to, msg }) {
@@ -169,11 +177,7 @@ export class Social {
     if (first) this.presence(user.id);
     try {
       const unread = (await this.db.query('SELECT count(*)::int AS n FROM direct_messages WHERE recipient_id = $1 AND read_at IS NULL', [user.id])).rows[0].n;
-      if (set.has(ws)) {
-        const text = JSON.stringify({ t: 'hello', user: { id: user.id, username: user.name }, unread });
-        this.netMetrics?.wsOut('social', text);
-        ws.send(text, false);
-      }
+      if (set.has(ws)) this.sendText(ws, JSON.stringify({ t: 'hello', user: { id: user.id, username: user.name }, unread }));
     } catch (err) {
       this.log(`social: hello failed (${err.message})`);
     }
@@ -215,13 +219,17 @@ export class Social {
     ]);
     const unreadBy = new Map(unread.rows.map((r) => [r.sender_id, r.n]));
     const ids = new Set(friends.rows.map((r) => r.id));
-    if (this.online(me.id) || this.lobby.playingRoom(me.id)) this.friendCache.set(me.id, ids);
+    if (this.around(me.id)) this.friendCache.set(me.id, ids);
     const st = await this.statuses([...ids]);
     return {
       friends: friends.rows.map((r) => ({ id: r.id, username: r.username, since: r.created_at, lastSeen: r.last_seen_at, unread: unreadBy.get(r.id) || 0, ...st.get(r.id) })),
-      incoming: incoming.rows.map((r) => ({ id: r.id, username: r.username, at: r.created_at })),
-      outgoing: outgoing.rows.map((r) => ({ id: r.id, username: r.username, at: r.created_at })),
+      incoming: incoming.rows.map(requestOut),
+      outgoing: outgoing.rows.map(requestOut),
     };
+  }
+
+  async requested(fromId, toId) {
+    return (await this.db.query('SELECT 1 FROM friend_requests WHERE from_id = $1 AND to_id = $2', [fromId, toId])).rowCount > 0;
   }
 
   async areFriends(a, b) {
@@ -239,13 +247,11 @@ export class Social {
     if (them.id === me.id) throw new HttpError(400, 'That is you.');
     const friend = { id: them.id, username: them.username };
     if (await this.areFriends(me.id, them.id)) return { result: 'already', friend };
-    const theirs = (await this.db.query('SELECT 1 FROM friend_requests WHERE from_id = $1 AND to_id = $2', [them.id, me.id])).rowCount;
-    if (theirs) {
+    if (await this.requested(them.id, me.id)) {
       await this.accept(me, them.id);
       return { result: 'accepted', friend };
     }
-    const mine = (await this.db.query('SELECT 1 FROM friend_requests WHERE from_id = $1 AND to_id = $2', [me.id, them.id])).rowCount;
-    if (mine) return { result: 'pending', friend };
+    if (await this.requested(me.id, them.id)) return { result: 'pending', friend };
     if (!this.asks.take(me.id)) throw new HttpError(429, 'You have sent a lot of friend requests just now. Wait a little.');
     const [nf, no] = await Promise.all([
       this.db.query('SELECT count(*)::int AS n FROM friendships WHERE user_id = $1', [me.id]),

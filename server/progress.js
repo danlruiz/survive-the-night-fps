@@ -1,4 +1,4 @@
-// A player's level and perks through the API (server/index.js /api/progress...): what they have, spending a perk point
+// A player's level and perks through the API (server/http/progress.js /api/progress...): what they have, spending a perk point
 // on the tree, taking one back and starting over. The XP itself is earned in the games (Game.award) and kept with the
 // rest of a player's record, in the database (dbstats.js) or the file (stats.js): both give this the same
 // progressOf / setPerks.
@@ -17,6 +17,9 @@ const REFUSED = {
   points: (p, level) => (level >= LEVEL_CAP ? `Every one of your ${PERK_POINTS} points is spent.` : 'You have no perk point to spend: earn the next level first.'),
 };
 
+// What view() answers for record p, with the picks and the respec count it has now (or after a write)
+const viewOf = (p, perks = p.perks, respecs = p.respecs) => ({ ...progressView(p.xp, perks), respecs, map1: !!p.map1 });
+
 export class Progress {
   // stats: PlayerStats or DbStats. changed(key, perks): a player's picks are different now (Lobby.progressChanged
   // tells the games they are in)
@@ -34,14 +37,14 @@ export class Progress {
   async write(p, perks, respecs) {
     if (!(await this.stats.setPerks(p, perks, respecs))) throw new HttpError(409, 'Your picks changed meanwhile: look again.');
     this.changed(p.key, perks);
-    return { ...progressView(p.xp, perks), respecs, map1: !!p.map1 };
+    return viewOf(p, perks, respecs);
   }
 
   // -> { xp, level, into, need, frac, perks, picks, points, pending, nextPick, respecs, map1 } (map1: they have beaten
   // map 1, and may make and join games that start on the mainland)
   async view(who) {
     const p = await this.get(who);
-    return { ...progressView(p.xp, p.perks), respecs: p.respecs, map1: !!p.map1 };
+    return viewOf(p);
   }
 
   // A point on a perk of the tree they can take (its level reached, what it needs taken, a point to spend) -> what
@@ -68,7 +71,7 @@ export class Progress {
   // Every point back, to be spent again. Free: a player who wants to try other perks should
   async respec(who) {
     const p = await this.get(who);
-    if (!p.perks.length) return { ...progressView(p.xp, p.perks), respecs: p.respecs, map1: !!p.map1 };
+    if (!p.perks.length) return viewOf(p);
     return this.write(p, [], p.respecs + 1);
   }
 }

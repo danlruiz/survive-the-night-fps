@@ -177,7 +177,7 @@ const FOG_FRAGMENT = /* glsl */ `
 `;
 
 let installed = false;
-export function installGlobals() {
+function installGlobals() {
   if (installed) return;
   installed = true;
   for (const lib of Object.values(THREE.ShaderLib)) Object.assign(lib.uniforms, G);

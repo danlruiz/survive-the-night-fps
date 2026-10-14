@@ -1,6 +1,6 @@
 // The leaderboard and every player's lifetime stats, kept in Postgres (player_stats, migrations/001). The same
 // face to the games as the file-kept one (stats.js PlayerStats): enter / leave / bump / board, from the records the
-// worker of each game posts (room-worker.js RemoteRecords, rooms.js Room.record).
+// worker of each game posts (room-worker.js RemoteRecords, room.js Room.record).
 //
 // A player signed in to an account is filed under 'u:<user id>'. A guest - not signed in, as anybody can play - is
 // filed under 'g:<SHA-256 of their browser's id>' as before there were accounts, and that record moves onto their
@@ -11,11 +11,13 @@
 // time played - come with each stint of a match as it ends (addStint, from matchstore.js).
 import { BOARD_STATS, BOARDF, BOARD_TOP } from '../shared/protocol.js';
 import { levelOf } from '../shared/progress.js';
-import { idKey, cleanPerks } from './stats.js';
+import { idKey, cleanPerks, cleanName } from './stats.js';
 
 const FLUSH_MS = 2000;
 const STAT_MAX = 0x7fffffff;
-const cleanName = (v) => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} _\-.#]/gu, '').trim().slice(0, 16) : '') || 'Survivor';
+// The key a player's record is filed under: 'u:<account id>' signed in, else 'g:<guest key>' (stats.js idKey of their
+// browser's id); '' for nobody
+const recordKey = (userId, guestKey) => (userId ? `u:${userId}` : guestKey ? `g:${guestKey}` : '');
 
 export class DbStats {
   constructor({ db, log = () => {} }) {
@@ -31,7 +33,7 @@ export class DbStats {
   // ---------------------------------------------------------------- what a game asks for
   // userId: their account's (signed in), else id: the browser's (a guest). null for nobody: nothing is kept
   enter(id, name, userId = '') {
-    const key = userId ? `u:${userId}` : idKey(id) ? `g:${idKey(id)}` : '';
+    const key = recordKey(userId, idKey(id));
     if (!key) return null;
     let rec = this.recs.get(key);
     if (!rec) {
@@ -77,7 +79,7 @@ export class DbStats {
   // A player's progress for the API, by who asks (signed in: userId, else guestId, the browser's id) -> Promise of
   // { key, xp, perks, respecs }, all nothing for someone with nothing on record; null for nobody
   async progressOf({ userId, guestId }) {
-    const key = userId ? `u:${userId}` : idKey(guestId) ? `g:${idKey(guestId)}` : '';
+    const key = recordKey(userId, idKey(guestId));
     if (!key) return null;
     await this.flush();
     const r = (await this.db.query('SELECT xp, perks, respecs, crossings FROM player_stats WHERE key = $1', [key])).rows[0];
@@ -89,7 +91,7 @@ export class DbStats {
   // mainland to them: signed in, by userId; a guest by guestKey (the SHA-256 of their browser's id, as a JOIN makes
   // it). -> Promise of a boolean
   async map1Cleared({ userId = '', guestKey = '' } = {}) {
-    const key = userId ? `u:${userId}` : guestKey ? `g:${guestKey}` : '';
+    const key = recordKey(userId, guestKey);
     if (!key) return false;
     if (this.recs.get(key)?.add.crossings > 0) return true; // (counted, not written yet)
     const r = (await this.db.query('SELECT crossings FROM player_stats WHERE key = $1', [key])).rows[0];
@@ -183,7 +185,7 @@ export class DbStats {
   // ---------------------------------------------------------------- the rest of a player's stats
   // A stint of a match ended (analytics.js 'player' record): what goes on the record of whoever played it.
   async addStint(rec) {
-    const key = rec.userId ? `u:${rec.userId}` : rec.guestKey ? `g:${rec.guestKey}` : '';
+    const key = recordKey(rec.userId, rec.guestKey);
     if (!key) return;
     const n = (v) => Math.max(0, Math.min(STAT_MAX, Math.round(+v || 0)));
     await this.db.query(

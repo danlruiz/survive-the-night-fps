@@ -8,7 +8,7 @@ import { qpos } from '../../shared/protocol.js';
 import { wreckUnit } from '../../shared/wrecks.js';
 import { bindTag, onBindsChange } from './binds.js';
 
-// Mirrors Game.gatherHit (server/game.js), tree first as there. `gives`: what a hit is for - the first item comes
+// Mirrors Game.gatherHit (server/game/blows.js), tree first as there. `gives`: what a hit is for - the first item comes
 // with every hit, the second now and then; the rare extras (herbs, tape, wire, batteries) stay a surprise.
 // `spent`: what the prompt says of one that has given all it gives in a day.
 export const HARVEST = [

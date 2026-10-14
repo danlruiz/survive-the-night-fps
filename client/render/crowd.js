@@ -1,7 +1,7 @@
 // The dead as a crowd: every zombie that shares a body (a rig's geometry: a type, a variant, the near or the far
 // copy) is drawn in ONE instanced draw call, and the bones of all of them are in one texture uploaded once a frame.
 //
-// Drawn each as a SkinnedMesh of its own (models/characters.js), a horde of two hundred is six hundred draw calls a
+// Drawn each as a SkinnedMesh of its own (models/characters/zombie.js), a horde of two hundred is six hundred draw calls a
 // frame - the view and the two shadow cascades - and two hundred small texture uploads, and the time that takes is
 // spent on the CPU issuing them, not on the card. Here a zombie is a "member": it keeps its own skeleton pose
 // (ZombieInstance computes it as before, only for those that are drawn), and
