@@ -1,7 +1,7 @@
 // Procedural sounds of the chapel bell and the Relay Station's radio (shared/fixtures.js). Pure generators like
 // synth.js: (sampleRate, rng) => Float32Array, peak-normalised.
 import { TAU, alloc, finish, hann } from './dsp.js';
-import { MID, LO, addNorm, noise, creak, rustle, metalClick } from './synth.js';
+import { MID, LO, addNorm, noise, creak, rustle, metalClick } from './synth-blocks.js';
 
 // ------------------------------------------------------------------ the bell
 // One toll of a church bell, by its partials: the hum an octave under the strike note, the prime, the tierce a minor

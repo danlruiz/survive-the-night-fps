@@ -6,7 +6,7 @@
 // bell is that it is tiny and shrill); the two bells are a little out of tune with each other, so the ring has a
 // rough, insistent beat. The spring winding down shows as the hammer's rate and force wandering a little.
 import { TAU, ModeBank, Biquad, Pink, normalize, softclip, dcBlock, loopify } from './dsp.js';
-import { MID } from './synth.js';
+import { MID } from './synth-blocks.js';
 
 // [ratio to the bell's strike note, level, seconds to 1/e] - a thin steel cup
 const CUP = [

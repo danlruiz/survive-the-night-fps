@@ -2,7 +2,7 @@
 // Float32Array). The set is a small single-cylinder petrol engine: about 26 firings a second through a short
 // exhaust, tappets ticking at twice that, the governor hunting a little, and now and then a stroke that half-misses.
 import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { HI, MID, LO, addNorm, thump, noise, modal, metalClick, bubbles } from './synth.js';
+import { HI, MID, LO, addNorm, thump, noise, modal, metalClick, bubbles } from './synth-blocks.js';
 
 const IDLE = 26; // firings per second at its working speed
 // the exhaust: what a firing pulse rings in

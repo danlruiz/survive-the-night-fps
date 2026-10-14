@@ -3,7 +3,7 @@
 // tyre thump over a deck joint. And the last span going: the steel groaning as it lets go of its bearings, then
 // sixty metres of deck and truss into the sea.
 import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { MID, LO, addNorm, thump, noise, modal, bubbles } from './synth.js';
+import { MID, LO, addNorm, thump, noise, modal, bubbles } from './synth-blocks.js';
 
 const FIRE = 80; // firings a second: four cylinders at 2400 rpm
 // what a firing rings in: the exhaust and the box of the silencer, duller than the generator's open pipe

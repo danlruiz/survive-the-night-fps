@@ -3,7 +3,7 @@
 // rattling over the sleepers, and every 12 m rail joint knocked twice, once by each axle. The car plays it faster
 // or slower with its speed (client/game/handcar.js), so the joints come round as often as they would.
 import { TAU, Biquad, ModeBank, Brown, Pink, normalize, softclip, dcBlock, loopify } from './dsp.js';
-import { LO } from './synth.js';
+import { LO } from './synth-blocks.js';
 
 const JOINT = 1.2; // seconds between two rail joints at 10 m/s: the loop
 const AXLES = 0.15; // ...and between the two axles going over one

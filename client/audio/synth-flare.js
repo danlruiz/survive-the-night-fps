@@ -7,7 +7,7 @@
 // bursts alight under its chute (a muffled pop, then a crackling fizz), and burns down as a magnesium flare does:
 // a fierce, sputtering hiss with a slow irregular flutter.
 import { Biquad, ModeBank, Pink, Brown, Wander, alloc, normalize, finish, softclip, loopify, dcBlock, rrange } from './dsp.js';
-import { HI, MID, addNorm, thump, noise, modal, metalClick, crackles } from './synth.js';
+import { HI, MID, addNorm, thump, noise, modal, metalClick, crackles } from './synth-blocks.js';
 
 // the bore struck by the blast: a short open pipe (quarter-wave near 500 Hz) and its next partials
 function borePok(sr, rng, k = 1) {

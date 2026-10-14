@@ -1,20 +1,14 @@
 // Pure generators for ambience beds, ambient one-shots, music instruments and cinematic stingers.
 import {
   TAU, clamp, lerp, rrange, Biquad, OnePole, Pink, Brown, Wander, Curve, polyblep, hann, alloc, normalize,
-  finish, softclip, mixInto, loopify, dcBlock, reverse, widen, semis,
+  finish, softclip, mixInto, loopify, reverse, widen, semis,
 } from './dsp.js';
-import {
-  HI, MID, LO, addNorm, thump, noise, modal, metalModes, woodModes, creak, crackles, voice, birdPhrase, metalHit,
-} from './synth.js';
+import { HI, MID, LO, addNorm, thump, noise, modal, metalModes, woodModes, creak, crackles, finishLoop } from './synth-blocks.js';
+import { voice } from './synth-voice.js';
+import { birdPhrase } from './synth-events.js';
+import { metalHit } from './synth-world.js';
 
 // ------------------------------------------------------------------ helpers
-function finishLoop(x, sr, xf, peak = 0.85) {
-  for (const c of Array.isArray(x) ? x : [x]) {
-    for (let i = 0; i < c.length; i++) if (c[i] !== c[i]) c[i] = 0;
-    dcBlock(c, sr);
-  }
-  return normalize(loopify(x, sr, xf), peak);
-}
 
 // far-away treatment: low-pass + a couple of smeared echoes, returned in place
 function distant(c, sr, lpHz = 2000, echoes = [[0.38, 0.3], [0.85, 0.15]]) {

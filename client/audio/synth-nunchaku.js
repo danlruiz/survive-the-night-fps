@@ -4,7 +4,7 @@
 // pulled up taut; the knock of one handle on the other; the slap of a catch in the palm; and what the hardwood
 // strikes - flesh, bone, wood, metal, the ground.
 import { rrange, alloc, finish, softclip, Biquad, Pink } from './dsp.js';
-import { HI, addNorm, thump, noise, modal, metalClick, woodModes, metalModes, crackles } from './synth.js';
+import { HI, addNorm, thump, noise, modal, metalClick, woodModes, metalModes, crackles } from './synth-blocks.js';
 
 // A handle through the air: short, breathy, a narrow band that sweeps up and away. Higher and tighter than a bat's
 // swing (the handle is a third of the weight and four times as fast); played faster still for a faster handle.

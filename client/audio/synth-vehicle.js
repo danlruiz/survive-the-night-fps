@@ -9,7 +9,7 @@
 //   vehSkid     tyres letting go on a hard road: a short squeal
 //   bikeBell    a bicycle's bell, struck twice
 import { TAU, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { HI, MID, LO, addNorm, thump, noise, modal } from './synth.js';
+import { HI, MID, LO, addNorm, thump, noise, modal } from './synth-blocks.js';
 
 const FIRE = 56; // firings a second: a single at 3400 rpm (it fires every turn)
 // what a firing rings in: a thin steel pipe and a tin expansion box
