@@ -107,6 +107,7 @@ export function readGlobal(r, prev) {
   };
   for (let n = r.u8(); n > 0; n--) g.benches.push({ x: dqpos(r.i16()), z: dqpos(r.i16()) });
   for (let n = r.u8(); n > 0; n--) g.parts.push({ item: r.u8(), x: dqpos(r.i16()), z: dqpos(r.i16()) });
+  g.scouted = r.u8(); // a bit per hint: a Scout has been near its hiding place (shared/roles.js)
   g.finale = !!(g.flags & 1);
   g.suppliesDone = !!(g.flags & 2);
   g.escapeReady = !!(g.flags & 4);
@@ -126,7 +127,7 @@ export function readSelf(r, out, flags) {
   if (!out.ammo) out.ammo = AMMO_ITEMS.map(() => 0);
   if (out.ride === undefined) out.ride = out.rideGo = out.rideT = 0;
   if (out.cart === undefined) out.cart = out.cartS = out.cartV = 0;
-  if (out.hmg === undefined) out.hmg = out.pet = 0;
+  if (out.hmg === undefined) out.hmg = out.pet = out.drag = 0;
   if (out.drive === undefined) out.drive = out.driveK = out.dyaw = out.dsteer = out.dfuel = out.ddead = out.dhold = out.pass = out.passN = 0;
   if (out.perks === undefined) out.perks = 0;
   if (out.shove === undefined) out.shove = 0;
@@ -189,9 +190,10 @@ export function readSelf(r, out, flags) {
     out.cart = r.u8();
     out.cartS = r.f32();
     out.cartV = r.f32();
-    const arms = r.u8(); // (the mounted gun in them, the cat in them)
+    const arms = r.u8(); // (the mounted gun in them, the cat in them, a downed teammate by the collar)
     out.hmg = arms & 1;
     out.pet = (arms >> 1) & 1;
+    out.drag = (arms >> 2) & 1;
     out.perks = r.u32();
     // (at the wheel of a vehicle, or carried in one: shared/vehicles.js)
     out.drive = r.u16();

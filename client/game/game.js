@@ -62,7 +62,7 @@ import {
   PLAYER_FIRE,
   greenBlood,
 } from '../../shared/defs.js';
-import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
+import { LEFT_CODE, MOVED_CODE, ENDED_CODE, ACT, ENT, SNAP, HOLD, CAR_ID, PING_KIND, PFLAG, PSTAT, ZSTATUS, CHATF, PLF, PROGF, UNDO_NO, dqpos } from '../../shared/protocol.js';
 import { trackedRecipe, trackedNeed } from './tracked.js';
 import { WEAPON_LIST } from '../../shared/weapons/index.js';
 import { mayHold } from './itemguide.js';
@@ -87,6 +87,7 @@ import { shotDirections, shotSpread, shotClimb, aimingWith, currentWeapon, eyeHe
 import { stepClimb, punchOf, punchAt, crosshairGap } from './aimview.js';
 import { pryWeapon, pryTime } from '../../shared/trunk.js';
 import { perkMods, levelOf, picksEarned, XP_SRC } from '../../shared/progress.js';
+import { ROLE, GUARD, DRAG, hasRole, roleList } from '../../shared/roles.js';
 import { swimming } from '../../shared/swim.js';
 import { raycastWorld, makeBox, overlapBoxes, COL } from '../../shared/collision.js';
 const _wcF = new THREE.Vector3(), _wcR = new THREE.Vector3(), _wcU = new THREE.Vector3(), _wcD = new THREE.Vector3();
@@ -277,7 +278,7 @@ export class Game {
     this.achUp = false; // the Achievements panel opened with [U] mid-run (toggleAchievements)
     this.pledgeShown = false; // this run's pledge window has opened its panel by itself once (onPledge)
     this.admin = false; // the server lets us run the admin commands (WELCOMEF.ADMIN): the spawn menu [`] is ours
-    this.global = { phase: PHASE.WAITING, day: 0, timeLeft: 0, hordeLeft: -1, bossId: 0, supplies: [0, 0, 0, 0, 0], hints: [255, 255, 255, 255, 255, 255, 255], found: 0, spots: [0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff], help: 0, unlocked: 0, schemHints: [255, 255, 255, 255, 255], wave: 0, waves: 3, escapeT: 0, flags: 0, finale: false, suppliesDone: false, escapeReady: false, humansAlive: 0, playersTotal: 0, restartT: 0, benches: [], parts: [] };
+    this.global = { phase: PHASE.WAITING, day: 0, timeLeft: 0, hordeLeft: -1, bossId: 0, supplies: [0, 0, 0, 0, 0], hints: [255, 255, 255, 255, 255, 255, 255], found: 0, spots: [0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff], help: 0, scouted: 0, unlocked: 0, schemHints: [255, 255, 255, 255, 255], wave: 0, waves: 3, escapeT: 0, flags: 0, finale: false, suppliesDone: false, escapeReady: false, humansAlive: 0, playersTotal: 0, restartT: 0, benches: [], parts: [] };
     this.self = { alive: 1, hp: 100, maxHp: 100, armor: 0, armorMax: 0, battery: 100, weapons: [0, 0, 0, 0, 0], mags: [0, 0], ammo: AMMO_ITEMS.map(() => 0) };
     this.inventory = { slots: new Array(INVENTORY_MAX).fill(null), armor: null, backpack: 0 };
     this.craftQueue = []; // recipe ids of bulk crafts waiting to be sent (sendCrafts)
@@ -1796,6 +1797,13 @@ export class Game {
         const sp = this.world.partSpots[this.global.spots[arg]];
         const item = ITEM_DEFS[SUPPLIES[Math.min(arg, 4)]];
         ui.notify(`RADIO: "...${item?.name || 'a supply'}, ${ZONE_NAMES[zid] || 'out there'}${sp ? ', grid ' + gridRef(this.world, sp.x, sp.z) : ''}. Look for the crows."`, 'toast', 9);
+        a.playLocal('notify');
+        break;
+      }
+      case NOTIFY.SCOUTED: {
+        // a Scout has been near where a car supply is hidden (shared/roles.js): it is on everyone's compass now
+        const item = ITEM_DEFS[SUPPLIES[Math.min(arg, 4)]];
+        ui.notify(`Scout: ${item?.name || 'a supply'} hidden near here. It's on your compass.`, 'good', 5);
         a.playLocal('notify');
         break;
       }
@@ -4210,7 +4218,11 @@ export class Game {
       }
       if (e.kind === ENT.PLAYER && e.downed) {
         this.lookTarget = e;
-        this.prompt = `${bindTag('interact')} Hold to revive ${this.name(e.id)}`;
+        // (a Runner crouched drags them instead, and lets go with the same key: shared/roles.js)
+        const ps = this.prediction.state;
+        if (ps.drag) this.prompt = `${bindTag('interact')} Let go of ${this.name(e.id)}`;
+        else if (hasRole(ps.perks, ROLE.RUNNER)) this.prompt = ps.crouch ? `${bindTag('interact')} Drag ${this.name(e.id)} to safety` : `${bindTag('interact')} Hold to revive ${this.name(e.id)} · crouch to drag`;
+        else this.prompt = `${bindTag('interact')} Hold to revive ${this.name(e.id)}`;
         return;
       }
       if (e.kind === ENT.CAT) {
@@ -4545,7 +4557,7 @@ export class Game {
     for (const p of this.looseParts()) loose[p.item] = (loose[p.item] || 0) + 1;
     h.objective = { supplies: g.supplies, hints: g.hints, found: g.found, carried, loose, anyCarried, phase: g.phase, timeLeft: Math.ceil(g.timeLeft), finale: g.finale, escapeT: Math.ceil(g.escapeT), escapeReady: g.escapeReady, escapeStalled: g.escapeStalled, escapeLeaving: g.escapeLeaving, standWarm: g.standWarm, runwayBlocked: g.runwayBlocked, suppliesDone: g.suppliesDone, wave: g.wave, waves: g.waves };
     // downed overlay
-    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived, mate: this.closestMate(rp) } : null;
+    h.downed = self.alive && s.downed ? { bleed: self.bleed || 0, reviving: !!self.beingRevived, mate: this.closestMate(rp), medic: this.closestMate(rp, ROLE.MEDIC), guard: this.roleNear(rp, ROLE.GUARDIAN, GUARD.range), dragged: s.pulled ? this.roleNear(rp, ROLE.RUNNER, DRAG.slip) : null } : null;
     // compass + world markers
     h.yaw = this.input.yaw;
     this.buildMarkers(h, rp);
@@ -4560,15 +4572,35 @@ export class Game {
   }
 
   // the closest teammate on their feet that we can see (in the entity list): { name, d (m) }, or null. The downed card
-  // names them: only a teammate can get us up
-  closestMate(rp) {
+  // names them: only a teammate can get us up. role: only those who hold it (shared/roles.js)
+  closestMate(rp, role = -1) {
     let best = null;
     for (const e of this.entities.ents.values()) {
       if (e.kind !== ENT.PLAYER || e.id === this.myId || e.downed || e.q[5] & (PFLAG.ZOMBIE | PFLAG.DEAD)) continue;
+      if (role >= 0 && !hasRole(this.players.get(e.id)?.perks || 0, role)) continue;
       const d = Math.hypot(e.rx - rp.x, e.rz - rp.z);
       if (!best || d < best.d) best = { name: this.name(e.id), d };
     }
     return best;
+  }
+
+  // the name of a teammate on their feet within r m of (x, z) who holds this role (ourselves too), or '' (shared/roles.js)
+  roleNear(at, role, r) {
+    const s = this.prediction.state;
+    if (this.self.alive && !s.downed && hasRole(s.perks, role) && Math.hypot(s.x - at.x, s.z - at.z) <= r) return this.name(this.myId);
+    const m = this.closestMate(at, role);
+    return m && m.d <= r ? m.name : '';
+  }
+
+  // what a downed teammate's nameplate says after DOWN: who has them, or what we can do about it (d: m off; near: within reach)
+  downedLine(e, d, near) {
+    if (e.beingRevived) return 'being revived';
+    const at = { x: e.rx, z: e.rz };
+    if (e.q[5] & PFLAG.ROPED) return this.roleNear(at, ROLE.RUNNER, DRAG.slip) ? 'being dragged' : 'roped';
+    const guard = this.roleNear(at, ROLE.GUARDIAN, GUARD.range) ? ' · guarded' : '';
+    if (!near) return `${Math.round(d)}m${guard}`;
+    const runner = hasRole(this.prediction.state.perks, ROLE.RUNNER) ? ` · crouch ${bindTag('interact')} to drag` : '';
+    return `hold ${bindTag('interact')} to revive${runner}${guard}`;
   }
 
   // the partSpots indices the crows circle over: every hint whose supply is still in its hiding place and still needed
@@ -4588,8 +4620,15 @@ export class Game {
   supplyHintAt(k) {
     const g = this.global;
     const sp = this.world.partSpots[g.spots[k]];
-    if (!sp || g.help < SUPPLY_HELP.NARROW || g.found & (1 << k)) return null;
-    return g.help >= SUPPLY_HELP.PING ? sp : narrowedAt(sp, k);
+    if (!sp || g.found & (1 << k)) return null;
+    if (this.supplyPinned(k)) return sp;
+    return g.help >= SUPPLY_HELP.NARROW ? narrowedAt(sp, k) : null;
+  }
+
+  // is hint k's hiding place on the compass itself: the help has got that far, or a Scout has been near it (shared/roles.js)
+  supplyPinned(k) {
+    const g = this.global;
+    return g.help >= SUPPLY_HELP.PING || !!(g.scouted & (1 << k));
   }
 
   buildMarkers(h, rp) {
@@ -4619,7 +4658,7 @@ export class Game {
       const d = dist(at.x, at.z);
       if (d < 25) return;
       hintSeen.add(zid);
-      const ping = g.help >= SUPPLY_HELP.PING;
+      const ping = this.supplyPinned(i);
       // (the compass spells a marker's name out while you face it; a rumour keeps its question mark, as on the map)
       cm.push({ kind: 'hint', bearing: bearing(at.x - rp.x, at.z - rp.z), icon: itemIcon(SUPPLIES[si]), label: `${Math.round(d)}m`, name: ZONE_NAMES[zid] + (ping ? '' : '?'), d, pinEdge: ping, cls: ping ? 'urgent' : '' });
     });
@@ -4674,13 +4713,15 @@ export class Game {
           // the bar is there when it says something: they are hurt, they are within reach, or we look their way
           // (the nameplate within an eighth of the screen height of the crosshair). Unhurt and far off: just the name
           const looked = Math.hypot(sc.x - window.innerWidth / 2, sc.y - window.innerHeight / 2) < window.innerHeight * 0.125;
+          // their roles (shared/roles.js): a glyph each over the name, and named while we look at them
+          const roles = e.downed ? [] : roleList(this.players.get(e.id)?.perks || 0);
           wm.push({
             kind: 'mate',
             x: sc.x,
             y: sc.y,
-            icon: e.downed ? glyph('downed') : '',
+            icon: e.downed ? glyph('downed') : roles.map((r) => glyph(r.icon, 'role')).join(''),
             name,
-            sub: e.downed ? `DOWN · ${e.beingRevived ? 'being revived' : near ? `hold ${bindTag('interact')} to revive` : `${Math.round(d)}m`}` : d > 15 ? `${Math.round(d)}m` : '',
+            sub: e.downed ? `DOWN · ${this.downedLine(e, d, near)}` : d > 15 ? `${Math.round(d)}m` : looked && roles.length ? roles.map((r) => r.name).join(' · ') : '',
             bar: hp >= 0 && (hp < 1 || near || looked) ? hp : -1,
             cls: e.downed ? 'downed' : near ? 'near' : '',
             scale: Math.max(0.75, 1.1 - d / 300),
@@ -4691,6 +4732,12 @@ export class Game {
         cm.push({ kind: 'crate', bearing: bearing(e.rx - rp.x, e.rz - rp.z), icon: glyph('hazard'), label: `${Math.round(d)}m` });
         if (d > 25 && d < 300 && this.project(e.rx, e.ry + 2, e.rz, sc)) wm.push({ kind: 'crate', x: sc.x, y: sc.y, icon: glyph('hazard'), name: 'Supply drop', sub: `${Math.round(d)}m`, scale: 0.85 });
       }
+    }
+    // the dead a Spotter has marked (shared/roles.js): the whole team hits them harder, so the team is shown them
+    for (const e of this.entities.ents.values()) {
+      if (e.kind !== ENT.ZOMBIE || e.dead || !(e.q[8] & ZSTATUS.MARKED)) continue;
+      const d = dist(e.rx, e.rz);
+      if (d < 200 && this.project(e.rx, e.ry + 2.3, e.rz, sc)) wm.push({ kind: 'mark', x: sc.x, y: sc.y, icon: glyph('ping'), name: 'Marked', sub: `${Math.round(d)}m`, scale: Math.max(0.75, 1 - d / 300) });
     }
     // pings
     for (const p of this.pings) {
@@ -4761,7 +4808,7 @@ export class Game {
       hints: g.hints,
       found: g.found,
       // the help a team that has found nothing gets (shared/supplyhelp.js): where each still hidden one is, near enough
-      helped: g.hints.map((zid, k) => ({ k, at: this.supplyHintAt(k) })).filter((h) => h.at && g.supplies[Math.min(h.k, 4)] < SUPPLY_NEED[Math.min(h.k, 4)]).map(({ k, at }) => ({ item: SUPPLIES[Math.min(k, 4)], x: at.x, z: at.z, exact: g.help >= SUPPLY_HELP.PING })),
+      helped: g.hints.map((zid, k) => ({ k, at: this.supplyHintAt(k) })).filter((h) => h.at && g.supplies[Math.min(h.k, 4)] < SUPPLY_NEED[Math.min(h.k, 4)]).map(({ k, at }) => ({ item: SUPPLIES[Math.min(k, 4)], x: at.x, z: at.z, exact: this.supplyPinned(k) })),
       schemHints: g.schemHints,
       unlocked: g.unlocked | 0,
       supplies: g.supplies,

@@ -32,7 +32,9 @@ function keyCap(parent, action) {
 }
 
 // ---------------------------------------------------------------- downed
-// d: { bleed (s left), reviving, mate: { name, d (m) } | null } (Game.updateHud), or null: not down
+// d: { bleed (s left), reviving, mate: { name, d (m) } | null, medic: the closest Medic, the same, guard: the name of a
+// Guardian keeping us from bleeding out ('' none), dragged: the Runner dragging us ('' none) } (Game.updateHud, roles:
+// shared/roles.js), or null: not down
 export class Downed {
   constructor(parent) {
     const root = (this.root = el('div', 'xdn', parent));
@@ -64,13 +66,14 @@ export class Downed {
     }
     this.max = Math.max(this.max, d.bleed);
     const mate = d.mate || null;
-    const key = `${Math.ceil(d.bleed)}|${d.reviving ? 1 : 0}|${mate ? mate.name + Math.round(mate.d) : ''}|${bindLabel('slot6')}|${bindLabel('ping')}`;
+    const medic = d.medic || null;
+    const key = `${Math.ceil(d.bleed)}|${d.reviving ? 1 : 0}|${mate ? mate.name + Math.round(mate.d) : ''}|${medic ? medic.name + Math.round(medic.d) : ''}|${d.guard || ''}|${d.dragged || ''}|${bindLabel('slot6')}|${bindLabel('ping')}`;
     if (key === this.key) return;
     this.key = key;
     const frac = this.max > 0 ? Math.max(0, Math.min(1, d.bleed / this.max)) : 0;
     this.fg.style.strokeDasharray = `${(frac * 100).toFixed(2)} 100`;
     this.root.classList.toggle('reviving', !!d.reviving);
-    this.root.classList.toggle('late', !d.reviving && d.bleed <= 10);
+    this.root.classList.toggle('late', !d.reviving && !d.guard && d.bleed <= 10);
     this.title.textContent = d.reviving ? 'Being revived' : "You're down";
     this.time.textContent = d.reviving ? '' : fmtTime(d.bleed);
     const line = this.line;
@@ -80,8 +83,15 @@ export class Downed {
       el('span', '', line, mate && mate.d < 3 ? `${mate.name} has you. Hold on.` : 'A teammate has you. Hold on.');
       return;
     }
-    // only a teammate can lift you: who is closest, and how to call the rest
-    if (mate) {
+    // a teammate's role at work on us (shared/roles.js)
+    if (d.guard) el('span', 'xdn-role', line, `${d.guard} is guarding you: you won't bleed out while they stand by you.`);
+    if (d.dragged) el('span', 'xdn-role', line, `${d.dragged} is dragging you to safety.`);
+    // only a teammate can lift you: who is closest (a Medic first: they revive faster), and how to call the rest
+    if (medic && (!mate || medic.d < mate.d + 30)) {
+      const who = el('span', 'xdn-mate', line);
+      el('b', '', who, medic.name);
+      el('span', '', who, ` (Medic) · ${Math.round(medic.d)} m`);
+    } else if (mate) {
       const who = el('span', 'xdn-mate', line);
       el('b', '', who, mate.name);
       el('span', '', who, ` is closest · ${Math.round(mate.d)} m`);

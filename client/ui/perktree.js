@@ -14,6 +14,7 @@
 import { el, svgEl } from './dom.js';
 import { glyph } from './icons.js';
 import { PERKS, PERK_BY_ID, PERK_GROUPS, BRANCHES, TIER, TIER_NAMES, TIER_LEVELS, PICK_LEVELS, PERK_POINTS, PERK_CAP, NO_PERKS, perkLock, perkDependents, perkMods, perkMask } from '../../shared/progress.js';
+import { ROLES, ROLE_TIER } from '../../shared/roles.js';
 
 export const BRANCH_ICON = ['heart', 'headshot', 'search', 'cross', 'bolt', 'star', 'link'];
 export const BRANCH_LINE = ['Hard to put down', 'Quicker and surer with a gun', 'More out of the valley', 'Keeping the team on its feet', 'Getting there, and not being seen'];
@@ -101,6 +102,7 @@ export function perkKind(p, { after = false } = {}) {
 // What taking a perk leads to, a phrase each: the next on its path, a combination it is half of, the keystones
 export function perkLeadsTo(p) {
   const out = [];
+  if (p.tier === ROLE_TIER) out.push(`gives the ${ROLES[p.group].name} role: ${ROLES[p.group].text[0].toLowerCase()}${ROLES[p.group].text.slice(1)}`); // (shared/roles.js)
   if (p.tier < TIER.COMBO) {
     const next = PERKS.find((q) => q.tier < TIER.COMBO && q.req.includes(p.id));
     if (next) out.push(`opens ${next.name} at level ${next.level}`);
@@ -276,6 +278,7 @@ export class PerkTree {
       svgEl('i', 'prk-brh-ico', name, glyph(BRANCH_ICON[g]));
       el('span', '', name, PERK_GROUPS[g]);
       el('small', 'prk-brh-line', lab, BRANCH_LINE[g]);
+      el('small', 'prk-brh-role', lab, `${TIER_NAMES[ROLE_TIER]}: the ${ROLES[g].name} role`).title = ROLES[g].text; // (shared/roles.js)
       (this.brCount ??= [])[g] = el('b', 'prk-brh-c', lab, '');
       cols.forEach((col, j) => {
         for (const p of PERKS.filter((q) => q.group === g && q.col === col)) {

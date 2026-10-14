@@ -844,6 +844,7 @@ export const NOTIFY = {
   VEH_NEED: 75, // (to whoever tried) arg = VEH_NO: why nothing could be done to it
   VEH_OFF: 76, // (to the rider) arg = VEH_OFF: what took them off it
   SUPPLY_HINT: 77, // a team that has found no supply yet is told on the radio where one is. arg = the hint (shared/supplyhelp.js)
+  SCOUTED: 78, // a Scout has come near where a car supply is hidden: it is on the compass now. arg = the hint (shared/roles.js)
 };
 
 // NOTIFY.VEH_NEED / VEH_OFF: why
