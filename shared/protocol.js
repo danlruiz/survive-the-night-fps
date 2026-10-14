@@ -235,17 +235,14 @@ export const qpos = (v) => {
 };
 export const dqpos = (q) => q / posScale;
 const TAU = Math.PI * 2;
-export const qangle16 = (a) => {
-  let n = a % TAU;
-  if (n < 0) n += TAU;
-  return Math.round((n / TAU) * 65536) & 0xffff;
+// an angle brought into [0, TAU)
+const wrapAngle = (a) => {
+  const n = a % TAU;
+  return n < 0 ? n + TAU : n;
 };
+export const qangle16 = (a) => Math.round((wrapAngle(a) / TAU) * 65536) & 0xffff;
 export const dqangle16 = (q) => (q / 65536) * TAU;
-export const qangle8 = (a) => {
-  let n = a % TAU;
-  if (n < 0) n += TAU;
-  return Math.round((n / TAU) * 256) & 0xff;
-};
+export const qangle8 = (a) => Math.round((wrapAngle(a) / TAU) * 256) & 0xff;
 export const dqangle8 = (q) => (q / 256) * TAU;
 export const qpitch = (p) => Math.max(-32767, Math.min(32767, Math.round(p * 20000)));
 export const dqpitch = (q) => q / 20000;
