@@ -16,6 +16,7 @@
 //    darken under a warm room tone and fewer calls carry in; stepping back out brings the full night back, a touch
 //    louder for a moment. One night theme (s.homeless) leaves the home bed out: nowhere feels safe.
 import { clamp01, smooth, bell, rand, expWait, gustField, windField } from './curves.js';
+import { setPannerPos } from './nodes.js';
 
 const TAU = Math.PI * 2;
 const POOL = 10;
@@ -89,14 +90,6 @@ const REC_BEDS = {
   wind_strong: { gain: 1.15 },
   fire_roar: { gain: 1.05, dry: true },
 };
-
-function setPos(p, x, y, z) {
-  if (p.positionX) {
-    p.positionX.value = x;
-    p.positionY.value = y;
-    p.positionZ.value = z;
-  } else p.setPosition(x, y, z);
-}
 
 // procedural looping bed
 class Bed {
@@ -396,7 +389,7 @@ export class Ambience {
     if (wantH) this.hrtfN++;
     ch.hrtf = wantH;
     ch.panner.refDistance = ref;
-    setPos(ch.panner, x, y, z);
+    setPannerPos(ch.panner, x, y, z);
     const fc = 400 + 19600 * Math.exp(-d / 90);
     ch.filter.frequency.value = fc > 18000 ? 20000 : fc;
     ch.gain.gain.value = vol;

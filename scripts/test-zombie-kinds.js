@@ -75,9 +75,9 @@ all('a kill is worth its xp (XP.kill without one, XP.boss for a boss)', (t) => {
 // ---------------------------------------------------------------- blood and sounds
 all('blood is red (unset) or green', (t) => [undefined, 'green'].includes(ZOMBIE_DEFS[t].blood));
 check('the spitter, the boomer, the hive queen and the bloater bleed green, the walker red', [ZTYPE.SPITTER, ZTYPE.BOOMER, ZTYPE.BOSS_HIVEQUEEN, ZTYPE.BOSS_BLOATER].every(greenBlood) && !greenBlood(ZTYPE.WALKER));
-const audioSrc = readFileSync(join(ROOT, 'client/audio/audio.js'), 'utf8');
+const audioSrc = readFileSync(join(ROOT, 'client/audio/sound-defs.js'), 'utf8');
 const loops = new Set([...audioSrc.slice(audioSrc.indexOf('const LOOPS = {')).matchAll(/^  (\w+): \{/gm)].map((m) => m[1]));
-all('every loop a kind carries is one the audio engine has (client/audio/audio.js LOOPS)', (t) => zombieLoop(t) === null || loops.has(zombieLoop(t)));
+all('every loop a kind carries is one the audio engine has (client/audio/sound-defs.js LOOPS)', (t) => zombieLoop(t) === null || loops.has(zombieLoop(t)));
 all('every sound a kind utters is a SOUND', (t) => {
   const s = ZOMBIE_DEFS[t].sounds || {};
   return ['growl', 'fast'].every((k) => s[k] === undefined || SOUND[s[k]] !== undefined) && (s.fastChance === undefined || (num(s.fastChance) && s.fastChance > 0 && s.fastChance <= 1));
