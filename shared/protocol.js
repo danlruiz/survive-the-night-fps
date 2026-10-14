@@ -167,7 +167,22 @@ export const FAIR_GEN_ID = 0xffe0; // the fair's generator (HOLD_BEGIN: start it
 export const FAIR_TANK_ID = 0xffe1; // ...and its fuel drum (INTERACT: pour a portion in)
 export const PING_KIND = { GO: 0, DANGER: 1, LOOT: 2 };
 // hold-to-interact kinds (sent back in the self state for the progress ring)
-export const HOLD = uniqueIds('HOLD', { NONE: 0, SEARCH: 1, REVIVE: 2, ENGINE: 3, DRIVE: 4, BELL: 5, RADIO: 6, GUN_LIFT: 7, FAIR_START: 9, FAIR_STOP: 10, VEH_FIX: 11, VEH_FUEL: 12, VEH_REPAIR: 13, SIPHON: 14 });
+export const HOLD = uniqueIds('HOLD', {
+  NONE: 0,
+  SEARCH: 1,
+  REVIVE: 2,
+  ENGINE: 3,
+  DRIVE: 4,
+  BELL: 5,
+  RADIO: 6,
+  GUN_LIFT: 7,
+  FAIR_START: 9,
+  FAIR_STOP: 10,
+  VEH_FIX: 11,
+  VEH_FUEL: 12,
+  VEH_REPAIR: 13,
+  SIPHON: 14,
+});
 export const SIPHON_ID = 0xffdf; // the target of a HOLD.SIPHON (the wreck is named by ACT.SIPHON)
 
 // FULL: that game (or, for a quick join, every game) has no room; NO_GAME: no game goes by the code asked for.
@@ -607,7 +622,24 @@ export function readBoard(r) {
 //   REVEAL    { item, cards: [id], kept }               a pack I picked up, opened
 //   NOTE      { code, arg }                              a refusal or a word about something (CARDNOTE)
 //   TABLES    { me, tables: [{ id, host, name, slot, ageS }], names: [[id, name]] }  lobby only: open tables
-export const CARDOP = uniqueIds('CARDOP', { ASK: 1, ANSWER: 2, WITHDRAW: 3, MOVE: 4, FORFEIT: 5, DECK: 6, OFFER: 7, READY: 8, CONFIRM: 9, CLOSE: 10, SYNC: 11, TABLE_OPEN: 12, TABLE_JOIN: 13, TABLE_LEAVE: 14, STAKE: 15, STAKE_CONFIRM: 16 });
+export const CARDOP = uniqueIds('CARDOP', {
+  ASK: 1,
+  ANSWER: 2,
+  WITHDRAW: 3,
+  MOVE: 4,
+  FORFEIT: 5,
+  DECK: 6,
+  OFFER: 7,
+  READY: 8,
+  CONFIRM: 9,
+  CLOSE: 10,
+  SYNC: 11,
+  TABLE_OPEN: 12,
+  TABLE_JOIN: 13,
+  TABLE_LEAVE: 14,
+  STAKE: 15,
+  STAKE_CONFIRM: 16,
+});
 export const CARDMSG = uniqueIds('CARDMSG', { COLL: 1, DECKS: 2, ASKS: 3, MATCH: 4, MATCH_END: 5, TRADE: 6, TRADE_END: 7, REVEAL: 8, NOTE: 9, TABLES: 10 });
 // NOTE's code: what was refused and why (arg: a detail - a player's id, a card, an item, the rules' word)
 export const CARDNOTE = {

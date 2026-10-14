@@ -20,14 +20,27 @@ export const ITEM = (() => {
   return out;
 })();
 
-// ammo reserve indices: the rounds of a calibre a survivor carries (state.ammo). Ammunition is not kept in the
-// backpack: it is carried apart, in the inventory's Ammunition panel, and goes on the ground from there (ACT.DROP_AMMO)
-export const AMMO = { P9: 0, SHELL: 1, R762: 2, R308: 3, R556: 4, BOLT: 5, FUEL: 6, ROCKET: 7, R145: 8, FLARE: 9 };
-export const AMMO_NAMES = ['9mm', 'Shells', '7.62', '.308', '5.56', 'Bolts', 'Fuel', 'RPG', '14.5mm', 'Flares'];
-// the most of a calibre a survivor carries: a reserve that is full leaves the rest where it lies (also a ground stack's size)
-export const AMMO_MAX = [150, 48, 240, 40, 180, 30, 300, 8, 10, 12];
-// the item of each reserve index (same order as AMMO)
-export const AMMO_ITEMS = [ITEM.AMMO_9MM, ITEM.AMMO_SHELLS, ITEM.AMMO_762, ITEM.AMMO_308, ITEM.AMMO_556, ITEM.AMMO_BOLTS, ITEM.AMMO_FUEL, ITEM.AMMO_ROCKET, ITEM.AMMO_145, ITEM.AMMO_FLARE];
+// The calibres, one row each: a survivor carries a reserve of each (state.ammo, by its place here: AMMO). Ammunition
+// is not kept in the backpack: it is carried apart, in the inventory's Ammunition panel, and goes on the ground from
+// there (ACT.DROP_AMMO). max: the most of it a survivor carries - a reserve that is full leaves the rest where it lies
+// (also a ground stack's size). item: the item it is picked up as
+const CALIBRES = [
+  { key: 'P9', name: '9mm', max: 150, item: ITEM.AMMO_9MM },
+  { key: 'SHELL', name: 'Shells', max: 48, item: ITEM.AMMO_SHELLS },
+  { key: 'R762', name: '7.62', max: 240, item: ITEM.AMMO_762 },
+  { key: 'R308', name: '.308', max: 40, item: ITEM.AMMO_308 },
+  { key: 'R556', name: '5.56', max: 180, item: ITEM.AMMO_556 },
+  { key: 'BOLT', name: 'Bolts', max: 30, item: ITEM.AMMO_BOLTS },
+  { key: 'FUEL', name: 'Fuel', max: 300, item: ITEM.AMMO_FUEL },
+  { key: 'ROCKET', name: 'RPG', max: 8, item: ITEM.AMMO_ROCKET },
+  { key: 'R145', name: '14.5mm', max: 10, item: ITEM.AMMO_145 },
+  { key: 'FLARE', name: 'Flares', max: 12, item: ITEM.AMMO_FLARE },
+];
+// ammo reserve indices (AMMO.P9: 0, ...), and each one's name, most carried and item, in the same order
+export const AMMO = Object.fromEntries(CALIBRES.map((c, i) => [c.key, i]));
+export const AMMO_NAMES = CALIBRES.map((c) => c.name);
+export const AMMO_MAX = CALIBRES.map((c) => c.max);
+export const AMMO_ITEMS = CALIBRES.map((c) => c.item);
 
 // category: res | cons | throw | armor | pack | gear | weapon | ammo | part | schem | card
 export const ITEM_DEFS = {
