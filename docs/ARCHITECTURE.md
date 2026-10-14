@@ -447,7 +447,7 @@ map does, and can be shut to fight and opened again.
   the worker hands items over only once the cards have moved. Signing in brings a guest's cards onto the account
   (`Auth.claimGuest` -> `mergeGuest`). Escrows a game never settled go back to their owners (`roomGone`, and a sweep
   after a day).
-- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `cardtable.js`,
+- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `cardtable.js` and `cardpicker.js`,
   `carddeck.js`, `cardtrade.js`, `cardasks.js`, `cardchooser.js`, `cardlobby.js`, `cardpractice.js`, `cardreveal.js`,
   `cardface.js`, `cardwidgets.js`; `cards.css`): the table, the deck builder, trades, challenges,
   practice against the computer (`client/game/cardlocal.js`, no rewards), a pack's reveal and a three-page guide to how
