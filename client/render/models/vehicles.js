@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBuilder, partsToGroup, getMaterial, makeRng } from '../materials.js';
 import { VEH, VSTATE, VEHICLES } from '../../../shared/vehicles.js';
-import { sedan, CAR_COLORS } from './props-vehicles.js';
+import { sedan, CAR_COLORS, QUEST_CAR, CAR_Z, SEDAN_WHEELS } from './props-vehicles.js';
 import { wheel } from './propkit.js';
 
 const PI = Math.PI;
@@ -357,13 +357,12 @@ function buildBike(tint, burnt = false) {
 }
 
 // ---------------------------------------------------------------- the car
-// The sedan of the roads (props.js `sedan`), whole: its bonnet shut (or up, as it is found), its wheels and its
-// steering wheel apart, to turn. CAR_Z: the quest car's prop is this much shorter than the builder's sedan, and the
-// team's car is that car.
-const CAR_Z = 0.952;
-const CAR = { wr: 0.32, wheels: [[-0.8, -1.4], [0.8, -1.4], [-0.8, 1.35], [0.8, 1.35]], steer: [-0.38, 0.97, -0.5], tilt: 0.5, R: 0.15 };
+// The sedan of the roads (props-vehicles.js `sedan`), whole: its bonnet shut (or up, as it is found), its wheels and its
+// steering wheel apart, to turn. CAR_Z (props-vehicles.js): the quest car's prop is this much shorter than the
+// builder's sedan, and the team's car is that car (QUEST_CAR).
+const CAR = { wr: 0.32, wheels: SEDAN_WHEELS, steer: [-0.38, 0.97, -0.5], tilt: 0.5, R: 0.15 };
 function buildCar(tint, variant) {
-  const col = tint === 7 ? [0.34, 0.42, 0.52] : CAR_COLORS[tint % CAR_COLORS.length];
+  const col = tint === 7 ? QUEST_CAR.color : CAR_COLORS[tint % CAR_COLORS.length];
   const b = new MeshBuilder(5101 + tint * 7 + variant, { ao: false });
   b.push([0, 0, 0], [0, 0, 0], [1, 1, CAR_Z]);
   const burnt = variant === 2;
@@ -374,7 +373,7 @@ function buildCar(tint, variant) {
     slim: true, // (a car somebody sits in and looks out of: thin pillars)
     hoodOpen: variant === 1,
     burnt,
-    glass: burnt ? ['gone', 'gone', 'gone', 'gone', 'gone', 'gone'] : tint === 7 ? ['ok', 'ok', 'ok', 'gone', 'gone', 'ok'] : ['ok', 'ok', 'gone', 'gone', 'gone', 'gone'], // (a car that is driven: its side windows wound down, to be seen in and shot out of. The quest car is as the island has it)
+    glass: burnt ? ['gone', 'gone', 'gone', 'gone', 'gone', 'gone'] : tint === 7 ? QUEST_CAR.glass : ['ok', 'ok', 'gone', 'gone', 'gone', 'gone'], // (a car that is driven: its side windows wound down, to be seen in and shot out of. The quest car is as the island has it)
     dirt: 0.5,
     cabin: -1,
     seats: tint,

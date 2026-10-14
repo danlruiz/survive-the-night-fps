@@ -257,14 +257,21 @@ function cinderBlocks(b, x, z, h) {
   plank(b, 'wood', 0.3, h - 0.4, 0.3, { p: [x, 0.4 + (h - 0.4) / 2, z], c: WOODS[1] });
 }
 
+// The quest car: the 'car' prop, and the same car once it runs (createDriveCar below, and the team's car in
+// vehicles.js): its colour and its glass, and how much shorter it is than the builder's sedan (CAR_Z). SEDAN_WHEELS:
+// where a sedan's four wheels stand (front left, front right, rear left, rear right: sedan's own axles).
+export const QUEST_CAR = { color: [0.34, 0.42, 0.52], glass: ['ok', 'ok', 'ok', 'gone', 'gone', 'ok'] };
+export const CAR_Z = 0.952;
+export const SEDAN_WHEELS = [[-0.8, -1.4], [0.8, -1.4], [-0.8, 1.35], [0.8, 1.35]];
+
 VEHICLE_PROPS.car = (b, r) => {
-  b.push([0, 0, 0], [0, 0, 0], [1, 1, 0.952]);
+  b.push([0, 0, 0], [0, 0, 0], [1, 1, CAR_Z]);
   sedan(b, r, {
-    color: [0.34, 0.42, 0.52],
+    color: QUEST_CAR.color,
     hoodOpen: true,
     smashed: true,
     wheels: { fl: 'gone', fr: 'ok', rl: 'ok', rr: 'flat' },
-    glass: ['ok', 'ok', 'ok', 'gone', 'gone', 'ok'],
+    glass: QUEST_CAR.glass,
     dirt: 0.5,
   });
   cinderBlocks(b, -0.62, -1.4, 0.3);
@@ -923,7 +930,6 @@ VEHICLE_PROPS.dump_truck = (b, r, v) => {
 // hood shut, all four wheels on, nothing under it, and its cabin cleared out, so survivors can be seated in it.
 // wheels: the four of them (front left, front right, rear left, rear right), each a child with its origin on its
 // axle and its axis along X (spin rotation.x). DRIVE_CAR_SEATS: where the seat cushions are, in the car's frame.
-const CAR_Z = 0.952; // (the 'car' prop's sedan is this much shorter than the builder's)
 export const DRIVE_CAR_SEATS = [
   { x: -0.38, y: 0.44, z: -0.14 }, // driver (left-hand drive)
   { x: 0.38, y: 0.44, z: -0.14 }, // front passenger
@@ -934,13 +940,13 @@ export function createDriveCar(seed = 7) {
   const h = typeHash('car');
   const b = new MeshBuilder(h);
   b.push([0, 0, 0], [0, 0, 0], [1, 1, CAR_Z]);
-  sedan(b, makeRng(h * 31 + 5), { color: [0.34, 0.42, 0.52], noWheels: true, glass: ['ok', 'ok', 'ok', 'gone', 'gone', 'ok'], dirt: 0.5, cabin: -1 }); // (nothing left lying in it: the survivors sit there)
+  sedan(b, makeRng(h * 31 + 5), { color: QUEST_CAR.color, noWheels: true, glass: QUEST_CAR.glass, dirt: 0.5, cabin: -1 }); // (nothing left lying in it: the survivors sit there)
   b.pop();
   const group = partsToGroup(b.build(), 'drive_car');
   const wb = new MeshBuilder(h + 1);
   wheel(wb, 0.32, 0.2);
   const parts = wb.build();
-  const wheels = [[-0.8, -1.4], [0.8, -1.4], [-0.8, 1.35], [0.8, 1.35]].map(([x, z]) => {
+  const wheels = SEDAN_WHEELS.map(([x, z]) => {
     const w = partsToGroup(parts, 'wheel');
     w.position.set(x, 0.32, z * CAR_Z);
     group.add(w);
