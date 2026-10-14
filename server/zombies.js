@@ -13,7 +13,7 @@ import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH, STRAY, LOST } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
 import { TRIGGERS, ACTS, STATES, MOVES, AIMS, CHASES, NEARS, STEPS, RELEASES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
-import { GRAV, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
+import { GRAV, MAP_EDGE, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
 import { leapG, pinsDown, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
 import { _shDir } from './specials/shade.js';
 import { motherStream } from './specials/mother.js';
@@ -56,6 +56,7 @@ export const OPENER_AT = 20;
 export const OPENER_UNTIL = 50;
 export const OPENER_DIST = 38;
 const OPENER_NEAR = 45;
+const SPAWN_EDGE = 14; // m inside the edge of the map a horde spawn (pickSpawnAround) or the opener's walker turns up
 const SPAWN_TRIES = 18; // candidates a horde spawn pick looks at before settling for the least exposed one
 const SPAWN_HEAD = 1.7; // a zombie at a spot is in view when a survivor's eyes have a clear line to this far above its ground (m)
 const SPAWN_VIEW_COS = Math.cos(1.13); // a survivor is looking at what lies within ~65 deg of dead ahead (the default FOV on a wide screen, and a margin)
@@ -83,6 +84,7 @@ const SPREAD_OPEN = Math.cos(1.2);
 const SPREAD_PROBE = 1.6;
 const _spr = { x: 0, z: 0 };
 const _way = { x: 0, z: 0, speed: 0 }; // (headFor's answer)
+const _go = { x: 0, z: 0 }; // (chaseWay's and wanderWay's)
 const SUN_BURN = 0.35; // of its health a second the dawn sun burns off one of the dead (burnUp)...
 const SUN_BURN_BOSS = 0.035; // ...and off a boss
 const LOOK_EVERY = 0.3; // s between a zombie's looks at its prey (lookAt)
@@ -498,7 +500,7 @@ export class Zombies {
     this.opener = true;
     for (const z of g.zombies) if (!z.dead && humanWithin(humans, z.x, z.z, OPENER_NEAR)) return null;
     const s = humans[Math.floor(g.rng() * humans.length)].state;
-    const lim = g.world.half - 14;
+    const lim = g.world.half - SPAWN_EDGE;
     for (let tries = 0; tries < 12; tries++) {
       const a = s.yaw + (g.rng() - 0.5) * (0.5 + tries * 0.15); // dead ahead first, then wider (forward is (-sin yaw, -cos yaw))
       const x = s.x - Math.sin(a) * OPENER_DIST;
@@ -599,7 +601,7 @@ export class Zombies {
   pickSpawnAround(x, z, humans, minD = HORDE_SPAWN_MIN, maxD = HORDE_SPAWN_MAX, forest = false) {
     const g = this.g;
     const w = g.world;
-    const lim = this.g.world.half - 14;
+    const lim = g.world.half - SPAWN_EDGE;
     const sight = this.sightRange();
     let best = null;
     let bestF = -1;
@@ -1078,47 +1080,9 @@ export class Zombies {
     } else if (target) {
       chasing = true;
       if (z.herd) speed = Math.max(speed, HERD_RUSH); // a roused herd comes at a run, walkers and all
-      // steer straight at a visible survivor; otherwise follow the flow field (around walls to a way in)
-      if (zu || target.under) {
-        // one of the two is down in the mine: along the drifts, and by a portal from one level to the other
-        if (z.direct || !this.steerLevels(z, tx, tz, target.under)) {
-          dx = tx - z.x;
-          dz = tz - z.z;
-        } else {
-          dx = _dir.x;
-          dz = _dir.z;
-        }
-      } else if (z.pack && z.direct && dist < 18) {
-        // a pack fans out and closes in from the sides, straightening up for the last few metres
-        const a = z.flank * Math.min(1, Math.max(0, (dist - 3) / 8));
-        const ex = tx - z.x;
-        const ez = tz - z.z;
-        const c = Math.cos(a);
-        const sn = Math.sin(a);
-        dx = ex * c - ez * sn;
-        dz = ex * sn + ez * c;
-      } else if (z.direct && dist < 12) {
-        dx = tx - z.x;
-        dz = tz - z.z;
-      } else if (g.nav.flowDir(target.id, z.x, z.z, _dir, z.y)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      } else {
-        dx = tx - z.x;
-        dz = tz - z.z;
-      }
-      // a crowd fans out and comes in at angles (dogs flank on their own, a crawler drags itself straight on)
-      if (!z.pack && z.legs !== 3 && !zu && !target.under && this.spreadOut(z, tx, tz, dist, dx, dz)) {
-        dx = _spr.x;
-        dz = _spr.z;
-      }
-      // a kind that comes at its prey its own way (CHASES: a spitter keeps its distance)
-      const pace = CHASES[z.ztype]?.call(this, z, tx, tz, dist, _dir);
-      if (pace) {
-        dx = _dir.x;
-        dz = _dir.z;
-        speed *= pace;
-      }
+      speed *= this.chaseWay(z, target, tx, tz, dist, zu);
+      dx = _go.x;
+      dz = _go.z;
     } else if (z.herd) {
       // wandering herd: it keeps its place in the crowd, at a shuffle or (the herd roused) at a run
       speed = this.herds.steer(z, dt, _dir);
@@ -1140,56 +1104,119 @@ export class Zombies {
       z.wanderZ = z.z;
       z.wanderT = 3;
     } else {
-      // wander
-      z.wanderT -= dt;
-      if (z.wanderT <= 0) {
-        z.wanderT = 5 + g.rng() * 9;
-        const spot = zu && g.rng() < (z.den ? 0.35 : 0.6) ? mn.randomSpot(z.x, z.z, 14, g.rng) : null;
-        if (zu) {
-          // down in the mine: about the drifts, or nowhere
-          z.wanderX = spot ? spot.x : z.x;
-          z.wanderZ = spot ? spot.z : z.z;
-        } else if (g.rng() < 0.4) {
-          z.wanderX = z.x;
-          z.wanderZ = z.z;
-        } else if (def.shade) {
-          this.shadeWander(z);
-        } else if (z.pack && !z.horde) {
-          // dogs keep to their patch of woods
-          const a = g.rng() * Math.PI * 2;
-          const r = g.rng() * 16;
-          z.wanderX = z.homeX + Math.sin(a) * r;
-          z.wanderZ = z.homeZ + Math.cos(a) * r;
-        } else {
-          z.wanderX = z.x + (g.rng() - 0.5) * 30;
-          z.wanderZ = z.z + (g.rng() - 0.5) * 30;
-        }
-      }
-      dx = z.wanderX - z.x;
-      dz = z.wanderZ - z.z;
-      if (z.den && !zu) {
-        // led up out of the mine and left there: back down to its den
-        if (this.steerLevels(z, z.homeX, z.homeZ, true)) {
-          dx = _dir.x;
-          dz = _dir.z;
-        }
-      } else if (z.ward && this.wards.steer(z, _dir)) {
-        // one of the clinic's: about its wards, and back to them when it was led out
-        dx = _dir.x;
-        dz = _dir.z;
-      } else if (Math.hypot(dx, dz) < 1) {
-        dx = 0;
-        dz = 0;
-      } else if (zu && mn.dir(z.x, z.z, z.wanderX, z.wanderZ, _dir)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      }
-      speed = z.pack ? 1.5 : Math.min(speed, 1.1) * 0.8;
+      speed = this.wanderWay(z, dt, zu, speed);
+      dx = _go.x;
+      dz = _go.z;
     }
     _way.x = dx;
     _way.z = dz;
     _way.speed = speed;
     return chasing;
+  }
+
+  // the way z comes at the survivor it is after (target, at tx,tz, dist m off) into _go; returns what its pace is
+  // multiplied by (a kind's own CHASES)
+  chaseWay(z, target, tx, tz, dist, zu) {
+    const g = this.g;
+    let dx = 0;
+    let dz = 0;
+    // steer straight at a visible survivor; otherwise follow the flow field (around walls to a way in)
+    if (zu || target.under) {
+      // one of the two is down in the mine: along the drifts, and by a portal from one level to the other
+      if (z.direct || !this.steerLevels(z, tx, tz, target.under)) {
+        dx = tx - z.x;
+        dz = tz - z.z;
+      } else {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+    } else if (z.pack && z.direct && dist < 18) {
+      // a pack fans out and closes in from the sides, straightening up for the last few metres
+      const a = z.flank * Math.min(1, Math.max(0, (dist - 3) / 8));
+      const ex = tx - z.x;
+      const ez = tz - z.z;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      dx = ex * c - ez * sn;
+      dz = ex * sn + ez * c;
+    } else if (z.direct && dist < 12) {
+      dx = tx - z.x;
+      dz = tz - z.z;
+    } else if (g.nav.flowDir(target.id, z.x, z.z, _dir, z.y)) {
+      dx = _dir.x;
+      dz = _dir.z;
+    } else {
+      dx = tx - z.x;
+      dz = tz - z.z;
+    }
+    // a crowd fans out and comes in at angles (dogs flank on their own, a crawler drags itself straight on)
+    if (!z.pack && z.legs !== 3 && !zu && !target.under && this.spreadOut(z, tx, tz, dist, dx, dz)) {
+      dx = _spr.x;
+      dz = _spr.z;
+    }
+    // a kind that comes at its prey its own way (CHASES: a spitter keeps its distance)
+    const pace = CHASES[z.ztype]?.call(this, z, tx, tz, dist, _dir);
+    if (pace) {
+      dx = _dir.x;
+      dz = _dir.z;
+    }
+    _go.x = dx;
+    _go.z = dz;
+    return pace || 1;
+  }
+
+  // where z with nobody to chase and nothing heard wanders (about where it stands, its dogs' patch, the drifts of the
+  // mine, its den, its wards) into _go; returns its pace, an amble out of the `speed` it would run at
+  wanderWay(z, dt, zu, speed) {
+    const g = this.g;
+    const def = z.def;
+    const mn = g.mineNav;
+    z.wanderT -= dt;
+    if (z.wanderT <= 0) {
+      z.wanderT = 5 + g.rng() * 9;
+      const spot = zu && g.rng() < (z.den ? 0.35 : 0.6) ? mn.randomSpot(z.x, z.z, 14, g.rng) : null;
+      if (zu) {
+        // down in the mine: about the drifts, or nowhere
+        z.wanderX = spot ? spot.x : z.x;
+        z.wanderZ = spot ? spot.z : z.z;
+      } else if (g.rng() < 0.4) {
+        z.wanderX = z.x;
+        z.wanderZ = z.z;
+      } else if (def.shade) {
+        this.shadeWander(z);
+      } else if (z.pack && !z.horde) {
+        // dogs keep to their patch of woods
+        const a = g.rng() * Math.PI * 2;
+        const r = g.rng() * 16;
+        z.wanderX = z.homeX + Math.sin(a) * r;
+        z.wanderZ = z.homeZ + Math.cos(a) * r;
+      } else {
+        z.wanderX = z.x + (g.rng() - 0.5) * 30;
+        z.wanderZ = z.z + (g.rng() - 0.5) * 30;
+      }
+    }
+    let dx = z.wanderX - z.x;
+    let dz = z.wanderZ - z.z;
+    if (z.den && !zu) {
+      // led up out of the mine and left there: back down to its den
+      if (this.steerLevels(z, z.homeX, z.homeZ, true)) {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+    } else if (z.ward && this.wards.steer(z, _dir)) {
+      // one of the clinic's: about its wards, and back to them when it was led out
+      dx = _dir.x;
+      dz = _dir.z;
+    } else if (Math.hypot(dx, dz) < 1) {
+      dx = 0;
+      dz = 0;
+    } else if (zu && mn.dir(z.x, z.z, z.wanderX, z.wanderZ, _dir)) {
+      dx = _dir.x;
+      dz = _dir.z;
+    }
+    _go.x = dx;
+    _go.z = dz;
+    return z.pack ? 1.5 : Math.min(speed, 1.1) * 0.8;
   }
 
   // z's pace (m/s), from the speed it heads off at (headFor): a runner with nothing to chase only ambles, a leg shot off
@@ -1509,7 +1536,7 @@ export class Zombies {
       _pos.x = ox;
       _pos.z = oz;
     }
-    const lim = this.g.world.half - 4;
+    const lim = this.g.world.half - MAP_EDGE;
     z.x = Math.max(-lim, Math.min(lim, _pos.x));
     z.z = Math.max(-lim, Math.min(lim, _pos.z));
     const gy = groundAt(g.world, z.x, z.z, z.y, 0.2, false);

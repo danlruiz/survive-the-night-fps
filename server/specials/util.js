@@ -3,6 +3,7 @@ import { CRAWL_HEIGHT } from '../../shared/constants.js';
 import { raycastWorld, footprintContains, COL } from '../../shared/collision.js';
 
 export const GRAV = 16;
+export const MAP_EDGE = 4; // m inside the edge of the map the dead are held, on foot or on the wing
 const _strike = { t: -1, col: null, terrain: false };
 
 // how tall it stands, or lies: what its reach is measured from
