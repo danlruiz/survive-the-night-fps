@@ -9,11 +9,12 @@
 import { PHASE, NOISE, HOLD_SLACK, EYE_HEIGHT } from '../shared/constants.js';
 import { ITEM, SOUND, NOTIFY, ZONE } from '../shared/defs.js';
 import { HOLD, BELL_ID, RADIO_ID } from '../shared/protocol.js';
-import { canReach, resolveBody, groundAt } from '../shared/collision.js';
+import { canReach, resolveBody } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
 import { mulberry32 } from '../shared/rng.js';
 import { fixtureSpots, placePoint, FIXTURE_REACH, RADIO_AT, BELL_HOLD_TIME, BELL_TOLLS, BELL_TOLL_GAP, BELL_COOLDOWN, RADIO_HOLD_TIME, RADIO_BATTERIES, RADIO_NO } from '../shared/fixtures.js';
 import { countItem, removeItem } from './inventory.js';
+import { putPlayer } from './entkit.js';
 
 const CRATE_ROOM = 0.75; // a called crate comes down this clear of whatever stands next to the caller (m)
 const _pos = { x: 0, y: 0, z: 0 };
@@ -156,7 +157,6 @@ export class Fixtures {
   // /bell and /radio (debug commands). true: the command was one of ours
   debug(p, args) {
     const g = this.g;
-    const s = p.state;
     if (args[0] === 'bell') {
       // ring it now, from anywhere and whatever the rope says
       this.ringBell();
@@ -170,11 +170,7 @@ export class Fixtures {
       return true;
     }
     const st = placePoint(zone, [RADIO_AT[0], 0, RADIO_AT[2] - 1.2]);
-    s.x = st.x;
-    s.z = st.z;
-    s.y = groundAt(g.world, s.x, s.z, 200, 0.3);
-    s.vx = s.vy = s.vz = 0;
-    g.fillHistory(p);
+    putPlayer(g, p, st.x, st.z);
     const short = RADIO_BATTERIES - countItem(p.inv, ITEM.BATTERY);
     if (short > 0) {
       g.giveItem(p, ITEM.BATTERY, short);

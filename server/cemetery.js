@@ -16,7 +16,7 @@ import { PHASE } from '../shared/constants.js';
 import { ZTYPE, ZANIM, EVT, NOTIFY } from '../shared/defs.js';
 import { CEMETERY, riseDepth } from '../shared/cemetery.js';
 import { mulberry32 } from '../shared/rng.js';
-import { groundAt } from '../shared/collision.js';
+import { putPlayer } from './entkit.js';
 
 const MAX_ALIVE = 120; // (MAX_ZOMBIES_ALIVE in game.js: the cap on the dead holds for what comes up here too)
 
@@ -240,14 +240,7 @@ export class Cemetery {
     const cem = g.world.cemetery;
     const s = p.state;
     if (!cem) return g.systemChat('this valley has no chapel, and no cemetery');
-    if (args[1] !== 'rise') {
-      s.x = cem.gate.x;
-      s.z = cem.gate.z;
-      s.y = groundAt(g.world, s.x, s.z, 200, 0.3);
-      s.vx = s.vy = s.vz = 0;
-      g.fillHistory(p);
-      return;
-    }
+    if (args[1] !== 'rise') return putPlayer(g, p, cem.gate.x, cem.gate.z);
     const d = (i) => Math.hypot(cem.graves[i].x - s.x, cem.graves[i].z - s.z);
     const order = cem.graves.map((_, i) => i).filter((i) => d(i) > 2.5 && this.quiet[i] <= g.time).sort((a, b) => d(a) - d(b));
     for (const i of order.slice(0, Math.max(1, Math.min(20, +args[2] || 1)))) {

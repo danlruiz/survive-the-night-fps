@@ -10,9 +10,9 @@ import { ITEM, AMMO, STRUCT, STRUCT_DEFS, SOUND, NOTIFY } from '../shared/defs.j
 import { ENT } from '../shared/protocol.js';
 import { mulberry32 } from '../shared/rng.js';
 import { eyeHeight } from '../shared/playersim.js';
+import { BODY_AT, withRng } from './entkit.js';
 import { GEN_RANGE, GEN_FUEL_UNIT, GEN_TANK, GEN_LOW, GEN_HUM, GEN_HUM_EVERY, GEN_TOLD, FLOOD_RANGE, genState, genPour, floodAim, inFloodCone } from '../shared/power.js';
 
-const BODY_AT = [0.9, 0.55, 0.2]; // head, chest, shins: light on any of them counts (as for every other light, specials/shade.js)
 const _aim = { x: 0, y: 0, z: 0, dx: 0, dy: 0, dz: 0 };
 
 export class Power {
@@ -68,13 +68,7 @@ export class Power {
   // the price of the light: the idle dead within GEN_HUM of a running generator head for it
   hum(e) {
     const g = this.g;
-    const main = g.rng;
-    g.rng = this.rng;
-    try {
-      g.zm.noise(e.x, e.z, GEN_HUM, e.y);
-    } finally {
-      g.rng = main;
-    }
+    withRng(g, this.rng, () => g.zm.noise(e.x, e.z, GEN_HUM, e.y));
   }
 
   tell(e, msg) {

@@ -10,6 +10,7 @@ import { ENT, HOLD, FAIR_GEN_ID } from '../shared/protocol.js';
 import { GEN, RIDE_SEATS, SEAT_PICK, seatPos, seatLow, rideCarry } from '../shared/fair.js';
 import { canReach, raycastWorld, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
+import { BODY_AT, interactReady, boardBlocked, reachesSeat } from './entkit.js';
 
 const CMDS_PER_TICK = CMD_RATE / SERVER_TICK_RATE;
 const BURN = GEN.burn * SERVER_TICK_RATE; // ticks a portion of fuel runs it for
@@ -22,7 +23,6 @@ const DRIFT = CMD_RATE / 2;
 // this much further out than something standing still, and still low enough to get into this much higher up
 const SEAT_SLACK = 1.3;
 const RISE_SLACK = 0.35;
-const BODY_AT = [0.9, 0.55, 0.2]; // head, chest, shins (as Zombies.isLit: light on any of them counts)
 const _seat = { x: 0, y: 0, z: 0 };
 const _ray = { t: -1, col: null, terrain: false };
 
@@ -114,22 +114,23 @@ export class Fair {
   board(p, seat) {
     const g = this.g;
     const s = p.state;
-    if (!this.ent || !(seat < RIDE_SEATS) || s.ride || s.cart || s.pinned || s.pulled || s.hmg) return; // (hmg: arms full of the mounted gun)
-    if (g.time - p.interactT < 0.15) return;
-    p.interactT = g.time;
+    if (!this.ent || !(seat < RIDE_SEATS) || boardBlocked(s) || !interactReady(g, p)) return;
     const f = g.world.fair;
     if (this.rider(seat) || !seatLow(f, seat, this.clock, RISE_SLACK)) return;
     seatPos(f, seat, this.clock, _seat);
-    const ey = s.y + eyeHeight(s);
-    const ty = _seat.y + SEAT_PICK.y;
-    if (Math.hypot(_seat.x - s.x, ty - ey, _seat.z - s.z) > Math.hypot(INTERACT_REACH, SEAT_PICK.r) + INTERACT_SLACK + SEAT_SLACK) return;
-    if (!canReach(g.world, s.x, ey, s.z, _seat.x, ty, _seat.z, s.y + EYE_HEIGHT)) return;
+    if (!reachesSeat(g.world, s, _seat.x, _seat.y + SEAT_PICK.y, _seat.z, SEAT_PICK.r, SEAT_SLACK)) return;
     p.hold = null;
+    this.seat(p, seat);
+    g.sound(SOUND.RIDE_BOARD, s.x, s.y + 0.5, s.z, 25);
+  }
+
+  // p into a seat of a ride, going round with it at the wheel's reading of the clock
+  seat(p, seat) {
+    const s = p.state;
     s.ride = seat + 1;
     s.rideT = this.clock;
     s.rideGo = this.running ? 1 : 0;
-    rideCarry(s, g.world);
-    g.sound(SOUND.RIDE_BOARD, s.x, s.y + 0.5, s.z, 25);
+    rideCarry(s, this.g.world);
   }
 
   // is p at one of the fixtures in the shed (pt: world.fair.gen or .tank), as near as the client offers [E] on it
@@ -266,10 +267,7 @@ export class Fair {
       const first = arg === 'wheel' ? 0 : RIDE_SEATS / 2;
       for (let seat = first; seat < first + RIDE_SEATS / 2; seat++) {
         if (this.rider(seat)) continue;
-        s.ride = seat + 1;
-        s.rideT = this.clock;
-        s.rideGo = this.running ? 1 : 0;
-        rideCarry(s, g.world);
+        this.seat(p, seat);
         g.fillHistory(p);
         break;
       }
