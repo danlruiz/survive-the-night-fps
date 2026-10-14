@@ -4,6 +4,11 @@
 // hunts for the car supplies hidden around the map; by night the horde comes in waves to wherever the
 // survivors are, so they throw up a temporary shelter on the spot. Every night is harder. Once every
 // supply is in the car, starting the engine triggers the final stand - survive it and drive away.
+//
+// Game is the composition root: this file holds its state (the constructor), the entity registry, the events a tick
+// sends, the tick itself (update) and the handoff's save / load; every other part of a game is a module of
+// server/game/ whose methods are laid onto Game (PARTS below), and the systems with state of their own (zombies,
+// combat, vehicles, the fair, cards...) are objects it makes and owns.
 import {
   SERVER_TICK_RATE,
   HISTORY_TICKS,
@@ -13,8 +18,6 @@ import {
   PHASE,
   NIGHT_LENGTH,
   MOON,
-  SLOT_PISTOL,
-  SLOT_BUILD,
   DAWN_RETURN,
 } from '../shared/constants.js';
 import {
@@ -60,32 +63,36 @@ import { saveGame, loadGame } from './gamestate.js';
 
 // The parts of what a game does, each in a module of its own (server/game/): their methods are laid onto Game
 // (addMethods, at the end of this file), so they are called on it as this.name(...) like the ones written here.
-import * as commands from './game/commands.js';
-import * as blows from './game/blows.js';
-import * as phases from './game/phases.js';
-import * as escape from './game/escape.js';
-import * as supplydrops from './game/supplydrops.js';
-import * as trunks from './game/trunks.js';
-import * as items from './game/items.js';
-import * as crafting from './game/crafting.js';
-import * as equipment from './game/equipment.js';
-import * as building from './game/building.js';
-import * as harm from './game/harm.js';
-import * as interact from './game/interact.js';
-import * as input from './game/input.js';
-import * as survivors from './game/survivors.js';
-import * as experience from './game/experience.js';
-import * as sessions from './game/sessions.js';
+// The run:
+import * as run from './game/run.js'; // the valley, a new run on it, back to waiting
+import * as phases from './game/phases.js'; // day and night, the waves, how a run ends
+import * as escape from './game/escape.js'; // the final stand at the car (or the plane)
+import * as crossing from './game/crossing.js'; // the crossing to the mainland and the bridgehead
+import * as supplydrops from './game/supplydrops.js'; // the plane and its crates
+// The players:
+import * as sessions from './game/sessions.js'; // joining, dropping out and coming back, leaving
+import * as input from './game/input.js'; // a client's commands and actions
+import * as survivors from './game/survivors.js'; // a survivor's body: spawned, turned, back at dawn, each tick
+import * as harm from './game/harm.js'; // hurt, downed, revived, killed, on fire
+import * as experience from './game/experience.js'; // XP, perks and the record
 import * as chat from './game/chat.js';
+import * as commands from './game/commands.js'; // the admin chat commands
+// The world:
+import * as items from './game/items.js'; // loot, drops and pickups
+import * as interact from './game/interact.js'; // [E], and holds
+import * as trunks from './game/trunks.js'; // car boots and car alarms
+import * as blows from './game/blows.js'; // gathering, and blows on trees and wrecks
+import * as building from './game/building.js'; // what the survivors build
+import * as crafting from './game/crafting.js';
+import * as equipment from './game/equipment.js'; // wearing and using what they carry
+// What goes out:
 import * as net from './game/net.js';
-import * as run from './game/run.js';
-import * as crossing from './game/crossing.js';
 import { randomSeed } from './game/run.js';
 import { HANDOFF_FREEZE, JOIN_EVERY } from './game/sessions.js';
 import { starterKit } from './game/survivors.js';
 import { MAX_DROPS } from './game/items.js';
 
-const PARTS = { commands, blows, phases, escape, supplydrops, trunks, items, crafting, equipment, building, harm, interact, input, survivors, experience, sessions, chat, net, run, crossing };
+const PARTS = { run, phases, escape, crossing, supplydrops, sessions, input, survivors, harm, experience, chat, commands, items, interact, trunks, blows, building, crafting, equipment, net };
 
 export class Game {
   // opts.restore: a game the last server saved as it went down (handoff.js envelope), to carry on from where it was.
@@ -614,4 +621,3 @@ for (const [part, mod] of Object.entries(PARTS)) addMethods(Game, part, mod.meth
 
 export { prepareWorld } from './game/run.js'; // (room-worker.js)
 export { REJOIN_GRACE } from './game/sessions.js'; // (scripts/sim-rejoin.js)
-export { SLOT_BUILD, SLOT_PISTOL };
