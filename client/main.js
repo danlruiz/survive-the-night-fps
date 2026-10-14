@@ -222,6 +222,8 @@ function forgetPlaying() {
   } catch {}
 }
 
+// the inventory's and the build menu's hooks, passed on as they are to the game in play (Game.uiCallbacks)
+const TO_GAME = ['onCraft', 'onCraftRepeat', 'onUseItem', 'onDropItem', 'onSplitItem', 'onDropAmmo', 'onUndoDrop', 'onSalvage', 'onSwapItems', 'onEquipArmor', 'onDropWeapon', 'onUnequip', 'onWorn', 'onSelectStructure', 'onHoverStructure', 'onSelectThrowable', 'onCloseInventory'];
 const callbacks = {
   // code: the game to go into (an invite, a pick from the list, one just made); '' for a quick join. quiet: one try of
   // several at getting back in (rejoin), whose failure is not shown: rejoin says how it ended. back: that is what it
@@ -276,23 +278,7 @@ const callbacks = {
       game.dropJoinHold(); // (not in the game: the mouse and the screen go back to the splash)
     }
   },
-  onCraft: (id) => game?.uiCallbacks().onCraft(id),
-  onCraftRepeat: (id, n) => game?.uiCallbacks().onCraftRepeat(id, n),
-  onUseItem: (i) => game?.uiCallbacks().onUseItem(i),
-  onDropItem: (i, n) => game?.uiCallbacks().onDropItem(i, n),
-  onSplitItem: (i, n) => game?.uiCallbacks().onSplitItem(i, n),
-  onDropAmmo: (cal, n) => game?.uiCallbacks().onDropAmmo(cal, n),
-  onUndoDrop: () => game?.uiCallbacks().onUndoDrop(),
-  onSalvage: (from, n) => game?.uiCallbacks().onSalvage(from, n),
-  onSwapItems: (a, b) => game?.uiCallbacks().onSwapItems(a, b),
-  onEquipArmor: (i) => game?.uiCallbacks().onEquipArmor(i),
-  onDropWeapon: (s) => game?.uiCallbacks().onDropWeapon(s),
-  onUnequip: (s, to) => game?.uiCallbacks().onUnequip(s, to),
-  onWorn: (which, what) => game?.uiCallbacks().onWorn(which, what),
-  onSelectStructure: (t) => game?.uiCallbacks().onSelectStructure(t),
-  onHoverStructure: (t) => game?.uiCallbacks().onHoverStructure(t),
-  onSelectThrowable: (it) => game?.uiCallbacks().onSelectThrowable(it),
-  onCloseInventory: () => game?.uiCallbacks().onCloseInventory(),
+  ...Object.fromEntries(TO_GAME.map((name) => [name, (...args) => game?.uiCallbacks()[name](...args)])),
   onChatSend: (text) => {
     game?.uiCallbacks().onChatSend(text);
     // (sent from the inventory: back to the inventory, with the pointer free for it)

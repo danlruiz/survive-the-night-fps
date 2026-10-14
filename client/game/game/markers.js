@@ -214,9 +214,9 @@ export const methods = {
     return true;
   },
 
-  updateMap(s) {
+  // the open map, redrawn each frame (ui/map.js)
+  updateMap() {
     this.ui.map.update(this.mapData());
-    void s;
   },
 
   // this act's car supplies lying loose on the ground, of the kinds the car still needs

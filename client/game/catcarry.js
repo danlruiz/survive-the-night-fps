@@ -8,7 +8,7 @@
 //   - everyone else's: the cat drawn across its holder's forearms (their pose: s.cradle, s.pet), purring to whoever
 //     is near while they stroke it, and a meow as it is picked up
 import * as THREE from 'three';
-import { ENT, ACT } from '../../shared/protocol.js';
+import { ACT } from '../../shared/protocol.js';
 import { CANIM, SOUND } from '../../shared/defs.js';
 import { createCat } from '../render/models/cat.js';
 import { bindTag } from './binds.js';

@@ -1,9 +1,9 @@
 // Client game orchestrator: the Game builds every subsystem of a game in play (constructor) and runs its frame
 // (update). Its methods for each responsibility live in game/ (game/index.js lays them onto it).
 import * as THREE from 'three';
-import { PHASE, SLOT_PISTOL, SLOT_BUILD, INVENTORY_MAX, MAX_PLAYERS, DUSK_WARNING } from '../../shared/constants.js';
-import { WEAPONS, STRUCT, ZTYPE, ZONE, AMMO_NAMES, AMMO_ITEMS } from '../../shared/defs.js';
-import { ENDED_CODE, dqpos } from '../../shared/protocol.js';
+import { PHASE, SLOT_PISTOL, SLOT_BUILD, INVENTORY_MAX } from '../../shared/constants.js';
+import { WEAPONS, STRUCT, ZONE, AMMO_ITEMS } from '../../shared/defs.js';
+import { ENDED_CODE } from '../../shared/protocol.js';
 import { LookWarmer } from './lookwarm.js';
 import { HomeSense } from '../audio/home.js';
 import { MotifWatch } from '../audio/motifs.js';
@@ -344,7 +344,7 @@ export class Game {
     this.onboarding.update(dt);
     this.keyHints.update(dt);
     if (this.faceCar > 0) this.turnToCar(dt);
-    if (this.ui.mapOpen) this.updateMap(s);
+    if (this.ui.mapOpen) this.updateMap();
     this.updateBoard();
     this.updateTalking();
     this.updatePost(dt, time, s);
@@ -352,5 +352,3 @@ export class Game {
 }
 
 installParts(Game);
-
-export { MAX_PLAYERS, DUSK_WARNING, AMMO_NAMES, ZTYPE, dqpos };
