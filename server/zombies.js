@@ -12,10 +12,9 @@ import { eyeHeight } from '../shared/playersim.js';
 import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
-import { TRIGGERS, ACTS, STATES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
+import { TRIGGERS, ACTS, STATES, MOVES, AIMS, CHASES, NEARS, STEPS, RELEASES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
 import { GRAV, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
-import { leapG, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
-import { DOG_CIRCLE } from './specials/dog.js';
+import { leapG, pinsDown, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
 import { _shDir } from './specials/shade.js';
 import { motherStream } from './specials/mother.js';
 import { daySpecial, SPAWN_SPREAD } from './spawns.js';
@@ -949,30 +948,12 @@ export class Zombies {
     let speed = (z.enraged ? def.speed * def.enrageSpeed : def.speed) * g.diff.speed; // (The Brute, badly hurt)
     let chasing = false;
     if (z.state === 7) {
-      // dog hit-and-run: peel off to one side after a lunge, then come back in
-      z.stateT -= dt;
-      if (z.stateT <= 0 || !target) z.state = 0;
-      if (target && def.hitRun) {
-        // out to runD at an angle, then round its prey there, easing in or out to hold that far off
-        const l = dist || 1;
-        const ax = (z.x - tx) / l;
-        const az = (z.z - tz) / l;
-        const s = z.runSide;
-        if (dist < z.runD) {
-          dx = ax * 0.8 - az * s * 0.6;
-          dz = az * 0.8 + ax * s * 0.6;
-        } else {
-          const k = Math.max(-0.6, Math.min(0.6, (z.runD - dist) * 0.3));
-          dx = -az * s + ax * k;
-          dz = ax * s + az * k;
-          speed *= DOG_CIRCLE;
-        }
-        chasing = true;
-      } else if (target) {
-        const l = dist || 1;
-        const side = z.flank >= 0 ? 1 : -1;
-        dx = (-(tz - z.z) * side - (tx - z.x) * 0.5) / l;
-        dz = ((tx - z.x) * side - (tz - z.z) * 0.5) / l;
+      // dog hit-and-run: peel off to one side after a lunge, then come back in (dog.js)
+      const pace = this.breakingOff(z, dt, target, tx, tz, dist, _dir);
+      if (pace) {
+        dx = _dir.x;
+        dz = _dir.z;
+        speed *= pace;
         chasing = true;
       }
     } else if (z.lureT > 0 && !def.shade && !(target && dist < 7)) {
@@ -1021,12 +1002,12 @@ export class Zombies {
         dx = _spr.x;
         dz = _spr.z;
       }
-      // spitters keep their distance
-      if (z.ztype === ZTYPE.SPITTER && z.los && dist < 11 && z.legs !== 3) {
-        const l = dist || 1;
-        dx = -(tz - z.z) / l;
-        dz = (tx - z.x) / l;
-        speed *= 0.6;
+      // a kind that comes at its prey its own way (CHASES: a spitter keeps its distance)
+      const pace = CHASES[z.ztype]?.call(this, z, tx, tz, dist, _dir);
+      if (pace) {
+        dx = _dir.x;
+        dz = _dir.z;
+        speed *= pace;
       }
     } else if (z.herd) {
       // wandering herd: it keeps its place in the crowd, at a shuffle or (the herd roused) at a run
@@ -1120,8 +1101,8 @@ export class Zombies {
         if (g.rng() < 0.5) g.sound(z.ztype === ZTYPE.TANK ? SOUND.TANK_ROAR : def.pack ? SOUND.DOG_SNARL : SOUND.ZOMBIE_ATTACK, z.x, z.y + Math.min(1.6, def.height), z.z, 35);
       }
     }
-    // boomer: detonate near humans
-    this.boomerNear(z, target, dist);
+    // what its kind sets off with its prey this near (NEARS: a boomer swells up beside them)
+    NEARS[z.ztype]?.call(this, z, target, dist);
 
     // detour when stuck
     if (z.detourT > 0) {
@@ -1150,8 +1131,8 @@ export class Zombies {
 
     this.integrate(z, dt, dx * moveSpeed, dz * moveSpeed, humans);
 
-    // boomer: it also detonates against what the survivors built, held up by it with a survivor close behind (boomer.js)
-    this.boomerBreach(z, dt, dist, moveSpeed);
+    // what its kind sets off once it has taken its step (STEPS: a boomer held up by what was built bursts against it)
+    STEPS[z.ztype]?.call(this, z, dt, dist, moveSpeed);
 
     // attack blocking structure
     if (!attacking && z.blockStruct && moveSpeed > 0 && def.structDmg > 0) {
@@ -1535,7 +1516,7 @@ export class Zombies {
     if (!z.link) return;
     const p = g.players.get(z.link);
     if (p) {
-      if (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER) p.state.pinned = 0;
+      if (pinsDown(z)) p.state.pinned = 0;
       else p.state.pulled = 0;
       p.pinnedBy = 0;
       p.ropedBy = 0;
@@ -1556,8 +1537,8 @@ export class Zombies {
       z.animT = 0;
     }
     z.specialCd = 6 + this.g.rng() * 3;
-    // a crawler off a face makes off for a tree away from them (FLEE_*)
-    if (z.ztype === ZTYPE.CRAWLER && !z.dead) this.fleeFace(z, p);
+    // what its kind does once it has let go (RELEASES: a crawler off a face runs for a tree)
+    RELEASES[z.ztype]?.call(this, z, p);
   }
 
   // ---------------------------------------------------------------- specials (each kind's own: server/specials/)
@@ -1567,14 +1548,17 @@ export class Zombies {
     const def = z.def;
     const t = z.ztype;
 
-    // a crawler up a tree, or on its way to one (perch)
-    if (t === ZTYPE.CRAWLER && z.state === 0 && this.perch(z, dt, target, dist)) return true;
+    // a way of getting about of its kind's own (MOVES: a crawler up a tree, or on its way to one)
+    const move = z.state === 0 && MOVES[t];
+    if (move && move.call(this, z, dt, target, tx, ty, tz, dist)) return true;
 
     // windup common: state 1
     if (z.state === 1) {
       z.stateT -= dt;
       z.anim = ZANIM.SPECIAL;
-      if (z.stateAct === 12) z.yaw = turn(z.yaw, Math.atan2(z.ramX, z.ramZ), dt * 10); // (a dog squaring up to the piece it rams)
+      // to its prey, unless the act is aimed elsewhere (AIMS: a dog squaring up to the piece it rams)
+      const aim = AIMS[z.stateAct];
+      if (aim) aim.call(this, z, dt);
       else this.faceTarget(z, dt, target, tx, tz);
       this.holdStill(z, dt);
       if (z.stateT <= 0) {

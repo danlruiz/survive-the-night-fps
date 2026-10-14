@@ -39,6 +39,10 @@ const LEAP_AIM = 0.6; // (the leaper's: at the chest, to bear them down)
 export const leapG = (z) => (z.glide ? GRAV * GLIDE_G : GRAV);
 const _leap = { x: 0, y: 0, z: 0 };
 
+// a kind that pins its prey down (special state 3, s.pinned: the leaper, and the crawler on the face), not one that
+// hauls them in (the roper's rope, s.pulled)
+export const pinsDown = (z) => z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER;
+
 // how far above its prey's feet a pounce comes down: a crawler goes for the face, a leaper for the chest
 export function leapAim(z) {
   return z.ztype === ZTYPE.CRAWLER ? LATCH_AIM : LEAP_AIM;

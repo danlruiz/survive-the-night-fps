@@ -37,6 +37,7 @@ import { SKYFLARE, launchFlare, flareStep } from '../shared/skyflare.js';
 import { blowOf } from '../shared/surfaces.js';
 import { WRECK_SALVAGE, wreckUnit } from '../shared/wrecks.js';
 import { strikeHeight, strikeOpen } from './specials/util.js';
+import { pinsDown } from './specials/leaper.js';
 
 // the projectile each throwable flies as
 const THROW_PROJ = Object.fromEntries(Object.entries(PROJ_ITEM).map(([ptype, item]) => [item, +ptype]));
@@ -555,7 +556,7 @@ export class Combat {
     z.hp -= amount;
     if (z.link) {
       z.linkDmg += amount;
-      if (opts.melee && (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER)) g.zm.releaseLink(z);
+      if (opts.melee && pinsDown(z)) g.zm.releaseLink(z); // (a blow knocks one off whoever it has pinned)
     }
     if (attacker) {
       z.aggroId = attacker.id;

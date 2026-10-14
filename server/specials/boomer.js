@@ -6,11 +6,11 @@ import { ENT } from '../../shared/protocol.js';
 const BLAST_ZOMBIES = 80;
 const BLAST_STRUCTURES = 260;
 
-export const methods = {
+export const nears = {
   // it detonates near a survivor
-  boomerNear(z, target, dist) {
+  [ZTYPE.BOOMER](z, target, dist) {
     const g = this.g;
-    if (z.ztype === ZTYPE.BOOMER && target && dist < 2.4 && z.state === 0) {
+    if (target && dist < 2.4 && z.state === 0) {
       z.state = 1;
       z.stateT = 0.55;
       z.stateAct = 99;
@@ -18,13 +18,15 @@ export const methods = {
       g.sound(SOUND.BOOMER_GURGLE, z.x, z.y + 1.4, z.z, 30);
     }
   },
+};
 
-  // boomer: it also detonates against what the survivors built. It cannot claw through a structure (structDmg 0),
-  // so brought to a stop by one with a survivor close behind it, it swells up and bursts there. blockStruct is only
-  // ever a player-built piece, never the static world; the range keeps a fence across the map from spending it;
-  // sliding along a fence toward its end is not being stopped. The longer windup is the survivors' cue to shoot
-  // it (then the piece only takes the blast) or step back.
-  boomerBreach(z, dt, dist, moveSpeed) {
+export const steps = {
+  // It also detonates against what the survivors built. It cannot claw through a structure (structDmg 0), so brought
+  // to a stop by one with a survivor close behind it, it swells up and bursts there. blockStruct is only ever a
+  // player-built piece, never the static world; the range keeps a fence across the map from spending it; sliding along
+  // a fence toward its end is not being stopped. The longer windup is the survivors' cue to shoot it (then the piece
+  // only takes the blast) or step back.
+  [ZTYPE.BOOMER](z, dt, dist, moveSpeed) {
     const g = this.g;
     const def = z.def;
     if (def.breachHold && z.state === 0) {
