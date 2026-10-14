@@ -1465,7 +1465,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     their `EVT.SHOT`, the mounted gun's too) - every pellet of a shotgun leaves its hole, nothing new is on the wire,
     and the server's own `EVT.IMPACT` for the same round is dropped (`sameAsOwn`);
   - a blast is `EVT.EXPLOSION`: rays out from it scorch and pit what stands round it.
-- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code, a cell per kind) in one
+- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code: `textures/marks.js`, a cell per kind) in one
   mesh: one draw call, lit like the wall it lies on, no draw call at all while there are none. `MarkPool` (no
   three.js in it) is a ring of `MARK_RING` (400) that the newest overwrite - a hundred rounds into one wall cost
   what one does - each fading out after `MARK_LIFE`, plus `MARK_KEPT` slots that stay until given back (a wreck's
