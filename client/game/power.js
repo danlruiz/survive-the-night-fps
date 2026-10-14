@@ -13,7 +13,7 @@ import { ACT } from '../../shared/protocol.js';
 import { GEN_RANGE, GEN_HOLD, GEN_TANK, FLOOD_RANGE, FLOOD_HALF, FLOOD_PITCH, FLOOD_LENS_UP, FLOOD_LENS_FWD, genOn, genFuel, genRunning, genPour, floodAim, inFloodCone } from '../../shared/power.js';
 import { G } from '../render/globals.js';
 import { getTexture } from '../render/textures.js';
-import { TEX } from '../render/effects.js';
+import { TEX } from '../render/particles.js';
 import { FLOOD_LENS, GEN_EXHAUST, powerReachRing } from '../render/models/power.js';
 import { bindTag } from './binds.js';
 

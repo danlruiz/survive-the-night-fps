@@ -9,8 +9,6 @@ import { comfort } from './comfort.js';
 import { TEX, LIT, buildAtlas, ParticlePool, DecalPool } from './particles.js';
 import { lumpGeometry, limbGeometry, headGeometry, GibPool } from './gibs.js';
 
-export { TEX, LIT } from './particles.js';
-
 const TORCH_GAIN = 0.3; // how much of the flashlight a drop of blood throws back, next to a matt surface facing the lamp
 const ROCKET_ARM = 10; // m out from the tube an RPG grenade's motor lights (rocketTrail)
 const isSpot = (o) => o.isSpotLight;

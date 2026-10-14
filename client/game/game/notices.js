@@ -11,7 +11,7 @@ import { needLines } from '../harvest.js';
 import { bindTag } from '../binds.js';
 import { mateDown } from '../matedown.js';
 import { isFirstRun, yawTowards } from '../../ui/firstrun.js';
-import { tonightBrief } from '../../ui/hud2.js';
+import { tonightBrief } from '../../ui/tonight.js';
 
 // what the car's radio says once its battery is in (carRadio), word for word as the owner wrote it
 const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';

@@ -26,8 +26,6 @@ import { propVariant } from './models/props.js';
 import { refine, islands, rayPieces } from './wreckgeo.js';
 import { FINE, Lifted, Wreck } from './wreck.js';
 
-export { roomAt, strokeCorners } from './wreck.js';
-
 const FINES_KEPT = 24; // Wrecks.fineModel(): models kept (a car's is about 1 MB)
 const PREFETCH_NEAR = 120; // m: the wrecks whose models Wrecks.prefetch makes ahead of a blow...
 const PREFETCH_EVERY = 0.25; // s: ...one at a time, at most this often

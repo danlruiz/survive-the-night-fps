@@ -14,9 +14,6 @@ import { MultiMesh, ALWAYS, dropArray } from './multimesh.js';
 import { GROUND_MACRO_GLSL, groundNoiseTexture, VEG } from './vegshading.js';
 import { groundFields } from './groundfields.js';
 
-// (the water has a file of its own: Game finds it here)
-export { buildWater } from './water.js';
-
 const TERRAIN_CHUNK = 48; // cells a side of a piece of the terrain mesh (96 m): see buildTerrain
 // the road frame is kept this far (m) past a road's edge, so its fade-out stays well clear of the road
 const FRAME_REACH = 12;

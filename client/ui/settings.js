@@ -8,7 +8,6 @@ import { ACTIONS } from '../../shared/binds.js';
 import { isDefault, onBindsChange } from '../game/binds.js';
 import './ux-settings.css';
 import { DEFAULT_SETTINGS } from './settingsstore.js';
-export { DEFAULT_SETTINGS, loadSettings } from './settingsstore.js'; // (client/main.js loads them from here)
 
 // is a setting off its default? (a slider's value is a float: near enough is the same)
 const changed = (s, k) => (typeof DEFAULT_SETTINGS[k] === 'number' ? Math.abs(s[k] - DEFAULT_SETTINGS[k]) > 1e-6 : s[k] !== DEFAULT_SETTINGS[k]);

@@ -10,7 +10,8 @@ import { treeAt, fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../..
 import { strippedKey } from '../harvest.js';
 import { Impacts } from '../impacts.js';
 import { textureSteps } from '../../render/textures.js';
-import { terrainSteps, buildWater } from '../../render/terrain.js';
+import { terrainSteps } from '../../render/terrain.js';
+import { buildWater } from '../../render/water.js';
 import { buildMine } from '../../render/mine.js';
 import { buildShips } from '../../render/ships.js';
 import { buildClinic, disposeClinic } from '../../render/clinic.js';

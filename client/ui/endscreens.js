@@ -200,7 +200,7 @@ export class DawnLine {
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this._room()).observe(root);
   }
 
-  // s: the night's tally (S2C summary); rows: what tonight brings (hud2.js tonightBrief): its theme, its new kinds, its boss
+  // s: the night's tally (S2C summary); rows: what tonight brings (tonight.js tonightBrief): its theme, its new kinds, its boss
   show(s, rows = []) {
     this.head.textContent = `Night ${s.night} held`;
     this.stats.textContent = '';

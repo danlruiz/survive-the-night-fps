@@ -3,7 +3,7 @@ import './render/globals.js'; // must run before any material is created (global
 import { GameRenderer } from './render/renderer.js';
 import { comfort, REDUCED_FLASH } from './render/comfort.js';
 import { UI } from './ui/ui.js';
-import { DEFAULT_SETTINGS, loadSettings } from './ui/settings.js';
+import { DEFAULT_SETTINGS, loadSettings } from './ui/settingsstore.js';
 import { applyTouchSetting, installTouchGestures } from './game/touchmode.js';
 import { AudioEngine } from './audio/audio.js';
 import { Game } from './game/game.js';
