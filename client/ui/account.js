@@ -1,40 +1,29 @@
 // The account panel, opened from the splash's account button (and from the friends panel, signed out): signing in or
 // making an account; then who you are, what the server has on record for you over every game, your last games,
-// and signing out. The account itself is client/net/account.js. It borrows the lobby's card (games.js) and closes
+// and signing out. The account itself is client/net/account.js. It is a panel (panel.js) and closes
 // the same ways: the cross, Esc, or a click outside the card.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
+import { num, ago, duration } from './format.js';
 import { accountState, onAccountChange, refreshAccount, register, login, logout, myStats } from '../net/account.js';
 
-// the four the leaderboard ranks, as it calls them (leaderboard.js)
-const TILES = [
+// the four the leaderboard ranks, as it calls them (leaderboard.js): a tile each on the account and on a profile
+export const STAT_TILES = [
   ['kills', 'Kills', 'skull'],
   ['nights', 'Nights', 'moon'],
   ['wins', 'Wins', 'car'],
   ['revives', 'Revives', 'cross'],
 ];
-const num = (n) => (n | 0).toLocaleString('en-US');
 
-// '2 h ago' and the like, from a time (ms or anything Date takes)
-export function ago(t) {
-  const ms = typeof t === 'number' ? t : new Date(t).getTime();
-  if (!(ms > 0)) return '';
-  const s = (Date.now() - ms) / 1000;
-  if (s < 90) return 'just now';
-  if (s < 5400) return `${Math.round(s / 60)} min ago`;
-  if (s < 129600) return `${Math.round(s / 3600)} h ago`;
-  if (s < 86400 * 45) return `${Math.round(s / 86400)} days ago`;
-  return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-// '3 h 20 min', '12 min', '40 s'
-export function duration(sec) {
-  const s = Math.max(0, Math.round(sec || 0));
-  if (s < 60) return `${s} s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+// one of STAT_TILES, its value under its icon and name
+export function statTile(parent, [, label, icon], value) {
+  const t = el('div', 'ac-tile', parent);
+  const h = el('span', 'ac-tile-l', t);
+  svgEl('i', 'ac-tile-ico', h, glyph(icon));
+  el('span', '', h, label);
+  el('b', '', t, value);
+  return t;
 }
 
 const day = (t) => {
@@ -80,8 +69,7 @@ export class AccountPanel extends Panel {
       ['signin', 'Sign in'],
       ['register', 'Create account'],
     ].map(([id, label]) => {
-      const b = el('button', 'seg-btn', seg, label);
-      b.type = 'button';
+      const b = button('seg-btn', seg, label);
       b.addEventListener('click', () => this.setTab(id));
       return [id, b];
     });
@@ -130,28 +118,24 @@ export class AccountPanel extends Panel {
     const no = (this.noView = el('div', 'gb-empty ac-none', this.body));
     this.noText = el('p', '', no, '');
     this.noSub = el('p', 'gb-empty-sub', no, '');
-    this.retry = el('button', 'btn btn-ghost ac-retry', no);
-    this.retry.type = 'button';
+    this.retry = button('btn btn-ghost ac-retry', no);
     el('span', '', this.retry, 'Try again');
     this.retry.addEventListener('click', () => refreshAccount().then(() => this.render()));
 
     // ---- foot: signing out, and the friends panel
-    this.outBtn = el('button', 'btn btn-ghost btn-danger', this.foot);
-    this.outBtn.type = 'button';
+    this.outBtn = button('btn btn-ghost btn-danger', this.foot);
     svgEl('i', 'btn-ico', this.outBtn, glyph('exit'));
     this.outTxt = el('span', '', this.outBtn, 'Sign out');
     this.outBtn.addEventListener('click', () => this.signOut());
     el('span', 'gb-gap', this.foot);
-    this.achBtn = el('button', 'btn btn-ghost', this.foot);
-    this.achBtn.type = 'button';
+    this.achBtn = button('btn btn-ghost', this.foot);
     svgEl('i', 'btn-ico', this.achBtn, glyph('trophy'));
     el('span', '', this.achBtn, 'Achievements');
     this.achBtn.addEventListener('click', () => {
       this.hide();
       this.ui.achPanel.show();
     });
-    this.friendsBtn = el('button', 'btn btn-ghost', this.foot);
-    this.friendsBtn.type = 'button';
+    this.friendsBtn = button('btn btn-ghost', this.foot);
     svgEl('i', 'btn-ico', this.friendsBtn, glyph('star'));
     el('span', '', this.friendsBtn, 'Friends');
     this.friendsBtn.addEventListener('click', () => {
@@ -369,12 +353,9 @@ export class AccountPanel extends Panel {
       el('div', 'gb-empty fr-empty ac-wait', this.tiles, this.statsErr || 'Looking up your record…');
       return;
     }
-    for (const [k, label, icon] of TILES) {
-      const t = el('div', 'ac-tile', this.tiles);
-      const h = el('span', 'ac-tile-l', t);
-      svgEl('i', 'ac-tile-ico', h, glyph(icon));
-      el('span', '', h, label);
-      el('b', '', t, num(s?.[k]));
+    for (const tile of STAT_TILES) {
+      const k = tile[0];
+      const t = statTile(this.tiles, tile, num(s?.[k]));
       const rank = s?.ranks?.[k] | 0;
       el('small', rank ? 'ranked' : '', t, rank ? `#${num(rank)} on the board` : 'unranked');
     }

@@ -3509,7 +3509,7 @@
   color: var(--amber);
 }
 
-/* ------------------------------------------------------------------ achievements (ui/achievements.js) */
+/* ------------------------------------------------------------------ achievements (ui/achievements.js, ui/achtoasts.js) */
 /* each tier's colour, for the banner, the cards and the counts */
 .stn-ui .tier-bronze {
   --tc: #c98a52;

@@ -86,8 +86,8 @@ client/      three.js client (Vite root)
               they share; hands.js: the hand and arm. weapons.js keeps the world models and the ViewModel
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
-  ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
-              (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
+  ui/         DOM HUD (hud.js with its corners in hud/; hud2.js: compass, world markers; objective.js, tonight.js),
+              field map (mapcanvas.js bakes it, mapscreen.js shows it), splash, inventory/crafting, build menu, chat,
               contextual key hints (keyhints.js: reads the game state once a frame, owns its one HUD line)
               icons.js: every SVG icon; a held item's own is icons/<name>.js, named as its model's file
   stats/      the public stats page (/stats, stats.html): main.js fills it, charts.js draws its SVG charts
@@ -186,7 +186,7 @@ more than its bytes**, so put things into the packets that already flow.
   jump adds `SHOVE_PRESS` to the meter and pushes a `shove` event (which is what lets the input buffer pass a quick
   tap straight through), holding it down adds `SHOVE_HOLD` a second, and letting go takes `SHOVE_SLIP` a second off.
   The meter is predicted like any other field, so mashing needs no rebase; the server throws the leaper off on the
-  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud.js`, filled in by `game/hudmeters.js`) and both hands shoving
+  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud/center.js`, filled in by `game/hudmeters.js`) and both hands shoving
   (`ViewModel._push`).
 - **Entities** (`server/snapshot.js` / `client/net/decode.js`, tables `FIELD_COUNT` + `BIT_SLOTS` in both):
   area of interest per kind, creates in full, updates only for changed fields, sorted by id behind a one-byte
@@ -247,8 +247,9 @@ sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`
   has per-game tick timings and CPU (`load.cpuMs`: ms of CPU that game's thread used per second), the network
   thread's (`net`) and the process RSS; no codes.
 - **Client:** `client/net/lobby.js` (the API, and invite links: `?game=CODE`; while in a game the address bar
-  carries its link), the splash in `ui/menus.js` (Quick join, Browse games, Create game, or the invitation of the
-  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu.
+  carries its link), the splash in `ui/splash.js` (Quick join, Browse games, Create game, or the invitation of the
+  game whose link opened the page), `ui/games.js` (the Browse and Create panels), the invite link behind "Invite friends" on the pause menu
+  (`ui/invite.js`).
 - **Capacity** (`npm run stress -- game|box`, scripts/stress.js; measured 2 Oct 2026 with bots at night 3 on a
   shared 11-core Mac, so read CPU ms per second, not wall-clock ticks): an 8-player game at night uses ~17 ms of
   CPU a second (45 in its worst second), ~62 MB of memory on a 70 MB base, ~2-2.6 KB/s down per player, and the
@@ -387,7 +388,7 @@ JSON file (`server/stats.js`).
   /api/achievements/merge`: the greater of each count, every unlock of either, `source = 'guest'`). It is taken on
   trust - a browser can say anything - so it only reaches the two achievement tables, never `player_stats`.
   `GET /api/achievements` is your own record, `GET /api/achievements/:id` a friend's.
-- **On screen** (`client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
+- **On screen** (`client/ui/achtoasts.js`, `client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
   the tier's colour, a shine, confetti for gold, platinum and secrets; queued, ~4 s each; Settings turn banners and
   the chime off; reduced motion takes the movement out; a lifetime count's banner names the next step on it), and the
   profile page from the splash, the pause menu, the account panel and a friend's row: the three counters closest to
@@ -471,8 +472,9 @@ map does, and can be shut to fight and opened again.
   the worker hands items over only once the cards have moved. Signing in brings a guest's cards onto the account
   (`Auth.claimGuest` -> `mergeGuest`). Escrows a game never settled go back to their owners (`roomGone`, and a sweep
   after a day).
-- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `carddeck.js`,
-  `cardtrade.js`, `cardreveal.js`, `cardface.js`; `cards.css`): the table, the deck builder, trades, challenges,
+- **On screen** (`client/game/cards.js` the store and the glue, `client/ui/cards.js` the screen; `cardtable.js` and `cardpicker.js`,
+  `carddeck.js`, `cardtrade.js`, `cardasks.js`, `cardchooser.js`, `cardlobby.js`, `cardpractice.js`, `cardreveal.js`,
+  `cardface.js`, `cardwidgets.js`; `cards.css`): the table, the deck builder, trades, challenges,
   practice against the computer (`client/game/cardlocal.js`, no rewards), a pack's reveal and a three-page guide to how
   it plays (`cardguide.js`: offered once, the first time the cards open in a browser, `stn.cards.guide`; "How to play"
   in the head ever after). Card art is the game's
@@ -500,7 +502,7 @@ row of its own, so the same browser signing in again later moves what it earned 
 has a `loadout_skull_ledger` row and normalized entries; earn events from a game use stable ledger ids and an hourly
 cap, while auction buys debit buyer and credit seller minus the fee in the same transaction that moves the item. Guests
 may browse and earn but must sign in to buy or sell. The main menu's Loadout and Auction House panels read the same
-service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
+service (`client/net/loadout.js`; `client/ui/loadout.js`, `client/ui/auction.js`); a guest's reads carry their browser id in the `X-STN-Guest`
 header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
 The pledge window (`shared/pledge.js`, `server/pledge.js`, `client/ui/pledge.js`) is where Skulls are spent in a game.
@@ -824,7 +826,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
     middle), `zone.minor` (a lesser place: smaller letters), `landmark.city` (named inside the city: written only
     zoomed in), and `world.marks` (the picture's marks: the town, the church, the industry, the gas station, the
     airport, the camps, the mouths of the tunnels and the mines, the quarry and its pit, the lighthouse, the radio tower,
-    the water tower). `client/ui/mapmainland.js` draws the mainland's field map from them: paper, the water in blue with
+    the water tower). `client/ui/mapmainland.js` (its layers in `client/ui/mainland/`) draws the mainland's field map from them: paper, the water in blue with
     its shallows and a light rim round every islet, the mountains in lit and shaded faces with their crests inked and no
     outline, a stamp for every tree as the picture draws them, the roads by its legend, the city's ring road, its marks
     and its legend in the corner of the sea.
@@ -1673,7 +1675,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   Every night's boss (`bossPending`, drawn by `nightBoss(seed, night)` in `shared/nights.js` from `BOSS_POOL`; night 1
   is always The Brute) comes in with wave `BOSS_WAVE`; `Game.spawnBosses` scales its health by `BOSS_HP_PER_PLAYER`
   and `BOSS_HP_PER_NIGHT` (a Tank by `TANK_BOSS_HP` as well). The client draws the same boss from the seed
-  (`nightBossText` in `client/ui/hud2.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
+  (`tonightBrief` in `client/ui/tonight.js`) and names it, with the def's `tip`, on the dawn card and at the dusk horn;
   `NOTIFY.BOSS` says when it arrives. A day's length is `dayLength(day)` in `shared/constants.js` (`Game.dayLen`):
   long on days 1 and 2, then `DAY_SHRINK` shorter each day down to `DAY_LENGTH`. A boss drops its loot (`bossLoot`, default 8 rolls) only if it dies before
   the dawn sun sets it alight (`z.onFire`, `Combat.killZombie`); the sun's kill goes to the killfeed as `KILLER.WORLD`.
@@ -2042,13 +2044,14 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   lightning light, wind (`Foliage.update` drives `G.uWind`: trees bend trunk and crown together, grass and bushes
   lean; the ambience plays the same wind), ground mist, the flashlight beam's haze (post.js, denser in rain), and
   rain streaks and splashes (`render/weatherfx.js`, kept out from under `world.roofs`).
-- **The inventory screen** (`client/ui/inventory.js`, the crafting column in `client/ui/crafting.js`). The game does
+- **The inventory screen** (`client/ui/inventory.js`, its parts in `client/ui/inventory/`: the kit strip, the backpack, the
+  item card, the menu, dragging, the popovers; the crafting column in `client/ui/crafting.js`). The game does
   not pause under it, so every action is one click or one key: a click selects (the item card under the backpack
   says what it is, with a button and key for each action), a double-click does the main thing, a right click opens a
   menu of drop amounts, and F use · S split · G drop one (Shift+G all) · X salvage · Z undo act on what is under the
   pointer, else what is selected. The keys are the screen's own listener: the game's input is off while it is open,
   and a key bound to opening a screen (`MENU_KEYS`) is left to the game. The backpack is grouped into sections in
-  the order the server's Sort leaves it (`SECTIONS`, `BAG_TIER`), and a drag only swaps within one. Recipes are
+  the order the server's Sort leaves it (`SECTIONS` in `inventory/backpack.js`, `BAG_TIER`), and a drag only swaps within one. Recipes are
   grouped by what stops them (ready, needs a station, missing materials, locked), after "For what you carry" (the
   ready ones that feed what is held: `carryWhy`, each with a Craft button); the one selected has a quantity that
   `craftRun` caps. The layout (`ux-inventory.css`, issue #224) is a header with health and stamina (`setVitals`, from
@@ -2056,7 +2059,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   compares a gun or a vest with the one held) and Crafting; type has a rem floor so browser zoom enlarges it, and
   below `COMPACT` (1280 x 720 at 125% zoom and smaller) one panel shows at a time under tabs that Q / E switch.
 - **The tracked recipe** (`client/game/tracked.js`): one recipe at a time in `localStorage['stn.tracked']`, client
-  only. The HUD checklist under the objective tracker (`Tracked` in `ui/hud2.js`), the "needed for" line on pickup
+  only. The HUD checklist under the objective tracker (`Tracked` in `ui/objective.js`), the "needed for" line on pickup
   prompts and the "may hold" line on containers whose table can roll a missing ingredient (`mayHold` in
   `itemguide.js`) read it; the backpack marks the stacks it would use. Crafting it untracks it.
 - **Item guide** (`client/game/itemguide.js`): the "Used in" and "Found in" lines of the inventory's item card are

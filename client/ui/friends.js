@@ -3,15 +3,16 @@
 // to add; your friends - those you can go and join first, then those online, then the rest - each with a Chat, a
 // Join (or "Leave & join" from inside a game) while they play; adding someone by their name; and the requests you
 // sent. Chat opens the conversation in the panel itself. The friends, the requests and the messages are
-// client/net/friends.js. It borrows the lobby's card (games.js) and closes the same ways: the cross, Esc, or a click
+// client/net/friends.js. It is a panel (panel.js) and closes the same ways: the cross, Esc, or a click
 // outside the card.
 //
 // In a game, a message from a friend or a friend request is said in the chat as a line of its own, and nothing else:
 // the pointer and the keys stay with the game.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel, phaseText, seatsText, difficultyText } from './games.js';
-import { ago } from './account.js';
+import { phaseText, seatsText, difficultyText } from './games.js';
+import { Panel } from './panel.js';
+import { ago } from './format.js';
 import { bindLabel } from '../game/binds.js';
 import { accountState, onAccountChange } from '../net/account.js';
 import {
@@ -62,10 +63,9 @@ function stamp(t) {
   return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' })} ${hm}`;
 }
 
-// a button: an icon, a word or both
-function button(parent, cls, icon, text, fn) {
-  const b = el('button', 'btn btn-ghost ' + cls, parent);
-  b.type = 'button';
+// a ghost button: an icon, a word or both, and what a click does
+function actionButton(parent, cls, icon, text, fn) {
+  const b = button('btn btn-ghost ' + cls, parent);
   if (icon) svgEl('i', 'btn-ico', b, glyph(icon));
   if (text) el('span', '', b, text);
   if (fn) b.addEventListener('click', fn);
@@ -90,8 +90,8 @@ export class FriendsPanel extends Panel {
     this.outText = el('p', '', out, '');
     this.outSub = el('p', 'gb-empty-sub', out, '');
     const ob = (this.outBtns = el('div', 'fr-signin-btns', out));
-    button(ob, '', 'person', 'Sign in', () => this.toAccount('signin'));
-    button(ob, '', 'personPlus', 'Create account', () => this.toAccount('register'));
+    actionButton(ob, '', 'person', 'Sign in', () => this.toAccount('signin'));
+    actionButton(ob, '', 'personPlus', 'Create account', () => this.toAccount('register'));
 
     // ---- the lists
     const lists = (this.listView = el('div', 'fr-lists', this.body));
@@ -133,13 +133,13 @@ export class FriendsPanel extends Panel {
     // ---- a conversation
     const cv = (this.convView = el('div', 'fr-conv', this.body));
     const ch = el('div', 'fr-conv-head', cv);
-    button(ch, 'fr-back', 'arrowLeft', 'Friends', () => this.closeConv());
+    actionButton(ch, 'fr-back', 'arrowLeft', 'Friends', () => this.closeConv());
     const cw = (this.convWho = el('div', 'gb-who fr-conv-who', ch));
     const cn = el('div', 'gb-name', cw);
     el('i', 'fr-dot', cn);
     this.convName = el('span', '', cn, '');
     this.convMeta = el('div', 'gb-meta', cw, '');
-    this.convJoin = button(ch, 'gb-join', '', '', () => {
+    this.convJoin = actionButton(ch, 'gb-join', '', '', () => {
       const f = friend(this.convId);
       if (f) this.join(f);
     });
@@ -168,7 +168,7 @@ export class FriendsPanel extends Panel {
     el('span', 'fr-mine-l', mine, 'Signed in as');
     this.mineName = el('b', 'fr-mine-name', mine, '');
     el('span', 'gb-gap', this.foot);
-    button(this.foot, '', 'person', 'Account', () => {
+    actionButton(this.foot, '', 'person', 'Account', () => {
       this.hide();
       this.ui.accountPanel.show();
     });
@@ -447,8 +447,8 @@ export class FriendsPanel extends Panel {
       el('span', '', row);
       const acts = el('div', 'fr-acts', row);
       const busy = this.busy.has(r.id);
-      button(acts, 'gb-join', 'check', 'Accept', () => this.act(r.id, () => acceptFriend(r.id), 'Could not accept it.')).disabled = busy;
-      const no = button(acts, 'fr-rm', 'xmark', '', () => this.act(r.id, () => declineFriend(r.id), 'Could not turn it down.'));
+      actionButton(acts, 'gb-join', 'check', 'Accept', () => this.act(r.id, () => acceptFriend(r.id), 'Could not accept it.')).disabled = busy;
+      const no = actionButton(acts, 'fr-rm', 'xmark', '', () => this.act(r.id, () => declineFriend(r.id), 'Could not turn it down.'));
       no.title = 'Turn it down';
       no.disabled = busy;
     }
@@ -469,8 +469,8 @@ export class FriendsPanel extends Panel {
         svgEl('i', 'fr-ico', tag, glyph('star'));
         el('span', '', tag, 'Friend');
       } else if (requestedName(p.account)) el('span', 'fr-tag dim', acts, 'Requested');
-      else if (asked) button(acts, 'gb-join', 'check', 'Accept', () => this.act(asked.id, () => acceptFriend(asked.id), 'Could not accept it.')).disabled = this.busy.has(asked.id);
-      else button(acts, 'gb-join', 'personPlus', 'Add', () => this.addName(p.account)).disabled = this.busy.has('add:' + lower(p.account));
+      else if (asked) actionButton(acts, 'gb-join', 'check', 'Accept', () => this.act(asked.id, () => acceptFriend(asked.id), 'Could not accept it.')).disabled = this.busy.has(asked.id);
+      else actionButton(acts, 'gb-join', 'personPlus', 'Add', () => this.addName(p.account)).disabled = this.busy.has('add:' + lower(p.account));
     }
     this.hereNote.hidden = !guests;
     this.hereNote.textContent = guests
@@ -503,25 +503,23 @@ export class FriendsPanel extends Panel {
         el('span', '', seats, seatsText(g));
       }
       const acts = el('div', 'fr-acts', row);
-      const chat = button(acts, 'fr-chat', 'chat', '', () => this.openConv(f));
+      const chat = actionButton(acts, 'fr-chat', 'chat', '', () => this.openConv(f));
       chat.title = f.unread ? `${f.unread} new message${f.unread === 1 ? '' : 's'}` : `Message ${f.username}`;
       if (f.unread) el('b', 'fr-badge', chat, f.unread > 99 ? '99+' : String(f.unread));
-      const ach = button(acts, 'fr-chat', 'trophy', '', () => {
+      const ach = actionButton(acts, 'fr-chat', 'trophy', '', () => {
         this.hide();
         this.ui.achPanel.show({ friend: { id: f.id, name: f.username } });
       });
       ach.title = `${f.username}'s achievements`;
       if (g && !withYou) {
-        const join = el('button', 'btn btn-ghost gb-join', acts);
-        join.type = 'button';
+        const join = button('btn btn-ghost gb-join', acts);
         const looking = sameId(this.joiningId, f.id);
         join.disabled = !!g.full || !!this.joiningId || this.ui.splash.joining;
         el('span', '', join, looking ? 'Finding…' : g.full ? 'Full' : at ? 'Leave & join' : 'Join');
         join.addEventListener('click', () => this.join(f));
       }
       const sure = this.confirm === f.id;
-      const rm = svgEl('button', 'btn btn-ghost fr-rm' + (sure ? ' sure' : ''), acts, sure ? '' : glyph('xmark'));
-      rm.type = 'button';
+      const rm = iconButton('btn btn-ghost fr-rm' + (sure ? ' sure' : ''), acts, sure ? '' : glyph('xmark'));
       rm.disabled = this.busy.has(f.id);
       if (sure) el('span', '', rm, 'Remove');
       rm.title = sure ? 'Take them off your friends (both ways)' : 'Remove from friends';
@@ -548,7 +546,7 @@ export class FriendsPanel extends Panel {
       el('div', 'gb-meta', who, `asked ${ago(r.at)} · not answered yet`);
       el('span', '', row);
       const acts = el('div', 'fr-acts', row);
-      button(acts, 'gb-join', '', 'Cancel', () => this.act(r.id, () => declineFriend(r.id), 'Could not take it back.')).disabled = this.busy.has(r.id);
+      actionButton(acts, 'gb-join', '', 'Cancel', () => this.act(r.id, () => declineFriend(r.id), 'Could not take it back.')).disabled = this.busy.has(r.id);
     }
   }
 
@@ -590,7 +588,7 @@ export class FriendsPanel extends Panel {
     this.convFirst = first;
     box.textContent = '';
     if (c.more) {
-      const older = button(box, 'fr-older', '', c.loading ? 'Loading…' : 'Older messages', () => loadOlder(this.convId));
+      const older = actionButton(box, 'fr-older', '', c.loading ? 'Loading…' : 'Older messages', () => loadOlder(this.convId));
       older.disabled = c.loading;
     }
     if (!c.messages.length) {

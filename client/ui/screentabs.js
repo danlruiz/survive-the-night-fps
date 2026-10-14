@@ -5,7 +5,7 @@
 // screen takes the pointer and the keys its own way; outside a run (the splash, the end screen) there is no inventory
 // and no map, and the perks and the achievements swap here (UI.screenGo). In a run the HUD's clock sits in the row,
 // left of the close (holdClock).
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { bindLabel, liveText } from '../game/binds.js';
 import { onProgress, lastProgress } from '../net/progress.js';
@@ -21,7 +21,7 @@ const bars = new Set();
 let held = null; // the row the HUD's clock is in...
 let home = null; // ...and where it lives when no row has it
 
-export function syncScreenTabs() {
+function syncScreenTabs() {
   for (const b of bars) b.sync();
 }
 
@@ -40,7 +40,7 @@ export function screenCame(root) {
   root.classList.toggle('scr-still', swapping);
 }
 
-// A Panel (games.js) as one of the screens: its card in a frame under the row, which has the close (the card's own
+// A Panel (panel.js) as one of the screens: its card in a frame under the row, which has the close (the card's own
 // cross goes, and so does its title: the tab says it). A press on the frame between them is a press outside, as on
 // the inventory. The panel calls shown() and hidden() from its show() and hide().
 export function tabbed(panel, own) {
@@ -73,8 +73,7 @@ export class ScreenTabs {
     nav.setAttribute('role', 'tablist');
     nav.setAttribute('aria-label', 'Inventory, map, perks and achievements');
     this.btns = TABS.map(([id, ico, label]) => {
-      const b = el('button', 'scr-tab', nav);
-      b.type = 'button';
+      const b = button('scr-tab', nav);
       b.dataset.tab = id;
       b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(id === own));
@@ -96,8 +95,7 @@ export class ScreenTabs {
     this.title.hidden = true;
     el('span', 'scr-gap', root);
     this.aside = el('div', 'scr-aside', root); // (the HUD's clock, in a run)
-    const close = (this.close = svgEl('button', 'scr-close btn-icon', root, glyph('xmark')));
-    close.type = 'button';
+    const close = (this.close = iconButton('scr-close btn-icon', root, glyph('xmark')));
     liveText(close, () => `Close (${bindLabel(own)} or Esc)`, 'title');
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => onClose());

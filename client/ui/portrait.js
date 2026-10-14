@@ -9,7 +9,7 @@ import { BESTIARY } from '../../shared/bestiary.js';
 
 export const PW = 240; // a portrait, css px
 export const PH = 200;
-export const BESTIARY_SEED = 1; // (the bestiary's portrait of a kind: the model built with this seed)
+const BESTIARY_SEED = 1; // (the bestiary's portrait of a kind: the model built with this seed)
 
 // `${ztype}:${seed}` -> the clear portrait (a data URL), for as long as the page lasts
 const clear = new Map();

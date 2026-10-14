@@ -11,12 +11,12 @@ import { el, svgEl } from './dom.js';
 import { glyph } from './icons.js';
 import { artGlyph, fillArt } from './cardart.js';
 
-export const FACTION_CLS = { [F.NEUTRAL]: 'f-neu', [F.SURVIVORS]: 'f-surv', [F.DEAD]: 'f-dead' };
-export const RARITY_CLS = { [RAR.C]: 'r-com', [RAR.R]: 'r-rare', [RAR.L]: 'r-leg' };
+const FACTION_CLS = { [F.NEUTRAL]: 'f-neu', [F.SURVIVORS]: 'f-surv', [F.DEAD]: 'f-dead' };
+const RARITY_CLS = { [RAR.C]: 'r-com', [RAR.R]: 'r-rare', [RAR.L]: 'r-leg' };
 export const ROW_GLYPH = ['blade', 'headshot', 'blast'];
 const WEATHER_GLYPH = { [ROW.C]: 'moon', [ROW.R]: 'fog', [ROW.H]: 'rain' };
 // what a card does, as a glyph
-export function abilityGlyph(c) {
+function abilityGlyph(c) {
   if (!c) return '';
   if (c.k === K.LEADER) return 'crown';
   switch (c.ab) {
@@ -49,7 +49,7 @@ export function abilityGlyph(c) {
 }
 
 // 'Close · Crew' / 'Special · Weather' / 'Leader · Tune-Up': what the tag line under the name says
-export function tagLine(c) {
+function tagLine(c) {
   if (!c) return '';
   if (c.k === K.LEADER) return `Leader · ${c.lname}${c.passive ? ' · always on' : ''}`;
   if (c.k === K.SPECIAL) return `Special · ${AB_NAMES[c.ab] || ''}${c.ab === AB.WEATHER ? ` · ${ROW_NAMES[c.wRow]}` : ''}`;

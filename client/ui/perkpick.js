@@ -3,7 +3,7 @@
 // something new" (a branch's first perks) - one click to pick a card out, one button (PerkPick.take, which the panel
 // puts in its foot) to take it. Your perks are chips along the bottom, each with its own take back (or a padlock and
 // why not), and the whole tree is a link away.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { PERKS, PERK_BY_ID, PERK_GROUPS, TIER, TIER_NAMES, TIER_LEVELS } from '../../shared/progress.js';
 import { perkStatus, perkShort, perkLeadsTo, takeBackWhy, BRANCH_ICON, andList } from './perktree.js';
@@ -34,16 +34,14 @@ export class PerkPick {
     el('span', 'prk-q-mine-h', mine, 'Yours');
     this.chips = el('div', 'prk-q-chips', mine);
     this.chipWhy = el('small', 'prk-q-why', mine, '');
-    const tree = el('button', 'prk-q-tree', mine);
-    tree.type = 'button';
+    const tree = button('prk-q-tree', mine);
     svgEl('i', '', tree, glyph('grid'));
     el('span', '', tree, 'Whole tree');
     tree.addEventListener('click', () => onTree?.());
 
     // the button to take the one picked out, and what to know before (the panel puts these in its foot)
     this.take = el('div', 'prk-q-take');
-    this.takeBtn = el('button', 'btn btn-blood', this.take, 'Pick a perk');
-    this.takeBtn.type = 'button';
+    this.takeBtn = button('btn btn-blood', this.take, 'Pick a perk');
     this.takeBtn.addEventListener('click', () => this.sel >= 0 && this.onPick?.(this.sel));
     el('small', 'prk-q-take-note', this.take, 'Change your mind whenever you like: take a perk back, or start over, for free. One taken during a night works from dawn.');
 
@@ -87,8 +85,7 @@ export class PerkPick {
     for (const id of this.owned) {
       const p = PERK_BY_ID[id];
       const why = takeBackWhy(this.owned, id);
-      const c = el('button', 'prk-chip' + (p.keystone ? ' key' : ''), this.chips);
-      c.type = 'button';
+      const c = button('prk-chip' + (p.keystone ? ' key' : ''), this.chips);
       svgEl('i', 'prk-chip-ico', c, glyph(p.icon));
       el('span', '', c, p.name);
       svgEl('i', 'prk-chip-x', c, glyph(why ? 'lock' : 'xmark'));
@@ -110,8 +107,7 @@ export class PerkPick {
   }
 
   _big(parent, p) {
-    const c = el('button', 'prk-qc prk-qc-big' + (p.id === this.sel ? ' sel' : '') + (p.keystone ? ' key' : ''), parent);
-    c.type = 'button';
+    const c = button('prk-qc prk-qc-big' + (p.id === this.sel ? ' sel' : '') + (p.keystone ? ' key' : ''), parent);
     c.dataset.id = String(p.id);
     c.setAttribute('aria-pressed', p.id === this.sel ? 'true' : 'false');
     svgEl('i', 'prk-ico', c, glyph(p.icon));
@@ -126,8 +122,7 @@ export class PerkPick {
   }
 
   _small(parent, p) {
-    const c = el('button', 'prk-qc prk-qc-small' + (p.id === this.sel ? ' sel' : ''), parent);
-    c.type = 'button';
+    const c = button('prk-qc prk-qc-small' + (p.id === this.sel ? ' sel' : ''), parent);
     c.dataset.id = String(p.id);
     c.setAttribute('aria-pressed', p.id === this.sel ? 'true' : 'false');
     c.title = p.text;

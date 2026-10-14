@@ -5,7 +5,7 @@
 // words as it is built (validateDeck), and Save is there once it is legal. Nothing goes to the server until Save.
 // The grid only draws the pictures it shows (ui/cardart.js).
 import { CARDS, cardDef, owned, validateDeck, defaultDeck, deckFaction, DECK_RULES, DECK_SLOTS, F, F_NAMES, F_PERKS, K, ROW, ROWM } from '../../shared/cards.js';
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { cardFace } from './cardface.js';
 import { CARD_SOURCE } from '../../shared/collections.js';
@@ -91,8 +91,7 @@ export class DeckBuilder {
   }
 
   button(parent, cls, label, run) {
-    const b = el('button', cls, parent, label);
-    b.type = 'button';
+    const b = button(cls, parent, label);
     b.addEventListener('click', run);
     return b;
   }
@@ -100,8 +99,7 @@ export class DeckBuilder {
   seg(parent, opts, field) {
     const s = el('div', 'set-seg cd-seg', parent);
     for (const [v, label] of opts) {
-      const b = el('button', 'seg-btn' + (this.filter[field] === v ? ' on' : ''), s, label);
-      b.type = 'button';
+      const b = button('seg-btn' + (this.filter[field] === v ? ' on' : ''), s, label);
       b.dataset.v = v;
       b.addEventListener('click', () => {
         this.filter[field] = v;
@@ -148,8 +146,7 @@ export class DeckBuilder {
     box.textContent = '';
     for (let i = 0; i < DECK_SLOTS; i++) {
       const d = this.c.deckIn(i);
-      const b = el('button', 'cd-slot' + (i === this.slot ? ' on' : ''), box);
-      b.type = 'button';
+      const b = button('cd-slot' + (i === this.slot ? ' on' : ''), box);
       const L = d ? cardDef(d.leader) : null;
       if (L) b.appendChild(cardFace(L, { mini: true }));
       else svgEl('i', 'cd-slot-empty', b, glyph('plus'));
@@ -270,8 +267,7 @@ export class DeckBuilder {
       el('b', '', t, L.name);
       el('span', '', t, `${F_NAMES[L.f]} · ${L.lname}`);
       if (F_PERKS[L.f]) el('span', 'cd-perk', t, F_PERKS[L.f]);
-      const ch = el('button', 'btn btn-ghost cd-small', t, 'Change leader');
-      ch.type = 'button';
+      const ch = button('btn btn-ghost cd-small', t, 'Change leader');
       ch.addEventListener('click', () => {
         this.filter.kind = 'leader';
         this.setSeg(this.segK, 'leader');

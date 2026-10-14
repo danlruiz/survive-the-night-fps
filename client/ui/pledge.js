@@ -1,7 +1,7 @@
 // The pledge window's panel (server/pledge.js, shared/pledge.js): as a run begins, chip Zombie Skulls into the group
 // offers, buy personal ones, then confirm or skip. It opens by itself when a run's window opens and shuts when the
 // window does; Esc puts it away and the Pledge key [O] brings it back while the window is still open.
-import { el, svgEl } from './dom.js';
+import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { SKULLS } from '../../shared/economy.js';
 import { PLEDGE, GROUP_OFFERS, OWN_OFFERS, pledgeOffer } from '../../shared/pledge.js';
@@ -25,8 +25,7 @@ export class PledgePanel {
     el('b', '', title, 'Pledge before the night');
     this.sub = el('span', 'pdg-sub', title, '');
     this.clock = el('div', 'pdg-clock', head, '');
-    const x = el('button', 'btn-icon set-close', head);
-    x.type = 'button';
+    const x = button('btn-icon set-close', head);
     x.title = 'Put away (Esc)';
     svgEl('i', '', x, glyph('xmark'));
     x.addEventListener('click', () => this.onClose?.());
@@ -47,12 +46,10 @@ export class PledgePanel {
     this.who = el('div', 'pdg-who', card);
     const foot = el('div', 'pdg-foot', card);
     this.note = el('small', 'pdg-foot-note', foot, '');
-    const skip = (this.skipBtn = el('button', 'btn', foot, 'Skip'));
-    skip.type = 'button';
+    const skip = (this.skipBtn = button('btn', foot, 'Skip'));
     skip.title = 'Start without pledging anything';
     skip.addEventListener('click', () => this.onSend?.({ op: 'skip' }));
-    const go = (this.goBtn = el('button', 'btn btn-blood', foot, 'Confirm'));
-    go.type = 'button';
+    const go = (this.goBtn = button('btn btn-blood', foot, 'Confirm'));
     go.addEventListener('click', () => this.onSend?.({ op: 'confirm' }));
   }
 
@@ -76,8 +73,7 @@ export class PledgePanel {
     };
     less.addEventListener('click', () => set(-PLEDGE.STEP));
     more.addEventListener('click', () => set(PLEDGE.STEP));
-    const rest = el('button', 'btn pdg-rest', ctl, 'Fill');
-    rest.type = 'button';
+    const rest = button('btn pdg-rest', ctl, 'Fill');
     rest.title = 'Pledge whatever the pool still needs';
     rest.addEventListener('click', () => {
       const g = this.view.group?.find(([id]) => id === o.id);
