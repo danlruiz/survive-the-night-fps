@@ -25,7 +25,6 @@ import {
   HEAL_RATE,
   HEAL_RATE_CAMPFIRE,
   CAMPFIRE_HEAL_RADIUS,
-  CRAFT_STATION_RADIUS,
   BUILD_REACH,
   MAX_STRUCTURES,
   FLASHLIGHT_MAX,
@@ -64,8 +63,6 @@ import {
   ITEM,
   ITEM_DEFS,
   WEAPONS,
-  RECIPE_BY_ID,
-  SALVAGE,
   STRUCT,
   STRUCT_DEFS,
   structPickRadius,
@@ -119,8 +116,7 @@ import * as Director from './director.js';
 import { difficultyOf } from '../shared/difficulty.js';
 import { Nav } from './nav.js';
 import { ClientView, writeEntities, stageEntities } from './snapshot.js';
-import { createInventory, invCap, addItem, removeItem, takeFrom, tidyStacks, countItem, countsMap, payCost, canFit, freeSlot, sortInventory } from './inventory.js';
-import { planCost } from '../shared/autocraft.js';
+import { createInventory, invCap, addItem, removeItem, takeFrom, tidyStacks, countItem, payCost, freeSlot, sortInventory } from './inventory.js';
 import { Zombies } from './zombies.js';
 import { Cats } from './cats.js';
 import { Deer } from './deer.js';
@@ -143,7 +139,7 @@ import { BestiaryTracker } from './bestiary.js';
 import { Cards } from './cards.js';
 import { Pledges } from './pledge.js';
 import { PLEDGE } from '../shared/pledge.js';
-import { Loadouts, clearLoadoutRun, isLoadoutArmor, isLoadoutStack, isLoadoutWeapon, playerMods } from './loadouts.js';
+import { Loadouts, clearLoadoutRun, isLoadoutStack, isLoadoutWeapon, playerMods } from './loadouts.js';
 import { checkEnvelope, worldPrint, sameWorld, HandoffError } from './handoff.js';
 import { saveGame, loadGame } from './gamestate.js';
 import { CHARACTER_NONE, characterFor, defaultCharacter } from '../shared/characters.js';
@@ -157,9 +153,10 @@ import * as escape from './game/escape.js';
 import * as supplydrops from './game/supplydrops.js';
 import * as trunks from './game/trunks.js';
 import * as items from './game/items.js';
+import * as crafting from './game/crafting.js';
 import { MAX_DROPS, looseSupply } from './game/items.js';
 
-const PARTS = { commands, blows, phases, escape, supplydrops, trunks, items };
+const PARTS = { commands, blows, phases, escape, supplydrops, trunks, items, crafting };
 
 const NO_HASH = -2; // a command packet that came without a state fingerprint
 const WEDGED_FOR = 15; // s one of the dead has been after a survivor without getting anywhere (z.wedgeT): its kill earns no XP
@@ -2311,38 +2308,6 @@ export class Game {
     return Math.hypot(s.x - car.x, s.z - car.z) <= r + (car.plane ? PLANE_REACH : 0);
   }
 
-  // nearest structure of a crafting station kind ('fire' needs to be lit)
-  nearStation(p, kind) {
-    const s = p.state;
-    for (const e of this.structures) {
-      const def = STRUCT_DEFS[e.stype];
-      if (def.station !== kind) continue;
-      if (kind === 'fire' && e.burnLeft <= 0) continue;
-      if (Math.hypot(e.x - s.x, e.z - s.z) <= CRAFT_STATION_RADIUS) return e;
-    }
-    return null;
-  }
-
-  // what player p could craft with right here: { fire, bench, unlocked } (planCost, shared/autocraft.js)
-  craftCtx(p) {
-    return { fire: !!this.nearStation(p, 'fire'), bench: !!this.nearStation(p, 'bench'), unlocked: this.unlocked };
-  }
-
-  // how p pays `cost`, the materials short of it made from what they are made of (planCost); null: p cannot
-  planFor(p, cost) {
-    return planCost(countsMap(p.inv), cost, this.craftCtx(p));
-  }
-
-  // What a plan's batches made beyond what it took (ten Nails for the four a wall needs), once its `take` is paid and
-  // what was bought handed over: into the pack where addItem puts it (craftRun in client/game/bulkcraft.js puts it
-  // in the same place), and at p's feet what does not fit
-  madeExtra(p, plan) {
-    for (const k in plan.give) {
-      const left = addItem(p.inv, +k, plan.give[k], invCap(p));
-      if (left > 0) this.dropItem(+k, left, p.state.x, p.state.y, p.state.z, { spread: 0.8 });
-    }
-  }
-
   interact(p, id) {
     if (this.time - p.interactT < 0.15) return;
     p.interactT = this.time;
@@ -2609,97 +2574,6 @@ export class Game {
       c.alarm = false;
       this.triggerCarAlarm(p, c);
     }
-  }
-
-  craft(p, recipeId) {
-    const rec = RECIPE_BY_ID.get(recipeId);
-    if (!rec) return;
-    if (rec.schem && !(this.unlocked & (1 << SCHEM_BIT[rec.schem]))) return this.notify(NOTIFY.LOCKED, rec.schem, p.id);
-    if (rec.station && !this.nearStation(p, rec.station)) return this.notify(rec.station === 'fire' ? NOTIFY.NEED_FIRE : NOTIFY.NEED_BENCH, 0, p.id);
-    const plan = this.planFor(p, rec.cost);
-    if (!plan) {
-      this.notify(NOTIFY.NOT_ENOUGH, 0, p.id);
-      return;
-    }
-    if (rec.vehicle) {
-      // a vehicle: it stands beside the bench when it is made (server/vehicles.js); nothing goes into the pack
-      const no = this.vehicles.build(p, rec.vehicle, true);
-      if (no) return this.notify(NOTIFY.VEH_NEED, no, p.id);
-      payCost(p.inv, plan.take);
-      this.madeExtra(p, plan);
-      this.vehicles.build(p, rec.vehicle);
-      this.track.craft(p, rec);
-      this.ach.crafted(p);
-      p.invDirty = true;
-      this.sound(SOUND.CRAFT, p.state.x, p.state.y + 1, p.state.z, 15);
-      return;
-    }
-    const def = ITEM_DEFS[rec.out];
-    // capacity check
-    if (def.cat === 'ammo') {
-      if (p.state.ammo[def.ammo] >= AMMO_MAX[def.ammo]) return this.notify(NOTIFY.INVENTORY_FULL, rec.out, p.id);
-    } else if (def.cat === 'weapon') {
-      const slot = WEAPONS[rec.out].slot;
-      if (p.state.weapons[slot] && freeSlot(p.inv, invCap(p)) < 0) return this.notify(NOTIFY.INVENTORY_FULL, 0, p.id);
-    } else if (!canFit(p.inv, rec.out, rec.n, invCap(p))) {
-      // paying may free slots; do a trial
-      const copy = p.inv.map((x) => (x ? { ...x } : null));
-      payCost(copy, plan.take);
-      if (!canFit(copy, rec.out, rec.n, invCap(p))) return this.notify(NOTIFY.INVENTORY_FULL, 0, p.id);
-    }
-    payCost(p.inv, plan.take);
-    const sorting = p.invSort;
-    const taken = this.giveItem(p, rec.out, rec.n);
-    this.madeExtra(p, plan);
-    p.invSort = sorting; // (a craft lands where the client's model of it puts it, bulkcraft.js: it is not a pickup)
-    // rounds the reserve has no room for were paid for all the same: they go on the ground instead of nowhere
-    if (def.cat === 'ammo' && taken < rec.n) {
-      this.dropItem(rec.out, rec.n - taken, p.state.x, p.state.y, p.state.z, { spread: 0.8 });
-      this.notify(NOTIFY.INVENTORY_FULL, rec.out, p.id);
-    }
-    this.track.craft(p, rec);
-    this.ach.crafted(p);
-    p.invDirty = true;
-    this.syncThrow(p);
-    this.sound(SOUND.CRAFT, p.state.x, p.state.y + 1, p.state.z, 15);
-  }
-
-  // Tear something down for what it is made of (SALVAGE): n of the stack at backpack index `from`, or what is in a
-  // weapon slot or worn (SALVAGE_FROM). What comes of it goes into the pack, and at their feet what does not fit.
-  salvage(p, from, n) {
-    const s = p.state;
-    let item = 0;
-    let mag = 0; // rounds in a gun's magazine: they go back into the pack
-    if (from < INVENTORY_MAX) {
-      const it = from < invCap(p) ? p.inv[from] : null;
-      if (!it || isLoadoutStack(it) || !SALVAGE[it.item] || n < 1) return;
-      item = it.item;
-      mag = it.mag || 0; // (a weapon is a stack of one)
-      n = takeFrom(p.inv, from, n); // (what is left of that item consolidated)
-    } else if (from === SALVAGE_FROM.ARMOR) {
-      if (isLoadoutArmor(p) || !SALVAGE[p.armorItem]) return;
-      item = p.armorItem;
-      n = 1;
-      p.armorItem = 0;
-      p.armor = 0;
-      p.armorMax = 0;
-    } else {
-      // (the throwable slot only points at a stack in the backpack: that is torn down from there)
-      const slot = from - SALVAGE_FROM.WEAPON;
-      if (slot < 0 || slot > SLOT_BUILD || slot === SLOT_THROW || isLoadoutWeapon(p, slot) || !SALVAGE[s.weapons[slot]]) return;
-      item = s.weapons[slot];
-      n = 1;
-      mag = slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0;
-      s.weapons[slot] = 0;
-      if (slot === SLOT_PRIMARY) s.mags[0] = 0;
-      if (slot === SLOT_PISTOL) s.mags[1] = 0;
-    }
-    p.invDirty = true;
-    this.ach.salvaged(p, n);
-    for (const k in SALVAGE[item]) this.giveOrDrop(p, +k, SALVAGE[item][k] * n);
-    if (mag > 0 && isFirearm(item)) this.giveOrDrop(p, AMMO_ITEMS[WEAPONS[item].ammo], mag);
-    this.syncThrow(p);
-    this.sound(SOUND.CRAFT, s.x, s.y + 1, s.z, 15, p.id); // (they hear their own at once: Game.uiCallbacks)
   }
 
   // A weapon out of its slot into the backpack (the inventory's Equipment panel: a click, or a drag onto the grid):
