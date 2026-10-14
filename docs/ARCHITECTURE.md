@@ -2012,13 +2012,14 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   lightning light, wind (`Foliage.update` drives `G.uWind`: trees bend trunk and crown together, grass and bushes
   lean; the ambience plays the same wind), ground mist, the flashlight beam's haze (post.js, denser in rain), and
   rain streaks and splashes (`render/weatherfx.js`, kept out from under `world.roofs`).
-- **The inventory screen** (`client/ui/inventory.js`, the crafting column in `client/ui/crafting.js`). The game does
+- **The inventory screen** (`client/ui/inventory.js`, its parts in `client/ui/inventory/`: the kit strip, the backpack, the
+  item card, the menu, dragging, the popovers; the crafting column in `client/ui/crafting.js`). The game does
   not pause under it, so every action is one click or one key: a click selects (the item card under the backpack
   says what it is, with a button and key for each action), a double-click does the main thing, a right click opens a
   menu of drop amounts, and F use · S split · G drop one (Shift+G all) · X salvage · Z undo act on what is under the
   pointer, else what is selected. The keys are the screen's own listener: the game's input is off while it is open,
   and a key bound to opening a screen (`MENU_KEYS`) is left to the game. The backpack is grouped into sections in
-  the order the server's Sort leaves it (`SECTIONS`, `BAG_TIER`), and a drag only swaps within one. Recipes are
+  the order the server's Sort leaves it (`SECTIONS` in `inventory/backpack.js`, `BAG_TIER`), and a drag only swaps within one. Recipes are
   grouped by what stops them (ready, needs a station, missing materials, locked), after "For what you carry" (the
   ready ones that feed what is held: `carryWhy`, each with a Craft button); the one selected has a quantity that
   `craftRun` caps. The layout (`ux-inventory.css`, issue #224) is a header with health and stamina (`setVitals`, from
