@@ -9,7 +9,7 @@ import { hash2 } from '../../shared/rng.js';
 import { getTreeVariants, getBushVariants, getRockVariants, getCragVariants, getGrassPatch } from './models/vegetation.js';
 import { VEG } from './vegshading.js';
 import { G } from './globals.js';
-import { groundFields } from './terrain.js';
+import { groundFields } from './groundfields.js';
 import { grassRadius } from './renderer.js';
 import { FallingTrees } from './fallingtrees.js';
 import { CutTrees } from './cuttrees.js';
