@@ -161,7 +161,7 @@ function buildAbomination() {
   }
   // the mouth down its front: the ribs of the chest it opened, grown into teeth along both lips
   {
-    const [t0, t1, y0, y1] = mawAt;
+    const [, t1, y0, y1] = mawAt;
     for (let i = 0; i < 9; i++) {
       const u = (i + 0.5) / 9;
       const y = lerp(y0 + 0.05, y1 - 0.05, u);

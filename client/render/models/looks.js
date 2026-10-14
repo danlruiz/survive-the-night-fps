@@ -4,7 +4,6 @@ import { color, fbm3, clamp, lerp } from './skinning.js';
 import { CR } from './charTextures.js';
 import { APPEARANCE } from '../../../shared/appearance.js';
 
-const G = (x) => Math.exp(-x * x);
 
 // stubble, a buzz cut, freckles, age: painted onto the head as vertex tint (lx, ly, lz: about the cranium's middle)
 function headPaint(o) {
@@ -383,4 +382,3 @@ export function nearestRoster(values) {
   return best;
 }
 
-void G;

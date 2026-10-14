@@ -214,7 +214,6 @@ function buildHiveQueen() {
       shard(mb, [mb.bi('slegb' + i), 1, 0, 0], p, [p[0] + s * 0.1, p[1] + 0.12, p[2] + 0.06], 0.022, { color: 0x4a5038 });
     }
   }
-  void rnd;
   return { mb, P };
 }
 

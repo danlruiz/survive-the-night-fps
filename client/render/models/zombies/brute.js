@@ -132,8 +132,8 @@ function buildBrute() {
     ],
     legEnd: () => P.kneeY - 0.2, nvL: 8,
   });
-  const { T, arms, legs } = B;
-  const H = bossHead(mb, P, {
+  const { T, legs } = B;
+  bossHead(mb, P, {
     // a small, brutal head: the brow a shelf, the jaw a slab, the nose broken flat, a cleaver scar stitched shut across it
     face: { w: 1.16, h: 0.92, brow: 2.4, jaw: 1.6, chin: 1.3, noseW: 1.9, ear: 1.3, sockets: 2.0, cheek: 1.5 },
     headTint: (lx, ly, lz, c) => {
@@ -143,7 +143,6 @@ function buildBrute() {
     },
     skin: skinC, gaunt: 0, eye: 0xffa040, eyeGlow: 0.7, socket: 0.2, jawScale: 1.3, nose: 0.3, missingTeeth: 0x24,
   }, 1.36);
-  void H;
   // heavy trousers into rubber boots
   ragPants(mb, B, yH + 0.1, () => P.kneeY - 0.16, { color: 0x2e2a26, region: CR.TWILL, push: 0.014, tear: 0.03, fray: 0.02, nvL: 8, tint: bloodied(11, 0.5) });
   for (const Lg of legs) bigBoot(mb, Lg, Lg.side, { w: 2.0, l: 1.55, h: 1.7, color: 0x1e2420, top: P.kneeY - 0.1 });
@@ -208,7 +207,6 @@ function buildBrute() {
       mb.box('root', [b[0] + 0.02, b[1] + 0.06, b[2] + 0.07], [0.012, 0.2, 0.22], { ...steel, rot: [0.5, 0.25, 0], tint: (p, nn, c) => p.z < b[2] + 0.05 && c.lerp(color(0x4a0806), 0.7) });
       mb.seg('root', [b[0] + 0.045, b[1] + 0.13, b[2] + 0.15], [b[0] + 0.1, b[1] + 0.25, b[2] + 0.31], 0.022, 0.02, { rs: 6, ...wood, caps: 2 });
     });
-    void arms;
   }
   mb.aoStrength = 0.34;
   return { mb, P };

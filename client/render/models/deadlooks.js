@@ -111,7 +111,7 @@ export function oldLook(o) {
     sex: o.sex,
     skin: o.skin,
     eye: o.eye, eyeGlow: o.eyeGlow,
-    face: { sockets: 1.4 + (o.socket || 0.15) * 2, gaunt: Math.min(1, (o.gaunt ?? 0.4) + 0.2), rot: 0.6, w: o.headSX ? o.headSX / 0.84 : 1, h: o.headSY || 1, d: o.headSZ ? o.headSZ / 1.06 : 1, d: o.headSZ ? o.headSZ / 1.06 : 1, d: o.headSZ ? o.headSZ / 1.06 : 1, jaw: o.jawScale || 1, nose: o.nose ?? 1, noNose: (o.nose ?? 1) < 0.3, lips: 0.7, ...(o.face || {}) },
+    face: { sockets: 1.4 + (o.socket || 0.15) * 2, gaunt: Math.min(1, (o.gaunt ?? 0.4) + 0.2), rot: 0.6, w: o.headSX ? o.headSX / 0.84 : 1, h: o.headSY || 1, d: o.headSZ ? o.headSZ / 1.06 : 1, jaw: o.jawScale || 1, nose: o.nose ?? 1, noNose: (o.nose ?? 1) < 0.3, lips: 0.7, ...(o.face || {}) },
     gaunt: o.gaunt ?? 0.4,
     build: {
       w: (o.wide || 1) * (o.chestR || 0.158) / 0.158, d: o.chestD || 1, hips: o.hipsW || 1,

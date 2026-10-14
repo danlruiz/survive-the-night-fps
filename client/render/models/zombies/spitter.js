@@ -71,7 +71,7 @@ function buildSpitter() {
       mb.ellip('root', [0.03, nY + 0.0, -0.1], [0.03, 0.036, 0.028], { ws: 7, hs: 5, color: 0x8cf040, region: CR.GLOW, glow: 0.6, blood: false, ao: false, tint: veined });
     });
     // what it drools: strands off the jaw, and the runs of it down its front
-    const jb = mb.bonePos('jaw'), hb = mb.bonePos('head');
+    const hb = mb.bonePos('head');
     const wet = { color: 0x9ae040, glow: 0.45, region: CR.GLOW, blood: false, ao: false };
     bound(mb, [mb.bi('jaw'), 1, 0, 0], () => {
       for (let i = 0; i < 3; i++) {
@@ -79,7 +79,6 @@ function buildSpitter() {
         mb.tube('root', [[x, y0, z0], [x * 1.2, y0 - 0.05 - i * 0.02, z0 - 0.006], [x * 1.3, y0 - 0.1 - i * 0.035, z0 + 0.004]], 0.0045, 0.0015, { rs: 4, ts: 3, ...wet });
         mb.ellip('root', [x * 1.3, y0 - 0.105 - i * 0.035, z0 + 0.004], [0.006, 0.009, 0.006], { ws: 5, hs: 3, ...wet });
       }
-      void jb;
     });
     surfTube(mb, built.T, [[0.1, yC + 0.2], [0.14, yC + 0.1], [0.08, yC - 0.02], [0.12, yC - 0.14]], 0.006, 0.003, { ...wet, glow: 0.35, ts: 8 });
     surfTube(mb, built.T, [[-0.3, yC + 0.18], [-0.22, yC + 0.02], [-0.3, yC - 0.1]], 0.005, 0.0025, { ...wet, glow: 0.35, ts: 6 });

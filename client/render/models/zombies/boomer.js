@@ -82,7 +82,7 @@ function buildBoomer() {
     ],
     nuL: g(12), nvL: g(9),
   });
-  const { T, legs } = B;
+  const { T } = B;
   const L = oldLook({
     face: { w: 1.22, cheek: 1.8, jaw: 1.4, chin: 0.8, nose: 1.1, gaunt: 0, sockets: 1.5, rot: 0.2, lips: 1.3 },
     skin: skinC, gaunt: 0, eye: 0xe0dc80, eyeGlow: 0.3, jawScale: 1.1, missingTeeth: 0x48,
@@ -118,7 +118,6 @@ function buildBoomer() {
     blister(mb, B.N, 0.25, P.neckY + 0.03, 0.05, 0.9, { color: 0xc8d060, glow: 0.22, rim: 0x7a4030 });
   }
   legStumps(mb, P, { thighR: 0.12, pants: { color: pcol } });
-  void legs;
   mb.aoStrength = 0.33;
   return { mb, P };
 }

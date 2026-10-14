@@ -10,7 +10,7 @@
 //   - clothing is the visible surface of those lofts, cut by where a garment ends (a cuff, a hem, a neckline), with its
 //     edges, seams, pockets, collars and the rest laid on it, so nothing under a jacket is drawn.
 import * as THREE from 'three';
-import { MeshBuilder, mulberry32, fbm3, noise3, clamp, lerp, smooth, color } from './skinning.js';
+import { clamp, lerp, smooth, color } from './skinning.js';
 import { CR } from './charTextures.js';
 
 const PI = Math.PI;

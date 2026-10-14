@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { mulberry32, fbm3, clamp, lerp, smooth, color } from './skinning.js';
 import { CR } from './charTextures.js';
-import { buildHumanHead, headSurface, headPoint, headShape, jawWeight, bodyBuild, torsoSurf, neckSurf, armSurf, legSurf, sheet, pillow, surfPoint } from './humans.js';
+import { buildHumanHead, headSurface, headPoint, bodyBuild, torsoSurf, neckSurf, armSurf, legSurf, sheet, pillow, surfPoint } from './humans.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -319,7 +319,6 @@ function edgeTube(mb, S, pts, r, o) {
 // ---------------------------------------------------------------- the top's collar
 function collar(mb, P, T, top, col, reg, y, pT, open) {
   const kind = top.collar || (top.kind === 'jacket' || top.kind === 'coat' ? 'jacket' : top.kind === 'shirt' || top.kind === 'flannel' ? 'shirt' : top.kind === 'hoodie' ? 'hood' : top.kind === 'fleece' ? 'high' : 'crew');
-  const yN = P.neckY;
   const ring = (t, yy, out) => surfPoint(T, t, yy, out);
   const band = (h, out, flare, c, t0 = 0, t1 = TAU) => {
     // a band round the neck opening: rings from y up h, leaning out by flare
@@ -388,7 +387,6 @@ function collar(mb, P, T, top, col, reg, y, pT, open) {
       edgeTube(mb, T, [a, [lerp(a[0], b[0], 0.5), lerp(a[1], b[1], 0.5), Math.min(a[2], b[2]) - 0.003], b], 0.0028, { color: 0xd8d4c8, region: CR.PLAIN, rs: 4 });
     }
   }
-  void yN;
 }
 
 // ---------------------------------------------------------------- pockets, pouch, belt, bib, vest
@@ -705,7 +703,6 @@ function hair(mb, P, H, L, detail = 1) {
     },
   });
   const hb = mb.bonePos('head');
-  const nb = mb.bonePos('neck');
   const p = new THREE.Vector3();
   if (style === 'bun' || style === 'ponytail' || style === 'braid') {
     headPoint(H, PI, style === 'bun' ? 0.42 : 0.12, p);
@@ -769,7 +766,6 @@ function hair(mb, P, H, L, detail = 1) {
     g.computeVertexNormals();
     mb.geom('root', g, { color: col, region: CR.HAIR_H, mottle: 0.15, double: true, wts: new Float32Array(wts2), blood: false, tear: h.ragged ? { amt: h.ragged, f: 30, seed: 9 } : null });
   }
-  void nb;
 }
 
 function beard(mb, P, H, b, L, detail = 1) {
@@ -783,13 +779,10 @@ function beard(mb, P, H, b, L, detail = 1) {
     // the mustache: over the upper lip from under the nose to the mouth's corners
     const mus = Math.min(lam + 0.425 + 0.05 * (ap / 0.3) ** 2, -0.315 - 0.07 * (ap / 0.3) ** 2 - lam, 0.31 - ap);
     if (style === 'mustache') return mus;
-    // clear of the lips
-    const lips = Math.max(lam + 0.53 - 0.04 * (ap / 0.26) ** 2, -0.38 - lam + 0.1 * (ap / 0.26) ** 2) < 0 ? 0 : 1;
     const mouth = Math.max(ap - 0.27, -0.53 - lam, lam + 0.385);
     if (style === 'goatee') return Math.max(mus, Math.min(0.28 - ap, -0.53 - lam, lam + 1.2, mouth));
     // the cheeks' line from the nose's side down and back to the sideburns; under the jaw to the throat
     const top = ap < 0.5 ? -0.3 : ap < 1.2 ? -0.3 + (ap - 0.5) * 0.36 : -0.05;
-    void lips;
     return Math.min(top - lam, 1.45 - ap, lam + 1.35, Math.max(mouth, mus > 0 ? 1 : -1));
   };
   const mask = { depth };
@@ -959,7 +952,7 @@ function brimFlat(mb, y, H, w, roll, col) {
 // ---------------------------------------------------------------- kit
 function gear(mb, P, T, g, L, k) {
   const chest = mb.bonePos('chest'), hips = mb.bonePos('hips');
-  const yC = P.chestY, yH = P.hipY;
+  const yC = P.chestY;
   const pHip = k.pHip ?? k.pP; // (what is hung at the hips sits on what is outermost there: buildPerson)
   if (g.badge) {
     // a star or shield over the heart (or on the belt: badge 'belt')
@@ -1004,9 +997,7 @@ function gear(mb, P, T, g, L, k) {
   }
   if (g.patch) {
     // a name patch over the heart
-    const at = surfPoint(T, -0.45, yC + 0.06, k.pT + 0.002);
     pillow(mb, T, -0.7, -0.25, yC + 0.045, yC + 0.08, k.pT - 0.0005, 0.0025, { color: g.patch, region: CR.PLAIN, nu: 3, nv: 1, blood: false });
-    void at;
   }
   if (g.glasses) {
     // wire-rimmed glasses: two rims, the bridge, the arms back to the ears
@@ -1065,7 +1056,6 @@ function gear(mb, P, T, g, L, k) {
     const at = surfPoint(T, -PI * 0.55, k.rise - 0.05, pHip + 0.02);
     mb.box('hips', [at[0] - hips[0], at[1] - hips[1] - 0.05, at[2] - hips[2]], [0.022, 0.15, 0.04], { color: 0x3a2a1c, region: CR.LEATHER, round: 0.3 });
   }
-  void yH;
 }
 
 // ---------------------------------------------------------------- the dead
@@ -1137,7 +1127,6 @@ function deadExtras(mb, P, H, L, T) {
   }
   // blood: the look's spatter (world-space spheres the builder tints every part with)
   if (L.blood) for (const b of L.blood) mb.blood(b[0], b[1], b[2]);
-  void T;
 }
 
 /**

@@ -705,7 +705,6 @@ function poseAttack(z, p) {
     const raise = ui < 0.4 ? smooth(ui / 0.4) : ui < 0.55 ? 1 - smooth((ui - 0.4) / 0.15) * 1.35 : -0.35 * (1 - smooth((ui - 0.55) / 0.45));
     arm(p, side, 1.25 + 0.75 * raise, 0.26 - 0.12 * raise, 0.3, 0.2 + 0.25 * Math.max(0, raise), 0.7);
   }
-  const sw = Math.sin(u * TAU);
   headLook(p, 0.05 - 0.25 * lunge, 0, z.tilt * 0.15);
   R(p, JAW, -0.25 - 0.5 * Math.max(0, Math.sin(u * TAU * 2 + 1)), 0, 0);
 }
