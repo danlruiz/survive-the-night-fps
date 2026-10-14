@@ -54,6 +54,13 @@ export class MotifWatch {
     return now >= this.probeT;
   }
 
+  // the seen record of entity e, made afresh when it is new or has turned into another kind
+  _record(e, now) {
+    let s = this.seen.get(e.id);
+    if (!s || s.ztype !== e.ztype) this.seen.set(e.id, (s = { t: now, far: false, near: false, ztype: e.ztype }));
+    return s;
+  }
+
   // now: s (any steady clock). Returns the cues played this probe as [{ ztype, near }] (for the test).
   update(now, ents, survivors, cue) {
     if (now < this.probeT) return null;
@@ -63,8 +70,7 @@ export class MotifWatch {
     for (const e of ents) {
       if (e.dead || !MOTIFS[e.ztype]) continue;
       live.add(e.id);
-      let s = this.seen.get(e.id);
-      if (!s || s.ztype !== e.ztype) this.seen.set(e.id, (s = { t: now, far: false, near: false, ztype: e.ztype }));
+      const s = this._record(e, now);
       if (s.near) continue;
       let d2 = Infinity;
       for (const p of survivors) d2 = Math.min(d2, (p.x - e.rx) ** 2 + (p.z - e.rz) ** 2);
@@ -85,8 +91,7 @@ export class MotifWatch {
       // the rest of its pack, or a pair coming in together, were announced by that one
       for (const o of ents) {
         if (o === e || o.dead || o.ztype !== e.ztype || (o.rx - e.rx) ** 2 + (o.rz - e.rz) ** 2 > MOTIF_GROUP * MOTIF_GROUP) continue;
-        let so = this.seen.get(o.id);
-        if (!so || so.ztype !== o.ztype) this.seen.set(o.id, (so = { t: now, far: false, near: false, ztype: o.ztype }));
+        const so = this._record(o, now);
         so.far = true;
         if (near) so.near = true;
       }
