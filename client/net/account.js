@@ -7,7 +7,8 @@
 // account, and they have friends (friends.js). Registering or signing in hands the server this browser's guest id
 // (identity.js) as well, so whatever was earned here as a guest moves onto the account.
 import { playerId } from './identity.js';
-import { call, post } from './lobby.js';
+import { call, post } from './api.js';
+import { listeners } from './listeners.js';
 
 const st = {
   ready: false, // the server has said, once, who this is
@@ -15,18 +16,10 @@ const st = {
   offline: false, // the last time it was asked, it could not be reached
   user: null, // { id, username, email, createdAt }
 };
-const subs = new Set();
+const news = listeners();
 let asked = null;
 
-function changed() {
-  for (const fn of subs) {
-    try {
-      fn(st);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-}
+const changed = () => news.emit(st);
 
 function set(user, accounts = st.accounts) {
   const was = st.user?.id || '';
@@ -41,9 +34,22 @@ function set(user, accounts = st.accounts) {
 }
 
 // fn(state) whenever who is signed in changes (or the server first says); returns the way to stop
-export function onAccountChange(fn) {
-  subs.add(fn);
-  return () => subs.delete(fn);
+export const onAccountChange = news.on;
+
+// fn(id) whenever the signed-in account becomes another ('' signed out), and at once when one is signed in already:
+// what is kept on the account (keybinds, survivors, achievements) is asked for again then
+export function onSignIn(fn) {
+  let user = '';
+  onAccountChange((a) => {
+    const id = a.user?.id || '';
+    if (id === user) return;
+    user = id;
+    fn(id);
+  });
+  if (st.user) {
+    user = st.user.id;
+    fn(user);
+  }
 }
 
 // { ready, accounts, offline, user }: read it, do not keep it (it is the one object, changed in place)

@@ -7,6 +7,7 @@
 // Stored as JSON under 'stn.bestiary': { v: 1, seen: mask of ZTYPEs }
 import { BESTF, cleanSeen, seenKinds } from '../../shared/bestiary.js';
 import { accountState } from './account.js';
+import { listeners } from './listeners.js';
 
 const KEY = 'stn.bestiary';
 
@@ -36,28 +37,13 @@ const st = {
   account: null, // { user, mask }: the account's record as the game sent it
   mode: '', // 'account' / 'guest': whose record the game we are in keeps ('' until it says)
 };
-const changeSubs = new Set();
-const seenSubs = new Set();
-const emit = (subs, ...args) => {
-  for (const fn of subs) {
-    try {
-      fn(...args);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-};
+const changes = listeners();
+const seen = listeners();
 
 // fn() whenever the record changes; returns the way to stop
-export function onBestiary(fn) {
-  changeSubs.add(fn);
-  return () => changeSubs.delete(fn);
-}
+export const onBestiary = changes.on;
 // fn([entry]) when kinds are seen for the first time (the toast); returns the way to stop
-export function onSeen(fn) {
-  seenSubs.add(fn);
-  return () => seenSubs.delete(fn);
-}
+export const onSeen = seen.on;
 
 // The record to show -> { mask, account, loading }
 export function bestiaryView() {
@@ -71,7 +57,7 @@ export function bestiaryView() {
 // A game was joined (or rejoined): it says again whose record it keeps
 export function joinedBestiary() {
   st.mode = '';
-  emit(changeSubs);
+  changes.emit();
 }
 
 // EVT.BESTIARY
@@ -93,6 +79,6 @@ export function bestiaryEvent(flags, mask) {
     if ((had | mask) !== had) saveGuest(had | mask);
     if (!(flags & BESTF.ALL)) fresh = mask & ~had;
   }
-  emit(changeSubs);
-  if (fresh) emit(seenSubs, seenKinds(fresh));
+  changes.emit();
+  if (fresh) seen.emit(seenKinds(fresh));
 }

@@ -1,5 +1,5 @@
 import { playerId } from './identity.js';
-import { call, post } from './lobby.js';
+import { call, post } from './api.js';
 
 // (a read has no body: the guest's id goes in a header, never in the URL - identity.js)
 const asGuest = () => ({ headers: { 'X-STN-Guest': playerId() } });
