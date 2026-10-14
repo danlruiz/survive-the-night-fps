@@ -176,7 +176,7 @@ const BITS = [
 export const bitsFor = (surf) => BITS[surf];
 
 // The sound of the blow: a bank of client/audio/synth-strike.js by surface and blow (SOUND ids in defs.js, STRIKE_*).
-// [surface][blow] -> the key of STRIKE_SOUND (client/audio/audio.js maps it)
+// [surface][blow] -> the key of STRIKE_SOUND (STRIKE_MAP in client/audio/sound-defs.js maps it)
 const SOUNDS = [
   /* earth  */ ['earth_cut', 'earth_cut', 'earth_thud', 'earth_thud', 'earth_thud', 'earth_thud'],
   /* wood   */ ['wood_slash', 'wood_chop', 'wood_thud', 'wood_knock', 'wood_knock', 'wood_thud'],

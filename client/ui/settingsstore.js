@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   masterVolume: 0.4,
   musicVolume: 0.6,
   sfxVolume: 0.9,
-  voiceVolume: 1, // 100% = the level the mix is balanced at (audio.js VOICE_BUS); the slider runs to 200%
+  voiceVolume: 1, // 100% = the level the mix is balanced at (voice-chat.js VOICE_BUS); the slider runs to 200%
   voiceDuck: true,
   motifs: true, // a short phrase in the music for each kind of special as it comes and again as it closes in (audio/motifs.js)
   quality: 'medium',

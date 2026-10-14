@@ -27,7 +27,7 @@ const PITCH_MAX = 1.54; // radians the view looks up or down at most (short of s
 
 // a code that is still answered with the controls off (the inventory, the map, the pause menu): the key that opened
 // something shuts it, Esc backs out, and Enter opens the chat from the inventory (Y does not: as in Half-Life, it is a
-// key of play). The pause menu keeps Enter for its own rows (menus.js Pause).
+// key of play). The pause menu keeps Enter for its own rows (pause.js Pause).
 const MENU_ACTIONS = new Set(['inventory', 'map', 'board', 'bestiary', 'cards', 'perks', 'achievements', 'players']);
 function passesMenus(code) {
   if (code === 'Escape') return true;

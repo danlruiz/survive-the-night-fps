@@ -6,8 +6,8 @@
 // and shared/, and the client it serves, filed under a hash of all of it), every save names the build its game runs on
 // (Room.meta: build), and a server that cannot restore a save with its own code starts that game's worker from the build
 // that made it (Lobby.afterFailed, Room's `pin`). The game then runs on exactly as it was - the old simulation, the old
-// map - inside the new server; its players keep that build's client (index.js serves its page for the game's code, and
-// its files by their content-hashed names), so they are never reloaded for it.
+// map - inside the new server; its players keep that build's client (server/http/static.js serves its page for the
+// game's code, and its files by their content-hashed names), so they are never reloaded for it.
 //
 // What has to hold for a build to be started here (fetch says why not, and the game ends with its players told why):
 //   - it is signed: the store is not trusted to hand this server code. A build carries an HMAC of its name made with
@@ -98,7 +98,7 @@ export function workerDeps(root, files = null) {
   return deps;
 }
 
-// The build in `root` (the repository as deployed), with its client `dist` (url -> { body }, as index.js serves it) and
+// The build in `root` (the repository as deployed), with its client `dist` (url -> { body }, as http/static.js serves it) and
 // what that client is ({ build, compat, protocol }). -> { id, sig, body, assets: Map(hash -> Buffer), bytes, files }
 // (null when it is too big: something else than code is in server/ or shared/)
 export function packBuild(root, opts) {
@@ -247,7 +247,7 @@ function parsed(m) {
 
 // The messages a build's own client reads, from that build's shared/protocol.js (Writer, Reader, S2C, C2S, ROOMF,
 // REJECT_REASON, writeBoard...): what the network thread writes to the players of a game an older build carries on
-// (rooms.js Room proto). Loaded from the build in memory, not from disk. null when it cannot be used here: it imports
+// (room.js Room proto). Loaded from the build in memory, not from disk. null when it cannot be used here: it imports
 // another file of its build, it lacks any of what the thread uses (usable), or it does not load within ms (a module
 // that never finishes loading).
 export const PROTOCOL_LOAD_MS = 2000;
@@ -265,7 +265,7 @@ export async function protocolOf(files, ms = PROTOCOL_LOAD_MS) {
     clearTimeout(timer);
   }
 }
-// (everything the network thread writes with: rooms.js greet, board, rejectBytes, shut)
+// (everything the network thread writes with: room.js greet, board, shut; rooms.js rejectBytes)
 const num = (v) => Number.isInteger(v) && v >= 0;
 function usable(m) {
   try {
