@@ -40,8 +40,8 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   nights.js      night themes: nightTheme(seed, night) picks what a night's horde is made of. The server applies
                  it to the wave weights and the client announces it, each from the seed: nothing on the wire
   progress.js    XP, levels and perks: the rules both ends read (see Experience, levels and perks below)
-  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES) and the simulation of their chain
-                 and free handle that both views draw (ChainSim) - see Nunchucks below
+  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES); nunchaku-chain.js the simulation
+                 of their chain and free handle that both views draw (ChainSim) - see Nunchucks below
   achievements.js the achievement list (ids, wire numbers, tiers, groups) and the rules on a player's progress
                  (see Achievements below)
   bestiary.js    the bestiary: every kind of the dead, its vague line and its tip, and what seeing one is (see The
@@ -2087,7 +2087,7 @@ half of what is on screen is not animated at all.
   means "winding up", which is how others see the whirl. A move counts once in `fireCount`; which move it was is
   not sent - a watching client works it out the way the rules would (`NunchakuTP.swing`). `scripts/test-nunchucks.js`
   holds all of it, a client predicting it over a laggy link included.
-- **The chain** (`ChainSim`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
+- **The chain** (`ChainSim`, `shared/nunchaku-chain.js`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
   is a rigid rod on the chain: two point masses at its radius of gyration (so it turns like a stick, not a
   dumbbell), a rope constraint from the chain's far eye to the hand's (never longer than the chain; slack when it
   is nearer), capsules for the arms, the head and the trunk, the other handle. The links between are drawn, not simulated: an arc
