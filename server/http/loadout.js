@@ -2,7 +2,7 @@
 // has equipped, and the market where accounts trade items for Zombie Skulls. A guest has a loadout (by their browser's
 // id) but no market.
 import { HttpError, putOrPost } from '../http.js';
-import { noAccounts } from '../auth.js';
+import { signedIn } from '../auth.js';
 import { ownerKey as loadoutOwnerKey } from '../userloadout.js';
 import { LOADOUT_CATALOG, LOADOUT_SLOTS, cleanLoadoutSlots } from '../../shared/loadout.js';
 import { AUCTION, SKULLS, SKULL_EARN } from '../../shared/economy.js';
@@ -39,10 +39,7 @@ export function loadoutRoutes(route, { auth, loadouts }) {
     if (!key) throw new HttpError(400, 'This browser has no player id yet.');
     return key;
   };
-  const loadoutAccountOwner = async (ctx) => {
-    const u = auth ? await auth.need(ctx) : noAccounts();
-    return `a:${u.id}`;
-  };
+  const loadoutAccountOwner = async (ctx) => `a:${(await signedIn(auth, ctx)).id}`;
 
   route('get', '/api/loadout', async (ctx) => {
     const owner = await loadoutOwner(ctx);
