@@ -1048,7 +1048,7 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 
 ## Audio
 
-- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up) and most
+- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up by `banks.js`) and most
   now have a CC0 recording over it (`audio/samples/*.ogg`, table `REC` in `samples.js`: decode rate, `lazy`, and
   the `[start, dur, ...]` slice table of a multi-take sprite). A recording is used once it has decoded; until then,
   or for good if it fails to load, the procedural bank plays. `R_*` defs in `sound-defs.js` bind a recording to a sound
