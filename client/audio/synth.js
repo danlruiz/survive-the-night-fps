@@ -12,7 +12,7 @@ import { throwSnd, leapSnd, pickupSnd, craftSnd, bandageSnd, healChime, achieveC
 import { loopFire, loopRadioStatic, loopAcid, loopZombieIdle, loopBossBreath, loopGenerator, loopPlane, loopCalliope, loopRocket } from './synth-loops.js';
 import { plane, hordeHorn, dawnSfx } from './synth-events.js';
 
-export { HI, MID, LO };
+export { LO }; // (scripts/test-home.js renders the home bed at it)
 
 // ------------------------------------------------------------------ registry
 // Each def: { bank, n (variants), sr, group: 'core' | 'late', gen(sr, rng, i) }

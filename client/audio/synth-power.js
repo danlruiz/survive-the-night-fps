@@ -16,7 +16,7 @@ function firing(sr, rng, dur, rate, amp) {
 }
 
 // the running set, as a seamless loop
-export function loopGenset(sr, rng) {
+function loopGenset(sr, rng) {
   const L = 3;
   const X = 0.25;
   const dur = L + X;
@@ -61,7 +61,7 @@ function strokes(sr, rng, dur, rate, amp) {
 
 // the cord pulled: the recoil starter's ratchet, two strokes that do not catch, then it does and runs up to speed.
 // The loop is already sounding underneath by then, so this fades out under it.
-export function genStart(sr, rng) {
+function genStart(sr, rng) {
   const out = alloc(sr, 1.9);
   const cord = noise(sr, rng, 0.4, { bp: [1700, 1.4], sweep: [900, 2600], env: hann });
   for (let i = 0; i < cord.length; i++) cord[i] *= 0.35 + 0.65 * (Math.sin((TAU * lerp(55, 120, i / cord.length) * i) / sr) > 0 ? 1 : 0); // the pawl
@@ -77,7 +77,7 @@ export function genStart(sr, rng) {
 }
 
 // it dies: the strokes come slower and weaker, one last cough, the flywheel ticks to a stop
-export function genStop(sr, rng) {
+function genStop(sr, rng) {
   const out = alloc(sr, 1.5);
   const run = strokes(sr, rng, 1.1, (t) => lerp(IDLE, 4, Math.min(1, t / 1.0) ** 0.7), (t) => Math.max(0, 1 - t / 1.1) ** 0.8);
   addNorm(out, run, sr, 0, 1);
@@ -103,7 +103,7 @@ export function genFuel(sr, rng) {
 }
 
 // a floodlight coming on (or going out): the contactor's clack and the lamp's short hum
-export function floodSwitch(sr, rng) {
+function floodSwitch(sr, rng) {
   const out = alloc(sr, 0.32);
   addNorm(out, thump(sr, 190, 80, 0.008, 0.02), sr, 0, 0.9);
   addNorm(out, metalClick(sr, rng, rrange(rng, 2200, 2800), 0.01), sr, 0.002, 0.6);

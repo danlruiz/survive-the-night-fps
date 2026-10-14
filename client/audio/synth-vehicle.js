@@ -15,7 +15,7 @@ const FIRE = 56; // firings a second: a single at 3400 rpm (it fires every turn)
 // what a firing rings in: a thin steel pipe and a tin expansion box
 const PIPE = [{ f: 168, d: 0.012, a: 1 }, { f: 336, d: 0.009, a: 0.9 }, { f: 620, d: 0.006, a: 0.7 }, { f: 1180, d: 0.004, a: 0.5 }, { f: 2350, d: 0.002, a: 0.3 }];
 
-export function loopMoped(sr, rng) {
+function loopMoped(sr, rng) {
   const L = 1.5;
   const X = 0.15;
   const n = Math.ceil((L + X) * sr);
@@ -38,7 +38,7 @@ export function loopMoped(sr, rng) {
   return finishLoop(out, sr, X, 0.8);
 }
 
-export function loopHorn(sr, rng) {
+function loopHorn(sr, rng) {
   const L = 1;
   const X = 0.1;
   const n = Math.ceil((L + X) * sr);
@@ -61,7 +61,7 @@ export function loopHorn(sr, rng) {
 
 const PANEL = (rng) => [{ f: rrange(rng, 90, 130), d: 0.16, a: 1 }, { f: rrange(rng, 210, 290), d: 0.1, a: 0.8 }, { f: rrange(rng, 470, 640), d: 0.06, a: 0.6 }, { f: rrange(rng, 1100, 1500), d: 0.035, a: 0.4 }, { f: rrange(rng, 2400, 3300), d: 0.02, a: 0.25 }];
 
-export function vehCrash(sr, rng) {
+function vehCrash(sr, rng) {
   const out = alloc(sr, 1.5);
   addNorm(out, thump(sr, 130, 42, 0.03, 0.12), sr, 0, 1);
   addNorm(out, modal(sr, rng, PANEL(rng), 0.9, 2.5, 3200), sr, 0.004, 0.9);
@@ -82,7 +82,7 @@ export function vehCrash(sr, rng) {
   return finish(out, sr, 0.95, 0.0008, 0.2);
 }
 
-export function vehBreak(sr, rng) {
+function vehBreak(sr, rng) {
   const out = alloc(sr, 2.6);
   addNorm(out, thump(sr, 190, 60, 0.02, 0.07), sr, 0, 1);
   addNorm(out, modal(sr, rng, PANEL(rng), 0.5, 1.2, 4000), sr, 0, 0.8);
@@ -95,7 +95,7 @@ export function vehBreak(sr, rng) {
   return finish(out, sr, 0.9, 0.0008, 0.3);
 }
 
-export function vehDoor(sr, rng) {
+function vehDoor(sr, rng) {
   const out = alloc(sr, 0.5);
   addNorm(out, thump(sr, rrange(rng, 95, 115), 50, 0.02, 0.06), sr, 0.012, 1);
   addNorm(out, modal(sr, rng, [{ f: rrange(rng, 160, 200), d: 0.07, a: 1 }, { f: rrange(rng, 430, 520), d: 0.04, a: 0.5 }, { f: 1250, d: 0.015, a: 0.25 }], 0.4, 1.5, 2400), sr, 0.012, 0.6);
@@ -104,7 +104,7 @@ export function vehDoor(sr, rng) {
   return finish(out, sr, 0.85, 0.0008, 0.08);
 }
 
-export function vehMount(sr, rng) {
+function vehMount(sr, rng) {
   const out = alloc(sr, 0.6);
   addNorm(out, thump(sr, 80, 46, 0.03, 0.07), sr, 0.05, 0.9);
   // the saddle's springs and the stand
@@ -113,7 +113,7 @@ export function vehMount(sr, rng) {
   return finish(out, sr, 0.8, 0.002, 0.1);
 }
 
-export function vehSkid(sr, rng) {
+function vehSkid(sr, rng) {
   const dur = 0.55;
   const n = Math.ceil(dur * sr);
   const out = new Float32Array(n);
@@ -136,7 +136,7 @@ export function vehSkid(sr, rng) {
   return finish(out, sr, 0.8, 0.01, 0.12);
 }
 
-export function bikeBell(sr, rng) {
+function bikeBell(sr, rng) {
   const out = alloc(sr, 1.4);
   const f = rrange(rng, 2050, 2250);
   const modes = [{ f, d: 0.5, a: 1 }, { f: f * 1.006, d: 0.45, a: 0.8 }, { f: f * 2.71, d: 0.22, a: 0.5 }, { f: f * 5.2, d: 0.09, a: 0.25 }];

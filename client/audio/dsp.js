@@ -120,7 +120,7 @@ export class OnePole {
 }
 
 // Two-pole resonator: impulse response is a damped sinusoid (freq f, amplitude time constant `decay` s)
-export class Resonator {
+class Resonator {
   constructor(sr, f, decay, amp = 1) {
     this.y1 = 0;
     this.y2 = 0;

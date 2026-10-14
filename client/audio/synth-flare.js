@@ -45,7 +45,7 @@ function climbRush(sr, rng, dur, f0, f1) {
 
 // the shot: thump + hollow bore + a soft blast, a breath of crack, the star's hiss and the rush as it climbs away.
 // fp = first person (stereo, decorrelated rush and echoes, more low end)
-export function flareShot(sr, rng, fp) {
+function flareShot(sr, rng, fp) {
   const dur = 1.7;
   const n = Math.ceil(dur * sr);
   const shared = new Float32Array(n);
@@ -82,7 +82,7 @@ export function flareShot(sr, rng, fp) {
 
 // the star bursting alight at the top of its climb, heard from far below: a muffled pop, the catch, then a crackling
 // fizz that thins out as the burning loop (loopSkyflare) takes over close up
-export function flarePop(sr, rng) {
+function flarePop(sr, rng) {
   const dur = 2.4;
   const out = alloc(sr, dur);
   addNorm(out, thump(sr, rrange(rng, 140, 160), 62, 0.018, 0.05, 0.4), sr, 0, 0.75);
@@ -102,7 +102,7 @@ export function flarePop(sr, rng) {
 
 // the burning flare, looped: a fierce hiss with a slow irregular flutter and a low rush under it, sputtering, now and
 // then a spit of the composition, and short dips where the flame gutters
-export function loopSkyflare(sr, rng) {
+function loopSkyflare(sr, rng) {
   const L = 4;
   const X = 0.4;
   const n = Math.ceil((L + X) * sr);
@@ -141,7 +141,7 @@ export function loopSkyflare(sr, rng) {
 
 // break-open reload, first person. Open: the latch, the barrel dropping on its hinge, the spent case drawn out, a new
 // shell pushed home (~1.1 s in, inside the 1.7 s reload). Close: the barrel snapped shut on it
-export function flareOpen(sr, rng) {
+function flareOpen(sr, rng) {
   const out = alloc(sr, 1.3);
   addNorm(out, metalClick(sr, rng, rrange(rng, 2300, 2600), 0.007), sr, 0, 0.6);
   addNorm(out, metalClick(sr, rng, rrange(rng, 950, 1100), 0.016), sr, 0.085, 0.75);
@@ -152,7 +152,7 @@ export function flareOpen(sr, rng) {
   addNorm(out, modal(sr, rng, [{ f: 720, d: 0.02, a: 1 }, { f: 1580, d: 0.012, a: 0.5 }], 0.12, 0.9, 3500), sr, 1.1, 0.5);
   return finish(out, sr);
 }
-export function flareClose(sr, rng) {
+function flareClose(sr, rng) {
   const out = alloc(sr, 0.4);
   addNorm(out, noise(sr, rng, 0.05, { bp: [1500, 1], env: (u) => Math.sin(Math.PI * u) }), sr, 0, 0.2);
   addNorm(out, metalClick(sr, rng, rrange(rng, 1350, 1550), 0.018), sr, 0.035, 1);

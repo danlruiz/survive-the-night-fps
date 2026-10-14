@@ -206,7 +206,7 @@ export function rocketMotor(sr, rng, dur, o = {}) {
 
 // The booster charge going off in the open tube (gunshot() parameters): less crack than a rifle (no bullet breaking
 // the sound barrier), a broad deep blast out of both ends, the backblast's thump, a long roll off the tree line
-export const RPG_BLAST = {
+const RPG_BLAST = {
   dur: 2.6, crack: 0.75, crackHP: 1700, crackDecay: 0.0016, nwave: 0.3,
   bodyHP: 60, bodyLP0: 4200, bodyLP1: 300, lpSweep: 0.05, bodyDecay: 0.1, bark: [210, 1, 6],
   thump: 1.35, thumpF0: 90, thumpF1: 26, thumpSweep: 0.045, thumpDecay: 0.17,

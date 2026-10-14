@@ -35,7 +35,7 @@ export function loopCar(sr, rng) {
 }
 
 // a tyre over a joint in the deck: two knocks an axle apart, the plate ringing dully under them
-export function deckThump(sr, rng) {
+function deckThump(sr, rng) {
   const out = alloc(sr, 0.5);
   for (const [t, a] of [[0, 1], [0.085, 0.8]]) {
     addNorm(out, thump(sr, rrange(rng, 95, 120), 48, 0.012, 0.045), sr, t, 0.8 * a);
@@ -47,7 +47,7 @@ export function deckThump(sr, rng) {
 
 // Steel under more than it can carry: a long groan that slides down as the member stretches, stick-slip shrieks
 // riding on it, and the bolts going one after another at the end.
-export function bridgeGroan(sr, rng) {
+function bridgeGroan(sr, rng) {
   const dur = 3.4;
   const n = Math.ceil(dur * sr);
   const out = new Float32Array(n);
@@ -83,7 +83,7 @@ export function bridgeGroan(sr, rng) {
 
 // The span goes in: the bearings let go with a bang, a second of steel tearing and falling, the deck hitting the
 // water flat (a great low thud under a wall of white noise), then the wash settling and air coming up.
-export function bridgeFall(sr, rng) {
+function bridgeFall(sr, rng) {
   const out = alloc(sr, 5.2);
   // the bang, and the truss ringing from it
   addNorm(out, thump(sr, 150, 38, 0.03, 0.16), sr, 0, 0.8);

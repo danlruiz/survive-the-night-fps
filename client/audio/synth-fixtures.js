@@ -22,7 +22,7 @@ const BELL_PARTIALS = [
   [5.43, 0.2, 0.28],
   [6.81, 0.12, 0.18],
 ];
-export function bellToll(sr, rng) {
+function bellToll(sr, rng) {
   const out = alloc(sr, 7.5);
   BELL_PARTIALS.forEach(([ratio, level, tau], k) => {
     const f = BELL_NOTE * ratio;
@@ -63,7 +63,7 @@ function tone(sr, f, dur) {
 }
 
 // keyed up: the switch, static, and the whistle of a carrier being tuned in
-export function radioTune(sr, rng) {
+function radioTune(sr, rng) {
   const dur = 1.5;
   const out = alloc(sr, dur);
   addNorm(out, metalClick(sr, rng, 2100, 0.008), sr, 0, 0.7);

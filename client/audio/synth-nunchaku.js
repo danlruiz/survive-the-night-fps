@@ -8,7 +8,7 @@ import { HI, addNorm, thump, noise, modal, metalClick, woodModes, metalModes, cr
 
 // A handle through the air: short, breathy, a narrow band that sweeps up and away. Higher and tighter than a bat's
 // swing (the handle is a third of the weight and four times as fast); played faster still for a faster handle.
-export function nkWhoosh(sr, rng) {
+function nkWhoosh(sr, rng) {
   const dur = rrange(rng, 0.15, 0.19);
   const n = Math.floor(dur * sr);
   const out = new Float32Array(n);
@@ -30,7 +30,7 @@ export function nkWhoosh(sr, rng) {
 }
 
 // The chain pulled up short: a handful of links knocking together, bright and dry (welded steel, no ring to speak of)
-export function nkRattle(sr, rng) {
+function nkRattle(sr, rng) {
   const out = alloc(sr, 0.16);
   const links = 3 + Math.floor(rng() * 3);
   let t = 0;
@@ -49,7 +49,7 @@ const BAR = (rng, k = 1) => [
   { f: 5600 * k * rrange(rng, 0.95, 1.05), d: 0.007, a: 0.35 },
   { f: 420 * k * rrange(rng, 0.95, 1.05), d: 0.02, a: 0.3 },
 ];
-export function nkClack(sr, rng) {
+function nkClack(sr, rng) {
   const out = alloc(sr, 0.14);
   addNorm(out, modal(sr, rng, BAR(rng, rrange(rng, 0.92, 1.12)), 0.13, 0.5, 6000), sr, 0, 1);
   addNorm(out, noise(sr, rng, 0.012, { bp: [3500, 1.2], a: 0.0002, d: 0.003 }), sr, 0, 0.4);
@@ -57,7 +57,7 @@ export function nkClack(sr, rng) {
 }
 
 // caught: the handle into the palm of a glove. A soft slap, the wood's knock muffled under it, the chain settling after
-export function nkCatch(sr, rng) {
+function nkCatch(sr, rng) {
   const out = alloc(sr, 0.22);
   addNorm(out, noise(sr, rng, 0.05, { bp: [rrange(rng, 900, 1300), 1.1], a: 0.0006, d: 0.014 }), sr, 0, 1);
   addNorm(out, thump(sr, 150, 90, 0.012, 0.022), sr, 0, 0.55);
@@ -68,7 +68,7 @@ export function nkCatch(sr, rng) {
 
 // ---- what it strikes
 // flesh: the wood's crack, dull, over a dead thud - a blunt blow, no wet in it
-export function nkHitFlesh(sr, rng) {
+function nkHitFlesh(sr, rng) {
   const out = alloc(sr, 0.34);
   addNorm(out, thump(sr, rrange(rng, 105, 130), 55, 0.018, 0.045), sr, 0, 1);
   addNorm(out, noise(sr, rng, 0.07, { bp: [rrange(rng, 1000, 1400), 1.6], a: 0.0005, d: 0.018 }), sr, 0, 0.8);
@@ -77,7 +77,7 @@ export function nkHitFlesh(sr, rng) {
   return finish(out, sr);
 }
 // bone (a skull): the same, with a hard crack on the front of it and something giving
-export function nkHitBone(sr, rng) {
+function nkHitBone(sr, rng) {
   const out = alloc(sr, 0.4);
   addNorm(out, modal(sr, rng, [{ f: rrange(rng, 1700, 2100), d: 0.012, a: 1 }, { f: rrange(rng, 3300, 3900), d: 0.007, a: 0.7 }, { f: rrange(rng, 640, 760), d: 0.02, a: 0.6 }], 0.08, 0.4, 8000), sr, 0, 1);
   addNorm(out, thump(sr, rrange(rng, 120, 140), 60, 0.015, 0.04), sr, 0, 0.8);
@@ -87,7 +87,7 @@ export function nkHitBone(sr, rng) {
   return finish(out, sr);
 }
 // wood (a tree, a wall, a barricade): two pieces of timber, the big one booming under the handle's knock
-export function nkHitWood(sr, rng) {
+function nkHitWood(sr, rng) {
   const out = alloc(sr, 0.4);
   addNorm(out, modal(sr, rng, BAR(rng, rrange(rng, 0.9, 1.1)), 0.13, 0.5, 7000), sr, 0, 1);
   addNorm(out, modal(sr, rng, woodModes(rng, rrange(rng, 0.9, 1.2)), 0.36, 1.2, 2600), sr, 0.001, 0.75);
@@ -95,7 +95,7 @@ export function nkHitWood(sr, rng) {
   return finish(out, sr);
 }
 // metal (a wreck, a steel wall): the knock, and the sheet it struck ringing on
-export function nkHitMetal(sr, rng) {
+function nkHitMetal(sr, rng) {
   const out = alloc(sr, 0.9);
   addNorm(out, modal(sr, rng, BAR(rng, rrange(rng, 1, 1.15)), 0.1, 0.4, 9000), sr, 0, 0.9);
   addNorm(out, modal(sr, rng, metalModes(rng, rrange(rng, 380, 560), 0.55), 0.9, 0.5), sr, 0.001, 1);
@@ -103,7 +103,7 @@ export function nkHitMetal(sr, rng) {
   return finish(out, sr);
 }
 // the ground, masonry: a dead knock and grit
-export function nkHitDirt(sr, rng) {
+function nkHitDirt(sr, rng) {
   const out = alloc(sr, 0.3);
   addNorm(out, thump(sr, 110, 60, 0.014, 0.035), sr, 0, 1);
   addNorm(out, noise(sr, rng, 0.09, { bp: [rrange(rng, 1800, 2600), 0.9], a: 0.0005, d: 0.022 }), sr, 0, 0.6);
@@ -112,7 +112,7 @@ export function nkHitDirt(sr, rng) {
 }
 
 // snapped open on the draw: the chain running out, and the handle it was folded against let go
-export function nkDraw(sr, rng) {
+function nkDraw(sr, rng) {
   const out = alloc(sr, 0.4);
   addNorm(out, nkClack(sr, rng), sr, 0.02, 0.5);
   for (let k = 0; k < 3; k++) addNorm(out, nkRattle(sr, rng), sr, 0.04 + k * rrange(rng, 0.03, 0.05), 0.7 - k * 0.15);

@@ -24,7 +24,7 @@ function distant(c, sr, lpHz = 2000, echoes = [[0.38, 0.3], [0.85, 0.15]]) {
 }
 
 // detuned saw pad with a time-varying low-pass. freqs: Hz list. lp: [[u, hz]]
-export function padChord(sr, rng, freqs, dur, o = {}) {
+function padChord(sr, rng, freqs, dur, o = {}) {
   const n = Math.floor(dur * sr);
   const L = new Float32Array(n);
   const R = new Float32Array(n);
@@ -72,7 +72,7 @@ export function padChord(sr, rng, freqs, dur, o = {}) {
 }
 
 // ------------------------------------------------------------------ ambience beds (seamless loops)
-export function bedWind(sr, rng) {
+function bedWind(sr, rng) {
   const Ls = 10;
   const X = 1.5;
   const n = Math.ceil((Ls + X) * sr);
@@ -100,7 +100,7 @@ export function bedWind(sr, rng) {
   }
   return finishLoop(outs, sr, X, 0.8);
 }
-export function bedPines(sr, rng) {
+function bedPines(sr, rng) {
   const Ls = 8;
   const X = 1;
   const n = Math.ceil((Ls + X) * sr);
@@ -118,7 +118,7 @@ export function bedPines(sr, rng) {
   }
   return finishLoop(outs, sr, X, 0.7);
 }
-export function bedCrickets(sr, rng) {
+function bedCrickets(sr, rng) {
   const Ls = 8;
   const X = 0.6;
   const T = Ls + X;
@@ -163,7 +163,7 @@ export function bedCrickets(sr, rng) {
   }
   return finishLoop(outs, sr, X, 0.75);
 }
-export function bedDrone(sr, rng) {
+function bedDrone(sr, rng) {
   const Ls = 12;
   const X = 1.5;
   const n = Math.ceil((Ls + X) * sr);
@@ -237,7 +237,7 @@ export function bedHome(sr, rng) {
   }
   return finishLoop(outs, sr, X, 0.7);
 }
-export function bedHorde(sr, rng) {
+function bedHorde(sr, rng) {
   const Ls = 8;
   const X = 1;
   const T = Ls + X;
@@ -263,7 +263,7 @@ export function bedHorde(sr, rng) {
 }
 
 // rain: a hiss of pink noise under thousands of tiny droplet ticks, with a soft low wash of heavy rain
-export function bedRain(sr, rng) {
+function bedRain(sr, rng) {
   const Ls = 8;
   const X = 1;
   const n = Math.ceil((Ls + X) * sr);
@@ -319,7 +319,7 @@ export function crow(sr, rng) {
 export function bird(sr, rng, i) {
   return birdPhrase(sr, rng, i % 3);
 }
-export function owl(sr, rng, i) {
+function owl(sr, rng, i) {
   const pat = i % 2 ? [[0, 0.35], [0.55, 0.18], [0.78, 0.22], [1.25, 0.55]] : [[0, 0.45], [0.9, 0.3], [1.35, 0.6]];
   const out = alloc(sr, 2.6);
   const f0 = rrange(rng, 340, 400);
@@ -406,7 +406,7 @@ export function whisper(sr, rng) {
   }
   return finish(out, sr, 0.85, 0.02, 0.1);
 }
-export function treeCreak(sr, rng) {
+function treeCreak(sr, rng) {
   const d = rrange(rng, 1.4, 3);
   const out = alloc(sr, d + 0.3);
   addNorm(out, creak(sr, rng, d, rrange(rng, 8, 20), rrange(rng, 35, 80), rrange(rng, 0.6, 1)), sr, 0, 1);
@@ -472,7 +472,7 @@ export function thunder(sr, rng) {
   return finish(out, sr, 0.9, 0.05, 1.2);
 }
 // thunder, close: a ripping crack right overhead, a chest-thumping boom, then the roll
-export function thunderNear(sr, rng) {
+function thunderNear(sr, rng) {
   const out = alloc(sr, 7.5);
   // the tear: a burst of crackles over the first ~0.3 s on top of a white-hot snap
   addNorm(out, noise(sr, rng, 0.25, { hp: 600, a: 0.0006, d: 0.04 }), sr, 0, 1);
@@ -485,7 +485,7 @@ export function thunderNear(sr, rng) {
 }
 
 // ------------------------------------------------------------------ music instruments
-export function pianoNote(sr, rng, f0, dur) {
+function pianoNote(sr, rng, f0, dur) {
   const n = Math.floor(dur * sr);
   const out = new Float32Array(n);
   const B = 0.0003;
@@ -527,7 +527,7 @@ export function pianoNote(sr, rng, f0, dur) {
   for (let i = 0; i < a; i++) out[i] *= i / a;
   return finish(out, sr, 0.9, 0.001, Math.min(0.4, dur * 0.1));
 }
-export function musicBox(sr, rng, f0) {
+function musicBox(sr, rng, f0) {
   const out = modal(sr, rng, [
     { f: f0, d: 1.5, a: 1 },
     { f: f0 * 2.01, d: 0.5, a: 0.1 },
@@ -567,14 +567,14 @@ export function taiko(sr, rng, kind) {
   softclip(out, 1.6);
   return finish(out, sr, 0.92, 0.0003, 0.2);
 }
-export function subPulse(sr, rng) {
+function subPulse(sr, rng) {
   const out = alloc(sr, 0.8);
   addNorm(out, thump(sr, 58, 44, 0.05, 0.12), sr, 0, 1);
   addNorm(out, thump(sr, 52, 40, 0.05, 0.1), sr, 0.22, 0.7);
   addNorm(out, noise(sr, rng, 0.1, { lp: 200, env: hann }), sr, 0, 0.25);
   return finish(out, sr);
 }
-export function bassNote(sr, rng) {
+function bassNote(sr, rng) {
   const dur = 0.75;
   const n = Math.floor(dur * sr);
   const out = new Float32Array(n);
@@ -599,7 +599,7 @@ export function bassNote(sr, rng) {
   }
   return finish(out, sr, 0.9, 0.001, 0.02);
 }
-export function brassStab(sr, rng) {
+function brassStab(sr, rng) {
   const dur = 2.6;
   const n = Math.floor(dur * sr);
   const out = new Float32Array(n);
@@ -624,7 +624,7 @@ export function brassStab(sr, rng) {
   }
   return finish(out, sr, 0.9, 0.002, 0.1);
 }
-export function revSwell(sr, rng, i) {
+function revSwell(sr, rng, i) {
   const dur = 4.2;
   const n = Math.floor(dur * sr);
   let fwd;
@@ -681,7 +681,7 @@ function addSt(dst, src, sr, t, peak, pan = 0.5) {
   }
 }
 
-export function stgNight(sr, rng) {
+function stgNight(sr, rng) {
   const out = st2(sr, 8);
   addSt(out, thump(sr, 55, 30, 0.3, 1.3, 4), sr, 0, 0.7);
   addSt(out, padChord(sr, rng, [36.71, 73.42, 77.78, 103.83, 146.83], 7.8, { attack: 3.2, release: 3, detune: 12, lp: [[0, 150], [0.45, 1400], [1, 250]] }), sr, 0, 0.8);
@@ -710,7 +710,7 @@ export function stgNight(sr, rng) {
   addSt(out, wh, sr, 1.5, 0.04, 0.6);
   return finish(out, sr, 0.9, 0.01, 0.5);
 }
-export function stgDawn(sr, rng) {
+function stgDawn(sr, rng) {
   const out = st2(sr, 7.5);
   addSt(out, padChord(sr, rng, [73.42, 110, 146.83, 185, 220, 329.63, 369.99], 7.4, { attack: 2, release: 3.2, detune: 6, lp: [[0, 400], [0.4, 1300], [1, 600]] }), sr, 0, 0.6);
   const notes = [[440, 1.0], [587.33, 1.6], [659.25, 2.2], [739.99, 3.0]];
@@ -718,7 +718,7 @@ export function stgDawn(sr, rng) {
   for (let k = 0; k < 5; k++) addSt(out, birdPhrase(sr, rng, k % 3), sr, 2 + rng() * 4, rrange(rng, 0.1, 0.2), rng());
   return finish(out, sr, 0.85, 0.05, 0.6);
 }
-export function stgDeath(sr, rng) {
+function stgDeath(sr, rng) {
   const out = st2(sr, 5.8);
   addSt(out, thump(sr, 72, 26, 0.15, 0.9, 3), sr, 0, 1);
   addSt(out, noise(sr, rng, 0.8, { lp: 800, a: 0.002, d: 0.25 }), sr, 0, 0.6);
@@ -733,7 +733,7 @@ export function stgDeath(sr, rng) {
   addSt(out, padChord(sr, rng, [36.71, 55, 38.89], 5.5, { attack: 0.8, release: 3.5, detune: 10, lp: [[0, 300], [1, 120]] }), sr, 0.1, 0.4);
   return finish(out, sr, 0.9, 0.0005, 0.6);
 }
-export function stgBoss(sr, rng) {
+function stgBoss(sr, rng) {
   const out = st2(sr, 5);
   addSt(out, padChord(sr, rng, [36.71, 55, 73.42, 77.78, 110], 4.6, { attack: 0.12, release: 2, detune: 14, lp: [[0, 150], [0.05, 2800], [0.45, 900], [1, 300]] }), sr, 0, 1);
   const roar = voice(sr, rng, {
@@ -746,7 +746,7 @@ export function stgBoss(sr, rng) {
   softclip(out, 1.6);
   return finish(out, sr, 0.95, 0.001, 0.5);
 }
-export function stgVictory(sr, rng) {
+function stgVictory(sr, rng) {
   const out = st2(sr, 8);
   addSt(out, padChord(sr, rng, [58.27, 116.54, 146.83, 174.61, 220], 3.4, { attack: 1.2, release: 1.2, detune: 7, lp: [[0, 500], [1, 1400]] }), sr, 0, 0.55);
   addSt(out, padChord(sr, rng, [73.42, 146.83, 185, 220, 293.66, 369.99], 5, { attack: 1.0, release: 2.8, detune: 7, lp: [[0, 900], [0.3, 1800], [1, 700]] }), sr, 2.8, 0.6);
@@ -755,7 +755,7 @@ export function stgVictory(sr, rng) {
   addSt(out, pianoNote(sr, rng, 73.42, 4.5), sr, 2.8, 0.35);
   return finish(out, sr, 0.85, 0.05, 0.6);
 }
-export function stgGameOver(sr, rng) {
+function stgGameOver(sr, rng) {
   const out = st2(sr, 8);
   const seq = [[146.83, 0], [130.81, 0.7], [116.54, 1.4], [103.83, 2.1]];
   for (const [f, t] of seq) addSt(out, pianoNote(sr, rng, f, 3.5), sr, t, 0.4, 0.4 + rng() * 0.2);
@@ -765,7 +765,7 @@ export function stgGameOver(sr, rng) {
   addSt(out, padChord(sr, rng, [36.71, 38.89, 51.91], 7.5, { attack: 2, release: 3.5, detune: 12, lp: [[0, 200], [0.5, 500], [1, 120]] }), sr, 0.3, 0.45);
   return finish(out, sr, 0.85, 0.01, 0.8);
 }
-export function stgJumpscare(sr, rng) {
+function stgJumpscare(sr, rng) {
   const dur = 2;
   const out = st2(sr, dur);
   const n = Math.floor(1.8 * sr);
@@ -793,13 +793,13 @@ export function stgJumpscare(sr, rng) {
   softclip(out, 2);
   return finish(out, sr, 0.95, 0.0005, 0.2);
 }
-export function stgJoin(sr, rng) {
+function stgJoin(sr, rng) {
   const out = st2(sr, 3.2);
   addSt(out, padChord(sr, rng, [73.42, 110, 146.83], 3.1, { attack: 0.9, release: 1.6, detune: 6, lp: [[0, 300], [0.5, 700], [1, 300]] }), sr, 0, 0.5);
   addSt(out, musicBox(sr, rng, 587.33), sr, 0.45, 0.25, 0.6);
   return finish(out, sr, 0.7, 0.05, 0.5);
 }
-export function stgCarPart(sr, rng) {
+function stgCarPart(sr, rng) {
   const out = st2(sr, 2.8);
   addSt(out, metalHit(sr, rng, 185), sr, 0, 0.6, 0.45);
   const arp = [587.33, 739.99, 880, 1174.66];

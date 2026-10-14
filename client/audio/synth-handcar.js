@@ -10,7 +10,7 @@ const AXLES = 0.15; // ...and between the two axles going over one
 const WHEEL = [{ f: 690, d: 0.03, a: 1 }, { f: 1610, d: 0.02, a: 0.7 }, { f: 2870, d: 0.012, a: 0.45 }, { f: 4150, d: 0.007, a: 0.3 }];
 const ROLL = [{ f: 205, d: 0.02, a: 1 }, { f: 470, d: 0.012, a: 0.6 }, { f: 1130, d: 0.006, a: 0.3 }];
 
-export function loopHandcar(sr, rng) {
+function loopHandcar(sr, rng) {
   const L = JOINT;
   const X = 0.15;
   const n = Math.ceil((L + X) * sr);

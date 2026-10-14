@@ -102,7 +102,7 @@ export function birdPhrase(sr, rng, kind = 0) {
   }
   return finish(out, sr, 0.85);
 }
-export function rooster(sr, rng) {
+function rooster(sr, rng) {
   const syl = [[0, 0.12, 520, 560, 0.7], [0.16, 0.12, 600, 640, 0.8], [0.32, 0.16, 700, 760, 0.9], [0.52, 0.75, 790, 560, 1]];
   const out = alloc(sr, 1.4);
   for (const [s, d, f0, f1, a] of syl) {

@@ -20,7 +20,7 @@ const BELL_A = 2340;
 const BELL_B = 2610;
 const HAMMER = 19.5; // swings a second (each one strikes both bells)
 
-export function loopAlarm(sr, rng) {
+function loopAlarm(sr, rng) {
   const L = 2; // the loop
   const X = 0.15;
   const n = Math.ceil((L + X) * sr);
