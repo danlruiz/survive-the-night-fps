@@ -148,9 +148,10 @@ draw after it, and seeded tests that have nothing to do with the change start fa
 
 ### 8. Very large files
 
-`server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (4,800),
+`client/game/game.js` (4,600 lines), `client/render/models/weapons.js` (4,800),
 `client/render/models/characters.js` (5,500) and `client/ui/menus.js` are where unrelated features meet. A conflict
-in one of them is often two features that only share a file.
+in one of them is often two features that only share a file. (`server/game.js` was one, at 5,800 lines; `Game` is now
+split into parts under `server/game/`, one responsibility each.)
 
 - **Resolve:** read both sides whole. These are the conflicts where logic really can clash: two HUD meters drawn in the
   same frame, two handlers for the same message.
