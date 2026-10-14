@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { latheY, R, gunGrip } from './parts.js';
+import { latheY, R, gunGrip, SPRINT } from './parts.js';
 
 function buildMolotov(P) {
   const hi = P.hi;
@@ -32,7 +32,7 @@ function buildMolotov(P) {
 export default {
   id: ITEM.MOLOTOV,
   build: buildMolotov,
-  vm: { kind: 'throw', hip: [0.17, -0.235, -0.38, 0.12, 0.2, -0.2], rPose: 'bottle', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'throw', hip: [0.17, -0.235, -0.38, 0.12, 0.2, -0.2], rPose: 'bottle', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: SPRINT.throwable },
   poses: {
     bottle: { curl: [[0.67, 0.77, 0.54], [0.7, 0.88, 0.61], [0.69, 0.79, 0.55], [0.56, 0.64, 0.45]], spread: 0.0, thumb: [[-0.79, -0.13, -0.6], [-0.71, 0, -0.71]], center: [-0.05, -0.08, 0] }, // molotov
   },

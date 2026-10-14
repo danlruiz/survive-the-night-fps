@@ -1,7 +1,7 @@
 // Pump shotgun
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, trigger, triggerGuard, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 // The parts the double-barrel shares with it (the same maker's furniture):
 // the bead front sight, on the rib at height y
@@ -86,8 +86,8 @@ export default {
   build: buildShotgun,
   vm: {
     kind: 'shotgun', hip: [0.2, -0.19, -0.2, 0.03, 0.17, 0.0], ads: 0.22, adsZ: -0.79, adsPitch: 0.1,
-    rPose: 'wristGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'pumpSupport' },
-    recoil: { z: 0.06, rx: 0.12, ry: 0.02 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'wristGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'pumpSupport' },
+    recoil: { z: 0.06, rx: 0.12, ry: 0.02 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the pump

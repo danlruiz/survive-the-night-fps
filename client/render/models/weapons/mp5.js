@@ -1,7 +1,7 @@
 // MP5 (fixed polymer stock)
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard, magOutline } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, trigger, triggerGuard, magOutline, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 function buildMP5(P) {
   const hi = P.hi;
@@ -75,8 +75,8 @@ export default {
   build: buildMP5,
   vm: {
     kind: 'rifle', hip: [0.17, -0.18, -0.3, 0.03, 0.15, 0.0], ads: 0.2, adsZ: -0.2, chargeFire: false, chargeQ: [1.6, -0.3, 0.4],
-    rPose: 'mp5Grip', rGrip: { p: [0, 0, 0], q: gunGrip(0.2) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'mp5Support' },
-    magPose: 'mp5Mag', recoil: { z: 0.016, rx: 0.026, ry: 0.008 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'mp5Grip', rGrip: { p: [0, 0, 0], q: gunGrip(0.2) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'mp5Support' },
+    magPose: 'mp5Mag', recoil: { z: 0.016, rx: 0.026, ry: 0.008 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the handguard

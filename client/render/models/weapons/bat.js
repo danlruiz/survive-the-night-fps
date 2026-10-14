@@ -20,7 +20,7 @@ function buildBat(P) {
 export default {
   id: ITEM.BAT,
   build: buildBat,
-  vm: { kind: 'melee', twoHand: true, hip: [0.17, -0.2, -0.3, 1.2, 0.3, 0.15], rPose: 'batR', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, lGrip: { q: Q(0, 0, 0), pose: 'batL' }, swingPoleL: new THREE.Vector3(0, -1, 0.5), sprint: [0.05, -0.05, 0.08, -0.4, 0.1, 0] },
+  vm: { kind: 'melee', swing: 'bat', twoHand: true, hip: [0.17, -0.2, -0.3, 1.2, 0.3, 0.15], rPose: 'batR', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, lGrip: { q: Q(0, 0, 0), pose: 'batL' }, swingPoleL: new THREE.Vector3(0, -1, 0.5), sprint: [0.05, -0.05, 0.08, -0.4, 0.1, 0] },
   // (the spiked bat is held in these too)
   poses: {
     batR: { curl: [[0.79, 1.32, 0.92], [0.82, 1.42, 0.99], [0.8, 1.35, 0.94], [0.75, 1.05, 0.73]], spread: 0, thumb: [[-0.69, -0.61, -0.4], [-0.77, -0.61, -0.21]], center: [-0.0319, -0.083, 0] },

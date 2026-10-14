@@ -368,3 +368,11 @@ export const supportGrip = (roll, yaw, pitch = 0) => {
   const tw = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
   return tw.multiply(base);
 };
+// the left hand's turn under every long gun's fore-end but the RPG's (the hand is placed by meta.leftHand)
+export const LONG_GUN_SUPPORT = supportGrip(-0.4, 0.6, 0.0);
+// the sprint carries more than one held item shares (added to the hip pose, see index.js)
+export const SPRINT = {
+  longGun: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35], // muzzle swung up and across the chest
+  throwable: [0.0, -0.08, 0.05, -0.3, 0.1, 0], // the throwables and the walkie-talkie, low in the fist
+  oneHandMelee: [0.03, -0.05, 0.06, -0.4, 0.1, 0], // the machete and the hammer
+};

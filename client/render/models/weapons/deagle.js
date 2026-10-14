@@ -5,8 +5,8 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, cylZ, boxR, M, handQ, GRIPS, trigger, triggerGuard } from './parts.js';
-import { pistolMag, rearNotch } from './pistol.js';
+import { profile, cylZ, boxR, M, GRIPS, trigger, triggerGuard } from './parts.js';
+import { PISTOL_HOLD, pistolMag, rearNotch } from './pistol.js';
 
 const DE_STEEL = { region: WR.STEEL, color: [0.82, 0.82, 0.85], mottle: 0.05 };
 const DE_STEEL_DARK = { region: WR.STEEL, color: [0.62, 0.62, 0.66], mottle: 0.05 };
@@ -57,10 +57,7 @@ export default {
   vm: {
     // held exactly as the pistol is (the same grip outline under it, so the same fitted hands and poses), with a much
     // harder kick: the muzzle climbs and the gun comes back further
-    kind: 'pistol', hip: [0.11, -0.158, -0.29, 0.09, 0.18, -0.06], ads: 0.2, adsZ: -0.42,
-    rPose: 'trigger', rGrip: { p: [0, 0, -0.007], q: handQ(1, [0.435, -0.325, -0.84], [-0.9, -0.157, -0.406]) },
-    lGrip: { p: [0, -0.02, -0.007], q: handQ(-1, [-0.199, -0.354, -0.914], [0.98, -0.072, -0.185]), pose: 'cup' },
-    poleR: new THREE.Vector3(0.5, -1, 0.2), poleL: new THREE.Vector3(-0.6, -0.9, 0.2),
-    recoil: { z: 0.05, rx: 0.2, ry: 0.025 }, sprint: [0.0, -0.015, 0.03, -0.3, 0.22, 0.28],
+    ...PISTOL_HOLD,
+    recoil: { z: 0.05, rx: 0.2, ry: 0.025 },
   },
 };

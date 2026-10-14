@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { fbm3 } from '../skinning.js';
-import { profile, M, Q } from './parts.js';
+import { profile, M, Q, SPRINT } from './parts.js';
 
 function buildMachete(P) {
   const hi = P.hi;
@@ -27,7 +27,7 @@ function buildMachete(P) {
 export default {
   id: ITEM.MACHETE,
   build: buildMachete,
-  vm: { kind: 'melee', hip: [0.16, -0.19, -0.3, 0.95, 0.3, 0.1], rPose: 'macheteGrip', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, sprint: [0.03, -0.05, 0.06, -0.4, 0.1, 0] },
+  vm: { kind: 'melee', swing: 'machete', pry: 'blade', hip: [0.16, -0.19, -0.3, 0.95, 0.3, 0.1], rPose: 'macheteGrip', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, sprint: SPRINT.oneHandMelee },
   poses: {
     macheteGrip: { curl: [[0.49, 1.41, 0.98], [0.5, 1.52, 1.06], [0.5, 1.45, 1.01], [0.48, 1.14, 0.79]], spread: 0, thumb: [[-0.79, -0.61, -0.1], [-0.7, -0.71, -0.09]], center: [-0.0294, -0.083, 0] },
   },

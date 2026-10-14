@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
 import { fbm3 } from '../skinning.js';
-import { PI, profile, latheY, boxR, M, R, gunGrip } from './parts.js';
+import { PI, profile, latheY, boxR, M, R, gunGrip, SPRINT } from './parts.js';
 
 const FRAG = { yc: -0.006, a: 0.037, R: 0.032, cols: 8, rows: 5, y0: -0.041, y1: 0.025 };
 const fragR = (y) => FRAG.R * Math.sqrt(Math.max(0, 1 - ((y - FRAG.yc) / FRAG.a) ** 2));
@@ -95,7 +95,7 @@ function buildGrenade(P) {
 export default {
   id: ITEM.GRENADE,
   build: buildGrenade,
-  vm: { kind: 'throw', hip: [0.13, -0.12, -0.3, 0.3, 0.35, -0.12], rPose: 'ball', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'throw', hip: [0.13, -0.12, -0.3, 0.3, 0.35, -0.12], rPose: 'ball', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: SPRINT.throwable },
   poses: {
     ball: { curl: [[0.87, 0.99, 0.69], [0.82, 0.94, 0.66], [0.76, 0.87, 0.6], [0.67, 0.77, 0.54]], spread: 0.0, thumb: [[-0.59, -0.26, -0.77], [-0.38, -0.92, -0.05]], center: [-0.0475, -0.075, 0] }, // frag grenade
   },

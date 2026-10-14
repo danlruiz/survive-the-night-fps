@@ -112,7 +112,7 @@ export default {
     // poleR), the back of the hand toward the eye, the blade rising up and left out of the thumb side. The hip angles
     // were solved for that hand (a hammer grip can't point the blade along the forearm; this one used to need the
     // wrist bent ~95 degrees).
-    kind: 'melee', hip: [0.18, -0.13, -0.34, 0.651, 1.414, 2.646], poleR: new THREE.Vector3(0.3, -0.9, 0.3),
+    kind: 'melee', swing: 'knife', heavySwing: 'stab', pry: 'blade', hip: [0.18, -0.13, -0.34, 0.651, 1.414, 2.646], poleR: new THREE.Vector3(0.3, -0.9, 0.3),
     rPose: 'knife', rGrip: { p: [0, 0, 0], q: handQ(1, [0, -Math.cos(KNIFE_GRIP.tilt), -Math.sin(KNIFE_GRIP.tilt)], [-1, 0, 0]) }, sprint: [0.02, -0.05, 0.05, -0.3, 0.1, 0] },
   // the handle laid diagonally across the palm (KNIFE_GRIP.tilt), from the heel of the hand to the base of the index
   // finger, every finger closed on it and the thumb lying along its spine toward the guard

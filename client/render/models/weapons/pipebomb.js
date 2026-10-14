@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, latheY, M, R, gunGrip } from './parts.js';
+import { PI, latheY, M, R, gunGrip, SPRINT } from './parts.js';
 
 function buildPipebomb(P) {
   const hi = P.hi;
@@ -26,7 +26,7 @@ function buildPipebomb(P) {
 export default {
   id: ITEM.PIPEBOMB,
   build: buildPipebomb,
-  vm: { kind: 'throw', hip: [0.16, -0.2, -0.34, 0.1, 0.2, -0.2], rPose: 'pipe', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'throw', hip: [0.16, -0.2, -0.34, 0.1, 0.2, -0.2], rPose: 'pipe', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: SPRINT.throwable },
   poses: {
     pipe: { curl: [[0.79, 0.97, 0.67], [0.81, 1.09, 0.76], [0.79, 1.0, 0.7], [0.68, 0.78, 0.54]], spread: 0.0, thumb: [[-0.56, -0.38, -0.73], [-0.96, 0.13, -0.26]], center: [-0.0415, -0.08, 0] }, // pipe bomb
   },

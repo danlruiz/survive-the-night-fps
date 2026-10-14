@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { mulberry32 } from '../skinning.js';
-import { batBody } from './bat.js';
-import { PI, M, Q } from './parts.js';
+import bat, { batBody } from './bat.js';
+import { PI, M } from './parts.js';
 
 function buildSpikedBat(P) {
   const hi = P.hi;
@@ -49,5 +49,5 @@ function buildSpikedBat(P) {
 export default {
   id: ITEM.SPIKED_BAT,
   build: buildSpikedBat,
-  vm: { kind: 'melee', twoHand: true, hip: [0.17, -0.2, -0.3, 1.2, 0.3, 0.15], rPose: 'batR', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, lGrip: { q: Q(0, 0, 0), pose: 'batL' }, swingPoleL: new THREE.Vector3(0, -1, 0.5), sprint: [0.05, -0.05, 0.08, -0.4, 0.1, 0] },
+  vm: { ...bat.vm }, // held and swung as the bat is
 };

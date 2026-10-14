@@ -4,7 +4,7 @@
 // axis +Y; the dial faces +Z (the holder), the keys -Z.
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, latheY, M, R, handQ } from './parts.js';
+import { PI, profile, latheZ, latheY, M, R, handQ, SPRINT } from './parts.js';
 
 function buildDecoy(P) {
   const hi = P.hi;
@@ -72,7 +72,7 @@ export default {
   id: ITEM.DECOY,
   build: buildDecoy,
   // the alarm clock sits on the palm, the fingers cupped round its feet, its dial turned to the eye
-  vm: { kind: 'throw', hip: [0.15, -0.115, -0.34, 0.15, 0.35, -0.1], rPose: 'clock', rGrip: { p: [0, -0.058, 0], q: handQ(1, [-0.71, 0, -0.71], [0, 1, 0]) }, sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'throw', hip: [0.15, -0.115, -0.34, 0.15, 0.35, -0.1], rPose: 'clock', rGrip: { p: [0, -0.058, 0], q: handQ(1, [-0.71, 0, -0.71], [0, 1, 0]) }, sprint: SPRINT.throwable },
   // the alarm clock's feet down on the palm, the fingers cupped up behind its case
   poses: {
     clock: { curl: [[0.6, 0.68, 0.48], [0.56, 0.64, 0.44], [0.54, 0.71, 0.49], [0.34, 0.64, 1.2]], spread: 0.0, thumb: [[-0.22, -0.77, -0.6], [-0.16, -0.8, -0.57]], center: [-0.0115, -0.085, 0] },

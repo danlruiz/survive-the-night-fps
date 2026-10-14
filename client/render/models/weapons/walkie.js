@@ -4,7 +4,7 @@
 // knob stand on top.
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, latheY, boxR, M, R, gunGrip } from './parts.js';
+import { PI, latheY, boxR, M, R, gunGrip, SPRINT } from './parts.js';
 
 function buildWalkie(P) {
   const hi = P.hi;
@@ -49,7 +49,7 @@ export default {
   // the walkie-talkie up in front of the chest, its face to the eye; keyed (talk: added as the key goes down), it
   // comes up and in toward the mouth
   // (held low on the case, below the grille, so the fingers leave the face clear)
-  vm: { kind: 'radio', hip: [0.12, -0.12, -0.3, 0.12, 0.7, 0.0], rPose: 'radioHold', rGrip: { p: [0, -0.04, 0], q: gunGrip(0.0) }, talk: [-0.04, 0.05, 0.06, 0.2, 0.15, 0], sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'radio', hip: [0.12, -0.12, -0.3, 0.12, 0.7, 0.0], rPose: 'radioHold', rGrip: { p: [0, -0.04, 0], q: gunGrip(0.0) }, talk: [-0.04, 0.05, 0.06, 0.2, 0.15, 0], sprint: SPRINT.throwable },
   poses: {
     radioHold: { curl: [[0.31, 1.47, 0.22], [0.31, 1.58, 0.22], [0.38, 1.45, 0.26], [0.41, 1.04, 0.42]], spread: 0, thumb: [[0.18, -0.71, -0.68], [0, -0.71, -0.71]], center: [-0.0329, -0.083, 0] }, // the walkie-talkie, held by the case below the grille
   },

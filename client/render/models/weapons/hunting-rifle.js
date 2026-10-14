@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, trigger, triggerGuard, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 function buildRifle(P) {
   const hi = P.hi;
@@ -80,8 +80,8 @@ export default {
   build: buildRifle,
   vm: {
     kind: 'rifle', bolt: true, scope: true, hip: [0.19, -0.205, -0.3, 0.03, 0.17, 0.0], ads: 0.22, adsZ: -0.085,
-    rPose: 'rifleGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.35) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'rifleSupport' },
-    recoil: { z: 0.05, rx: 0.1, ry: 0.015 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'rifleGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.35) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'rifleSupport' },
+    recoil: { z: 0.05, rx: 0.1, ry: 0.015 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the fore-end

@@ -1,6 +1,6 @@
 // Claw hammer: a wooden handle with a rubber grip, a steel head
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, latheZ, boxR, M, R, Q } from './parts.js';
+import { profile, latheZ, boxR, M, R, Q, SPRINT } from './parts.js';
 
 function buildHammer(P) {
   const hi = P.hi;
@@ -21,7 +21,7 @@ function buildHammer(P) {
 export default {
   id: ITEM.HAMMER,
   build: buildHammer,
-  vm: { kind: 'melee', hip: [0.16, -0.19, -0.3, 0.85, 0.25, 0.0], rPose: 'hammerGrip', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, sprint: [0.03, -0.05, 0.06, -0.4, 0.1, 0] },
+  vm: { kind: 'melee', swing: 'hammer', pry: 'hammer', hip: [0.16, -0.19, -0.3, 0.85, 0.25, 0.0], rPose: 'hammerGrip', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, sprint: SPRINT.oneHandMelee },
   poses: {
     hammerGrip: { curl: [[0.78, 1.45, 1.01], [0.82, 1.53, 1.06], [0.75, 1.48, 1.03], [0.71, 1.2, 0.83]], spread: 0, thumb: [[-0.61, -0.71, -0.35], [-0.77, -0.61, -0.21]], center: [-0.0289, -0.083, 0] },
   },

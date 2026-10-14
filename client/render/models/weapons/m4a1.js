@@ -1,7 +1,7 @@
 // M4A1 carbine (flat-top, collapsible stock)
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, magOutline } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, GRIPS, trigger, triggerGuard, magOutline, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 function buildM4(P) {
   const hi = P.hi;
@@ -91,8 +91,8 @@ export default {
   build: buildM4,
   vm: {
     kind: 'rifle', hip: [0.18, -0.185, -0.27, 0.03, 0.17, 0.0], ads: 0.2, adsZ: -0.16, chargeFire: false, chargeTravel: 0, chargeQ: [1.3, 0.1, 0],
-    rPose: 'm4Grip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'm4Support' },
-    magPose: 'm4Mag', recoil: { z: 0.022, rx: 0.035, ry: 0.008 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'm4Grip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'm4Support' },
+    magPose: 'm4Mag', recoil: { z: 0.022, rx: 0.035, ry: 0.008 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the handguard

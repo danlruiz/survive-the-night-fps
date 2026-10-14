@@ -1,7 +1,7 @@
 // AK-47
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, magOutline, rivets } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, GRIPS, trigger, triggerGuard, magOutline, rivets, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 // its sights: the line of sight's height over the grip, how far ahead of the grip the rear notch stands, the notch
 // (width, depth) and the hood's inner radius. The post is at f = 0.57: a sight radius of 41 cm
@@ -110,8 +110,8 @@ export default {
   build: buildAK,
   vm: {
     kind: 'rifle', hip: [0.19, -0.19, -0.28, 0.03, 0.17, 0.0], ads: 0.2, adsZ: -0.17, adsFov: 50,
-    rPose: 'akGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'akSupport' },
-    magPose: 'akMag', recoil: { z: 0.028, rx: 0.045, ry: 0.01 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'akGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'akSupport' },
+    magPose: 'akMag', recoil: { z: 0.028, rx: 0.045, ry: 0.01 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the handguard

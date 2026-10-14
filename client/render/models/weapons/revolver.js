@@ -5,7 +5,8 @@
 // loader (a speedloader of six rounds, reload only).
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ, GRIPS, trigger, triggerGuard } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, GRIPS, trigger, triggerGuard } from './parts.js';
+import { PISTOL_HOLD } from './pistol.js';
 
 const RV_AXIS = 0.055; // the cylinder's axis
 const RV_BORE = 0.068; // the bore: the top chamber lines up with it
@@ -83,10 +84,7 @@ export default {
   vm: {
     // held as the pistol is (its grip and trigger guard are the pistol's, so the pistol's hands are fitted to it);
     // revolver: the reload swings the cylinder out, the free hand brings a speedloader up into it, then flicks it shut
-    kind: 'pistol', revolver: true, hip: [0.11, -0.158, -0.29, 0.09, 0.18, -0.06], ads: 0.2, adsZ: -0.42,
-    rPose: 'trigger', rGrip: { p: [0, 0, -0.007], q: handQ(1, [0.435, -0.325, -0.84], [-0.9, -0.157, -0.406]) },
-    lGrip: { p: [0, -0.02, -0.007], q: handQ(-1, [-0.199, -0.354, -0.914], [0.98, -0.072, -0.185]), pose: 'cup' },
-    poleR: new THREE.Vector3(0.5, -1, 0.2), poleL: new THREE.Vector3(-0.6, -0.9, 0.2),
-    recoil: { z: 0.04, rx: 0.16, ry: 0.015 }, sprint: [0.0, -0.015, 0.03, -0.3, 0.22, 0.28],
+    ...PISTOL_HOLD, revolver: true,
+    recoil: { z: 0.04, rx: 0.16, ry: 0.015 },
   },
 };

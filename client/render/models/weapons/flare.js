@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { latheY, M, R, gunGrip } from './parts.js';
+import { latheY, M, R, gunGrip, SPRINT } from './parts.js';
 
 function buildFlare(P) {
   const hi = P.hi;
@@ -25,7 +25,7 @@ function buildFlare(P) {
 export default {
   id: ITEM.FLARE,
   build: buildFlare,
-  vm: { kind: 'throw', hip: [0.16, -0.2, -0.35, 0.12, 0.2, -0.25], rPose: 'flare', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: [0.0, -0.08, 0.05, -0.3, 0.1, 0] },
+  vm: { kind: 'throw', hip: [0.16, -0.2, -0.35, 0.12, 0.2, -0.25], rPose: 'flare', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: SPRINT.throwable },
   poses: {
     flare: { curl: [[0.8, 1.22, 0.85], [0.84, 1.33, 0.92], [0.81, 1.26, 0.88], [0.77, 0.94, 0.65]], spread: 0.0, thumb: [[-0.73, -0.61, -0.3], [-0.87, -0.5, 0]], center: [-0.0345, -0.083, 0] }, // road flare
   },

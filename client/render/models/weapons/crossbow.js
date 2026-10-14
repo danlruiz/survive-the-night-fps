@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, cylZ, plateY, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+import { PI, profile, latheZ, cylZ, plateY, boxR, M, R, gunGrip, trigger, triggerGuard, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 function buildCrossbow(P) {
   const hi = P.hi;
@@ -91,8 +91,8 @@ export default {
   build: buildCrossbow,
   vm: {
     kind: 'rifle', crossbow: true, hip: [0.2, -0.19, -0.2, 0.03, 0.17, 0.0], ads: 0.22, adsZ: -0.53, adsPitch: 0.1,
-    rPose: 'xbowGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'xbowSupport' },
-    recoil: { z: 0.018, rx: 0.03, ry: 0.01 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'xbowGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'xbowSupport' },
+    recoil: { z: 0.018, rx: 0.03, ry: 0.01 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the fore-end

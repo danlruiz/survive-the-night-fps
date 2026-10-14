@@ -1,7 +1,7 @@
 // Side-by-side double-barrel shotgun
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+import { profile, barrelZ, boxR, M, R, gunGrip, trigger, triggerGuard, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 import { bead, wristCheckering, shotgunShell } from './shotgun.js';
 
 function buildDoubleBarrel(P) {
@@ -53,8 +53,8 @@ export default {
   build: buildDoubleBarrel,
   vm: {
     kind: 'shotgun', breakAction: true, hip: [0.2, -0.19, -0.2, 0.03, 0.17, 0.0], ads: 0.22, adsZ: -0.68, adsPitch: 0.1,
-    rPose: 'dbGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'dbSupport' },
-    recoil: { z: 0.07, rx: 0.14, ry: 0.025 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'dbGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'dbSupport' },
+    recoil: { z: 0.07, rx: 0.14, ry: 0.025 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the fore-end

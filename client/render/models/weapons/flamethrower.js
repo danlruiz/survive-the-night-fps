@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, latheY, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, bandZ, rivets } from './parts.js';
+import { profile, latheZ, latheY, cylZ, barrelZ, boxR, M, R, gunGrip, GRIPS, trigger, triggerGuard, bandZ, rivets, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 function buildFlamethrower(P) {
   const hi = P.hi;
@@ -72,8 +72,8 @@ export default {
   vm: {
     // reloads like a rifle: the fuel bottle is the magazine, the gas valve the charging handle (the hand just opens it)
     kind: 'rifle', hip: [0.19, -0.19, -0.27, 0.03, 0.17, 0.0], ads: 0.2, adsZ: -0.2, chargeFire: false, chargeTravel: 0, chargeQ: [1.3, 0.1, 0],
-    rPose: 'flamerGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'flamerSupport' },
-    magPose: 'fuelBottle', recoil: { z: 0.004, rx: 0.004, ry: 0.006 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'flamerGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.15) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'flamerSupport' },
+    magPose: 'fuelBottle', recoil: { z: 0.004, rx: 0.004, ry: 0.006 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand under the handguard

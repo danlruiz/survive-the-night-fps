@@ -17,6 +17,9 @@
 // chargeFire: false = the charging handle stays put while firing; chargeQ: left-hand Euler on the charging handle;
 // chargeTravel: how far the handle is pulled on reload (0 = the hand just slaps meta.chargeKnob, e.g. a bolt catch);
 // breakAction: break-open shotgun (barrels part hinges down to reload)
+// swing / heavySwing: a melee weapon's swing (SWINGS in weapons.js; heavySwing for the heavy attack, else swing too);
+// with neither, a gun or a throwable shoves. pry: how it is worked under a lid ('blade' twisted, 'hammer' hooked and
+// pulled; else jammed in and leant on)
 // crossbow: limbs and string follow the cocked state (update() is told whether a bolt is loaded)
 // adsFov: the viewmodel's field of view when aimed (VM_FOV at the hip): iron sights are a few pixels of a 68 degree
 // view, so the aimed view of a gun that has them is narrowed onto them a little (not much: the gun grows with them).

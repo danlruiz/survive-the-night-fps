@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
 import { profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ, trigger, triggerGuard } from './parts.js';
+import { PISTOL_HOLD } from './pistol.js';
 
 const FG_ORANGE = { region: WR.PLAIN, color: 0xe0601c, mottle: 0.06 };
 const FG_SEAM = { region: WR.PLAIN, color: 0xa8401a, mottle: 0.05 };
@@ -65,13 +66,13 @@ export default {
   id: ITEM.FLARE_GUN,
   build: buildFlareGun,
   vm: {
-    // held as the pistol is (its grip and trigger sit where the pistol's do); breakPistol: the reload tips the barrel
-    // down about its hinge pin, pulls the spent case, thumbs a fresh shell in, snaps it shut and cocks the hammer
-    kind: 'pistol', breakPistol: true, hip: [0.11, -0.158, -0.29, 0.09, 0.18, -0.06], ads: 0.2, adsZ: -0.42,
+    // held as the pistol is (its grip and trigger sit where the pistol's do), with its own fitted hands; breakPistol:
+    // the reload tips the barrel down about its hinge pin, pulls the spent case, thumbs a fresh shell in, snaps it shut
+    // and cocks the hammer
+    ...PISTOL_HOLD, breakPistol: true,
     rPose: 'flareGunR', rGrip: { p: [0, -0.004, -0.006], q: handQ(1, [0, -0.36, -0.93], [-1, 0, 0]) },
     lGrip: { p: [0, -0.028, -0.03], q: handQ(-1, [0.05, -0.55, -0.83], [0.92, 0.3, 0.15]), pose: 'cup' },
-    poleR: new THREE.Vector3(0.5, -1, 0.2), poleL: new THREE.Vector3(-0.6, -0.9, 0.2),
-    recoil: { z: 0.045, rx: 0.17, ry: 0.02 }, sprint: [0.0, -0.015, 0.03, -0.3, 0.22, 0.28],
+    recoil: { z: 0.045, rx: 0.17, ry: 0.02 },
   },
   poses: {
     flareGunR: { curl: [[0.42, 0.2, 0.19], [0.73, 1.23, 0.53], [0.68, 1.13, 0.47], [0.65, 0.62, 0.74]], spread: 0, thumb: [[0.15, -0.92, -0.35], [-0.23, -0.92, -0.3]], center: [-0.0404, -0.0755, -0.0123] }, // the flare gun's grip, the index on its trigger

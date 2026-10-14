@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard, bandZ } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, trigger, triggerGuard, bandZ, LONG_GUN_SUPPORT, SPRINT } from './parts.js';
 
 const ATR = { BY: 0.085, RR: 0.0245, PORT0: -0.028, PORT1: -0.168, SEAT: -0.04 };
 // where the left hand holds a round (pinched over its middle) relative to its base, for the round turned by (tilt,
@@ -138,8 +138,8 @@ export default {
     // single: one round at a time, fed by hand into the open port (_animReloadSingle); the bolt is only worked on the
     // reload (boltTravel: how far it comes back). Heavy: it sags off the shoulder and kicks hard
     kind: 'rifle', bolt: true, single: true, boltTravel: 0.06, hip: [0.21, -0.225, -0.37, 0.035, 0.1, 0.0], ads: 0.22, adsZ: -0.3,
-    rPose: 'atGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.32) }, lGrip: { q: supportGrip(-0.4, 0.6, 0.0), pose: 'atSupport' },
-    recoil: { z: 0.09, rx: 0.17, ry: 0.03 }, sprint: [-0.03, -0.015, 0.0, -0.22, 0.5, 0.35],
+    rPose: 'atGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.32) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'atSupport' },
+    recoil: { z: 0.09, rx: 0.17, ry: 0.03 }, sprint: SPRINT.longGun,
   },
   poses: {
     // the support hand on the handguard

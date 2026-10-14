@@ -77,18 +77,22 @@ function buildPistol(P) {
   P.meta.slideGrab = new THREE.Vector3(0, 0.065, 0.0);
 }
 
+// How the pistol is held, and the revolver, the Desert Eagle and (but for its hands) the flare gun, whose grips sit
+// where the pistol's does. CS-style: low on the right, angled in toward the crosshair. Thumbs-forward two-hand grip:
+// the right palm turned ~26 deg toward the muzzle so its wrist sits behind the backstrap, index pad on the trigger;
+// the left palm on the left of the grip, its fingers over the right hand's, both thumbs along the frame. rGrip / lGrip
+// and the 'trigger' / 'cup' poses were fitted together against this grip's outline (fingers resting on it, nothing
+// inside)
+export const PISTOL_HOLD = {
+  kind: 'pistol', hip: [0.11, -0.158, -0.29, 0.09, 0.18, -0.06], ads: 0.2, adsZ: -0.42,
+  rPose: 'trigger', rGrip: { p: [0, 0, -0.007], q: handQ(1, [0.435, -0.325, -0.84], [-0.9, -0.157, -0.406]) },
+  lGrip: { p: [0, -0.02, -0.007], q: handQ(-1, [-0.199, -0.354, -0.914], [0.98, -0.072, -0.185]), pose: 'cup' },
+  poleR: new THREE.Vector3(0.5, -1, 0.2), poleL: new THREE.Vector3(-0.6, -0.9, 0.2), // elbows down
+  sprint: [0.0, -0.015, 0.03, -0.3, 0.22, 0.28],
+};
+
 export default {
   id: ITEM.PISTOL,
   build: buildPistol,
-  vm: {
-    // CS-style: low on the right, angled in toward the crosshair. Thumbs-forward two-hand grip: the right palm turned
-    // ~26 deg toward the muzzle so its wrist sits behind the backstrap, index pad on the trigger; the left palm on the
-    // left of the grip, its fingers over the right hand's, both thumbs along the frame. rGrip / lGrip and the
-    // 'trigger' / 'cup' poses were fitted together against this grip's outline (fingers resting on it, nothing inside)
-    kind: 'pistol', hip: [0.11, -0.158, -0.29, 0.09, 0.18, -0.06], ads: 0.2, adsZ: -0.42,
-    rPose: 'trigger', rGrip: { p: [0, 0, -0.007], q: handQ(1, [0.435, -0.325, -0.84], [-0.9, -0.157, -0.406]) },
-    lGrip: { p: [0, -0.02, -0.007], q: handQ(-1, [-0.199, -0.354, -0.914], [0.98, -0.072, -0.185]), pose: 'cup' },
-    poleR: new THREE.Vector3(0.5, -1, 0.2), poleL: new THREE.Vector3(-0.6, -0.9, 0.2), // elbows down
-    recoil: { z: 0.03, rx: 0.1, ry: 0.01 }, sprint: [0.0, -0.015, 0.03, -0.3, 0.22, 0.28],
-  },
+  vm: { ...PISTOL_HOLD, recoil: { z: 0.03, rx: 0.1, ry: 0.01 } },
 };

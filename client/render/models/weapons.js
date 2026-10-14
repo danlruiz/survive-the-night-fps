@@ -622,12 +622,8 @@ export class ViewModel {
     }
     if (!this.cur) return;
     if (this.cur.cfg.nunchaku) return void this.nkSwing(heavy ? 9 : 0); // (the game names the move: nkSwing)
-    const id = this.itemId;
-    let sw = 'shove';
-    if (id === ITEM.KNIFE) sw = heavy ? 'stab' : 'knife';
-    else if (id === ITEM.BAT || id === ITEM.SPIKED_BAT) sw = 'bat';
-    else if (id === ITEM.MACHETE) sw = 'machete';
-    else if (id === ITEM.HAMMER) sw = 'hammer';
+    const cfg = this.cur.cfg;
+    const sw = (heavy && cfg.heavySwing) || cfg.swing || 'shove';
     this.act = { type: 'melee', t: 0, dur: SWINGS[sw].dur, swing: SWINGS[sw] };
   }
 
@@ -1012,10 +1008,10 @@ export class ViewModel {
     // (The hands stay as they hold the weapon: nothing of the grip changes, so nothing of it clips.)
     this.pryT += ((s.pry && kind === 'melee' ? 1 : 0) - this.pryT) * (1 - Math.exp(-dt * 9));
     if (this.pryT > 0.002) {
-      const w = ease(this.pryT, 0), id = this.itemId;
+      const w = ease(this.pryT, 0);
       const ph = (t / PRY_BEAT) * PI * 2;
       const heave = Math.max(0, Math.sin(ph)) ** 2, back = Math.max(0, -Math.sin(ph));
-      const blade = id === ITEM.KNIFE || id === ITEM.MACHETE, hammer = id === ITEM.HAMMER;
+      const blade = cfg.pry === 'blade', hammer = cfg.pry === 'hammer';
       P6[0] += w * -0.05;
       P6[1] += w * (-0.07 + 0.035 * heave);
       P6[2] += w * (-0.13 - (blade ? 0.02 : 0.06) * back);
