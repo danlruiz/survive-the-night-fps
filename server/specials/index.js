@@ -6,21 +6,37 @@
 //   states[state](z, dt, target, tx, ty, tz, dist): a special state of its own that takes over its tick (Zombies.special)
 // A module's methods are laid onto Zombies, so they are called on it as this.name(...) like any of its own.
 import { addMethods } from './util.js';
-import * as spitter from './spitter.js';
-import * as leaper from './leaper.js';
-import * as crawler from './crawler.js';
-import * as roper from './roper.js';
-import * as smoker from './smoker.js';
-import * as screecher from './screecher.js';
-import * as boomer from './boomer.js';
-import * as tank from './tank.js';
-import * as dog from './dog.js';
+// To add a special: a new file here, and its line in each of the two lists below (kept in file-name order, so two new
+// kinds only meet on a line when their names sort next to each other).
 import * as bat from './bat.js';
-import * as shade from './shade.js';
-import * as flammer from './flammer.js';
+import * as boomer from './boomer.js';
 import * as bosses from './bosses.js';
+import * as crawler from './crawler.js';
+import * as dog from './dog.js';
+import * as flammer from './flammer.js';
+import * as leaper from './leaper.js';
+import * as roper from './roper.js';
+import * as screecher from './screecher.js';
+import * as shade from './shade.js';
+import * as smoker from './smoker.js';
+import * as spitter from './spitter.js';
+import * as tank from './tank.js';
 
-const KINDS = { spitter, leaper, crawler, roper, smoker, screecher, boomer, tank, dog, bat, shade, flammer, bosses };
+const KINDS = {
+  bat,
+  boomer,
+  bosses,
+  crawler,
+  dog,
+  flammer,
+  leaper,
+  roper,
+  screecher,
+  shade,
+  smoker,
+  spitter,
+  tank,
+};
 
 export const TRIGGERS = {};
 export const ACTS = {};
