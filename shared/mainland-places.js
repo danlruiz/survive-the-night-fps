@@ -1,5 +1,5 @@
 // The places that lie about the mainland, out over the plain between the bridge, the city and the airfield
-// (shared/mainland.js plans where each goes and which road reaches it; shared/defs.js names them and gives each a
+// (shared/mainland/plan.js plans where each goes and which road reaches it; shared/defs.js names them and gives each a
 // loot table of its own). Each entry of OUTLYING:
 //   flat / clear / dirt   as a place of the island has them (layout.js PLACES): the levelled yard, the ground kept
 //                         clear of trees, how trampled it is
@@ -61,24 +61,6 @@ export function house(b, hx, hz, front, k, K, car = true, bins = true) {
   if (k % 4 === 1) s.prop('ivy', 5.2, 0.5, -PI / 2, { seed: k, nocollide: true }); // (up the east wall)
   if (k % 4 === 2) s.prop('barricade', -3, -4.85, 0, { seed: k }); // (across a window: the door is still a way in)
   return s;
-}
-
-// a street of houses: two rows of four, doors on the lane that runs down the middle (the place's own road)
-function houses(b, K, zone) {
-  for (let k = 0; k < 4; k++) {
-    house(b, -33 + k * 22, -14, 0, k + zone, K); // (north of the lane, doors on it)
-    house(b, -33 + k * 22, 14, PI, k + 4 + zone, K);
-  }
-  for (const [mx, mz] of [[-22, -5.2], [3.5, -5.2], [22, 5.2], [-12, 5.2]]) b.prop('mailbox', mx, mz, 0);
-  b.prop('streetlight', -44, -4.6, PI / 2);
-  b.prop('streetlight', 44, 4.6, -PI / 2);
-  b.wreck('school_bus', 14, 1.6, PI / 2 + 0.2, { trunk: false });
-  b.prop('pole_down', -24, 3, 0.2, { nocollide: true });
-  b.prop('suitcases', -8, -3.4, 0.4, { nocollide: true });
-  b.prop('litter', 30, -1, 1, { nocollide: true });
-  b.prop('corpse', -6, 1, 1.4, { nocollide: true });
-  b.loot(-30, 2);
-  b.loot(34, -2);
 }
 
 // a mobile home: one long room, a step at its door. burnt: a shell
@@ -725,7 +707,8 @@ export const OUTLYING = {
     },
   },
 
-  // WESTGATE: a street of houses between the city and the sea.
+  // WESTGATE: a street of houses between the city and the sea (its houses are the homes', mainland/homes.js: it is
+  // not built from here).
   [ZONE.WESTGATE]: {
     flat: 50,
     clear: 40,
@@ -733,7 +716,6 @@ export const OUTLYING = {
     road: ROAD.ASPHALT,
     inner: true,
     street: true,
-    build: (b, K) => houses(b, K, 1),
   },
 
   // CALDER FREIGHT YARD: containers in rows, two and three high, half of them cut open.
@@ -1215,6 +1197,3 @@ export const OUTLYING = {
     },
   },
 };
-
-// EASTGATE is the city's old suburb (shared/mainland.js places it): the same street of houses
-export const SUBURB = { build: (b, K) => houses(b, K, 0) };
