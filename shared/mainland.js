@@ -33,12 +33,10 @@
 //   mine     the South Passage Mines' workings (mine.js), under the river
 import { GRID_STEP, WATER_LEVEL } from './constants.js';
 import { ZONE, CONT } from './defs.js';
-import { PROPS, collidersOf } from './props.js';
-import { mulberry32, createNoise2D, fbm, smoothstep, lerp, clamp, hash2 } from './rng.js';
-import { makeCyl, makeBox, makeTree, COL } from './collision.js';
-import { ROAD } from './layout.js';
+import { PROPS } from './props.js';
+import { mulberry32, createNoise2D, clamp } from './rng.js';
 import { createKit } from './worldkit.js';
-import { WORLD, MAINLAND_SIZE } from './acts.js';
+import { WORLD } from './acts.js';
 import { POS_SCALE_WIDE } from './protocol.js';
 import { planBridge } from './bridge.js';
 import { OUTLYING } from './mainland-places.js';
