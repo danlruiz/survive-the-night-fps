@@ -88,7 +88,7 @@ import * as equipment from './game/equipment.js'; // wearing and using what they
 // What goes out:
 import * as net from './game/net.js';
 import { randomSeed } from './game/run.js';
-import { HANDOFF_FREEZE, JOIN_EVERY } from './game/sessions.js';
+import { HANDOFF_FREEZE } from './game/sessions.js';
 import { starterKit } from './game/survivors.js';
 import { MAX_DROPS } from './game/items.js';
 
@@ -504,15 +504,7 @@ export class Game {
       this.freeIds.push(this.quarantine[0]);
       this.quarantine.splice(0, 2);
     }
-    // forget the join allowances that have worn off (see allow)
-    if (this.tick % 600 === 0) for (const [ip, a] of this.joins) if (this.time - a.t >= a.n * JOIN_EVERY) this.joins.delete(ip);
-    // the held whose minute is up are gone (hold)
-    if (this.tick % SERVER_TICK_RATE === 0)
-      for (const p of [...this.players.values()])
-        if (p.away && this.time - p.away.since >= p.away.grace) {
-          this.log(`hold ${p.name}: did not come back`);
-          this.removePlayer(p);
-        }
+    this.sessionUpkeep(); // (worn-off join allowances, and the held who did not come back)
     if (this.phase === PHASE.WAITING) {
       if (this.rollWhenEmpty) this.rollWorld(); // (the valley for the next run, once the last one has emptied: see resetToWaiting)
       this.processInputs();

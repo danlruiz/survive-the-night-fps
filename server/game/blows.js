@@ -293,6 +293,15 @@ export const methods = {
     for (const [col, g] of this.gather) if (g.top !== undefined && col.flags & COL.TREE) this.emit((w) => this.writeTreeBreak(w, col, 0, g.top, 0), { to });
   },
 
+  // Everything the team has used up, cut down or set ringing, to player id `to` (who joins, or comes back)
+  tellUsedUp(to) {
+    const spent = [];
+    for (const [col, g] of this.gather) if (g.left <= 0) spent.push(col);
+    this.tellStripped(spent, to);
+    this.tellCut(to);
+    this.tellWrecks(to);
+  },
+
   // Which trees and wrecks are used up, to player id `to` (0: everybody). They are colliders of the static world,
   // which every client has built for itself: named by where they stand (client/game/harvest.js keys them the same).
   tellStripped(cols, to = 0) {

@@ -19,7 +19,7 @@ const LEFT_KITS_MAX = 64; // kits remembered for players who left this run (park
 // Coming and going. An address may join twice the lobby in one go, then once every JOIN_EVERY seconds: more than
 // a household reloading its browsers gets near (admitJoin). The join / leave chat lines of everybody together
 // get two lobbies' worth, then one every GREET_EVERY seconds; past that, players come and go unannounced.
-export const JOIN_EVERY = 4;
+const JOIN_EVERY = 4;
 const GREET_EVERY = 10;
 // A dropped player (connection lost, browser crashed or closed) keeps their place this long (onClose / hold / resume).
 // The client closes with LEFT_CODE when "Leave game" is pressed: that one goes at once. REJOIN_GRACE_SECONDS: tests.
@@ -112,21 +112,8 @@ export const methods = {
     p.invDirty = true;
     p.progDirty = true; // (their XP too)
     p.progT = -99;
-    const w = new Writer(64);
-    w.u8(S2C.WELCOME);
-    w.u16(p.id);
-    w.u32(this.seed >>> 0);
-    w.u32(this.tick);
-    w.u8(SERVER_TICK_RATE);
-    w.u8(this.maxPlayers);
-    w.u8(p.admin ? WELCOMEF.ADMIN : 0);
-    w.u8(this.act); // which of the run's two maps that seed is to be built as (shared/acts.js)
-    session.conn.send(w.bytes());
-    const spent = [];
-    for (const [col, g] of this.gather) if (g.left <= 0) spent.push(col);
-    this.tellStripped(spent, p.id);
-    this.tellCut(p.id);
-    this.tellWrecks(p.id);
+    this.sendWelcome(session, p);
+    this.tellUsedUp(p.id);
     this.tellFriendCodes(p);
     this.tellLooks(p);
     this.bestiary.join(p);
@@ -258,6 +245,20 @@ export const methods = {
     return ok;
   },
 
+  // S2C.WELCOME: who they are in this game, and the world and clock it is on (a newcomer, and one back in their body)
+  sendWelcome(session, p) {
+    const w = new Writer(64);
+    w.u8(S2C.WELCOME);
+    w.u16(p.id);
+    w.u32(this.seed >>> 0);
+    w.u32(this.tick);
+    w.u8(SERVER_TICK_RATE);
+    w.u8(this.maxPlayers);
+    w.u8(p.admin ? WELCOMEF.ADMIN : 0);
+    w.u8(this.act); // which of the run's two maps that seed is to be built as (shared/acts.js)
+    session.conn.send(w.bytes());
+  },
+
   handleJoin(session, r) {
     if (session.player) return;
     const version = r.u8();
@@ -339,16 +340,7 @@ export const methods = {
     p.guestKey = account ? '' : idKey(pid); // a guest's browser id as stats.js files it ('' without one): never the id itself
     p.friend = account ? account.name : ''; // the account a friend request goes to (S2C.FRIENDS); '' for a guest
     this.loadProgress(p);
-    const w = new Writer(64);
-    w.u8(S2C.WELCOME);
-    w.u16(p.id);
-    w.u32(this.seed >>> 0);
-    w.u32(this.tick);
-    w.u8(SERVER_TICK_RATE);
-    w.u8(this.maxPlayers);
-    w.u8(p.admin ? WELCOMEF.ADMIN : 0);
-    w.u8(this.act); // which of the run's two maps that seed is to be built as (shared/acts.js)
-    session.conn.send(w.bytes());
+    this.sendWelcome(session, p);
     if (this.phase === PHASE.WAITING) this.startGame();
     else if (this.fallen.delete(this.leaverKey(p)) && (this.phase === PHASE.DAY || this.phase === PHASE.NIGHT)) {
       // died in this run and came back in before sunrise: they are what they were, and wait for dawn with the rest
@@ -372,11 +364,7 @@ export const methods = {
     this.cards.join(p);
     this.loadouts.join(p);
     // what the team has used up before they came (a run this join started has cleared it: NEW_GAME says so)
-    const spent = [];
-    for (const [col, g] of this.gather) if (g.left <= 0) spent.push(col);
-    this.tellStripped(spent, p.id);
-    this.tellCut(p.id);
-    this.tellWrecks(p.id);
+    this.tellUsedUp(p.id);
     this.notify(NOTIFY.PLAYER_JOINED, p.id);
     this.tellFriendCodes(p);
     this.tellLooks(p);
@@ -385,6 +373,18 @@ export const methods = {
     this.playersDirty = true;
     this.globalDirty = true;
     this.log(`join ${p.name} (${this.players.size}/${this.maxPlayers})`);
+  },
+
+  // Once a tick (Game.update): the join allowances that have worn off are forgotten (see allow), and the held whose
+  // minute is up are gone (hold)
+  sessionUpkeep() {
+    if (this.tick % 600 === 0) for (const [ip, a] of this.joins) if (this.time - a.t >= a.n * JOIN_EVERY) this.joins.delete(ip);
+    if (this.tick % SERVER_TICK_RATE === 0)
+      for (const p of [...this.players.values()])
+        if (p.away && this.time - p.away.since >= p.away.grace) {
+          this.log(`hold ${p.name}: did not come back`);
+          this.removePlayer(p);
+        }
   },
 
   // id: the one they had on the last server (gamestate.js), else the next free one
