@@ -63,7 +63,9 @@ const MAX = +(process.env.MAX_PLAYERS || MAX_PLAYERS); // seats in a game unless
 // a core), but the game is balanced for 8 and the night's 120 zombies spread thin past about 16
 const ROOM_MAX = +(process.env.ROOM_MAX_PLAYERS || Math.max(MAX, 16));
 const MAX_GAMES = +(process.env.MAX_GAMES || defaultMaxGames()); // games at once on this box
-const SEED = process.env.SEED ? +process.env.SEED : undefined;
+// a number the env gives, or undefined when it gives none
+const envNumber = (name) => (process.env[name] ? +process.env[name] : undefined);
+const SEED = envNumber('SEED');
 const DIST = resolve(__dirname, '../dist');
 const log = (...a) => console.log('[server]', ...a);
 const netMetrics = new NetworkMetrics();
@@ -144,9 +146,9 @@ const lobby = new Lobby({
   // every game is made with these (all but the seed are for testing)
   gameOpts: {
     seed: SEED,
-    dayLength: process.env.DAY_SECONDS ? +process.env.DAY_SECONDS : undefined,
-    nightLength: process.env.NIGHT_SECONDS ? +process.env.NIGHT_SECONDS : undefined,
-    startDay: process.env.START_DAY ? +process.env.START_DAY : undefined,
+    dayLength: envNumber('DAY_SECONDS'),
+    nightLength: envNumber('NIGHT_SECONDS'),
+    startDay: envNumber('START_DAY'),
     godMode: process.env.GODMODE === '1',
     // Test, look-dev and `npm run dev` servers authorize every player without accounts. Other environments ignore it.
     devAdmin: devAdminAllowed(),
@@ -336,37 +338,42 @@ async function shutdown(signal, exitCode = 0) {
   setTimeout(() => process.exit(exitCode), HARD_EXIT_MS).unref();
   // (behind the proxy: nothing new is sent here now, and the servers the games go to are known)
   if (cluster) await Promise.race([cluster.drain(), new Promise((r) => setTimeout(r, 2000))]).catch((err) => log(`cluster: could not say this server is going (${err.message})`));
-  if (store) {
-    log(`${signal}: handing the games over to the next server`);
-    const t0 = Date.now();
-    try {
-      const n = await lobby.handoffAll(store, HANDOFF_WAIT_MS);
-      log(`${signal}: ${n} game(s) handed over in ${Date.now() - t0} ms`);
-    } catch (err) {
-      console.error('[server] handing over:', err.message);
-    }
-  }
-  if (db) {
-    log(`${signal}: writing the matches being played`);
-    try {
-      await lobby.finishAll(1500);
-      await matches.close();
-      for (const room of lobby.rooms.values()) if (room.match) await matches.interrupt(room.match);
-      await stats.close();
-      await achievements.close();
-      await bestiary.close();
-      await lobbyCards.closeAll();
-      await cards.close([...lobby.rooms.values()]); // (the bets of the games not handed over go back; the finds are written)
-      await loadouts.close();
-      await store?.close();
-      await cluster?.stop().catch((err) => log(`cluster: rows of this server left for the others to sweep (${err.message})`));
-      settings?.stop();
-      await db.close();
-    } catch (err) {
-      console.error('[server] shutting down:', err.message);
-    }
-  } else await store?.close();
+  if (store) await handOverGames(signal);
+  if (db) await writeAndClose(signal);
+  else await store?.close();
   process.exit(exitCode);
+}
+// every game with players in it, to the next server (Lobby.handoffAll)
+async function handOverGames(signal) {
+  log(`${signal}: handing the games over to the next server`);
+  const t0 = Date.now();
+  try {
+    const n = await lobby.handoffAll(store, HANDOFF_WAIT_MS);
+    log(`${signal}: ${n} game(s) handed over in ${Date.now() - t0} ms`);
+  } catch (err) {
+    console.error('[server] handing over:', err.message);
+  }
+}
+// the matches left ended and written, everything still on its way to the database written, and the database closed
+async function writeAndClose(signal) {
+  log(`${signal}: writing the matches being played`);
+  try {
+    await lobby.finishAll(1500);
+    await matches.close();
+    for (const room of lobby.rooms.values()) if (room.match) await matches.interrupt(room.match);
+    await stats.close();
+    await achievements.close();
+    await bestiary.close();
+    await lobbyCards.closeAll();
+    await cards.close([...lobby.rooms.values()]); // (the bets of the games not handed over go back; the finds are written)
+    await loadouts.close();
+    await store?.close();
+    await cluster?.stop().catch((err) => log(`cluster: rows of this server left for the others to sweep (${err.message})`));
+    settings?.stop();
+    await db.close();
+  } catch (err) {
+    console.error('[server] shutting down:', err.message);
+  }
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
