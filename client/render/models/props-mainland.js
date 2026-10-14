@@ -606,7 +606,8 @@ MAINLAND_PROPS.school_desk = (b, r, v) => {
 };
 
 // ------------------------------------------------------------------ Calder Field
-// (the plane at Calder Field, the wreck and the one that flies, and the light aircraft round it: aircraft.js)
+// (the plane at Calder Field, the wreck and the one that flies, and the light aircraft round it: aircraft.js,
+// lightplane.js)
 // A baggage cart: a flat bed on four small wheels with rails at its ends, a tow bar, cases left on it.
 MAINLAND_PROPS.baggage_cart = (b, r) => {
   b.box('paint', 1.4, 0.08, 2.4, { p: [0, 0.5, 0], c: [0.62, 0.5, 0.16] });

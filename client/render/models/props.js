@@ -23,7 +23,7 @@ const cache = new Map();
 // number of cached visual variants per prop (seed % n)
 const VARIANTS = {
   mg_tripod: 1,
-  // the aircraft of Calder Field (aircraft.js)
+  // the aircraft of Calder Field (aircraft.js, lightplane.js)
   plane_wreck: 1, light_plane: 2,
   // the island's (props-outdoor.js, props-containers.js, props-roadside.js), the vehicles, the mainland, the city's
   // streets and rooms (props-vehicles.js, props-mainland.js, props-street.js, props-interior.js)
