@@ -55,6 +55,8 @@ server/      authoritative game server (uWebSockets.js)
   spawns.js      what the dead are made of: the kinds that come out by day, and each night's waves
   director.js    the pacing director (breathers after a peak, the next group early when it is quiet) and tonight's
                  moon: a blood moon now and then, a clear one for a team that is struggling (see Night waves)
+  entkit.js      what the world's entities and side systems share: a system's own random stream in the game's
+                 place (withRng), a survivor's hands, [E] on a moving seat, how an animal on foot moves, addMethods
 client/      three.js client (Vite root)
   index.html, main.js
   net/        connection, snapshot decode, interpolation, prediction
@@ -429,7 +431,8 @@ map does, and can be shut to fight and opened again.
   each round, Survivors who take one draw a card. `viewFor(state, side)` is all a player is sent: never the random
   stream, the deck's order or the other hand (beyond cards made known). The top of the file has the state, view, move
   and event shapes. `shared/cardai.js` plays a view (practice, the tests, the e2e bot).
-- **In a game** (`server/cards.js`, `Game.cards`): asks, matches, trades and bets; its header has the whole flow. Every
+- **In a game** (`server/cards.js`, `Game.cards`; its matches and trades in `server/cards/matches.js` and `trades.js`,
+  and what it shares with the lobby's `server/lobbycards.js` in `server/cards/common.js`): asks, matches, trades and bets; its header has the whole flow. Every
   message is `C2S.CARDS` / `S2C.CARDS` (a u8 op and a JSON string: `writeCards`/`readCards` in shared/protocol.js,
   every field checked on the way in), private, sent with the tick's snapshot and only when it changed. A side's turn
   clock stops while that player is away or down; the run ending voids a match and gives the bets back. Packs
@@ -1209,7 +1212,7 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
 
 ## Deer: wildlife that can be hunted
 
-The deer (`server/deer.js`, shared numbers in `shared/deer.js`, the view in `client/game/deer.js` and
+The deer (`server/deer.js`, the pack's hunt in `server/deer/pack.js`, shared numbers in `shared/deer.js`, the view in `client/game/deer.js` and
 `client/render/models/deer.js`) are an entity kind of their own, `ENT.DEER` (fields: position, yaw, a `DANIM` state,
 the coat in the create), kept in `game.deer` - not a zombie type with a flag. That was the choice between two kinds of
 work: a zombie type would have had every system that walks `game.zombies` skip it (the horde's size and waves and
@@ -1388,7 +1391,8 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
   are the vehicle's) and `simulatePlayer` hands the command to `driveStep`. The client predicts with the same code,
   so a driver is corrected only for what the server alone knows: a zombie struck, damage, fuel poured in, a
   breakdown. A passenger (`s.pass`, `s.passN`) is put in their seat by the server each tick and predicts nothing.
-- **The server** (`server/vehicles.js`, `Game.vehicles`) keeps one `ENT.VEHICLE` each (`VF`, `VFLAG`): parks an
+- **The server** (`server/vehicles.js`, `Game.vehicles`; with `server/vehicles/contact.js` for what a car hits, `damage.js`
+  for what it takes, `work.js` for the [E] holds and `debug.js` for `/veh`) keeps one `ENT.VEHICLE` each (`VF`, `VFLAG`): parks an
   empty one as a box (snapped to what the wire carries, so both ends have the same box) with a cost in the nav
   field, rolls a driverless one to a stop, carries the passengers, lets the dead strike the body before whoever
   is inside (`shield`), runs the dead over (`strike`), makes the engine's and the horn's noise, and holds the
