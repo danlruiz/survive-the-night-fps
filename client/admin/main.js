@@ -5,6 +5,7 @@
 //
 // Every name on this page (players, games, accounts) is somebody else's text: it only ever goes into the page as
 // text (textContent), never as markup.
+import { el as h } from '../ui/dom.js';
 
 const POLL_MS = 3000;
 const PHASE = { 0: 'Waiting', 1: 'Day', 2: 'Night', 3: 'Game over', 4: 'Escaped', 5: 'Crossing' };
@@ -37,13 +38,7 @@ const TABS = [
 ];
 
 // ---------------------------------------------------------------- small things
-const h = (tag, cls, parent, text) => {
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (text !== undefined && text !== null) n.textContent = text;
-  if (parent) parent.appendChild(n);
-  return n;
-};
+// (h: an element, as the game's UI makes them - ui/dom.js el)
 const clear = (n) => {
   while (n.firstChild) n.removeChild(n.firstChild);
   return n;

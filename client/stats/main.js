@@ -1,6 +1,7 @@
 // The stats page (/stats): the whole game's numbers from GET /api/stats (server/publicstats.js), drawn again every
 // half minute, and the admin's part from GET /api/stats/admin when the browser is signed in as an admin.
 import { fmt, lineChart, barChart, hbars, donut, heatmap } from './charts.js';
+import { el as h } from '../ui/dom.js'; // (an element, as the game's UI makes them)
 
 const C = {
   blood: '#d42a2a',
@@ -26,13 +27,6 @@ const RANGE_LABEL = { '7d': '7 days', '30d': '30 days', '90d': '90 days', all: '
 const PHASE_LABEL = { 0: 'Waiting', 1: 'Day', 2: 'Night', 3: 'Game over', 4: 'Escaped', 5: 'Crossing the bridge' };
 const REFRESH_MS = 30_000;
 
-const h = (tag, cls, parent, text) => {
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (text !== undefined && text !== null) n.textContent = text;
-  if (parent) parent.appendChild(n);
-  return n;
-};
 const card = (parent, title, sub = '', cls = '') => {
   const c = h('section', `st-card ${cls}`, parent);
   const head = h('header', 'st-card-h', c);
