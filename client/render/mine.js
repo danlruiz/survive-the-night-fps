@@ -20,13 +20,13 @@ const LAMP = [13, 9.2, 5.4];
 // tint of the timbering by kind (world.mine.frames): timber, rail, sleeper
 const FRAME_TINT = [[0.5, 0.42, 0.34], [0.4, 0.2, 0.13], [0.62, 0.54, 0.44]];
 
-// smooth value noise on a lattice, 0..1
+// smooth value noise on a lattice, 0..1 (the clinic's blotches too: render/clinic.js)
 function hash3(x, y, z) {
   let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(z | 0, 2147483647)) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
-function noise3(x, y, z) {
+export function noise3(x, y, z) {
   const xi = Math.floor(x);
   const yi = Math.floor(y);
   const zi = Math.floor(z);
