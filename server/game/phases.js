@@ -1,10 +1,9 @@
 // Day and night: the clock (updatePhase), nightfall with its waves and its boss, dawn with what it burns, returns
 // and restocks, and how a run ends (victory, gameOver, checkAllDead). The waves' make-up is server/spawns.js's and
 // the pacing server/director.js's; the final stand at the car is server/game/escape.js.
-import { PHASE, dayLength, NIGHT_LENGTH, DUSK_WARNING, NIGHT_WAVES, WAVE_TIMES, TANK_BOSS_HP, BOSS_WAVE, BOSS_HP_PER_PLAYER, BOSS_HP_PER_NIGHT, MOON, BLOOD_MOON_HORDE, ESCAPE_RADIUS, GAME_OVER_DELAY, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX } from '../../shared/constants.js';
+import { PHASE, dayLength, NIGHT_LENGTH, DUSK_WARNING, NIGHT_WAVES, WAVE_TIMES, TANK_BOSS_HP, BOSS_WAVE, BOSS_HP_PER_PLAYER, BOSS_HP_PER_NIGHT, MOON, BLOOD_MOON_HORDE, GAME_OVER_DELAY, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX } from '../../shared/constants.js';
 import { ZTYPE, CONT_DEFS, SOUND, EVT, NOTIFY, KILLER } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
-import { XP, XPS } from '../../shared/progress.js';
 import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, TAKEOFF_TIME } from '../../shared/acts.js';
 import { regrowTrees } from '../../shared/felling.js';
 import { supplyHelpLevel, SUPPLY_HELP } from '../../shared/supplyhelp.js';
@@ -162,12 +161,7 @@ export const methods = {
     this.escape.active = false;
     this.credit(this.players.values(), 'wins'); // the run is the team's: won by everybody in it, the turned and the left-behind too
     // ...but the XP for the escape is for whoever is in the car (as the end screen tells it: ESCAPE_RADIUS)
-    const car = this.world.car;
-    for (const p of this.players.values()) {
-      const aboard = p.alive && !p.zombie && Math.hypot(p.state.x - car.x, p.state.z - car.z) <= ESCAPE_RADIUS;
-      this.award(p, XPS.escape, aboard ? XP.escape : XP.team);
-      this.loadouts.escapeReward(p, aboard, `victory:${this.worldPlayed || 0}:${p.id}`);
-    }
+    this.payEscape('victory');
     this.notify(NOTIFY.VICTORY, this.day);
     this.sound(SOUND.CAR_START, this.world.car.x, 0.5, this.world.car.z, 0);
     this.globalDirty = true;

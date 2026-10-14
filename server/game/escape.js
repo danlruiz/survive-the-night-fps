@@ -4,6 +4,7 @@
 import { PHASE, ESCAPE_TIME, ESCAPE_RADIUS } from '../../shared/constants.js';
 import { ZTYPE, SOUND, NOTIFY } from '../../shared/defs.js';
 import { HOLD } from '../../shared/protocol.js';
+import { XP, XPS } from '../../shared/progress.js';
 import { WORLD, RUNWAY } from '../../shared/acts.js';
 import { MAX_ZOMBIES_ALIVE } from './phases.js';
 
@@ -66,6 +67,17 @@ export const methods = {
     this.globalDirty = true;
     this.track.engineStart(p);
     this.log('engine started - final stand');
+  },
+
+  // The escape's XP (and loadout reward) for everyone in the run: more to whoever is in the car - within ESCAPE_RADIUS
+  // of it, not turned, as the end screen tells it - than to those it leaves. why: the reward's ledger tag (cross, victory)
+  payEscape(why) {
+    const car = this.world.car;
+    for (const p of this.players.values()) {
+      const aboard = p.alive && !p.zombie && Math.hypot(p.state.x - car.x, p.state.z - car.z) <= ESCAPE_RADIUS;
+      this.award(p, XPS.escape, aboard ? XP.escape : XP.team);
+      this.loadouts.escapeReward(p, aboard, `${why}:${this.worldPlayed || 0}:${p.id}`);
+    }
   },
 
   // A survivor got in and drove (HOLD.DRIVE at the car, once the engine is warm). That wins the run for the whole

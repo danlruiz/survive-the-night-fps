@@ -3,10 +3,9 @@
 // that makes up what they are short of (checkpointAt, landOn, bridgehead), and that checkpoint is what a wipe on
 // the mainland starts again from (atBridge; restartFromBridge is in game.js). A game made to start on the mainland
 // begins at the bridgehead with gun crates (startCrates, openGunCrate).
-import { PHASE, ESCAPE_RADIUS, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_BUILD, REVIVE_HP } from '../../shared/constants.js';
+import { PHASE, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_BUILD, REVIVE_HP } from '../../shared/constants.js';
 import { ITEM, WEAPONS, suppliesOf, CACHE_GAVE, AMMO_MAX, AMMO_ITEMS, SOUND, NOTIFY, isFirearm } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
-import { XP, XPS } from '../../shared/progress.js';
 import { WORLD, CROSSING, BRIDGEHEAD, MAINLAND_START } from '../../shared/acts.js';
 import { groundAt } from '../../shared/collision.js';
 import { countItem } from '../inventory.js';
@@ -27,11 +26,7 @@ export const methods = {
     this.track.crossed(by, night); // (before the world is cleared: it reads who is alive, and at the car)
     // the escape from the island is paid as it always was: more to whoever was in the car than to those it left
     const car = this.world.car;
-    for (const p of paid ? this.players.values() : []) {
-      const aboard = p.alive && !p.zombie && Math.hypot(p.state.x - car.x, p.state.z - car.z) <= ESCAPE_RADIUS;
-      this.award(p, XPS.escape, aboard ? XP.escape : XP.team);
-      this.loadouts.escapeReward(p, aboard, `cross:${this.worldPlayed || 0}:${p.id}`);
-    }
+    if (paid) this.payEscape('cross');
     // the stray cat goes too, if somebody has it in their arms (buildMainland sets it down beside them)
     const cat = this.cats.find((c) => c.holder && this.players.get(c.holder)?.state.pet);
     this.cards.crossing(); // (trades being haggled over are called off; a match waits out the cutscene)
