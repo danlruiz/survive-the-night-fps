@@ -2,6 +2,9 @@
 // style, closed by the cross, Esc, or a press outside the card.
 import { el, iconButton, replay } from './dom.js';
 import { glyph } from './icons.js';
+// (the panels as sheets beside the splash, games.js's stylesheet: brought in here as well, so that it keeps its place in
+// the bundle's CSS - before ux-screens.css and ux-perks.css - from when Panel lived in games.js)
+import './ux-splash.css';
 
 // a card in the settings panel's style, with a head (title, sub line, close cross), a body and a foot
 export class Panel {
