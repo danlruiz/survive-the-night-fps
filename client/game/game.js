@@ -1890,7 +1890,7 @@ export class Game {
         this.pings = [];
         this.discovered = new Set([ZONE.BRIDGEHEAD]);
         ui.notify('BACK AT THE BRIDGEHEAD', 'big', 5);
-        ui.notify('As you came off the bridge, with what you carried over it.', 'sub', 7);
+        ui.notify('With what you carried over the bridge. The mainland has shifted: the plane\'s parts are somewhere new.', 'sub', 8);
         break;
       }
       case NOTIFY.CACHE: {

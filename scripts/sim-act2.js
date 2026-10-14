@@ -14,7 +14,7 @@ const { Game } = await import('../server/game.js');
 const { C2S, S2C, ACT, CAR_ID, HOLD, SNAP, PLF, UNDO_NO, PROTOCOL_VERSION, Writer, Reader, qpos, dqpos, usePos, POS_SCALE, POS_SCALE_WIDE } = await import('../shared/protocol.js');
 const { PHASE, ESCAPE_DRIVE_TIME, ENGINE_START_TIME, GAME_OVER_DELAY, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_BUILD, INVENTORY_MAX, dayLength, MAP_SIZE } = await import('../shared/constants.js');
 const { ITEM, WEAPONS, AMMO, AMMO_ITEMS, ZTYPE, ZONE, ZONE_NAMES, NOTIFY, EVT, CACHE_GAVE, PLANE_PARTS, PLANE_NEED, SUPPLIES, ZOMBIE_DEFS, SCHEMATICS, SCHEM_BIT, CONT_DEFS, schematicRumours } = await import('../shared/defs.js');
-const { WORLD, MAINLAND_SIZE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, ARRIVAL_DAY, MAINLAND_DAY_MORE, MAINLAND_NIGHT } = await import('../shared/acts.js');
+const { WORLD, MAINLAND_SIZE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, ARRIVAL_DAY, MAINLAND_DAY_MORE, MAINLAND_NIGHT, HIDE } = await import('../shared/acts.js');
 const { nightBoss, nightTheme, MAINLAND_BOSSES, joinNight, hasJoined } = await import('../shared/nights.js');
 const { readHeader, readGlobal, readSelf } = await import('../client/net/decode.js');
 const { envelope, encode, decode } = await import('../server/handoff.js');
@@ -228,12 +228,11 @@ const nearHead = (game) => game.zombies.filter((z) => !z.dead && Math.hypot(z.x 
   check('the day the team arrives on is long, whatever the hour was when the car left', game.day === 1 && Math.abs(game.timeLeft - ARRIVAL_DAY) < 2 && ann.global.phaseLen === ARRIVAL_DAY, `day ${game.day}, ${game.timeLeft} s`);
   check('the mainland is stocked: loot, containers, the dead by day', game.items.length > 200 && game.caches.length > 200 && game.zombies.length > 40, `${game.items.length} items, ${game.caches.length} containers, ${game.zombies.length} zombies`);
 
-  // ---- the plane's parts: at set places
-  // (Layout 12's deal, issue #232: the pump is down in the South Passage Mines, the radio at North Ridge Outpost)
-  const where = { [ITEM.PROPELLER]: [ZONE.HANGARS], [ITEM.MAGNETO]: [ZONE.CITY], [ITEM.HYDRAULIC_PUMP]: [ZONE.PASSAGE], [ITEM.FLIGHT_RADIO]: [ZONE.OUTPOST], [ITEM.AVGAS]: [ZONE.FUEL_DEPOT, ZONE.HANGARS] };
+  // ---- the plane's parts: dealt round the whole map, each at a spot it fits (HIDE in acts.js), a place apiece
   const parts = game.items.filter((e) => PLANE_PARTS.includes(e.item));
-  const zoneOf = (e) => (w.mine && w.mine.under(e.x, e.y + 0.5, e.z) ? w.mine.portals[0].zone : w.zoneAt(e.x, e.z)); // (down in the workings: the passage's)
-  check("the plane's seven parts lie at their set places, and the team is told which", parts.length === 7 && parts.every((e) => where[e.item].includes(zoneOf(e))) && ann.global.hints.every((z, k) => where[PLANE_PARTS[Math.min(k, 4)]].includes(z)) && !game.items.some((e) => SUPPLIES.includes(e.item) && e.item !== 0), parts.map((e) => `${e.item}@${zoneOf(e)}`).join(' ') + ' hints ' + ann.global.hints);
+  const spots = game.supplySpots;
+  const fit = (sp, item) => sp.supply === undefined || sp.supply === HIDE.ANY || PLANE_PARTS[sp.supply] === item || (sp.supply === HIDE.SMALL && item !== ITEM.PROPELLER);
+  check("the plane's seven parts are hidden, each at a spot it fits, in seven places, and the team is told which", parts.length === 7 && spots.length === 7 && parts.every((e) => spots.some((sp) => Math.hypot(sp.x - e.x, sp.z - e.z) < 0.5 && fit(sp, e.item))) && new Set(spots.map((sp) => sp.zone)).size === 7 && ann.global.hints.every((z, k) => z === spots[k].zone) && !game.items.some((e) => SUPPLIES.includes(e.item) && e.item !== 0), parts.map((e) => e.item).join(' ') + ' hints ' + ann.global.hints);
   // found and fitted
   for (const e of parts) {
     put(game, a, e.x + 0.4, e.z + 0.3);

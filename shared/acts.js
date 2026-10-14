@@ -1,6 +1,6 @@
 // The run's two acts (issue #111). Act 1 is the island: fix the car, survive its final stand and drive off. That is
 // no longer the end: the car crosses an old, half-broken bridge (a cutscene, PHASE.CROSSING) to the mainland, act 2,
-// which is twice the island across. There the same loop is played with a plane - its parts are found at set places,
+// which is twice the island across. There the same loop is played with a plane - its parts are hidden round the map,
 // fitted at the airfield, and the runway is defended while it fuels and warms up - and flying out is the victory.
 // The numbers both ends need are here; what only the server decides is at the top of server/game.js.
 import { ITEM } from './defs.js';
@@ -59,6 +59,11 @@ export const RUNWAY = { FUEL_TIME: 60, WARM_TIME: 50, HOLD: 12, CLEAR: 2, STRIP:
 //   a knife and a hammer, for whoever has no blade or nothing to build with (the tools every survivor starts with)
 // Whoever the checkpoint brought back from the dead dropped everything where they fell: they come over with the floor.
 export const BRIDGEHEAD = { MAGS: 2, ROUNDS: 60, BANDAGES: 1, PISTOL: ITEM.PISTOL, MELEE: ITEM.KNIFE, BUILD: ITEM.HAMMER };
+
+// Hiding places on the mainland that are not one part's own (world.partSpots[k].supply: shared/mainland.js): ANY
+// part lies there, the propeller too (2 m across), or only a SMALL one (anything but the propeller). Every run deals
+// its parts round the whole map with them (Game.placeSupplies), so no two runs hide them in the same places.
+export const HIDE = { ANY: -1, SMALL: -2 };
 
 // A game made to start on the mainland (map 2: "Start on" on the new-game card, open to whoever has beaten map 1).
 // The team has not come over the bridge with what the island gave it, so it is put down at the bridgehead on day DAY

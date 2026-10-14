@@ -125,7 +125,7 @@ import {
 import { C2S, S2C, SNAP, SELF, ACT, SALVAGE_FROM, WORN, WORN_DO, UNDO_NO, ENT, HOLD, CAR_ID, REJECT_REASON, LEFT_CODE, CHATF, PLF, PROGF, WELCOMEF, PROTOCOL_VERSION, Writer, Reader, readInput, writeBoard, qpos, dqpos, usePos, qangle8, qangle16, dqangle16, dqpitch } from '../shared/protocol.js';
 import { XP, XPS, XP_SRC, levelOf, perkMask } from '../shared/progress.js';
 import { worldFor } from '../shared/worlds.js';
-import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH, MAINLAND_START } from '../shared/acts.js';
+import { WORLD, ARRIVAL_DAY, MAINLAND_DAY_MORE, CROSSING, TAKEOFF_TIME, RUNWAY, BRIDGEHEAD, PLANE_REACH, MAINLAND_START, HIDE } from '../shared/acts.js';
 import { fellTree, regrowTrees, cutTree, treeFoot, treeTop } from '../shared/felling.js';
 import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from './trees.js';
 import { blowOf, BLOW } from '../shared/surfaces.js';
@@ -1602,14 +1602,17 @@ export class Game {
     return this.act === WORLD.MAINLAND && this.startAct === WORLD.ISLAND && !!this.checkpoint?.kits;
   }
 
-  // A wipe on the mainland of a run that crossed to it: the same mainland again, as the team found it coming off the
-  // bridge, on the day they did, each with what they crossed with. Whoever joined since has a late joiner's kit for
-  // that day.
+  // A wipe on the mainland of a run that crossed to it: a new mainland (rollWorld: a new seed, so what stands on its
+  // lots, its loot and where the plane's parts are hidden are all new; its map is the same), at the bridgehead on
+  // the day the team came off the bridge, each with what they crossed with. Whoever joined since has a late joiner's
+  // kit for that day.
   restartFromBridge() {
     const cp = this.checkpoint;
     this.track.finish('abandoned'); // (the wipe's match is over already: gameOver)
     this.clearWorld();
     this.crossing = null;
+    this.rollWorld(WORLD.MAINLAND);
+    this.worldPlayed = true; // (the next wipe rolls another)
     this.phase = PHASE.DAY;
     this.day = cp.day;
     this.unlocked = cp.unlocked | 0;
@@ -1807,16 +1810,16 @@ export class Game {
     const shuffle = (a) => this.shuffle(a);
     const byPlace = new Map();
     for (const sp of this.world.partSpots) byPlace.set(sp.zone, [...(byPlace.get(sp.zone) || []), sp]);
-    const places = this.act === WORLD.MAINLAND ? [] : shuffle([...byPlace.values()].map(shuffle));
+    const places = shuffle([...byPlace.values()].map(shuffle));
     this.supplySpots = [];
     this.supplyFound = 0;
     this.supplyHintSpots = [];
     this.supplyClock = 0;
     this.supplyHelp = 0;
     const { items, need } = this.sup;
-    // on the mainland a part is at one of its own set places (world.partSpots[k].supply: shared/mainland.js)
-    const own = (i) => shuffle(this.world.partSpots.filter((sp) => sp.supply === i));
-    const set = items.map((_, i) => own(i));
+    // On the mainland a spot is for one part (one of its own set places) or for any of them, or any but the propeller
+    // (world.partSpots[k].supply: HIDE in acts.js): every run deals them round the whole map, never the same twice
+    const fits = (sp, i) => sp.supply === undefined || sp.supply === i || sp.supply === HIDE.ANY || (sp.supply === HIDE.SMALL && items[i] !== ITEM.PROPELLER);
     // deal them out round the places: a place only gets a second one once every place has had one
     let turn = 0;
     this.supplyHints = items.flatMap((item, i) => new Array(need[i]).fill(i)).map((i, hint) => {
@@ -1828,11 +1831,10 @@ export class Game {
         return sp.zone;
       };
       this.supplyHintSpots[hint] = -1;
-      const at = set[i].pop();
-      if (at) return hide(at);
       for (let tries = 0; tries < places.length; tries++) {
-        const sp = places[turn++ % places.length].pop();
-        if (sp) return hide(sp);
+        const list = places[turn++ % places.length];
+        const k = list.findLastIndex((sp) => fits(sp, i)); // (the last: on the island, where every spot fits, a pop)
+        if (k >= 0) return hide(list.splice(k, 1)[0]);
       }
       return 255;
     });
