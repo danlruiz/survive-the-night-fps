@@ -54,8 +54,9 @@ server/      authoritative game server (uWebSockets.js)
   wire.js        the packed frames the two threads pass sockets' messages in
   game.js        the simulation of one game (Game), and everything it sends
   zombies.js     the dead's AI: targeting, flow fields, melee, and what every special shares (the windup, the flight)
-  specials/      each special kind's own module: its numbers, when it starts its special and what it does (index.js
-                 says how zombies.js dispatches to them)
+  specials/      each special kind's own module: its numbers, when it starts its special, what it does, and what is
+                 its own when it is shot or dies (the Mother's belly, a boomer's blast; index.js says how zombies.js
+                 and combat.js dispatch to them)
   spawns.js      what the dead are made of: the kinds that come out by day, and each night's waves
   director.js    the pacing director (breathers after a peak, the next group early when it is quiet) and tonight's
                  moon: a blood moon now and then, a clear one for a team that is struggling (see Night waves)

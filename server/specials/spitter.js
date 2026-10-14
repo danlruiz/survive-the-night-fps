@@ -1,6 +1,22 @@
 // The spitter (ZTYPE.SPITTER): it keeps its distance and lobs acid, which eats through barricades
 import { ZTYPE, SOUND, PROJ } from '../../shared/defs.js';
 
+// in sight of its prey and nearer than KEEP_OFF m, a spitter circles round them at KEEP_OFF_PACE of its pace instead of
+// closing in (not on its belly: a crawler drags itself straight on)
+const KEEP_OFF = 11;
+const KEEP_OFF_PACE = 0.6;
+
+export const chases = {
+  // it keeps its distance
+  [ZTYPE.SPITTER](z, tx, tz, dist, out) {
+    if (!(z.los && dist < KEEP_OFF && z.legs !== 3)) return 0;
+    const l = dist || 1;
+    out.x = -(tz - z.z) / l;
+    out.z = (tx - z.x) / l;
+    return KEEP_OFF_PACE;
+  },
+};
+
 export const triggers = {
   [ZTYPE.SPITTER](z, target, tx, ty, tz, dist) {
     const def = z.def;

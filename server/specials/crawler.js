@@ -241,6 +241,20 @@ export const methods = {
   },
 };
 
+export const moves = {
+  // up a tree, or on its way to one (perch)
+  [ZTYPE.CRAWLER](z, dt, target, tx, ty, tz, dist) {
+    return this.perch(z, dt, target, dist);
+  },
+};
+
+export const releases = {
+  // off a face it makes off for a tree away from them (FLEE_*)
+  [ZTYPE.CRAWLER](z, p) {
+    if (!z.dead) this.fleeFace(z, p);
+  },
+};
+
 export const triggers = {
   [ZTYPE.CRAWLER](z, target, tx, ty, tz, dist) {
     const def = z.def;

@@ -3,21 +3,20 @@
 // smoker, screecher, boomer, Tank, dog packs, bats, the shade, the flammer and the bosses), with its own numbers;
 // what the dead are made of, by day and by night, is in spawns.js.
 // The herd that wanders the roads by day is in herd.js.
-import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, EYE_HEIGHT, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
+import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
 import { HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEAD_Y } from '../shared/constants.js';
-import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, EVT, IMPACT, STRUCT_DEFS, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
+import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, EVT, IMPACT, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
 import { ENT } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
-import { mulberry32 } from '../shared/rng.js';
 import { playerMods } from './loadouts.js';
-import { Herds, HERD_RUSH } from './herd.js';
+import { Herds, HERD_RUSH, STRAY, LOST } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
-import { TRIGGERS, ACTS, STATES, installSpecials } from './specials/index.js';
-import { GRAV, turn, bodyHeight } from './specials/util.js';
-import { leapG, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
-import { DOG_CIRCLE } from './specials/dog.js';
+import { TRIGGERS, ACTS, STATES, MOVES, AIMS, CHASES, NEARS, STEPS, RELEASES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
+import { GRAV, MAP_EDGE, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
+import { leapG, pinsDown, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
 import { _shDir } from './specials/shade.js';
+import { motherStream } from './specials/mother.js';
 import { daySpecial, SPAWN_SPREAD } from './spawns.js';
 
 const MAP_SPREAD_MAX = 4; // (spread(): the most a map's dead come over, against the island's)
@@ -30,7 +29,6 @@ const _dir = { x: 0, z: 0, cost: 0 };
 const _ray = { t: -1, col: null, terrain: false };
 const _wq = []; // (wedgedOn)
 const _lq = []; // (nearStruct)
-const MOTHER_ODDS = 0.05; // one walker in twenty spawns as a Mother (spawn)
 const WEDGE_MOVE = 1.5; // m a zombie after a survivor has to get from where it was to count as getting anywhere (z.wedgeT)
 // the client's distance haze: fog density by sun height (KEYS s / fogD in client/render/environment.js), see sightRange()
 const HAZE_SUN = [-1, -0.12, 0.02, 0.18, 0.55, 1];
@@ -42,6 +40,10 @@ const HAZE_HIDES = 0.88;
 // go by how far across it is, and a city is a place a few hundred metres across, so they alone leave it near empty
 const CITY_STREET_DEAD = 64;
 const CITY_STREET_SHARE = 0.2; // of the roaming dead that turn up by day, the share that comes back into the city
+const CORPSE_LINGER = 1.6; // s a body lies where it fell before it is gone (sweepCorpses)
+const MAINTAIN_EVERY = 4; // s between the day's looks at how many of the dead are about (keepDayPopulation)
+const ROAM_CLEAR = 75; // none of the roaming dead turns up within this many m of a survivor (spawnRoamer, spawnStreet)
+const GUARDS_CLEAR = 60; // ...nor fills a place back up with a survivor within this many m past its edge
 // Where a run on the map begins (world.start: the car on the island, the bridgehead on the mainland) is left clear: none
 // of the dead the day puts about - a place's guards, the roaming dead, the city's, a dog pack, a herd - turn up within
 // START_CLEAR m of it, so a team that has just come off the bridge is not in a fight before it has found its feet
@@ -54,6 +56,7 @@ export const OPENER_AT = 20;
 export const OPENER_UNTIL = 50;
 export const OPENER_DIST = 38;
 const OPENER_NEAR = 45;
+const SPAWN_EDGE = 14; // m inside the edge of the map a horde spawn (pickSpawnAround) or the opener's walker turns up
 const SPAWN_TRIES = 18; // candidates a horde spawn pick looks at before settling for the least exposed one
 const SPAWN_HEAD = 1.7; // a zombie at a spot is in view when a survivor's eyes have a clear line to this far above its ground (m)
 const SPAWN_VIEW_COS = Math.cos(1.13); // a survivor is looking at what lies within ~65 deg of dead ahead (the default FOV on a wide screen, and a margin)
@@ -80,6 +83,14 @@ const SPREAD_NEAR = 2.5;
 const SPREAD_OPEN = Math.cos(1.2);
 const SPREAD_PROBE = 1.6;
 const _spr = { x: 0, z: 0 };
+const _way = { x: 0, z: 0, speed: 0 }; // (headFor's answer)
+const _go = { x: 0, z: 0 }; // (chaseWay's and wanderWay's)
+const SUN_BURN = 0.35; // of its health a second the dawn sun burns off one of the dead (burnUp)...
+const SUN_BURN_BOSS = 0.035; // ...and off a boss
+const LOOK_EVERY = 0.3; // s between a zombie's looks at its prey (lookAt)
+const SWING_LEAD = 0.32; // s from the start of a swing at a survivor to the blow (strikeAt)
+const STUCK_T = 0.8; // s of getting nowhere before a zombie sets off to one side (clawOrUnstick)
+const RUNNER_AMBLE = 1.2; // m/s a runner with nothing to chase ambles at (pace)
 
 export class Zombies {
   constructor(game) {
@@ -107,8 +118,7 @@ export class Zombies {
   // ---------------------------------------------------------------- spawning
   spawn(type, x, z, opts = {}) {
     const g = this.g;
-    // one walker in twenty is a Mother. An admin's /spawn (force) is exactly what it asked for
-    if (type === ZTYPE.WALKER && !opts.force && this.motherRng() < MOTHER_ODDS) type = ZTYPE.MOTHER;
+    type = this.rollMother(type, opts); // (one walker in twenty is a Mother: specials/mother.js)
     const def = ZOMBIE_DEFS[type];
     if (!def) return null;
     const w = g.world;
@@ -267,7 +277,7 @@ export class Zombies {
       lit: false, // shade: frozen by light
       darkT: 1,
       trapSlow: 1,
-      burst: false, // a Mother whose belly has been torn open (Combat.burstBelly): her babies are out
+      burst: false, // a Mother whose belly has been torn open (burstBelly, specials/mother.js): her babies are out
       legs: 0, // legs shot off (Combat.hitLeg): bit 0 the left, bit 1 the right. One gone it hobbles, both gone it crawls
       legHp: def.legs ? [hp * LEG_HP, hp * LEG_HP] : null, // what each leg still takes (left, right)
       stumbleT: 0, // tripped by a shot in the leg: seconds until it has caught itself
@@ -383,8 +393,8 @@ export class Zombies {
     this.fn = Math.ceil(size / FCELL);
     this.head = new Int32Array(this.hn * this.hn).fill(-1);
     this.treeGrid = this.dens = null; // (per-world caches)
-    // the Mother's roll (spawn) has its own stream: nothing else the game draws moves for it
-    this.motherRng = mulberry32((this.g.seed ^ 0x307e4) >>> 0);
+    // the Mother's roll (rollMother) has its own stream: nothing else the game draws moves for it
+    this.motherRng = motherStream(this.g.seed);
   }
 
   // ---------------------------------------------------------------- forest
@@ -440,7 +450,7 @@ export class Zombies {
       const northSouth = g.rng() < 0.5;
       const x = c.x + (northSouth ? o + side : t);
       const z = c.z + (northSouth ? t : o + side);
-      if (this.nearStart(x, z) || humans.some((h) => Math.hypot(h.state.x - x, h.state.z - z) < 75)) continue;
+      if (this.nearStart(x, z) || humanWithin(humans, x, z, ROAM_CLEAR)) continue;
       const sp = daySpecial(g, x, z);
       return this.spawn(sp >= 0 ? sp : g.rng() < 0.25 ? ZTYPE.RUNNER : ZTYPE.WALKER, x, z, { hpMul: 1 + 0.05 * g.day });
     }
@@ -457,9 +467,7 @@ export class Zombies {
     if (g.rng() < 0.35) {
       const zones = g.world.zones.filter((z) => z.id !== 0);
       const zn = zones[Math.floor(g.rng() * zones.length)];
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - zn.x, h.state.z - zn.z) < zn.flat + 60) ok = false;
-      if (ok) {
+      if (!humanWithin(humans, zn.x, zn.z, zn.flat + GUARDS_CLEAR)) {
         const a = g.rng() * Math.PI * 2;
         const r = 4 + g.rng() * zn.flat * 0.8;
         const x = zn.x + Math.sin(a) * r;
@@ -476,9 +484,7 @@ export class Zombies {
     for (let tries = 0; tries < 10; tries++) {
       const p = pts[Math.floor(g.rng() * pts.length)];
       if (!p || Math.hypot(p.x - car.x, p.z - car.z) < 55 || this.nearStart(p.x, p.z, 2)) continue;
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - p.x, h.state.z - p.z) < 75) ok = false;
-      if (!ok) continue;
+      if (humanWithin(humans, p.x, p.z, ROAM_CLEAR)) continue;
       const x = p.x + (g.rng() - 0.5) * 4;
       const z = p.z + (g.rng() - 0.5) * 4;
       const sp = daySpecial(g, x, z);
@@ -492,12 +498,9 @@ export class Zombies {
   spawnOpener(humans) {
     const g = this.g;
     this.opener = true;
-    for (const z of g.zombies) {
-      if (z.dead) continue;
-      for (const h of humans) if (Math.hypot(h.state.x - z.x, h.state.z - z.z) < OPENER_NEAR) return null;
-    }
+    for (const z of g.zombies) if (!z.dead && humanWithin(humans, z.x, z.z, OPENER_NEAR)) return null;
     const s = humans[Math.floor(g.rng() * humans.length)].state;
-    const lim = g.world.half - 14;
+    const lim = g.world.half - SPAWN_EDGE;
     for (let tries = 0; tries < 12; tries++) {
       const a = s.yaw + (g.rng() - 0.5) * (0.5 + tries * 0.15); // dead ahead first, then wider (forward is (-sin yaw, -cos yaw))
       const x = s.x - Math.sin(a) * OPENER_DIST;
@@ -523,8 +526,7 @@ export class Zombies {
     let bestD = -1;
     for (let i = 0; i < 24; i++) {
       const p = pts[Math.floor(g.rng() * pts.length)];
-      let md = Infinity;
-      for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - p.x, h.state.z - p.z));
+      const md = nearestHuman(humans, p.x, p.z);
       if (md >= minDist) return p;
       if (md > bestD) {
         bestD = md;
@@ -599,7 +601,7 @@ export class Zombies {
   pickSpawnAround(x, z, humans, minD = HORDE_SPAWN_MIN, maxD = HORDE_SPAWN_MAX, forest = false) {
     const g = this.g;
     const w = g.world;
-    const lim = this.g.world.half - 14;
+    const lim = g.world.half - SPAWN_EDGE;
     const sight = this.sightRange();
     let best = null;
     let bestF = -1;
@@ -709,8 +711,7 @@ export class Zombies {
     let calls = 0;
     for (const e of g.zombies) {
       if (e.dead || e.target || e.def.flying) continue;
-      let d = Math.hypot(e.x - x, e.z - z);
-      if (mn && (su || e.under)) d = su && e.under ? Math.max(d, mn.dist(e.x, e.z, x, z)) : su ? mn.between(x, z, e.x, e.z).d : mn.between(e.x, e.z, x, z).d;
+      const d = walkDist(mn, e, x, z, su, Math.hypot(e.x - x, e.z - z));
       const lvl = loud - d; // how much further the noise would have carried past this zombie
       if (lvl <= 0) continue;
       const fresh = e.alertT <= 0;
@@ -759,37 +760,9 @@ export class Zombies {
     // Sweep the corpses before the hash is built: it stores indices into g.zombies, so a splice any later would
     // leave everything that asks forNear this tick (a blast, a fire, a trap, the crowd's own spacing) looking at
     // the wrong zombies, or at none.
-    const zs = g.zombies;
-    for (let i = zs.length - 1; i >= 0; i--) {
-      const z = zs[i];
-      if (!z.dead) continue;
-      z.deadT += dt;
-      if (z.deadT > 1.6) {
-        zs.splice(i, 1);
-        g.removeEntity(z);
-      }
-    }
+    this.sweepCorpses(dt);
     this.rebuildHash();
-
-    // who is down in the mine (the survivors here, each zombie in updateOne)
-    const mn = g.mineNav;
-    for (const h of humans) h.under = !!mn && mn.under(h.state);
-    if (mn) mn.refresh();
-    // flow fields: refresh 2 per tick round-robin (to a survivor down in the mine the valley's grid leads nowhere:
-    // the way to them is by a portal, steerLevels). The dead after someone are counted twice a second: a field
-    // solved with the crowd sends those behind a jam round to the next way in (nav.js setCrowd)
-    if (humans.length) {
-      if (g.tick % 10 === 0) {
-        const chasing = this.crowdList;
-        chasing.length = 0;
-        for (const z of zs) if (!z.dead && z.target && !z.under && !z.def.flying) chasing.push(z);
-        g.nav.setCrowd(chasing);
-      }
-      for (let k = 0; k < Math.min(2, humans.length); k++) {
-        const h = humans[this.fieldRR++ % humans.length];
-        if (!h.under) g.nav.computeField(h.id, h.state.x, h.state.z, true);
-      }
-    }
+    this.refreshFields(humans);
 
     if (!this.opener && g.phase === PHASE.DAY && g.day === 1 && humans.length) {
       const t = g.dayLen - g.timeLeft;
@@ -798,52 +771,94 @@ export class Zombies {
     }
 
     // day population maintenance (not during the final stand: its zombies are counted, and need the room under the cap)
-    if (g.phase === PHASE.DAY && !g.escape.active) {
-      this.maintainT -= dt;
-      if (this.maintainT <= 0) {
-        this.maintainT = 4;
-        let alive = 0;
-        let dogs = 0;
-        for (const z of g.zombies) {
-          if (z.dead || z.horde || z.den || z.ward) continue;
-          if (z.pack) dogs++;
-          else if (!z.herd) alive++;
-        }
-        const pop = g.diff.zombies * this.spread();
-        const target = Math.min(Math.max(8, Math.round(62 * pop)), Math.round((22 + g.day * 4 + humans.length * 2) * pop));
-        if (alive < target) this.spawnRoamer(humans);
-        if (dogs < Math.min(Math.max(2, Math.round(18 * pop)), Math.round((4 + g.day * 2) * pop))) this.spawnForestPack(humans);
-      }
-    }
-
-    // horde stragglers stuck far from every survivor are brought back into the fight
-    if ((g.phase === PHASE.NIGHT || g.escape.active) && g.tick % 40 === 0 && humans.length) {
-      for (const z of g.zombies) {
-        if (z.dead || !z.horde || z.boss) continue;
-        let md = Infinity;
-        for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - z.x, h.state.z - z.z));
-        if (md > 125) z.farT += 2;
-        else z.farT = 0;
-        if (z.farT > 14) {
-          const sp = this.pickHordeSpawn(humans);
-          if (sp) {
-            z.x = sp.x;
-            z.z = sp.z;
-            z.y = groundAt(g.world, sp.x, sp.z, 200, 0.2, false) + (z.def.flying ? 4 : 0);
-            z.vx = z.vz = z.vy = 0;
-            z.state = 0;
-            g.fillHistory(z);
-          }
-          z.farT = 0;
-        }
-      }
-    }
+    if (g.phase === PHASE.DAY && !g.escape.active) this.keepDayPopulation(dt, humans);
+    if ((g.phase === PHASE.NIGHT || g.escape.active) && g.tick % 40 === 0 && humans.length) this.bringBackStragglers(humans);
 
     this.herds.update(dt, humans);
 
+    const zs = g.zombies;
     for (let i = zs.length - 1; i >= 0; i--) {
       const z = zs[i];
       if (!z.dead) this.updateOne(z, dt, humans);
+    }
+  }
+
+  // a body lies CORPSE_LINGER s, then it is gone
+  sweepCorpses(dt) {
+    const g = this.g;
+    const zs = g.zombies;
+    for (let i = zs.length - 1; i >= 0; i--) {
+      const z = zs[i];
+      if (!z.dead) continue;
+      z.deadT += dt;
+      if (z.deadT > CORPSE_LINGER) {
+        zs.splice(i, 1);
+        g.removeEntity(z);
+      }
+    }
+  }
+
+  // who is down in the mine (the survivors here, each zombie in updateOne), and the flow fields to the survivors
+  refreshFields(humans) {
+    const g = this.g;
+    const mn = g.mineNav;
+    for (const h of humans) h.under = !!mn && mn.under(h.state);
+    if (mn) mn.refresh();
+    // flow fields: refresh 2 per tick round-robin (to a survivor down in the mine the valley's grid leads nowhere:
+    // the way to them is by a portal, steerLevels). The dead after someone are counted twice a second: a field
+    // solved with the crowd sends those behind a jam round to the next way in (nav.js setCrowd)
+    if (!humans.length) return;
+    if (g.tick % 10 === 0) {
+      const chasing = this.crowdList;
+      chasing.length = 0;
+      for (const z of g.zombies) if (!z.dead && z.target && !z.under && !z.def.flying) chasing.push(z);
+      g.nav.setCrowd(chasing);
+    }
+    for (let k = 0; k < Math.min(2, humans.length); k++) {
+      const h = humans[this.fieldRR++ % humans.length];
+      if (!h.under) g.nav.computeField(h.id, h.state.x, h.state.z, true);
+    }
+  }
+
+  // every MAINTAIN_EVERY s of day, one more of the roaming dead and one more dog pack while there are fewer than the
+  // day, the difficulty and the team's size call for
+  keepDayPopulation(dt, humans) {
+    const g = this.g;
+    this.maintainT -= dt;
+    if (this.maintainT > 0) return;
+    this.maintainT = MAINTAIN_EVERY;
+    let alive = 0;
+    let dogs = 0;
+    for (const z of g.zombies) {
+      if (z.dead || z.horde || z.den || z.ward) continue;
+      if (z.pack) dogs++;
+      else if (!z.herd) alive++;
+    }
+    const pop = g.diff.zombies * this.spread();
+    const target = Math.min(Math.max(8, Math.round(62 * pop)), Math.round((22 + g.day * 4 + humans.length * 2) * pop));
+    if (alive < target) this.spawnRoamer(humans);
+    if (dogs < Math.min(Math.max(2, Math.round(18 * pop)), Math.round((4 + g.day * 2) * pop))) this.spawnForestPack(humans);
+  }
+
+  // horde stragglers stuck far from every survivor (STRAY m, for LOST s) are brought back into the fight
+  bringBackStragglers(humans) {
+    const g = this.g;
+    for (const z of g.zombies) {
+      if (z.dead || !z.horde || z.boss) continue;
+      if (nearestHuman(humans, z.x, z.z) > STRAY) z.farT += 2;
+      else z.farT = 0;
+      if (z.farT > LOST) {
+        const sp = this.pickHordeSpawn(humans);
+        if (sp) {
+          z.x = sp.x;
+          z.z = sp.z;
+          z.y = groundAt(g.world, sp.x, sp.z, 200, 0.2, false) + (z.def.flying ? 4 : 0);
+          z.vx = z.vz = z.vy = 0;
+          z.state = 0;
+          g.fillHistory(z);
+        }
+        z.farT = 0;
+      }
     }
   }
 
@@ -851,47 +866,10 @@ export class Zombies {
     const g = this.g;
     const def = z.def;
     const w = g.world;
-    // timers
-    z.attackCd -= dt;
-    z.specialCd -= dt;
-    z.rockCd -= dt;
-    z.summonCd -= dt;
-    z.targetT -= dt;
-    z.aggroT -= dt;
-    z.alertT -= dt;
-    z.lureT -= dt;
-    z.losT -= dt;
-    z.howlT -= dt;
-    z.ramCd -= dt;
-    if (z.animT > 0) z.animT -= dt;
-    if (z.stumbleT > 0) z.stumbleT -= dt;
-    z.trapSlow = Math.min(1, z.trapSlow + dt * 2);
+    this.tickTimers(z, dt);
     const mn = g.mineNav;
     const zu = (z.under = !!mn && !def.flying && mn.under(z));
-    // the horde that was down in the mine at sunrise did not burn (z.spared, Game.startDay): the sun gets it when
-    // it comes up, if that is before the next nightfall (the same for what the sunrise found in the clinic's wards)
-    if (z.spared && (!(zu || this.inDark(z)) || g.phase !== PHASE.DAY)) {
-      z.spared = false;
-      if (g.phase === PHASE.DAY && !z.onFire && z.burning <= 0) z.burning = 0.3 + g.rng() * 1.5;
-    }
-
-    // dawn: horde burns
-    if (z.burning > 0) {
-      z.burning -= dt;
-      if (z.burning <= 0) z.onFire = true;
-    }
-    if (z.onFire) {
-      const dmg = z.maxHp * (z.boss ? 0.035 : 0.35) * dt;
-      if (g.tick % 6 === 0) g.impact(IMPACT.SPARK, z.x, z.y + 1, z.z);
-      g.combat.damageZombie(z, dmg, null, { fire: true });
-      if (z.dead) return;
-    }
-    // set alight (Combat.ignite): it keeps burning for a while after the fire that lit it
-    if (z.burnT > 0) {
-      z.burnT -= dt;
-      g.combat.damageZombie(z, BURN.dps * dt, g.players.get(z.burnBy) || null, { weapon: z.burnWeapon, fire: true, dot: true });
-      if (z.dead) return;
-    }
+    if (this.burnUp(z, dt, zu)) return;
 
     // climbing out of a grave (cemetery.js): it does nothing else until it is out
     if (z.riseT > 0) return g.cemetery.climb(z, dt);
@@ -899,14 +877,10 @@ export class Zombies {
     // thrown off a survivor it had pinned: it tumbles through the air (special state 2), then reels where it lands
     if (z.dazedT > 0 && z.state !== 2) {
       z.dazedT -= dt;
-      {
-        z.vx *= 0.7;
-        z.vz *= 0.7;
-        this.integrate(z, dt, 0, 0, this.humansCache);
-        z.anim = ZANIM.STAGGER;
-        z.animT = 0.2;
-        return;
-      }
+      this.holdStill(z, dt);
+      z.anim = ZANIM.STAGGER;
+      z.animT = 0.2;
+      return;
     }
 
     // the shade only moves in darkness: any light on it and it stands frozen where it was caught
@@ -918,16 +892,7 @@ export class Zombies {
       if (z.pendingHit <= 0) this.resolveHit(z);
     }
 
-    // retarget
-    if (z.targetT <= 0) {
-      z.targetT = 0.35 + g.rng() * 0.3;
-      const had = z.target;
-      this.chooseTarget(z, humans);
-      if (z.pack && z.target && !had) this.alertPack(z);
-    }
-    const tp = z.target ? g.players.get(z.target) : null;
-    const target = tp && tp.alive && !tp.zombie && !g.safe(tp) ? tp : null;
-    if (!target) z.target = 0;
+    const target = this.huntTarget(z, humans);
     let tx = 0;
     let ty = 0;
     let tz = 0;
@@ -937,14 +902,7 @@ export class Zombies {
       ty = target.state.y;
       tz = target.state.z;
       dist = Math.hypot(tx - z.x, tz - z.z);
-      if (z.losT <= 0) {
-        z.losT = 0.3;
-        z.los = this.hasLOS(z, tx, ty + 1.4, tz, dist);
-        // seeing a survivor through a window is not a way in: walk straight only when no wall is in between
-        // (down in the mine: no rock, and nothing that stands in the drift)
-        if (zu || target.under) z.direct = zu && target.under && z.los && dist < 12 && mn.segClear(z.x, z.z, tx, tz);
-        else z.direct = z.los && dist < (z.pack ? 18 : 12) && g.nav.segClear(z.x, z.z, tx, tz);
-      }
+      if (z.losT <= 0) this.lookAt(z, target, tx, ty, tz, dist, zu);
     }
 
     // the flammer: what the survivors built catches from it as it comes past
@@ -954,185 +912,20 @@ export class Zombies {
     if (def.flying) return this.updateBat(z, dt, target, tx, ty, tz, dist);
     if (this.special(z, dt, target, tx, ty, tz, dist)) return;
 
-    // ------------------------------------------------ desired direction
-    let dx = 0;
-    let dz = 0;
-    let speed = (z.enraged ? def.speed * def.enrageSpeed : def.speed) * g.diff.speed; // (The Brute, badly hurt)
-    let chasing = false;
-    if (z.state === 7) {
-      // dog hit-and-run: peel off to one side after a lunge, then come back in
-      z.stateT -= dt;
-      if (z.stateT <= 0 || !target) z.state = 0;
-      if (target && def.hitRun) {
-        // out to runD at an angle, then round its prey there, easing in or out to hold that far off
-        const l = dist || 1;
-        const ax = (z.x - tx) / l;
-        const az = (z.z - tz) / l;
-        const s = z.runSide;
-        if (dist < z.runD) {
-          dx = ax * 0.8 - az * s * 0.6;
-          dz = az * 0.8 + ax * s * 0.6;
-        } else {
-          const k = Math.max(-0.6, Math.min(0.6, (z.runD - dist) * 0.3));
-          dx = -az * s + ax * k;
-          dz = ax * s + az * k;
-          speed *= DOG_CIRCLE;
-        }
-        chasing = true;
-      } else if (target) {
-        const l = dist || 1;
-        const side = z.flank >= 0 ? 1 : -1;
-        dx = (-(tz - z.z) * side - (tx - z.x) * 0.5) / l;
-        dz = ((tx - z.x) * side - (tz - z.z) * 0.5) / l;
-        chasing = true;
-      }
-    } else if (z.lureT > 0 && !def.shade && !(target && dist < 7)) {
-      dx = z.lureX - z.x;
-      dz = z.lureZ - z.z;
-      // (a pipe bomb down in the mine only draws what is down there with it: along the drift)
-      if (zu && mn.dir(z.x, z.z, z.lureX, z.lureZ, _dir)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      }
-      chasing = true;
-    } else if (target) {
-      chasing = true;
-      if (z.herd) speed = Math.max(speed, HERD_RUSH); // a roused herd comes at a run, walkers and all
-      // steer straight at a visible survivor; otherwise follow the flow field (around walls to a way in)
-      if (zu || target.under) {
-        // one of the two is down in the mine: along the drifts, and by a portal from one level to the other
-        if (z.direct || !this.steerLevels(z, tx, tz, target.under)) {
-          dx = tx - z.x;
-          dz = tz - z.z;
-        } else {
-          dx = _dir.x;
-          dz = _dir.z;
-        }
-      } else if (z.pack && z.direct && dist < 18) {
-        // a pack fans out and closes in from the sides, straightening up for the last few metres
-        const a = z.flank * Math.min(1, Math.max(0, (dist - 3) / 8));
-        const ex = tx - z.x;
-        const ez = tz - z.z;
-        const c = Math.cos(a);
-        const sn = Math.sin(a);
-        dx = ex * c - ez * sn;
-        dz = ex * sn + ez * c;
-      } else if (z.direct && dist < 12) {
-        dx = tx - z.x;
-        dz = tz - z.z;
-      } else if (g.nav.flowDir(target.id, z.x, z.z, _dir, z.y)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      } else {
-        dx = tx - z.x;
-        dz = tz - z.z;
-      }
-      // a crowd fans out and comes in at angles (dogs flank on their own, a crawler drags itself straight on)
-      if (!z.pack && z.legs !== 3 && !zu && !target.under && this.spreadOut(z, tx, tz, dist, dx, dz)) {
-        dx = _spr.x;
-        dz = _spr.z;
-      }
-      // spitters keep their distance
-      if (z.ztype === ZTYPE.SPITTER && z.los && dist < 11 && z.legs !== 3) {
-        const l = dist || 1;
-        dx = -(tz - z.z) / l;
-        dz = (tx - z.x) / l;
-        speed *= 0.6;
-      }
-    } else if (z.herd) {
-      // wandering herd: it keeps its place in the crowd, at a shuffle or (the herd roused) at a run
-      speed = this.herds.steer(z, dt, _dir);
-      dx = _dir.x;
-      dz = _dir.z;
-      chasing = speed >= HERD_RUSH;
-    } else if (z.alertT > 0) {
-      dx = z.alertX - z.x;
-      dz = z.alertZ - z.z;
-      if (Math.hypot(dx, dz) < 3 && zu === z.alertU) z.alertT = 0;
-      else if ((zu || z.alertU) && this.steerLevels(z, z.alertX, z.alertZ, z.alertU)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      }
-      chasing = true;
-      speed *= NOISE_SPEED_MIN + (1 - NOISE_SPEED_MIN) * z.alertRush;
-      // whether it gets there or gives up, it mills about where the noise led it instead of trekking back
-      z.wanderX = z.x;
-      z.wanderZ = z.z;
-      z.wanderT = 3;
-    } else {
-      // wander
-      z.wanderT -= dt;
-      if (z.wanderT <= 0) {
-        z.wanderT = 5 + g.rng() * 9;
-        const spot = zu && g.rng() < (z.den ? 0.35 : 0.6) ? mn.randomSpot(z.x, z.z, 14, g.rng) : null;
-        if (zu) {
-          // down in the mine: about the drifts, or nowhere
-          z.wanderX = spot ? spot.x : z.x;
-          z.wanderZ = spot ? spot.z : z.z;
-        } else if (g.rng() < 0.4) {
-          z.wanderX = z.x;
-          z.wanderZ = z.z;
-        } else if (def.shade) {
-          this.shadeWander(z);
-        } else if (z.pack && !z.horde) {
-          // dogs keep to their patch of woods
-          const a = g.rng() * Math.PI * 2;
-          const r = g.rng() * 16;
-          z.wanderX = z.homeX + Math.sin(a) * r;
-          z.wanderZ = z.homeZ + Math.cos(a) * r;
-        } else {
-          z.wanderX = z.x + (g.rng() - 0.5) * 30;
-          z.wanderZ = z.z + (g.rng() - 0.5) * 30;
-        }
-      }
-      dx = z.wanderX - z.x;
-      dz = z.wanderZ - z.z;
-      if (z.den && !zu) {
-        // led up out of the mine and left there: back down to its den
-        if (this.steerLevels(z, z.homeX, z.homeZ, true)) {
-          dx = _dir.x;
-          dz = _dir.z;
-        }
-      } else if (z.ward && this.wards.steer(z, _dir)) {
-        // one of the clinic's: about its wards, and back to them when it was led out
-        dx = _dir.x;
-        dz = _dir.z;
-      } else if (Math.hypot(dx, dz) < 1) {
-        dx = 0;
-        dz = 0;
-      } else if (zu && mn.dir(z.x, z.z, z.wanderX, z.wanderZ, _dir)) {
-        dx = _dir.x;
-        dz = _dir.z;
-      }
-      speed = z.pack ? 1.5 : Math.min(speed, 1.1) * 0.8;
-    }
-    if (!chasing && z.ztype === ZTYPE.RUNNER && !z.herd) speed = 1.2;
-    // legs (Combat.hitLeg): on one it hobbles, on none it drags itself along by its arms, and a fresh hit trips it
-    if (z.legs === 3) speed = crawlSpeed(def) * g.diff.speed * (chasing ? 1 : CRAWL_SLOW);
-    else if (z.legs) speed *= HOBBLE_SPEED;
-    if (z.stumbleT > 0) speed *= STUMBLE_SPEED;
-    speed *= z.trapSlow;
-    if ((g.phase === PHASE.NIGHT || g.escape.active) && z.horde) speed *= 1.06 + Math.min(0.2, 0.015 * g.day);
+    // where it heads, and how fast
+    const chasing = this.headFor(z, dt, target, tx, tz, dist, zu);
+    let dx = _way.x;
+    let dz = _way.z;
+    const speed = this.pace(z, _way.speed, chasing);
 
     // stop to attack
-    let attacking = false;
-    if (target && z.state !== 7 && !def.noMelee && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target))) {
-      attacking = true;
+    let attacking = this.strikeAt(z, target, ty, dist);
+    if (attacking) {
       dx = tx - z.x;
       dz = tz - z.z;
-      if (z.attackCd <= 0 && z.pendingHit <= 0 && this.packFree(z, 0.32)) {
-        this.packMark(z, 0.32);
-        z.attackCd = def.rate;
-        z.pendingHit = 0.32;
-        z.pendingKind = 1;
-        z.pendingTarget = target.id;
-        z.anim = ZANIM.ATTACK;
-        z.animT = 0.6;
-        if (g.rng() < 0.5) g.sound(z.ztype === ZTYPE.TANK ? SOUND.TANK_ROAR : def.pack ? SOUND.DOG_SNARL : SOUND.ZOMBIE_ATTACK, z.x, z.y + Math.min(1.6, def.height), z.z, 35);
-      }
     }
-    // boomer: detonate near humans
-    this.boomerNear(z, target, dist);
+    // what its kind sets off with its prey this near (NEARS: a boomer swells up beside them)
+    NEARS[z.ztype]?.call(this, z, target, dist);
 
     // detour when stuck
     if (z.detourT > 0) {
@@ -1161,34 +954,10 @@ export class Zombies {
 
     this.integrate(z, dt, dx * moveSpeed, dz * moveSpeed, humans);
 
-    // boomer: it also detonates against what the survivors built, held up by it with a survivor close behind (boomer.js)
-    this.boomerBreach(z, dt, dist, moveSpeed);
+    // what its kind sets off once it has taken its step (STEPS: a boomer held up by what was built bursts against it)
+    STEPS[z.ztype]?.call(this, z, dt, dist, moveSpeed);
 
-    // attack blocking structure
-    if (!attacking && z.blockStruct && moveSpeed > 0 && def.structDmg > 0) {
-      const s = g.ents[z.blockStruct];
-      if (def.ramDmg && target && z.ramCd <= 0 && s && s.kind === ENT.STRUCTURE) this.startRam(z, s);
-      else if (s && s.kind === ENT.STRUCTURE && z.attackCd <= 0 && z.pendingHit <= 0) {
-        z.attackCd = def.rate;
-        z.pendingHit = 0.35;
-        z.pendingKind = 2;
-        z.pendingTarget = s.id;
-        z.anim = ZANIM.ATTACK;
-        z.animT = 0.6;
-      }
-    } else if (!attacking && moveSpeed > 0) {
-      // stuck detection
-      const moved = Math.hypot(z.x - z.lastX, z.z - z.lastZ);
-      if (moved < moveSpeed * dt * 0.2 && z.animT <= 0) z.stuckT += dt;
-      else z.stuckT = Math.max(0, z.stuckT - dt * 0.5);
-      if (z.stuckT > 0.8 && z.detourT <= 0) {
-        z.stuckT = 0;
-        z.detourT = 0.8 + g.rng() * 0.8;
-        const side = g.rng() < 0.5 ? 1 : -1;
-        z.detourX = -dz * side + dx * 0.2;
-        z.detourZ = dx * side + dz * 0.2;
-      }
-    }
+    if (!attacking && moveSpeed > 0) this.clawOrUnstick(z, dt, target, moveSpeed, dx, dz);
     if (attacking || z.blockStruct || !target || Math.hypot(z.x - z.wedgeX, z.z - z.wedgeZ) > WEDGE_MOVE) {
       z.wedgeX = z.x;
       z.wedgeZ = z.z;
@@ -1199,7 +968,324 @@ export class Zombies {
     z.lastX = z.x;
     z.lastZ = z.z;
 
-    // facing & anim (a crawler hauls itself round slowly: its head leads its body, and the hitbox with it)
+    this.faceAndGait(z, dt, target, tx, tz, dist, attacking, chasing);
+  }
+
+  // the clocks every one of the dead runs down each tick
+  tickTimers(z, dt) {
+    z.attackCd -= dt;
+    z.specialCd -= dt;
+    z.rockCd -= dt;
+    z.summonCd -= dt;
+    z.targetT -= dt;
+    z.aggroT -= dt;
+    z.alertT -= dt;
+    z.lureT -= dt;
+    z.losT -= dt;
+    z.howlT -= dt;
+    z.ramCd -= dt;
+    if (z.animT > 0) z.animT -= dt;
+    if (z.stumbleT > 0) z.stumbleT -= dt;
+    z.trapSlow = Math.min(1, z.trapSlow + dt * 2);
+  }
+
+  // The fire on z this tick: the dawn sun (the horde burns, SUN_BURN of its health a second) and what set it alight
+  // (Combat.ignite). zu: it is down in the mine. True when it burned to death.
+  burnUp(z, dt, zu) {
+    const g = this.g;
+    // the horde that was down in the mine at sunrise did not burn (z.spared, Game.startDay): the sun gets it when
+    // it comes up, if that is before the next nightfall (the same for what the sunrise found in the clinic's wards)
+    if (z.spared && (!(zu || this.inDark(z)) || g.phase !== PHASE.DAY)) {
+      z.spared = false;
+      if (g.phase === PHASE.DAY && !z.onFire && z.burning <= 0) z.burning = 0.3 + g.rng() * 1.5;
+    }
+
+    // dawn: horde burns
+    if (z.burning > 0) {
+      z.burning -= dt;
+      if (z.burning <= 0) z.onFire = true;
+    }
+    if (z.onFire) {
+      const dmg = z.maxHp * (z.boss ? SUN_BURN_BOSS : SUN_BURN) * dt;
+      if (g.tick % 6 === 0) g.impact(IMPACT.SPARK, z.x, z.y + 1, z.z);
+      g.combat.damageZombie(z, dmg, null, { fire: true });
+      if (z.dead) return true;
+    }
+    // set alight (Combat.ignite): it keeps burning for a while after the fire that lit it
+    if (z.burnT > 0) {
+      z.burnT -= dt;
+      g.combat.damageZombie(z, BURN.dps * dt, g.players.get(z.burnBy) || null, { weapon: z.burnWeapon, fire: true, dot: true });
+      if (z.dead) return true;
+    }
+    return false;
+  }
+
+  // Whom z is after this tick, or null: it looks again every 0.35-0.65 s (chooseTarget), and lets go of one who is
+  // gone, turned or safe. A dog that has just picked up a scent sets its pack on them.
+  huntTarget(z, humans) {
+    const g = this.g;
+    if (z.targetT <= 0) {
+      z.targetT = 0.35 + g.rng() * 0.3;
+      const had = z.target;
+      this.chooseTarget(z, humans);
+      if (z.pack && z.target && !had) this.alertPack(z);
+    }
+    const tp = z.target ? g.players.get(z.target) : null;
+    const target = tp && tp.alive && !tp.zombie && !g.safe(tp) ? tp : null;
+    if (!target) z.target = 0;
+    return target;
+  }
+
+  // z takes a fresh look at its prey at (tx, ty, tz), dist m off (every LOOK_EVERY s): can it see them (z.los), and may
+  // it walk straight at them (z.direct)? zu: z is down in the mine
+  lookAt(z, target, tx, ty, tz, dist, zu) {
+    const g = this.g;
+    z.losT = LOOK_EVERY;
+    z.los = this.hasLOS(z, tx, ty + 1.4, tz, dist);
+    // seeing a survivor through a window is not a way in: walk straight only when no wall is in between
+    // (down in the mine: no rock, and nothing that stands in the drift)
+    if (zu || target.under) z.direct = zu && target.under && z.los && dist < 12 && g.mineNav.segClear(z.x, z.z, tx, tz);
+    else z.direct = z.los && dist < (z.pack ? 18 : 12) && g.nav.segClear(z.x, z.z, tx, tz);
+  }
+
+  // Where z heads this tick and at what pace before its legs and the night have their say (pace): after its prey, to a
+  // lure, with its herd, to a noise, or wandering. Writes the way (not yet of unit length) and the speed to _way;
+  // returns whether it is after something (chasing: it runs, and does not stop to feed).
+  headFor(z, dt, target, tx, tz, dist, zu) {
+    const g = this.g;
+    const def = z.def;
+    const mn = g.mineNav;
+    let dx = 0;
+    let dz = 0;
+    let speed = (z.enraged ? def.speed * def.enrageSpeed : def.speed) * g.diff.speed; // (The Brute, badly hurt)
+    let chasing = false;
+    if (z.state === 7) {
+      // dog hit-and-run: peel off to one side after a lunge, then come back in (dog.js)
+      const pace = this.breakingOff(z, dt, target, tx, tz, dist, _dir);
+      if (pace) {
+        dx = _dir.x;
+        dz = _dir.z;
+        speed *= pace;
+        chasing = true;
+      }
+    } else if (z.lureT > 0 && !def.shade && !(target && dist < 7)) {
+      dx = z.lureX - z.x;
+      dz = z.lureZ - z.z;
+      // (a pipe bomb down in the mine only draws what is down there with it: along the drift)
+      if (zu && mn.dir(z.x, z.z, z.lureX, z.lureZ, _dir)) {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+      chasing = true;
+    } else if (target) {
+      chasing = true;
+      if (z.herd) speed = Math.max(speed, HERD_RUSH); // a roused herd comes at a run, walkers and all
+      speed *= this.chaseWay(z, target, tx, tz, dist, zu);
+      dx = _go.x;
+      dz = _go.z;
+    } else if (z.herd) {
+      // wandering herd: it keeps its place in the crowd, at a shuffle or (the herd roused) at a run
+      speed = this.herds.steer(z, dt, _dir);
+      dx = _dir.x;
+      dz = _dir.z;
+      chasing = speed >= HERD_RUSH;
+    } else if (z.alertT > 0) {
+      dx = z.alertX - z.x;
+      dz = z.alertZ - z.z;
+      if (Math.hypot(dx, dz) < 3 && zu === z.alertU) z.alertT = 0;
+      else if ((zu || z.alertU) && this.steerLevels(z, z.alertX, z.alertZ, z.alertU)) {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+      chasing = true;
+      speed *= NOISE_SPEED_MIN + (1 - NOISE_SPEED_MIN) * z.alertRush;
+      // whether it gets there or gives up, it mills about where the noise led it instead of trekking back
+      z.wanderX = z.x;
+      z.wanderZ = z.z;
+      z.wanderT = 3;
+    } else {
+      speed = this.wanderWay(z, dt, zu, speed);
+      dx = _go.x;
+      dz = _go.z;
+    }
+    _way.x = dx;
+    _way.z = dz;
+    _way.speed = speed;
+    return chasing;
+  }
+
+  // the way z comes at the survivor it is after (target, at tx,tz, dist m off) into _go; returns what its pace is
+  // multiplied by (a kind's own CHASES)
+  chaseWay(z, target, tx, tz, dist, zu) {
+    const g = this.g;
+    let dx = 0;
+    let dz = 0;
+    // steer straight at a visible survivor; otherwise follow the flow field (around walls to a way in)
+    if (zu || target.under) {
+      // one of the two is down in the mine: along the drifts, and by a portal from one level to the other
+      if (z.direct || !this.steerLevels(z, tx, tz, target.under)) {
+        dx = tx - z.x;
+        dz = tz - z.z;
+      } else {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+    } else if (z.pack && z.direct && dist < 18) {
+      // a pack fans out and closes in from the sides, straightening up for the last few metres
+      const a = z.flank * Math.min(1, Math.max(0, (dist - 3) / 8));
+      const ex = tx - z.x;
+      const ez = tz - z.z;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      dx = ex * c - ez * sn;
+      dz = ex * sn + ez * c;
+    } else if (z.direct && dist < 12) {
+      dx = tx - z.x;
+      dz = tz - z.z;
+    } else if (g.nav.flowDir(target.id, z.x, z.z, _dir, z.y)) {
+      dx = _dir.x;
+      dz = _dir.z;
+    } else {
+      dx = tx - z.x;
+      dz = tz - z.z;
+    }
+    // a crowd fans out and comes in at angles (dogs flank on their own, a crawler drags itself straight on)
+    if (!z.pack && z.legs !== 3 && !zu && !target.under && this.spreadOut(z, tx, tz, dist, dx, dz)) {
+      dx = _spr.x;
+      dz = _spr.z;
+    }
+    // a kind that comes at its prey its own way (CHASES: a spitter keeps its distance)
+    const pace = CHASES[z.ztype]?.call(this, z, tx, tz, dist, _dir);
+    if (pace) {
+      dx = _dir.x;
+      dz = _dir.z;
+    }
+    _go.x = dx;
+    _go.z = dz;
+    return pace || 1;
+  }
+
+  // where z with nobody to chase and nothing heard wanders (about where it stands, its dogs' patch, the drifts of the
+  // mine, its den, its wards) into _go; returns its pace, an amble out of the `speed` it would run at
+  wanderWay(z, dt, zu, speed) {
+    const g = this.g;
+    const def = z.def;
+    const mn = g.mineNav;
+    z.wanderT -= dt;
+    if (z.wanderT <= 0) {
+      z.wanderT = 5 + g.rng() * 9;
+      const spot = zu && g.rng() < (z.den ? 0.35 : 0.6) ? mn.randomSpot(z.x, z.z, 14, g.rng) : null;
+      if (zu) {
+        // down in the mine: about the drifts, or nowhere
+        z.wanderX = spot ? spot.x : z.x;
+        z.wanderZ = spot ? spot.z : z.z;
+      } else if (g.rng() < 0.4) {
+        z.wanderX = z.x;
+        z.wanderZ = z.z;
+      } else if (def.shade) {
+        this.shadeWander(z);
+      } else if (z.pack && !z.horde) {
+        // dogs keep to their patch of woods
+        const a = g.rng() * Math.PI * 2;
+        const r = g.rng() * 16;
+        z.wanderX = z.homeX + Math.sin(a) * r;
+        z.wanderZ = z.homeZ + Math.cos(a) * r;
+      } else {
+        z.wanderX = z.x + (g.rng() - 0.5) * 30;
+        z.wanderZ = z.z + (g.rng() - 0.5) * 30;
+      }
+    }
+    let dx = z.wanderX - z.x;
+    let dz = z.wanderZ - z.z;
+    if (z.den && !zu) {
+      // led up out of the mine and left there: back down to its den
+      if (this.steerLevels(z, z.homeX, z.homeZ, true)) {
+        dx = _dir.x;
+        dz = _dir.z;
+      }
+    } else if (z.ward && this.wards.steer(z, _dir)) {
+      // one of the clinic's: about its wards, and back to them when it was led out
+      dx = _dir.x;
+      dz = _dir.z;
+    } else if (Math.hypot(dx, dz) < 1) {
+      dx = 0;
+      dz = 0;
+    } else if (zu && mn.dir(z.x, z.z, z.wanderX, z.wanderZ, _dir)) {
+      dx = _dir.x;
+      dz = _dir.z;
+    }
+    _go.x = dx;
+    _go.z = dz;
+    return z.pack ? 1.5 : Math.min(speed, 1.1) * 0.8;
+  }
+
+  // z's pace (m/s), from the speed it heads off at (headFor): a runner with nothing to chase only ambles, a leg shot off
+  // slows it (on none it drags itself along by its arms), a fresh hit trips it, a trap holds it back, and the night's
+  // horde comes on faster the further the run has got
+  pace(z, speed, chasing) {
+    const g = this.g;
+    if (!chasing && z.ztype === ZTYPE.RUNNER && !z.herd) speed = RUNNER_AMBLE;
+    // legs (Combat.hitLeg): on one it hobbles, on none it drags itself along by its arms, and a fresh hit trips it
+    if (z.legs === 3) speed = crawlSpeed(z.def) * g.diff.speed * (chasing ? 1 : CRAWL_SLOW);
+    else if (z.legs) speed *= HOBBLE_SPEED;
+    if (z.stumbleT > 0) speed *= STUMBLE_SPEED;
+    speed *= z.trapSlow;
+    if ((g.phase === PHASE.NIGHT || g.escape.active) && z.horde) speed *= 1.06 + Math.min(0.2, 0.015 * g.day);
+    return speed;
+  }
+
+  // Is z's prey (feet at ty, dist m off) in reach of a blow, with nothing in the way (canReach, canReachUp)? It stops
+  // there, and swings when it may (a pack's dogs one at a time: packFree). True while in reach.
+  strikeAt(z, target, ty, dist) {
+    const g = this.g;
+    const def = z.def;
+    if (!(target && z.state !== 7 && !def.noMelee && g.vehicles.reachTo(target, z.x, z.z, dist) <= def.range + PLAYER_RADIUS && ((Math.abs(ty - z.y) < 2.3 && this.canReach(z, target)) || this.canReachUp(z, target)))) return false;
+    if (z.attackCd <= 0 && z.pendingHit <= 0 && this.packFree(z, SWING_LEAD)) {
+      this.packMark(z, SWING_LEAD);
+      z.attackCd = def.rate;
+      z.pendingHit = SWING_LEAD;
+      z.pendingKind = 1;
+      z.pendingTarget = target.id;
+      z.anim = ZANIM.ATTACK;
+      z.animT = 0.6;
+      if (g.rng() < 0.5) g.sound(z.ztype === ZTYPE.TANK ? SOUND.TANK_ROAR : def.pack ? SOUND.DOG_SNARL : SOUND.ZOMBIE_ATTACK, z.x, z.y + Math.min(1.6, def.height), z.z, 35);
+    }
+    return true;
+  }
+
+  // z tried to move at moveSpeed along (dx, dz) this tick and is not striking anyone: held up by a piece the survivors
+  // built, it claws at it (a dog rams it); getting nowhere for STUCK_T s otherwise, it sets off to one side for a while
+  clawOrUnstick(z, dt, target, moveSpeed, dx, dz) {
+    const g = this.g;
+    const def = z.def;
+    if (z.blockStruct && def.structDmg > 0) {
+      const s = g.ents[z.blockStruct];
+      if (def.ramDmg && target && z.ramCd <= 0 && s && s.kind === ENT.STRUCTURE) this.startRam(z, s);
+      else if (s && s.kind === ENT.STRUCTURE && z.attackCd <= 0 && z.pendingHit <= 0) {
+        z.attackCd = def.rate;
+        z.pendingHit = 0.35;
+        z.pendingKind = 2;
+        z.pendingTarget = s.id;
+        z.anim = ZANIM.ATTACK;
+        z.animT = 0.6;
+      }
+      return;
+    }
+    // stuck detection
+    const moved = Math.hypot(z.x - z.lastX, z.z - z.lastZ);
+    if (moved < moveSpeed * dt * 0.2 && z.animT <= 0) z.stuckT += dt;
+    else z.stuckT = Math.max(0, z.stuckT - dt * 0.5);
+    if (z.stuckT > STUCK_T && z.detourT <= 0) {
+      z.stuckT = 0;
+      z.detourT = 0.8 + g.rng() * 0.8;
+      const side = g.rng() < 0.5 ? 1 : -1;
+      z.detourX = -dz * side + dx * 0.2;
+      z.detourZ = dx * side + dz * 0.2;
+    }
+  }
+
+  // facing & anim (a crawler hauls itself round slowly: its head leads its body, and the hitbox with it)
+  faceAndGait(z, dt, target, tx, tz, dist, attacking, chasing) {
     const swing = z.legs === 3 ? 0.4 : 1;
     if ((attacking || (target && dist < 4)) && z.state !== 7) z.yaw = turn(z.yaw, Math.atan2(-(tx - z.x), -(tz - z.z)), dt * 8 * swing);
     else if (Math.hypot(z.vx, z.vz) > 0.2) z.yaw = turn(z.yaw, Math.atan2(-z.vx, -z.vz), dt * 5 * swing);
@@ -1285,15 +1371,11 @@ export class Zombies {
     const night = g.phase === PHASE.NIGHT;
     let best = null;
     let bd = Infinity;
-    const mn = g.mineNav;
     const lone = z.ztype === ZTYPE.LEAPER && humans.length > 1;
     for (const h of humans) {
       if (g.safe(h)) continue; // (dropped and held, or back and not playing yet: game.js hold, resume)
       const s = h.state;
-      let d = Math.hypot(s.x - z.x, s.z - z.z);
-      // a survivor on the other level is as far off as the walk round by a portal; one down the same drifts as far
-      // as the drifts make it (not the few metres of rock between two galleries)
-      if (mn && (z.under || h.under)) d = z.under && h.under ? Math.max(d, mn.dist(z.x, z.z, s.x, s.z)) : z.under ? mn.between(z.x, z.z, s.x, s.z).d : mn.between(s.x, s.z, z.x, z.z).d;
+      const d = walkDist(g.mineNav, z, s.x, s.z, h.under, Math.hypot(s.x - z.x, s.z - z.z));
       let range = z.horde ? 600 : night ? 55 : 26;
       if (h.downed) range *= 0.5;
       else if (s.crouch) range *= 0.6;
@@ -1372,23 +1454,10 @@ export class Zombies {
   }
 
   // melee reach: a clear torso-to-torso line, so the dead can't swipe through walls, boarded doors
-  // or waist-high barricades. Terrain is ignored so a bump in the ground never shields a downed survivor.
+  // or waist-high barricades (strikeOpen)
   canReach(z, p) {
     const s = p.state;
-    const ox = z.x;
-    const oy = z.y + bodyHeight(z) * 0.55;
-    const oz = z.z;
-    let dx = s.x - ox;
-    let dy = s.y + (s.downed ? 0.3 : s.crouch ? 0.6 : 0.9) - oy;
-    let dz = s.z - oz;
-    const l = Math.hypot(dx, dy, dz) || 1;
-    dx /= l;
-    dy /= l;
-    dz /= l;
-    raycastWorld(this.g.world, ox, oy, oz, dx, dy, dz, l, _ray);
-    const c = _ray.col;
-    // a survivor standing inside a gate / door boards they're squeezing through is still in reach
-    return !c || (c.flags & COL.HUMANPASS && footprintContains(c, s.x, s.z));
+    return strikeOpen(this.g.world, z.x, z.y + bodyHeight(z) * 0.55, z.z, s.x, s.y + strikeHeight(s), s.z);
   }
 
   // melee reach at a survivor standing on something (a car roof, a dumpster), where the torso line above runs
@@ -1410,8 +1479,7 @@ export class Zombies {
     if (_ray.col) return false;
     const l = Math.hypot(s.x - z.x, s.z - z.z) || 1;
     raycastWorld(w, z.x, ty, z.z, (s.x - z.x) / l, 0, (s.z - z.z) / l, l, _ray);
-    const c = _ray.col;
-    return !c || (c.flags & COL.HUMANPASS && footprintContains(c, s.x, s.z));
+    return passesTo(_ray.col, s.x, s.z);
   }
 
   integrate(z, dt, dvx, dvz, humans) {
@@ -1468,7 +1536,7 @@ export class Zombies {
       _pos.x = ox;
       _pos.z = oz;
     }
-    const lim = this.g.world.half - 4;
+    const lim = this.g.world.half - MAP_EDGE;
     z.x = Math.max(-lim, Math.min(lim, _pos.x));
     z.z = Math.max(-lim, Math.min(lim, _pos.z));
     const gy = groundAt(g.world, z.x, z.z, z.y, 0.2, false);
@@ -1564,7 +1632,7 @@ export class Zombies {
     if (!z.link) return;
     const p = g.players.get(z.link);
     if (p) {
-      if (z.ztype === ZTYPE.LEAPER || z.ztype === ZTYPE.CRAWLER) p.state.pinned = 0;
+      if (pinsDown(z)) p.state.pinned = 0;
       else p.state.pulled = 0;
       p.pinnedBy = 0;
       p.ropedBy = 0;
@@ -1585,8 +1653,8 @@ export class Zombies {
       z.animT = 0;
     }
     z.specialCd = 6 + this.g.rng() * 3;
-    // a crawler off a face makes off for a tree away from them (FLEE_*)
-    if (z.ztype === ZTYPE.CRAWLER && !z.dead) this.fleeFace(z, p);
+    // what its kind does once it has let go (RELEASES: a crawler off a face runs for a tree)
+    RELEASES[z.ztype]?.call(this, z, p);
   }
 
   // ---------------------------------------------------------------- specials (each kind's own: server/specials/)
@@ -1596,14 +1664,17 @@ export class Zombies {
     const def = z.def;
     const t = z.ztype;
 
-    // a crawler up a tree, or on its way to one (perch)
-    if (t === ZTYPE.CRAWLER && z.state === 0 && this.perch(z, dt, target, dist)) return true;
+    // a way of getting about of its kind's own (MOVES: a crawler up a tree, or on its way to one)
+    const move = z.state === 0 && MOVES[t];
+    if (move && move.call(this, z, dt, target, tx, ty, tz, dist)) return true;
 
     // windup common: state 1
     if (z.state === 1) {
       z.stateT -= dt;
       z.anim = ZANIM.SPECIAL;
-      if (z.stateAct === 12) z.yaw = turn(z.yaw, Math.atan2(z.ramX, z.ramZ), dt * 10); // (a dog squaring up to the piece it rams)
+      // to its prey, unless the act is aimed elsewhere (AIMS: a dog squaring up to the piece it rams)
+      const aim = AIMS[z.stateAct];
+      if (aim) aim.call(this, z, dt);
       else this.faceTarget(z, dt, target, tx, tz);
       this.holdStill(z, dt);
       if (z.stateT <= 0) {
@@ -1694,13 +1765,41 @@ export class Zombies {
   fireSpecial(z, target, tx, ty, tz, dist) {
     ACTS[z.stateAct]?.call(this, z, target, tx, ty, tz, dist);
   }
+
+  // Did a bullet that struck z's body (not its head nor a leg) at (x, y, zz), its feet at pos, go into a spot of its
+  // kind's own (SPOTS: the Mother's belly)? Combat.fire asks, for one of the dead or a deer
+  spotHit(z, pos, x, y, zz) {
+    const spot = z.kind === ENT.ZOMBIE ? SPOTS[z.ztype] : null;
+    return !!spot && spot.at.call(this, z, pos, x, y, zz);
+  }
+  // ...and what that does once the bullet's damage is dealt (by: who shot it, along dirX, dirZ)
+  spotStruck(z, by, dirX, dirZ) {
+    SPOTS[z.ztype].struck.call(this, z, by, dirX, dirZ);
+  }
+
+  // what z's kind does as it dies, once its loot is down (DEATHS: a smoker's last breath, a boomer's blast)
+  dies(z, attacker, opts, sunKill) {
+    DEATHS[z.ztype]?.call(this, z, attacker, opts, sunKill);
+  }
+  // does z's kind burst as it dies, however it is killed (BURSTS: the boomer)?
+  bursts(z) {
+    return BURSTS.has(z.ztype);
+  }
 }
 installSpecials(Zombies); // (each special kind's own methods, from server/specials/)
+
+// How far z has to go to (x, zz), d m off in a straight line, when either is down in the mine (mn: the game's
+// MineNav, or null; under: the spot is down there): down the same drifts as far as the drifts make it (not the few
+// metres of rock between two galleries), and between the two levels the walk round by a portal. d as it is when both
+// are up in the valley.
+function walkDist(mn, z, x, zz, under, d) {
+  if (!mn || !(under || z.under)) return d;
+  return under && z.under ? Math.max(d, mn.dist(z.x, z.z, x, zz)) : under ? mn.between(x, zz, z.x, z.z).d : mn.between(z.x, z.z, x, zz).d;
+}
 
 // how fast a zombie of this kind drags itself along once both legs are gone (m/s)
 export function crawlSpeed(def) {
   return Math.max(CRAWL_SPEED_MIN, Math.min(CRAWL_SPEED_MAX, def.speed * CRAWL_SPEED));
 }
 
-export { STRUCT_DEFS, EYE_HEIGHT };
 export { LONE_NEAR, LONE_WEIGHT, leapAim } from './specials/leaper.js';
