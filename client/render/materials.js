@@ -32,7 +32,7 @@ function noShadow(mat) {
 }
 
 // A face that is always in its roof's shadow and lies too near that roof's underside for a shadow map to tell them
-// apart (a room's tiled ceiling, 4 mm under the slab: citykit.js room()): it takes the sun as the roof's shadow would
+// apart (a room's tiled ceiling, 4 mm under the slab: city/room.js room()): it takes the sun as the roof's shadow would
 // leave it, never the shadow map's guess, which lit it in patches that crawled as the cascades moved with the camera
 function underRoof(mat, key) {
   const SHADOW = 'getSunShadow( sunShadowMap[ i ], sunLightShadow, UNROLLED_LOOP_INDEX )';
@@ -175,7 +175,7 @@ const DEFS = {
   chainlink: () => lambert({ map: tileTex('chainlink', 0.3), transparent: true, alphaTest: 0.08, depthWrite: false, side: THREE.DoubleSide }),
   // the city (citykit.js): the inside of its rooms, its roofs, and what is laid on its walls from the city's atlas -
   // boards, lettering and ivy cut out at half alpha, soot, rust and damp blended on (neither casts a shadow)
-  // (the lining of a room takes the day that reaches it as its vertex colour: citykit.js room())
+  // (the lining of a room takes the day that reaches it as its vertex colour: city/room.js room())
   plaster: () => lambert({ map: tileTex('plaster'), vertexColors: true }),
   lino: () => lambert({ map: tileTex('lino'), vertexColors: true }),
   floorboards: () => lambert({ map: tileTex('planks'), vertexColors: true }),

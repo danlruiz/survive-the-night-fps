@@ -5,7 +5,7 @@ export { GEN as CITY_GEN };
 
 // Walls and ceilings of a room that was lived in: plaster under paint or paper, 4 m to the tile. Pale and neutral
 // (the kit tints it per room by vertex colour, and lays the stains, the damp and the cracks on each wall where that
-// wall has them: citykit.js room()). What is in the tile is only what no eye picks out twice along a wall: the
+// wall has them: city/room.js room()). What is in the tile is only what no eye picks out twice along a wall: the
 // unevenness of old paint, hairline cracks, a few small flakes down to the render.
 GEN.plaster = () => {
   const W = 512;

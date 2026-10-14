@@ -918,7 +918,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   building, and frame times, through `launchChrome`). act2-shots builds the same mainland in node and checks every
   camera against it before the shot is taken (`pickCam`: in nothing solid, in no tree's crown, nothing between it
   and its subject); a run of it is one section or two (`--only`), well inside a browser's life.
-- **The city's kit** (`client/render/citykit.js`, called by `StaticWorld` for a world with `world.city`). It
+- **The city's kit** (`client/render/citykit.js` + `city/`, called by `StaticWorld` for a world with `world.city`). It
   writes triangles straight into the static world's merged buffers, in a building's own frame: a face is cut into
   bays (`STYLE`), every window an opening with reveals and something in it (glass, shards, the dark, boards -
   `windowState`, by a hash of the building's seed, so it is the same on every client), and from near its frame,
