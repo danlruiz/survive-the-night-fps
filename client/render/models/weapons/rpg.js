@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, handQ, supportGrip, GRIPS, trigger, triggerGuard, bandZ } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, handQ, supportGrip, GRIPS, trigger, triggerGuard, bandZ } from './parts.js';
 
 function buildRPG(P) {
   const hi = P.hi;
@@ -77,6 +77,7 @@ function buildRPG(P) {
 export default {
   id: ITEM.RPG,
   build: buildRPG,
+  lay: [0, PI / 2 - 0.35, -PI / 2, 'XYZ'], // on the ground on its right side (on its left it would rest on the sight)
   vm: {
     // shouldered: the tube rests on the right shoulder and runs forward down the right of the screen, the right hand on
     // the pistol grip, the left round the front grip; aimed, the sight off the left of the tube comes up to the eye.

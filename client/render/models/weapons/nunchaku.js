@@ -170,6 +170,9 @@ export function getNunchakuGeo(hi) {
 export default {
   id: ITEM.NUNCHAKU,
   build: buildNunchaku,
+  // on the ground folded, the two handles side by side flat on it (laid on its side, as other weapons are, one handle
+  // would stand on the other)
+  lay: [0, PI / 2 - 0.35, 0, 'YXZ'],
   // nunchucks: no one pose and no one swing. Both hands, a chain and a free handle that are simulated, and a moveset:
   // all of it is models/nunchaku.js (ViewModel._updateNunchaku puts its hands and handles where that says)
   vm: { kind: 'melee', nunchaku: true, hip: [0.147, -0.262, -0.4, 0.9, 0.4, 0.0], rPose: 'nkGrip', rGrip: { p: [0, 0, 0], q: Q(0, 0, 0) }, lGrip: { p: [0, 0, 0], q: Q(0, 0, 0), pose: 'nkGrip' }, sprint: [0, 0, 0, 0, 0, 0] },

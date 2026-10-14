@@ -71,6 +71,7 @@ function buildDecoy(P) {
 export default {
   id: ITEM.DECOY,
   build: buildDecoy,
+  lay: [0, PI + 0.6, 0, 'YXZ'], // on the ground standing on its feet, its dial turned a little to one side
   // the alarm clock sits on the palm, the fingers cupped round its feet, its dial turned to the eye
   vm: { kind: 'throw', hip: [0.15, -0.115, -0.34, 0.15, 0.35, -0.1], rPose: 'clock', rGrip: { p: [0, -0.058, 0], q: handQ(1, [-0.71, 0, -0.71], [0, 1, 0]) }, sprint: SPRINT.throwable },
   // the alarm clock's feet down on the palm, the fingers cupped up behind its case

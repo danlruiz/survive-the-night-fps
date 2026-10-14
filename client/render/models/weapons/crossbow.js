@@ -89,6 +89,7 @@ function buildCrossbow(P) {
 export default {
   id: ITEM.CROSSBOW,
   build: buildCrossbow,
+  lay: [-0.16, PI / 2 - 0.35, 0, 'YXZ'], // on the ground flat, nose down on its stirrup (on its side it would stand on one limb)
   vm: {
     kind: 'rifle', crossbow: true, hip: [0.2, -0.19, -0.2, 0.03, 0.17, 0.0], ads: 0.22, adsZ: -0.53, adsPitch: 0.1,
     rPose: 'xbowGrip', rGrip: { p: [0, 0, 0], q: gunGrip(0.75) }, lGrip: { q: LONG_GUN_SUPPORT, pose: 'xbowSupport' },

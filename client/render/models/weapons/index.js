@@ -5,6 +5,9 @@
 //          and its meta (muzzle, leftHand, sight, ...). The same builder makes the world / pickup model (merged into
 //          one 'body', low detail) and the viewmodel (split into its moving parts, high detail)
 //   vm     how it is held in first person (below)
+//   lay    optional: how its ground pickup lies (pickups.js), as the Euler [x, y, z, order] it is turned by; without
+//          one a weapon lies on its side, barrel along X. A held item that is not a weapon (shared/weapons/) is
+//          picked up as this same model only if it has one (the other throwables have their own pickup models)
 //   poses  optional: hand poses fitted to it alone (HAND_POSES entries, see hands.js), added to HAND_POSES here. Each
 //          is fitted against its own model (clip:fit, docs/clippy.md: the palm seated on the surface along its normal,
 //          every finger closed until it touches, the thumb laid along it), so nothing of the hand is inside it; a
@@ -90,10 +93,12 @@ export const HELD_ITEMS = [
 // the tables the models are drawn from, by item id
 export const BUILDERS = {};
 export const VM = {};
+export const PICKUP_LAY = {};
 for (const item of HELD_ITEMS) {
   if (BUILDERS[item.id]) throw new Error(`two held items with item id ${item.id}`);
   BUILDERS[item.id] = item.build;
   VM[item.id] = item.vm;
+  if (item.lay) PICKUP_LAY[item.id] = item.lay;
   for (const name in item.poses) {
     if (HAND_POSES[name]) throw new Error(`hand pose ${name} is defined twice`);
     HAND_POSES[name] = item.poses[name];

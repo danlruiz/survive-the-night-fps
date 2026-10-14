@@ -5,6 +5,7 @@ import { ITEM, WEAPONS } from '../../../shared/defs.js';
 import { MeshBuilder, partsToGroup, makeRng } from '../materials.js';
 import { atlasUV } from '../textures.js';
 import { createWorldWeapon } from './weapons.js'; // (static: a top-level await for it here holds every module up for one more request)
+import { PICKUP_LAY } from './weapons/index.js';
 import { rpgGrenade } from './misc.js';
 import { createBackpack } from './backpack.js';
 
@@ -18,7 +19,7 @@ const REST_SINK = 0.004, REST_LIFT = 0.008, REST_AT = 0.002;
 
 /** @returns {THREE.Object3D} */
 export function createPickup(itemId) {
-  if (WEAPONS[itemId] || HELD_LAY[itemId]) return weaponPickup(itemId);
+  if (WEAPONS[itemId] || PICKUP_LAY[itemId]) return weaponPickup(itemId);
   if (itemId === ITEM.BACKPACK) return backpackPickup();
   let parts = cache.get(itemId);
   if (!parts) {
@@ -47,16 +48,11 @@ function weaponPickup(itemId) {
   const g = new THREE.Group();
   g.name = `pickup_${itemId}`;
   g.userData.itemId = itemId;
-  // lay the weapon on its side, barrel along X, resting on the ground
-  // (a crossbow lies flat instead, nose down on its stirrup, or it would stand on one limb; the RPG lies on its right
-  // side, or it would rest on the sight off its left)
-  const flat = itemId === ITEM.CROSSBOW;
+  // laid as its own file says (weapons/<name>.js), else on its side, barrel along X, resting on the ground
   const holder = new THREE.Group();
   holder.add(w);
-  const lay = HELD_LAY[itemId];
-  if (lay) holder.rotation.set(lay[0], lay[1], lay[2], 'YXZ');
-  else if (flat) holder.rotation.set(-0.16, PI / 2 - 0.35, 0, 'YXZ');
-  else holder.rotation.set(0, PI / 2 - 0.35, itemId === ITEM.RPG ? -PI / 2 : PI / 2);
+  const lay = PICKUP_LAY[itemId] || SIDE_LAY;
+  holder.rotation.set(lay[0], lay[1], lay[2], lay[3]);
   g.add(holder);
   let x = weaponXform.get(itemId);
   if (!x) {
@@ -77,11 +73,8 @@ function weaponPickup(itemId) {
   return g;
 }
 
-// Throwables that lie on the ground as the same model as the one in the hand (weapons.js), and how (Euler YXZ): the
-// frag grenade on its side, its spoon up; the noisemaker standing on its feet, its dial turned a little to one side.
-// And the nunchucks: folded, the two handles side by side flat on the ground (on its side, as other weapons are
-// laid, one handle would stand on the other)
-const HELD_LAY = { [ITEM.GRENADE]: [0, 0.55, PI / 2 - 0.12], [ITEM.DECOY]: [0, PI + 0.6, 0], [ITEM.NUNCHAKU]: [0, PI / 2 - 0.35, 0] };
+// how a weapon lies on the ground when its own file gives no lay: on its side, barrel along X
+const SIDE_LAY = [0, PI / 2 - 0.35, PI / 2, 'XYZ'];
 
 // the backpack (backpack.js, the same model a survivor wears): stood on its base, leaning back a little against its
 // shoulder straps

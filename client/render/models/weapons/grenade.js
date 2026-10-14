@@ -95,6 +95,7 @@ function buildGrenade(P) {
 export default {
   id: ITEM.GRENADE,
   build: buildGrenade,
+  lay: [0, 0.55, PI / 2 - 0.12, 'YXZ'], // on the ground on its side, its spoon up
   vm: { kind: 'throw', hip: [0.13, -0.12, -0.3, 0.3, 0.35, -0.12], rPose: 'ball', rGrip: { p: [0, 0, 0], q: gunGrip(0.0) }, sprint: SPRINT.throwable },
   poses: {
     ball: { curl: [[0.87, 0.99, 0.69], [0.82, 0.94, 0.66], [0.76, 0.87, 0.6], [0.67, 0.77, 0.54]], spread: 0.0, thumb: [[-0.59, -0.26, -0.77], [-0.38, -0.92, -0.05]], center: [-0.0475, -0.075, 0] }, // frag grenade
