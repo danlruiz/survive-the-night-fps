@@ -1,14 +1,14 @@
 // The leaper (ZTYPE.LEAPER): its model, how it moves and its windup (gathered by zombies/index.js).
 import * as THREE from 'three';
 import { ZTYPE } from '../../../../shared/defs.js';
-import { MeshBuilder, fbm3, smooth, color } from '../skinning.js';
+import { MeshBuilder, fbm3, smooth, color, mulColor } from '../skinning.js';
 import { CR } from '../charTextures.js';
 import { bloodied } from '../deadlooks.js';
 import { bigHand, bigFoot, shard } from '../monsters.js';
 import { surfPoint, headPoint, headSurface } from '../humans.js';
 import { SPINE, CHEST, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { buildingFar, mulColor, standardHumanoid } from './helpers.js';
+import { buildingFar, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;

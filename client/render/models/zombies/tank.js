@@ -1,13 +1,13 @@
 // The Tank (ZTYPE.TANK): its model, how it moves, its windup and its swing (gathered by zombies/index.js).
 import { ZTYPE } from '../../../../shared/defs.js';
-import { MeshBuilder, smooth } from '../skinning.js';
+import { MeshBuilder, smooth, mulColor } from '../skinning.js';
 import { CR } from '../charTextures.js';
 import { bloodied } from '../deadlooks.js';
 import { hulk, field, bigHand, bigFoot, tornOpen, shard, surfTube, ragPants } from '../monsters.js';
 import { surfPoint } from '../humans.js';
 import { SPINE, CHEST, JAW, humanP, addHumanoidBones } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { mulColor, bossHead, hide, flayed } from './helpers.js';
+import { bossHead, hide, flayed } from './helpers.js';
 
 const PI = Math.PI;
 

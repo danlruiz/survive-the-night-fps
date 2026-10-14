@@ -1,11 +1,10 @@
 // The bat (ZTYPE.BAT): its model and its whole animation (it flies) (gathered by zombies/index.js).
 import * as THREE from 'three';
 import { ZTYPE, ZANIM } from '../../../../shared/defs.js';
-import { MeshBuilder, fbm3, clamp, lerp, smooth, color } from '../skinning.js';
+import { MeshBuilder, fbm3, clamp, lerp, smooth, color, mulColor } from '../skinning.js';
 import { CR } from '../charTextures.js';
 import { ringLoft, bound } from '../monsters.js';
 import { clearPose, R, n1 } from '../characters/posekit.js';
-import { mulColor } from './helpers.js';
 
 const PI = Math.PI;
 

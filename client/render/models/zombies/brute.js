@@ -2,14 +2,14 @@
 // zombies/index.js).
 import * as THREE from 'three';
 import { ZTYPE } from '../../../../shared/defs.js';
-import { MeshBuilder, fbm3, clamp, lerp, smooth, color } from '../skinning.js';
+import { MeshBuilder, fbm3, clamp, lerp, smooth, color, mulColor } from '../skinning.js';
 import { CR } from '../charTextures.js';
 import { bloodied } from '../deadlooks.js';
 import { hulk, field, ringLoft, bigHand, stitches, chain, strap, bound, ragPants, angleOn, reweigh } from '../monsters.js';
 import { surfPoint, sheet } from '../humans.js';
 import { SPINE, CHEST, JAW, humanP, addHumanoidBones } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { mulColor, bossHead, hide } from './helpers.js';
+import { bossHead, hide } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;

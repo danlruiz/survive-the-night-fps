@@ -1,18 +1,15 @@
-// What the specials, the bosses and the animals are built from (characters.js, dog.js): the same lofted, two-bone
+// What the specials, the bosses and the animals are built from (zombies/, dog.js): the same lofted, two-bone
 // skinned surfaces as the people (humans.js), for bodies that are not a person's - a hulk's trunk and limbs from a table
 // of cross-sections, anything that runs along a path (a dog's barrel, a tail, a finger, a tongue), muscle and fat laid
 // on as fields over a surface, and the injuries and oddments that say what a thing is: a flank torn open to the ribs,
 // stitches, chains, straps, sacs, blisters, rags.
 import * as THREE from 'three';
-import { fbm3, mulberry32, clamp, lerp, smooth, color } from './skinning.js';
+import { fbm3, clamp, lerp, smooth, color, sstep, gauss as G, angDiff } from './skinning.js';
 import { CR } from './charTextures.js';
 import { sheet, surfPoint, ringTable } from './humans.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
-const G = (x) => Math.exp(-x * x);
-const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
-export const mulC = (c, k) => color(c).multiplyScalar(k);
 
 // ====================================================================== surfaces
 /**
@@ -519,10 +516,9 @@ export function shard(mb, w, a, b, r, o = {}) {
 }
 
 // ====================================================================== a hulk
-const sstep = (a, b, x) => smooth((x - a) / (b - a));
 
 /**
- * A body on the humanoid rig (characters.js addHumanoidBones) from tables of cross-sections, for what is too big or
+ * A body on the humanoid rig (characters/skeleton.js addHumanoidBones) from tables of cross-sections, for what is too big or
  * too wrong to be a person: the trunk from the crotch to the base of the neck (hips -> spine -> chest, the shoulders'
  * tops a little with the collarbones, and a gut on its own bone if there is one), a neck, the arms from the shoulder's
  * cap to the wrist, the legs to the ankle. o:
@@ -678,4 +674,3 @@ export function ragPants(mb, B, rise, hem, o = {}) {
   }
 }
 
-export { mulberry32, G, angDiff };

@@ -18,14 +18,12 @@
 //   wounds [[x, y, z, r]], missingArm 'L' | 'R', oneEye, noEar, cheekTear, skullPatch [dx, dy, dz, angle], claws,
 //   fist (survivors: closed hands round what they hold)
 import * as THREE from 'three';
-import { mulberry32, fbm3, clamp, lerp, smooth, color } from './skinning.js';
+import { mulberry32, fbm3, clamp, lerp, color, sstep, gauss as G, mulColor } from './skinning.js';
 import { CR } from './charTextures.js';
 import { buildHumanHead, headSurface, headPoint, bodyBuild, torsoSurf, neckSurf, armSurf, legSurf, sheet, pillow, surfPoint } from './humans.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
-const G = (x) => Math.exp(-x * x);
-const sstep = (a, b, x) => smooth((x - a) / (b - a));
 const C_BLOOD = color(0x3a0303);
 const C_WOUND = color(0x4a0806);
 const C_WOUND2 = color(0x8a2a20);
@@ -70,7 +68,7 @@ function tearOf(g, seed, fn) {
   return { amt, f: 13, seed, fn };
 }
 
-/** Everything in one: a person on the humanoid rig of characters.js (addHumanoidBones). Returns what the rig keeps. */
+/** Everything in one: a person on the humanoid rig of characters/skeleton.js (addHumanoidBones). Returns what the rig keeps. */
 export function buildPerson(mb, P, L, detail = 1) {
   const B = bodyBuild(L);
   const dead = !!L.dead;
@@ -96,7 +94,7 @@ export function buildPerson(mb, P, L, detail = 1) {
   // that hangs over the belt, on a vest that comes down to it) and on the chest (a radio clipped on: a vest's front).
   // Any part a survivor can now wear with any other (the character creator): kit put on what is under it went through
   // what is over it. (Not the worn pack: put on a vest the same way, its straps went further into the body - the clip
-  // survey's -pack frames on Walt, Hank and Luis - so it stays fitted to the top: characters.js packDZ, strapFit)
+  // survey's -pack frames on Walt, Hank and Luis - so it stays fitted to the top: characters/survivorrig.js packDZ, strapFit)
   const pV = L.vest ? pT + (L.vest.kind === 'down' ? 0.024 : 0.009) : 0;
   const pHip = Math.max(top && !top.tucked && !cover && hem < rise - 0.05 ? pT + 0.004 : pP, pV); // (+ a hem band's)
   const pChest = Math.max(pT, pV);
@@ -142,7 +140,7 @@ export function buildPerson(mb, P, L, detail = 1) {
           const p = surfPoint(T, sd * open, y, pT + 0.002);
           pts.push(p);
         }
-        if (!FAR()) edgeTube(mb, T, pts, 0.0055, { color: mulC(topCol, 0.8), region: topReg });
+        if (!FAR()) edgeTube(mb, T, pts, 0.0055, { color: mulColor(topCol, 0.8), region: topReg });
       }
     } else {
       sheet(mb, T, 0, TAU, y0, collarY, rs, nvT(y0, collarY), pT, {
@@ -162,7 +160,7 @@ export function buildPerson(mb, P, L, detail = 1) {
     // a hem band (jackets, hoodies), a stitched hem on the rest
     if (top.kind === 'jacket' || top.kind === 'hoodie' || top.kind === 'fleece' || top.kind === 'coat') {
       const band = top.kind === 'jacket' ? 0.035 : 0.045;
-      sheet(mb, T, open, TAU - open, y0, y0 + band, rs - (open ? 4 : 0), 2, pT + 0.0035, { color: mulC(topCol, 0.88), region: topReg, mottle: 0.1, tear: tearOf(top, 41) });
+      sheet(mb, T, open, TAU - open, y0, y0 + band, rs - (open ? 4 : 0), 2, pT + 0.0035, { color: mulColor(topCol, 0.88), region: topReg, mottle: 0.1, tear: tearOf(top, 41) });
     }
   } else if (!dead || !pants || FAR()) {
     // bare-chested (a dead body): the skin from the trousers up (a dead body's near copy has it under its rags, above)
@@ -207,7 +205,7 @@ export function buildPerson(mb, P, L, detail = 1) {
   }
   if (cover) {
     // a coverall's waist seam and its belt loops of the same cloth
-    sheet(mb, T, 0, TAU, yH + 0.05, yH + 0.075, rs, 1, pT + 0.003, { color: mulC(topCol, 0.85), region: topReg });
+    sheet(mb, T, 0, TAU, yH + 0.05, yH + 0.075, rs, 1, pT + 0.003, { color: mulColor(topCol, 0.85), region: topReg });
   }
   // ---- neck (skin), and a collar round it
   mb.tag = 'skin';
@@ -230,9 +228,9 @@ export function buildPerson(mb, P, L, detail = 1) {
       const pS = thick * 0.45 + 0.003; // (a sleeve hugs the arm closer than the body: a long gun rides along the forearm)
       const ys = Math.max(sl, yEnd);
       sheet(mb, A, 0, TAU, ys, A.yHi, rsA, nvL(ys, A.yHi), pS, { color: topCol, region: topReg, mottle: 0.12, tint: top.tint, tear: tearS, cap0: 0, cap1: 0.003 });
-      if (sleeves === 'rolled') sheet(mb, A, 0, TAU, sl, sl + 0.04, rsA, 2, pS + 0.008, { color: mulC(topCol, 0.92), region: topReg });
-      else if (sleeves === 'long' && (top.kind === 'jacket' || top.kind === 'hoodie' || top.kind === 'fleece' || top.kind === 'coat')) sheet(mb, A, 0, TAU, sl, sl + 0.03, rsA, 1, pS + 0.004, { color: mulC(topCol, 0.85), region: topReg });
-      else if (sleeves === 'short') sheet(mb, A, 0, TAU, sl, sl + 0.015, rsA, 1, pS + 0.002, { color: mulC(topCol, 0.9), region: topReg });
+      if (sleeves === 'rolled') sheet(mb, A, 0, TAU, sl, sl + 0.04, rsA, 2, pS + 0.008, { color: mulColor(topCol, 0.92), region: topReg });
+      else if (sleeves === 'long' && (top.kind === 'jacket' || top.kind === 'hoodie' || top.kind === 'fleece' || top.kind === 'coat')) sheet(mb, A, 0, TAU, sl, sl + 0.03, rsA, 1, pS + 0.004, { color: mulColor(topCol, 0.85), region: topReg });
+      else if (sleeves === 'short') sheet(mb, A, 0, TAU, sl, sl + 0.015, rsA, 1, pS + 0.002, { color: mulColor(topCol, 0.9), region: topReg });
       // skin from inside the sleeve down
       const under = dead && top.tear && !FAR() ? A.yHi : Math.min(A.yHi, sl + 0.03); // (torn: the arm shows through the holes)
       if (yEnd < under) sheet(mb, A, 0, TAU, yEnd, under, rsA - (dead ? 2 : 0), nvL(yEnd, under), 0, { ...skinO, cap0: 0, cap1: 0 });
@@ -263,8 +261,8 @@ export function buildPerson(mb, P, L, detail = 1) {
       if (pants.cargo) {
         // a bellows pocket on the outside of each thigh, its flap over it
         const t0 = side * PI * 0.5;
-        pillow(mb, Lg, t0 - side * 0.55, t0 + side * 0.25, Lg.yT - 0.27, Lg.yT - 0.13, flare(0, Lg.yT - 0.2) - 0.001, 0.01, { color: mulC(pantsCol, 0.92), region: pantsO.region, nu: 4, nv: 3 });
-        pillow(mb, Lg, t0 - side * 0.6, t0 + side * 0.3, Lg.yT - 0.145, Lg.yT - 0.115, flare(0, Lg.yT - 0.13) + 0.006, 0.004, { color: mulC(pantsCol, 0.85), region: pantsO.region, nu: 4, nv: 1 });
+        pillow(mb, Lg, t0 - side * 0.55, t0 + side * 0.25, Lg.yT - 0.27, Lg.yT - 0.13, flare(0, Lg.yT - 0.2) - 0.001, 0.01, { color: mulColor(pantsCol, 0.92), region: pantsO.region, nu: 4, nv: 3 });
+        pillow(mb, Lg, t0 - side * 0.6, t0 + side * 0.3, Lg.yT - 0.145, Lg.yT - 0.115, flare(0, Lg.yT - 0.13) + 0.006, 0.004, { color: mulColor(pantsCol, 0.85), region: pantsO.region, nu: 4, nv: 1 });
       }
     } else {
       sheet(mb, Lg, 0, TAU, Lg.yLo, Lg.yHi, rsL, nvL(Lg.yLo, Lg.yHi), 0, { ...skinO, cap0: 0, cap1: 0 });
@@ -301,8 +299,6 @@ export function buildPerson(mb, P, L, detail = 1) {
   mb.tag = null;
   return { H, T, N, arms, legs, B, pT, pP };
 }
-
-const mulC = (c, k) => color(c).multiplyScalar(k);
 
 // a tube laid along points on S (a facing, a strap, a seam), skinned like S where it lies
 function edgeTube(mb, S, pts, r, o) {
@@ -348,14 +344,14 @@ function collar(mb, P, T, top, col, reg, y, pT, open) {
     geo.setIndex(idx);
     mb.geom('root', geo, { color: c, region: reg, mottle: 0.1, double: true, wts: new Float32Array(wts) });
   };
-  if (kind === 'crew') band(0.012, 0.002, 0, mulC(col, 0.9));
-  else if (kind === 'v') band(0.006, 0.002, 0, mulC(col, 0.85));
-  else if (kind === 'high') band(0.05, 0.004, 0.05, mulC(col, 0.95), open || 0, TAU - (open || 0));
-  else if (kind === 'shirt') band(0.032, 0.003, 0.32, mulC(col, 0.95), 0.12, TAU - 0.12);
-  else if (kind === 'jacket') band(0.045, 0.005, 0.45, mulC(col, 0.88), Math.max(0.2, open || 0), TAU - Math.max(0.2, open || 0));
+  if (kind === 'crew') band(0.012, 0.002, 0, mulColor(col, 0.9));
+  else if (kind === 'v') band(0.006, 0.002, 0, mulColor(col, 0.85));
+  else if (kind === 'high') band(0.05, 0.004, 0.05, mulColor(col, 0.95), open || 0, TAU - (open || 0));
+  else if (kind === 'shirt') band(0.032, 0.003, 0.32, mulColor(col, 0.95), 0.12, TAU - 0.12);
+  else if (kind === 'jacket') band(0.045, 0.005, 0.45, mulColor(col, 0.88), Math.max(0.2, open || 0), TAU - Math.max(0.2, open || 0));
   else if (kind === 'hood') {
     // the hood down: a thick roll of it behind the neck, lying on the shoulders
-    band(0.02, 0.003, 0.1, mulC(col, 0.92));
+    band(0.02, 0.003, 0.1, mulColor(col, 0.92));
     const pts = [];
     for (let i = 0; i <= 8; i++) {
       const t = lerp(-1.3, 1.3, i / 8) + PI;
@@ -380,7 +376,7 @@ function collar(mb, P, T, top, col, reg, y, pT, open) {
     geo.computeVertexNormals();
     const wts = new Float32Array(pa.count * 4);
     for (let i = 0; i < pa.count; i++) wts.set(T.wts(Math.min(pa.getY(i), y), pa.getX(i)), i * 4);
-    mb.geom('root', geo, { color: mulC(col, 0.95), region: reg, mottle: 0.12, keepNormals: true, wts });
+    mb.geom('root', geo, { color: mulColor(col, 0.95), region: reg, mottle: 0.12, keepNormals: true, wts });
     // drawstrings
     for (const sd of [-1, 1]) {
       const a = surfPoint(T, sd * 0.22, y - 0.01, pT + 0.004), b = surfPoint(T, sd * 0.2, y - 0.16, pT + 0.004);
@@ -392,17 +388,17 @@ function collar(mb, P, T, top, col, reg, y, pT, open) {
 // ---------------------------------------------------------------- pockets, pouch, belt, bib, vest
 function chestPockets(mb, T, top, col, reg, pT, yC, open) {
   if (FAR()) return;
-  const pc = mulC(col, 0.93);
+  const pc = mulColor(col, 0.93);
   for (const sd of [-1, 1]) {
     if (top.pockets === 'one' && sd < 0) continue;
     const t0 = sd * Math.max(open + 0.08, 0.2), t1 = sd * Math.max(open + 0.62, 0.72);
     pillow(mb, T, Math.min(t0, t1), Math.max(t0, t1), yC + 0.01, yC + 0.085, pT - 0.001, 0.006, { color: pc, region: reg, nu: 4, nv: 3 });
-    pillow(mb, T, Math.min(t0, t1) - 0.02, Math.max(t0, t1) + 0.02, yC + 0.07, yC + 0.095, pT + 0.004, 0.003, { color: mulC(col, 0.82), region: reg, nu: 4, nv: 1 });
+    pillow(mb, T, Math.min(t0, t1) - 0.02, Math.max(t0, t1) + 0.02, yC + 0.07, yC + 0.095, pT + 0.004, 0.003, { color: mulColor(col, 0.82), region: reg, nu: 4, nv: 1 });
   }
 }
 
 function hoodPouch(mb, T, top, col, reg, pT, yH, yS) {
-  pillow(mb, T, -0.75, 0.75, yH + 0.0, yS + 0.06, pT - 0.001, 0.008, { color: mulC(col, 0.92), region: reg, nu: 6, nv: 3, round: 0.18 });
+  pillow(mb, T, -0.75, 0.75, yH + 0.0, yS + 0.06, pT - 0.001, 0.008, { color: mulColor(col, 0.92), region: reg, nu: 6, nv: 3, round: 0.18 });
 }
 
 function belt(mb, T, L, rise, pT, open, top) {
@@ -423,7 +419,7 @@ function overalls(mb, P, T, L, pT) {
   const top = yC + 0.1;
   // the bib: a panel up the front, its edges hemmed
   sheet(mb, T, -0.62, 0.62, yS - 0.06, top, 6, 6, pT + 0.006, { color: col, region: CR.DENIM, mottle: 0.12 });
-  pillow(mb, T, -0.32, 0.32, yC - 0.02, yC + 0.07, pT + 0.006, 0.004, { color: mulC(col, 0.9), region: CR.DENIM, nu: 4, nv: 2 });
+  pillow(mb, T, -0.32, 0.32, yC - 0.02, yC + 0.07, pT + 0.006, 0.004, { color: mulColor(col, 0.9), region: CR.DENIM, nu: 4, nv: 2 });
   // straps from the bib's corners over the shoulders and down to the back's middle
   for (const sd of [-1, 1]) {
     const pts = [surfPoint(T, sd * 0.55, top - 0.01, pT + 0.008), surfPoint(T, sd * 0.62, ySh - 0.03, pT + 0.006), surfPoint(T, sd * 0.85, ySh + 0.03, pT + 0.006), surfPoint(T, PI - sd * 0.75, ySh, pT + 0.006), surfPoint(T, PI - sd * 0.25, yC + 0.02, pT + 0.006), surfPoint(T, PI - sd * 0.1, yS + 0.02, pT + 0.006)];
@@ -478,14 +474,14 @@ function vest(mb, P, T, v, pT, rs) {
   }
   if (v.kind === 'blaze') {
     // a game pocket low on the back
-    pillow(mb, T, PI - 0.8, PI + 0.8, yH + 0.02, yH + 0.14, pV - 0.001, 0.01, { color: mulC(col, 0.9), region: reg, nu: 6, nv: 3 });
+    pillow(mb, T, PI - 0.8, PI + 0.8, yH + 0.02, yH + 0.14, pV - 0.001, 0.01, { color: mulColor(col, 0.9), region: reg, nu: 6, nv: 3 });
   }
 }
 
 // ---------------------------------------------------------------- hands and feet
 /**
  * A hand on the 'handL' / 'handR' bone. Survivors (L.fist) make a fist round what they hold: the back of the hand, a
- * roll of curled fingers with their knuckles, the thumb across it; the held item's mount (characters.js MOUNT_POS)
+ * roll of curled fingers with their knuckles, the thumb across it; the held item's mount (characters/survivor.js MOUNT_POS)
  * goes through the middle of the roll. The dead keep theirs open and clawing.
  */
 function hand(mb, P, L, s, skin, dead, detail = 1) {
@@ -505,7 +501,7 @@ function hand(mb, P, L, s, skin, dead, detail = 1) {
       mb.box(bone, [-s * 0.01, -0.092 + (i === 3 ? 0.004 : 0), zs[i]], [0.042 * sm, 0.032 * sm, 0.0195], { ...o, round: 0.7, seg: 2, rot: [0, 0, s * 0.25] });
     }
     mb.tube(bone, [[-s * 0.008, -0.022, -0.036], [-s * 0.02, -0.05, -0.042], [-s * 0.026, -0.072, -0.03]], 0.0115, 0.0088, { rs: 6, ts: 5, ...o });
-    if (gl) mb.lathe(bone, [0, 0, 0], [[0.03, -0.012], [0.032, 0.0], [0.031, 0.022]], { rs: 10, sz: 1.25, sx: 0.8, color: mulC(col, 0.8), region: reg });
+    if (gl) mb.lathe(bone, [0, 0, 0], [[0.03, -0.012], [0.032, 0.0], [0.031, 0.022]], { rs: 10, sz: 1.25, sx: 0.8, color: mulColor(col, 0.8), region: reg });
     if (L.gear && L.gear.watch && s < 0) mb.lathe(bone, [0, 0, 0], [[0.03, 0.006], [0.031, 0.016], [0.03, 0.026]], { rs: 10, sz: 1.2, sx: 0.85, color: 0x1a1a1a, region: CR.LEATHER });
     return;
   }
@@ -841,7 +837,7 @@ function hat(mb, P, H, h, L) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
-    mb.geom('head', g, on({ color: mulC(h.bill ?? h.color ?? 0x3a4a30, 0.9), region: CR.CANVAS, double: true }));
+    mb.geom('head', g, on({ color: mulColor(h.bill ?? h.color ?? 0x3a4a30, 0.9), region: CR.CANVAS, double: true }));
     headPoint(H, 0, PI / 2, p);
     mb.ellip('head', [p.x, p.y + 0.012, p.z], [0.007, 0.004, 0.007], { ws: 6, hs: 3, color: col, region: CR.CANVAS });
   } else if (kind === 'beanie') {
@@ -852,11 +848,11 @@ function hat(mb, P, H, h, L) {
       wts[i + 1] = 1;
       wts[i + 3] = 0;
     }
-    mb.geom('head', geo, on({ keepNormals: true, wts, color: mulC(col, 0.88), region: CR.KNIT }));
+    mb.geom('head', geo, on({ keepNormals: true, wts, color: mulColor(col, 0.88), region: CR.KNIT }));
   } else if (kind === 'hardhat') {
     shell(0.28, (phi, lam) => 0.02 + 0.006 * clamp(lam, 0, 1) + 0.005 * G(phi / 0.12) * clamp(lam, 0, 1), { color: col, region: CR.PLAIN, mottle: 0.08 });
     // the brim all round, wider at the front (the peak)
-    brim(mb, H, 0.3, (a) => 0.022 + 0.03 * Math.max(0, Math.cos(a)) ** 3, -0.006, mulC(col, 0.93), CR.PLAIN);
+    brim(mb, H, 0.3, (a) => 0.022 + 0.03 * Math.max(0, Math.cos(a)) ** 3, -0.006, mulColor(col, 0.93), CR.PLAIN);
   } else if (kind === 'ranger' || kind === 'cowboy') {
     // the crown: a lathe on top of the head, pinched (ranger: four dents to a peak; cowboy: a crease down the middle)
     headPoint(H, 0, PI / 2, p);
@@ -903,7 +899,7 @@ function hat(mb, P, H, h, L) {
     headPoint(H, PI, 0.38, p);
     mb.ellip('head', [p.x, p.y, p.z + (L.hair ? lift + 0.006 : 0.008)], [0.014, 0.012, 0.01], { ws: 6, hs: 4, color: col, region: CR.COTTON }); // (on the band, not in the hair)
     // (the tails lean in to the nape, or, over a tail of hair, out over it)
-    for (const sd of [-1, 1]) mb.box('head', [p.x + sd * 0.012, p.y - 0.035, p.z + 0.014 + out + overTail], [0.018, 0.06, 0.004], { color: mulC(col, 0.9), region: CR.COTTON, rot: [overTail ? -0.2 : 0.25, 0, sd * 0.3] });
+    for (const sd of [-1, 1]) mb.box('head', [p.x + sd * 0.012, p.y - 0.035, p.z + 0.014 + out + overTail], [0.018, 0.06, 0.004], { color: mulColor(col, 0.9), region: CR.COTTON, rot: [overTail ? -0.2 : 0.25, 0, sd * 0.3] });
   }
 }
 
@@ -946,7 +942,7 @@ function brimFlat(mb, y, H, w, roll, col) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
-  mb.geom('head', g, { color: mulC(col, 0.95), region: CR.CANVAS, mottle: 0.1, double: true, blood: false });
+  mb.geom('head', g, { color: mulColor(col, 0.95), region: CR.CANVAS, mottle: 0.1, double: true, blood: false });
 }
 
 // ---------------------------------------------------------------- kit
@@ -1022,7 +1018,7 @@ function gear(mb, P, T, g, L, k) {
     edgeTube(mb, T, pts, 0.004, { color: g.tie, region: CR.COTTON, rs: 4 });
     for (let i = 0; i < 3; i++) {
       const a = surfPoint(T, -0.06 - i * 0.03, lerp(pts[1][1], pts[3][1], i / 2), k.pT + 0.006), b = surfPoint(T, 0.06 + i * 0.03, lerp(pts[1][1], pts[3][1], i / 2), k.pT + 0.006);
-      edgeTube(mb, T, [a, [0, (a[1] + b[1]) / 2, Math.min(a[2], b[2]) - 0.002], b], 0.004, { color: mulC(g.tie, 0.9), region: CR.COTTON, rs: 4 });
+      edgeTube(mb, T, [a, [0, (a[1] + b[1]) / 2, Math.min(a[2], b[2]) - 0.002], b], 0.004, { color: mulColor(g.tie, 0.9), region: CR.COTTON, rs: 4 });
     }
   }
   if (g.apron) {
@@ -1130,7 +1126,7 @@ function deadExtras(mb, P, H, L, T) {
 }
 
 /**
- * For the bosses, whose trunks and arms are their own (characters.js): a dead face on the 'head' / 'jaw' bones (teeth,
+ * For the bosses, whose trunks and arms are their own (zombies/): a dead face on the 'head' / 'jaw' bones (teeth,
  * injuries and all) and legs from the hips down - trousers to their ragged hems, bare shins and feet below.
  */
 export function deadHead(mb, P, L, detail = 1) {
@@ -1141,32 +1137,15 @@ export function deadHead(mb, P, L, detail = 1) {
     // a brute's brow: a shelf of bone over sunken eyes, and the cheekbones under them
     const p = new THREE.Vector3();
     headPoint(H, 0, 0.21, p);
-    mb.ellip('head', [p.x, p.y + 0.002 * H.s, p.z + 0.006 * H.s], [0.062 * H.s * (f.w || 1), 0.016 * H.s, 0.024 * H.s], { ws: 12, hs: 5, color: mulC(L.skin, 0.9), region: CR.ROT, mottle: 0.15, tint: skinTint(L), shape: (v) => { v.z += (v.x * v.x) * 9 / H.s; } });
+    mb.ellip('head', [p.x, p.y + 0.002 * H.s, p.z + 0.006 * H.s], [0.062 * H.s * (f.w || 1), 0.016 * H.s, 0.024 * H.s], { ws: 12, hs: 5, color: mulColor(L.skin, 0.9), region: CR.ROT, mottle: 0.15, tint: skinTint(L), shape: (v) => { v.z += (v.x * v.x) * 9 / H.s; } });
     for (const sd of [-1, 1]) {
       headPoint(H, sd * 0.72, -0.06, p);
-      mb.ellip('head', [p.x - sd * 0.004 * H.s, p.y, p.z + 0.006 * H.s], [0.02 * H.s, 0.014 * H.s, 0.02 * H.s], { ws: 7, hs: 5, color: mulC(L.skin, 0.95), region: CR.ROT, mottle: 0.15, tint: skinTint(L) });
+      mb.ellip('head', [p.x - sd * 0.004 * H.s, p.y, p.z + 0.006 * H.s], [0.02 * H.s, 0.014 * H.s, 0.02 * H.s], { ws: 7, hs: 5, color: mulColor(L.skin, 0.95), region: CR.ROT, mottle: 0.15, tint: skinTint(L) });
     }
   }
   if (L.hair) hair(mb, P, H, L, 0.6 * detail);
   deadExtras(mb, P, H, L, null);
   return H;
 }
-export function deadLegs(mb, P, L) {
-  const B = bodyBuild(L);
-  const skin = color(L.skin);
-  const skinO = { color: skin, region: CR.ROT, mottle: 0.12, tint: skinTint(L) };
-  for (const side of [-1, 1]) {
-    const Lg = legSurf(mb, P, B, side);
-    const rsL = 14;
-    const nv = (a, b) => Math.max(2, Math.round((b - a) / (0.048 * Math.max(1, B.leg * 0.6))));
-    if (L.pants) {
-      const yb = Lg.yA + 0.04 + (L.pants.tearY ?? 0.2) * (Lg.yT - Lg.yA) * 0.9;
-      const fnHem = (x, y, z) => y < yb + 0.06 * B.leg * fbm3(x * 25, y * 4, z * 25, 2, 11 + side);
-      sheet(mb, Lg, 0, TAU, yb, Lg.yHi, rsL, nv(yb, Lg.yHi), 0.006 * B.leg, { color: L.pants.color, region: L.pants.region ?? CR.DENIM, mottle: 0.12, tint: L.pants.tint, tear: { amt: L.pants.tear || 0.1, f: 13, seed: 81 + side, fn: fnHem } });
-    }
-    sheet(mb, Lg, 0, TAU, Lg.yLo, Lg.yHi, rsL, nv(Lg.yLo, Lg.yHi), 0, skinO);
-    bareFoot(mb, P, L, side, skin);
-  }
-}
 
-export { woundTint, skinTint };
+export { skinTint };

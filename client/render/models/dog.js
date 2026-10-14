@@ -5,7 +5,7 @@
 // weights. Faces -Z, meters, feet at y = 0. Same view interface as createZombie().
 import * as THREE from 'three';
 import { ZANIM } from '../../../shared/defs.js';
-import { MeshBuilder, instantiateRig, setFx, getCharacterMaterial, fbm3, noise3, clamp, lerp, smooth } from './skinning.js';
+import { MeshBuilder, rigCache, instantiateRig, setFx, getCharacterMaterial, fbm3, noise3, clamp, lerp, smooth, gauss as G } from './skinning.js';
 import { CR } from './charTextures.js';
 import { ringLoft, bound, chain } from './monsters.js';
 
@@ -50,14 +50,14 @@ export const DOG_COATS = COATS.length;
 // The Alpha (ZTYPE.BOSS_ALPHA): the pack's leader, the same dog built heavier and drawn at ALPHA_SCALE. Near-black and
 // mangier still, a ridge of bone spurs down its spine, longer fangs, eyes that burn red
 const ALPHA = { name: 'alpha', fur: 0x24211e, saddle: 0x0c0b0a, belly: 0x45382e, ears: 'up', tornEar: 1, ribs: -1, alpha: true, bulk: 1.22, mange: 0.5, flay: 1 };
-export const ALPHA_SCALE = 2.0;
+const ALPHA_SCALE = 2.0;
 // The crawler (ZTYPE.CRAWLER): a flying squirrel the infection has grown to the size of a cat, on the same rig, drawn at
 // SQUIRREL_SCALE. Grey-brown over a cream belly, mangy, a flat, wide brush of a tail (flatTail), short round ears
 // (earLen), huge eyes that burn amber in the dark (bigEyes: and a halo round each, SquirrelEyes) so that one up a tree
 // is seen from far off, and hooked claws (claws: x a dog's) to take hold of bark, or a face. Its gliding membrane
 // (Membrane) is drawn apart from the rig, stretched each frame from wrist to ankle down both flanks
 const SQUIRREL = { name: 'squirrel', fur: 0x7a6c5c, saddle: 0x4c4036, belly: 0xd6cab0, ears: 'up', earLen: 0.036, flatTail: true, tailBulk: 2.5, bulk: 0.92, mange: 0.6, claws: 1.7, tornEar: -1, ribs: 1, bigEyes: true };
-export const SQUIRREL_SCALE = 0.7;
+const SQUIRREL_SCALE = 0.7;
 // ...and low and long: a little wider, much lower on its legs, its body a dog's length (x, y, z of the drawn size)
 const SQUIRREL_SHAPE = [1.1, 0.5, 0.74];
 // its head: short and round, the snout pushed in (the head bone's scale, x y z)
@@ -127,7 +127,6 @@ function buildDog(coatIdx) {
   const plain = (color, o = {}) => ({ color, region: CR.PLAIN, mottle: 0.15, ao: false, ws: 6, hs: 4, ...o });
   const on = (bone, fn) => bound(mb, [bi(bone), 1, 0, 0], fn);
   const blend = (a, b, t) => (t <= 0 ? [a, 1, b, 0] : t >= 1 ? [b, 1, a, 0] : [a, 1 - t, b, t]);
-  const G = (x) => Math.exp(-x * x);
   const raw = new THREE.Color(0x7a1c18);
 
   // ---- the trunk: one hide from the rump to the back of the skull, over a deep narrow ribcage, a tucked-up starved
@@ -329,15 +328,7 @@ function buildDog(coatIdx) {
   return mb.build();
 }
 
-const rigs = new Map();
-function getRig(coat) {
-  let r = rigs.get(coat);
-  if (!r) {
-    r = buildDog(coat);
-    rigs.set(coat, r);
-  }
-  return r;
-}
+const getRig = rigCache(buildDog);
 
 // ------------------------------------------------------------------ animation
 const n1 = (t, seed) => noise3(t, seed * 1.7, 0.5, 13) * 2 - 1;

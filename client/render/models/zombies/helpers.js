@@ -24,10 +24,6 @@ export const buildingFar = () => buildDetail < FAR_DETAIL;
 /** A skin tint (p, n, c) worn on the head (people.js headTint: head-bone coordinates), scaled by k, the normal n. */
 export const onHead = (tint, k = 1, n = null) => (lx, ly, lz, c) => tint({ x: lx * k, y: ly * k, z: lz * k }, n, c);
 
-export function mulColor(hex, k) {
-  return color(hex).multiplyScalar(k);
-}
-
 /**
  * What a leg shot off at the knee leaves: a stump under each thigh, on a bone of its own so that it can be kept
  * scaled away until the shin goes (ZombieInstance.setLegs).

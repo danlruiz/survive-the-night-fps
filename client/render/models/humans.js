@@ -10,18 +10,15 @@
 //   - clothing is the visible surface of those lofts, cut by where a garment ends (a cuff, a hem, a neckline), with its
 //     edges, seams, pockets, collars and the rest laid on it, so nothing under a jacket is drawn.
 import * as THREE from 'three';
-import { clamp, lerp, smooth, color } from './skinning.js';
+import { clamp, lerp, smooth, color, sstep, gauss as G, angDiff, mulColor } from './skinning.js';
 import { CR } from './charTextures.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
-const G = (x) => Math.exp(-x * x);
-const mulColorH = (c, k) => color(c).multiplyScalar(k);
-const sstep = (a, b, x) => smooth((x - a) / (b - a));
 
 // ====================================================================== the head
 // Head space: the head bone's, metres, the face toward -Z. C is the middle of the cranium (the headCenter anchor of
-// characters.js: hr * 0.9 above the head bone). A head is described by H, made by headShape(): its sizes, and how far
+// characters/survivor.js: hr * 0.9 above the head bone). A head is described by H, made by headShape(): its sizes, and how far
 // each feature goes.
 
 /** The shape of a head (hr: P.headR; o: a look's head options). */
@@ -190,7 +187,7 @@ export function headSurface(H, nu, nv, head, jaw, mask = null, push = 0, uniform
 }
 
 /** How much of the head at (phi, lam) moves with the jaw: the lower face, below the mouth, out to the jaw's angle. */
-export function jawWeight(phi, lam) {
+function jawWeight(phi, lam) {
   if (globalThis.__nojaw) return 0;
   return sstep(-0.4, -0.5, lam) * sstep(1.75, 1.2, Math.abs(phi)) * sstep(-1.45, -1.2, lam) + sstep(-1.2, -1.45, lam) * sstep(1.6, 0.9, Math.abs(phi)) * 0.6;
 }
@@ -344,7 +341,7 @@ export function buildHumanHead(mb, P, L, detail = 1) {
     headPoint(H, sd * 1.62, -0.08, q, false);
     const ex = q.x - sd * 0.001 * H.s;
     mb.ellip('head', [ex, q.y, q.z + 0.004 * H.s], [0.0075 * H.s, 0.027 * H.s * (fo.ear ?? 1), 0.016 * H.s * (fo.ear ?? 1)], {
-      ws: detail < 0.7 ? 5 : 7, hs: detail < 0.7 ? 4 : 5, rot: [0.18, sd * 0.22, 0], color: mulColorH(skin, 0.92), region: CR.SKIN_H, mottle: 0.05,
+      ws: detail < 0.7 ? 5 : 7, hs: detail < 0.7 ? 4 : 5, rot: [0.18, sd * 0.22, 0], color: mulColor(skin, 0.92), region: CR.SKIN_H, mottle: 0.05,
       shape(v) {
         if (v.y < 0) v.z *= 0.85; // the lobe
       },
@@ -371,7 +368,7 @@ export function buildHumanHead(mb, P, L, detail = 1) {
   return H;
 }
 
-/** Where the mouth's inside goes (createMouth in characters.js): the lip line in the middle of the face. */
+/** Where the mouth's inside goes (createMouth in characters/survivor.js): the lip line in the middle of the face. */
 export function mouthAnchor(H) {
   const q = new THREE.Vector3();
   headPoint(H, 0, -0.442, q);
@@ -383,8 +380,6 @@ export function mouthAnchor(H) {
 // S.wts(y, x) -> [bone a, weight a, bone b, weight b]. A cross-section's angle t runs from the front (-Z, t = 0) round
 // by the right (+X, t = PI / 2). Everything a garment lays on the body (a pocket, a collar, a strap) is sampled off the
 // same S, so it follows the body's curves.
-
-const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 /** A cross-section's point at angle t, pushed out by `push` (m): [x, z] about the section's middle. */
 export function secXZ(r, t, push = 0) {

@@ -1891,7 +1891,10 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   builds it again if the list says another (the list can arrive after the entity's create).
   The models are procedural (`client/render/models/humans.js`: the head and the body's lofted surfaces;
   `people.js`: a whole person from a look - clothes, hair, hats, kit, the dead's injuries; `looks.js`: the roster's
-  looks and `deadLook`, what turns one; `deadlooks.js`: the walkers' variants and the specials' bodies). A head is
+  looks and `deadLook`, what turns one; `deadlooks.js`: the walkers' variants and the specials' bodies). Each kind of
+  the dead has its model, gait and swing in `zombies/<kind>.js`, gathered into tables by `zombies/index.js` the way
+  `server/specials/` is; `characters/` poses and instances them (`pose.js`, `gait.js`, `zombie.js`, and the survivors'
+  `survivor.js` and `survivorrig.js`), and `characters.js` re-exports what the rest of the client imports. A head is
   one surface by azimuth and elevation with a painted face in the same layout (`CR.FACE` / `CR.FACE_Z`, 2 x 2 cells
   of the now 4 x 8 character atlas); the torso, arms and legs are each one lofted surface weighted across the spine,
   elbows and knees, and clothing is the visible surface of those lofts cut where a garment ends. Every survivor is

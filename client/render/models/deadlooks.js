@@ -134,4 +134,4 @@ export function oldLook(o) {
   return L;
 }
 
-export { bloodied, DEAD_SKINS };
+export { bloodied };

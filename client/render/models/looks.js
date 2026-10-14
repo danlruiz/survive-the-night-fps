@@ -192,7 +192,7 @@ export function deadLook(L, seed = 0) {
   return out;
 }
 
-/** humanP's options for a look's frame (characters.js survivorP). */
+/** humanP's options for a look's frame (characters/survivorrig.js getSurvivorRig). */
 export function frameOf(L) {
   const k = L.frame?.height ?? 1;
   const hk = (L.frame?.head ?? 1) * (1 + (k - 1) * 0.3) * (L.sex === 'f' ? 0.96 : 1);
@@ -315,17 +315,16 @@ const READ = {
   belt: (L) => (L.pants?.belt === false ? 'none' : L.gear?.belt?.color ?? 0x2a1f16),
   beardColor: (L) => (L.beard && L.beard.color !== undefined && L.beard.color !== L.hair?.color ? L.beard.color : 'same'),
   hatTrim: (L) => {
-    const t = A_().choice(A_().byKey.get('hat'), L.hat?.kind)?.trim;
+    const t = APPEARANCE.choice(APPEARANCE.byKey.get('hat'), L.hat?.kind)?.trim;
     return (t && L.hat?.[t]) ?? 'none';
   },
   hairSize: (L) => {
-    const s = A_().choice(A_().byKey.get('hair'), L.hair?.style)?.size;
+    const s = APPEARANCE.choice(APPEARANCE.byKey.get('hair'), L.hair?.style)?.size;
     const x = s ? getPath(L, s.path) : undefined;
     return s && x !== undefined ? (x - s.range[0]) / (s.range[1] - s.range[0]) : 0.5;
   },
   hair: (L) => L.hair?.style ?? 'none',
 };
-const A_ = () => APPEARANCE;
 // the nearest swatch to a colour
 function nearestSwatch(f, hex) {
   const A = APPEARANCE;
