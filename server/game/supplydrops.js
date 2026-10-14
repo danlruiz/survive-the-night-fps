@@ -3,9 +3,41 @@
 // (Game.interact). One on the first day and two on each one after (scheduleSupplyDrops), and one wherever the Relay
 // Station's radio calls it (server/fixtures.js).
 import { PLANE_SPEED, PLANE_LEAD, PLANE_ALTITUDE, PLANE_RAMP, CRATE_FREEFALL, CRATE_FALL_SPEED, CRATE_DRAG, NOISE } from '../../shared/constants.js';
-import { SOUND, EVT, NOTIFY } from '../../shared/defs.js';
+import { ITEM, SOUND, EVT, NOTIFY } from '../../shared/defs.js';
 import { ENT, qpos, qangle16 } from '../../shared/protocol.js';
 import { groundAt } from '../../shared/collision.js';
+
+// what a supply crate holds, 5-7 rolls of it (Game.interact breaks one open): [item, weight, least, most]
+export const CRATE_TABLE = [
+  [ITEM.AMMO_762, 5, 30, 60],
+  [ITEM.AMMO_556, 5, 30, 60],
+  [ITEM.AMMO_SHELLS, 5, 8, 16],
+  [ITEM.AMMO_9MM, 4, 20, 40],
+  [ITEM.MEDKIT, 4, 1, 2],
+  [ITEM.PIPEBOMB, 2, 1, 2],
+  [ITEM.GRENADE, 2, 1, 2],
+  [ITEM.MOLOTOV, 2, 1, 2],
+  [ITEM.FLARE, 3, 2, 3],
+  [ITEM.AMMO_FLARE, 2, 2, 3],
+  [ITEM.FLARE_GUN, 1, 1, 1],
+  [ITEM.PLATE, 2, 1, 1],
+  [ITEM.GUNPARTS, 3, 1, 2],
+  [ITEM.AK47, 1, 1, 1],
+  [ITEM.M4A1, 1, 1, 1],
+  [ITEM.MP5, 1, 1, 1],
+  [ITEM.SHOTGUN, 1, 1, 1],
+  [ITEM.DB_SHOTGUN, 1, 1, 1],
+  [ITEM.FLAMETHROWER, 1, 1, 1],
+  [ITEM.AMMO_FUEL, 2, 40, 80],
+  [ITEM.RPG, 1, 1, 1],
+  [ITEM.AMMO_ROCKET, 2, 2, 3],
+  [ITEM.AT_RIFLE, 1, 1, 1],
+  [ITEM.AMMO_145, 3, 3, 6],
+  [ITEM.KEVLAR, 1, 1, 1],
+  [ITEM.NAILS, 3, 10, 20],
+  [ITEM.BATTERY, 2, 1, 2],
+  [ITEM.POWDER, 3, 5, 10],
+];
 
 export const methods = {
   // A cargo plane crosses the valley in a straight line and kicks the crate off its ramp so that, after
