@@ -477,7 +477,7 @@ row of its own, so the same browser signing in again later moves what it earned 
 has a `loadout_skull_ledger` row and normalized entries; earn events from a game use stable ledger ids and an hourly
 cap, while auction buys debit buyer and credit seller minus the fee in the same transaction that moves the item. Guests
 may browse and earn but must sign in to buy or sell. The main menu's Loadout and Auction House panels read the same
-service (`client/net/loadout.js`, `client/ui/loadout.js`); a guest's reads carry their browser id in the `X-STN-Guest`
+service (`client/net/loadout.js`; `client/ui/loadout.js`, `client/ui/auction.js`); a guest's reads carry their browser id in the `X-STN-Guest`
 header, never the URL (proxies, the CDN and browser history keep URLs, and the id is the only key to what they own).
 
 The pledge window (`shared/pledge.js`, `server/pledge.js`, `client/ui/pledge.js`) is where Skulls are spent in a game.
