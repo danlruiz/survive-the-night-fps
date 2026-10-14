@@ -59,8 +59,9 @@ client/      three.js client (Vite root)
   index.html, main.js
   net/        connection, snapshot decode, interpolation, prediction
   game/       client game state, entity views, input, weather schedule (weather.js)
-  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
-              (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
+  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures (the generators: textures/),
+              materials, models/ (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md
+              before changing them)
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
   ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
@@ -925,7 +926,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   courses, a fire escape, balconies, a drainpipe, ivy, damp, cracks, a ghost sign), the roof (`roofOf`: parapet,
   tank, plant, stair head, hoarding), a storey broken open (`openStorey`: slab edges with their steel, columns,
   rooms papered each its own way) and a slab under the sky (`terrace`). Marks come from one atlas (`GEN.city`,
-  `CITY_ATLAS` in textures.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
+  `CITY_ATLAS` in textures/city.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
   `citygrime` (blended: soot, rust, stains). A glass tower is a curtain wall (`curtainWall`): a band of steel at
   each slab, glass from mullion to mullion over it - whole, hanging broken, or gone, and through the gone ones the
   storey behind (its floor, the slab over it, columns, a desk); a burnt-out place is its own brick or concrete
