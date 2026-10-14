@@ -412,7 +412,7 @@ export class AudioEngine {
   // it. One loop on the ui bus (heard the same alive or dying), started the first time it is wanted.
   radioStatic(level) {
     if (!this._ready) return;
-    level = this._state.menu ? 0 : Math.max(0, Math.min(1, +level || 0));
+    level = this._state.menu ? 0 : clamp01(+level || 0);
     if (level === this._staticLvl) return;
     if (!this._static) {
       if (level <= 0) return;
@@ -466,7 +466,7 @@ export class AudioEngine {
     if (!r) return 0;
     const left = r.end - now;
     if (left > -RING_FADE) {
-      const k = Math.max(0, Math.min(1, (left + RING_FADE) / RING_FADE));
+      const k = clamp01((left + RING_FADE) / RING_FADE);
       if (left < 0) r.g.gain.setTargetAtTime(RING_VOL * k * k, now, 0.1);
       return left > 0 ? 1 : k;
     }

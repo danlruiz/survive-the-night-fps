@@ -335,6 +335,8 @@ export class Ambience {
     return true;
   }
 
+  // a random point dist [min, max] m from the listener in any direction, elev [min, max] m above the ears (ground:
+  // above the feet instead)
   _ring(dist, elev, ground) {
     const e = this.e;
     const ang = Math.random() * TAU;

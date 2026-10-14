@@ -12,7 +12,7 @@ import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
 import { PIANO_NOTES, BOX_NOTES } from './synth-amb.js';
 import { gainNode, biquad } from './nodes.js';
 import { LoopLayer } from './loop-layer.js';
-import { mtof } from './dsp.js';
+import { mtof, semis } from './dsp.js';
 import { clamp01, rand } from './curves.js';
 
 const LOOK = 0.5; // seconds scheduled ahead of currentTime
@@ -232,7 +232,7 @@ export class Music {
     this.dSub = osc('sine', root / 2, 0, 0.55, this.dFilter);
     this.dA = osc('sawtooth', root, -7, 0.16, this.dFilter);
     this.dB = osc('sawtooth', root, 6, 0.16, this.dFilter);
-    this.dC = osc('sawtooth', root * Math.pow(2, 7 / 12), 3, 0.1, this.dFilter);
+    this.dC = osc('sawtooth', root * semis(7), 3, 0.1, this.dFilter);
     // ghost choir: saws through two vowel formants with slow vibrato
     this.cF1 = biquad(c, 'bandpass', 480, 5);
     this.cF2 = biquad(c, 'bandpass', 820, 6);
@@ -242,7 +242,7 @@ export class Music {
     this.cF1.connect(this.choirG);
     this.cF2.connect(this.choirG);
     this.cA = osc('sawtooth', root * 2, 0, 0.5, cm);
-    this.cB = osc('sawtooth', root * 2 * Math.pow(2, 3 / 12), 0, 0.4, cm);
+    this.cB = osc('sawtooth', root * 2 * semis(3), 0, 0.4, cm);
     this.vib = c.createOscillator();
     this.vib.frequency.value = 4.8;
     const vg = gainNode(c, 9);
@@ -261,9 +261,9 @@ export class Music {
     this.dSub.frequency.setTargetAtTime(root / 2, now, tc);
     this.dA.frequency.setTargetAtTime(root, now, tc);
     this.dB.frequency.setTargetAtTime(root, now, tc);
-    this.dC.frequency.setTargetAtTime(root * Math.pow(2, iv / 12), now, tc);
+    this.dC.frequency.setTargetAtTime(root * semis(iv), now, tc);
     this.cA.frequency.setTargetAtTime(root * 2, now, tc * 1.5);
-    this.cB.frequency.setTargetAtTime(root * 2 * Math.pow(2, (iv === 7 ? 3 : iv) / 12), now, tc * 1.5);
+    this.cB.frequency.setTargetAtTime(root * 2 * semis(iv === 7 ? 3 : iv), now, tc * 1.5);
   }
 
   // ---------------------------------------------------------------- tension strings (created on demand)
@@ -341,14 +341,14 @@ export class Music {
     for (let k = 1; k < bases.length; k++) if (Math.abs(midi - bases[k]) < Math.abs(midi - bases[bi])) bi = k;
     const buf = this._buffer(box ? 'mus_box' : 'mus_piano', bi);
     if (!buf) return;
-    const rate = Math.pow(2, (midi - bases[bi]) / 12) * this.detune * (1 + (Math.random() - 0.5) * 0.01);
+    const rate = semis(midi - bases[bi]) * this.detune * (1 + (Math.random() - 0.5) * 0.01);
     const c = this.ctx;
     const src = c.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
     if (bend) {
       src.playbackRate.setValueAtTime(rate, t + 0.25);
-      src.playbackRate.linearRampToValueAtTime(rate * Math.pow(2, bend / 12), t + 2.2);
+      src.playbackRate.linearRampToValueAtTime(rate * semis(bend), t + 2.2);
     }
     const g = gainNode(c, vel);
     src.connect(g);
@@ -575,7 +575,7 @@ export class Music {
       if (this.bossOn) {
         const b = this.bassPat[s];
         if (b !== null && b !== undefined) {
-          this._hit('mus_bass', 0, t, s % 4 === 0 ? 0.85 : 0.6, this.bossG, Math.pow(2, (b + (ROOT - 12) - BASS_BASE) / 12));
+          this._hit('mus_bass', 0, t, s % 4 === 0 ? 0.85 : 0.6, this.bossG, semis(b + (ROOT - 12) - BASS_BASE));
         }
       }
       this.seqStep++;
@@ -591,7 +591,7 @@ export class Music {
     this.pattern = this.bar % 4 === 0 ? pick(HORDE_FILLS) : pick(HORDE_PATTERNS);
     if (this.bossOn) {
       if (this.bar % 2 === 1) this.bassPat = pick(BOSS_BASS);
-      if (this.bar % 2 === 1) this._hit('mus_brass', 0, t, 0.6, this.bossG, Math.pow(2, (ROOT + pick([0, 0, 1, -2]) - BRASS_BASE) / 12));
+      if (this.bar % 2 === 1) this._hit('mus_brass', 0, t, 0.6, this.bossG, semis(ROOT + pick([0, 0, 1, -2]) - BRASS_BASE));
     }
   }
 
