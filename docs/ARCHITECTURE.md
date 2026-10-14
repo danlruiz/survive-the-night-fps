@@ -191,7 +191,7 @@ One process runs every game. The **network thread** (`server/index.js`, `sockets
 leaderboard; **each game is a worker thread of its own** (`server/room-worker.js`: one `Game`, its own 20 Hz tick
 loop, its own valley). So the games share the box's cores, generating a valley (a few hundred ms) in one game holds
 up nobody else, and a game that crashes or runs out of its 512 MB heap ends alone: the network thread closes its
-sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`, `Room`).
+sockets (1011) and lets go of its records. `server/rooms.js` keeps them (`Lobby`; each one a `Room`, `server/room.js`).
 
 - **Codes and routing.** A game is known by its code: 6 characters for a public game, 10 for an invite-only one,
   from 32 that cannot be misread. `/ws?game=CODE` is that game; `/ws` with none is a quick join (`Lobby.quick`: the
