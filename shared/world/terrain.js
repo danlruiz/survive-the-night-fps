@@ -4,8 +4,9 @@
 // the map's edge, sampled into the raw heightfield the roads are then routed over and graded on.
 import { MAP_HALF, GRID_N, GRID_STEP, WATER_LEVEL } from '../constants.js';
 import { ZONE } from '../defs.js';
-import { mulberry32, fbm, smoothstep, lerp, clamp } from '../rng.js';
+import { mulberry32, fbm, smoothstep, lerp } from '../rng.js';
 import { planLayout } from '../layout.js';
+import { bilinearSampler } from '../heightfield.js';
 
 const FLOOR = WATER_LEVEL + 1.2; // soft floor of the terrain outside lakes/ponds
 
@@ -87,18 +88,7 @@ export function shapeValley(seed, { nA, nB, nC, nD, nE }) {
       heights[j * N + i] = H1(x, z);
     }
   }
-  const rawH = (x, z) => {
-    const fx = clamp((x + MAP_HALF) / GRID_STEP, 0, N - 1.001);
-    const fz = clamp((z + MAP_HALF) / GRID_STEP, 0, N - 1.001);
-    const i = fx | 0;
-    const j = fz | 0;
-    const tx = fx - i;
-    const tz = fz - j;
-    const k = j * N + i;
-    const a = heights[k] + (heights[k + 1] - heights[k]) * tx;
-    const b = heights[k + N] + (heights[k + N + 1] - heights[k + N]) * tx;
-    return a + (b - a) * tz;
-  };
+  const rawH = bilinearSampler(heights, N, MAP_HALF);
 
   return { zones, lake, ponds, hwyAnchors, links, railPlan, zoneById, nearZone, edgeRise, heights, rawH };
 }

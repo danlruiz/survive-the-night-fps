@@ -8,7 +8,7 @@
 // with A* (world/roads.js, world/router.js), the roadside / woodland sites (world/roadside.js: wrecks, camps, sheds,
 // stashes... so every walk passes something worth searching), the places (world/places.js), the trees, rocks and
 // bushes (world/vegetation.js) and the spawns (world/spawns.js).
-import { MAP_HALF, MAP_SIZE, GRID_N, WATER_LEVEL } from './constants.js';
+import { MAP_HALF, MAP_SIZE, GRID_N } from './constants.js';
 import { ZONE } from './defs.js';
 import { mulberry32, createNoise2D } from './rng.js';
 import { ROAD } from './layout.js';
@@ -23,6 +23,7 @@ import { pickSites, buildSites, dressRoads } from './world/roadside.js';
 import { buildPlaces, sinkMine } from './world/places.js';
 import { plantVegetation } from './world/vegetation.js';
 import { scatterSpawns } from './world/spawns.js';
+import { groundQueries, zoneAtIn, openingNearIn, deepWaterOf } from './worldquery.js';
 
 export { ROAD };
 export { TREE_TYPES, ROCK_TYPES } from './world/vegetation.js';
@@ -66,79 +67,7 @@ export function createWorld(seed) {
   const { resourceSpawns, hordeSpawns } = scatterSpawns({ rng, seed, car, lootSpawns, heightAt, zoneClear, inLake, occupied });
 
   // ---------------------------------------------------------------- queries
-  // The ground under feet at height y over (x,z): the terrain, or the floor of the drift they are down in.
-  // (heightAt is the terrain alone: what grows, what is built and what the map shows stand on that)
-  const floorAt = (x, z, y) => {
-    if (mine) {
-      const f = mine.floorFor(x, z, y);
-      if (f === f) return f;
-    }
-    // (...or what the railway has to stand on above the ground: a platform, the floor of an open boxcar)
-    if (rail) {
-      const f = rail.floorFor(x, z, y);
-      if (f === f) return f;
-    }
-    return heightAt(x, z);
-  };
-  // how far (x,y,z) is above the solid ground: the terrain, or in the air of a drift its floor (the rock around a
-  // drift is under the terrain, so its walls and roof stop a ray like any hillside)
-  const above = (x, y, z) => {
-    if (mine) {
-      const f = mine.voidFloor(x, z, y);
-      if (f === f) return y - f;
-    }
-    return y - heightAt(x, z);
-  };
-  const rayTerrain = (ox, oy, oz, dx, dy, dz, maxT) => {
-    const step = 0.75;
-    let prevT = 0;
-    let prevD = above(ox, oy, oz);
-    if (prevD < 0) return 0;
-    for (let t = step; t <= maxT + step; t += step) {
-      const tt = t > maxT ? maxT : t;
-      const y = oy + dy * tt;
-      if (y > 70 && dy >= 0) return -1;
-      const d = above(ox + dx * tt, y, oz + dz * tt);
-      if (d < 0) {
-        let lo = prevT;
-        let hi = tt;
-        for (let k = 0; k < 6; k++) {
-          const m = (lo + hi) / 2;
-          const dm = above(ox + dx * m, oy + dy * m, oz + dz * m);
-          if (dm < 0) hi = m;
-          else lo = m;
-        }
-        return (lo + hi) / 2;
-      }
-      prevT = tt;
-      prevD = d;
-      if (tt >= maxT) break;
-    }
-    return -1;
-  };
-
-  const zoneAt = (x, z) => {
-    for (const zn of zones) {
-      if (Math.hypot(x - zn.x, z - zn.z) < zn.flat + 8) return zn.id;
-    }
-    return ZONE.FOREST;
-  };
-
-  const isDeepWater = (x, z) => heightAt(x, z) < WATER_LEVEL - 0.95;
-
-  // nearest doorway to (x,z) within maxD (for door boards)
-  const openingNear = (x, z, maxD = 1.2) => {
-    let best = null;
-    let bd = maxD;
-    for (const o of openings) {
-      const d = Math.hypot(o.x - x, o.z - z);
-      if (d < bd) {
-        bd = d;
-        best = o;
-      }
-    }
-    return best;
-  };
+  const { floorAt, rayTerrain } = groundQueries({ heightAt, mine, rail, ceiling: 70 });
 
   return {
     seed,
@@ -162,8 +91,8 @@ export function createWorld(seed) {
     roadDistAt,
     roadKindAt,
     rayTerrain,
-    isDeepWater,
-    zoneAt,
+    isDeepWater: deepWaterOf(heightAt),
+    zoneAt: zoneAtIn(zones),
     zones,
     zoneById,
     roads,
@@ -184,7 +113,7 @@ export function createWorld(seed) {
     containers,
     partSpots,
     openings,
-    openingNear,
+    openingNear: openingNearIn(openings),
     sites,
     resourceSpawns,
     hordeSpawns,

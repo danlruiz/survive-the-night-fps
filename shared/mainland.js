@@ -46,6 +46,9 @@ import { SEA, LAKE, RIVER, CREEK, MOUNTAINS, TUNNELS, ROADS, PLACES, AREAS, FORE
 import { fillPolys, signedDistance, signedDistanceNear, decodeForest, maskEdges, lineDist } from './mainland-ground.js';
 import { planPassage, MINE_R } from './mine.js';
 import { dressMine } from './minedress.js';
+import { pickWeighted } from './worldkit.js';
+import { heightSampler, bilinearSampler } from './heightfield.js';
+import { groundQueries } from './worldquery.js';
 
 const PI = Math.PI;
 const SIZE = MAINLAND_SIZE;
@@ -863,17 +866,7 @@ export function createMainland(seed) {
       heights[k] = lerp(level, heights[k], smoothstep(CUT_HW - 1, CUT_HW + 5, lat));
     }
   }
-  const grid = (v) => clamp((v + HALF) / GRID_STEP, 0, N - 1.001);
-  const rawH = (x, z) => {
-    const fx = grid(x);
-    const fz = grid(z);
-    const i = fx | 0;
-    const j = fz | 0;
-    const k = j * N + i;
-    const a = heights[k] + (heights[k + 1] - heights[k]) * (fx - i);
-    const b = heights[k + N] + (heights[k + N + 1] - heights[k + N]) * (fx - i);
-    return a + (b - a) * (fz - j);
-  };
+  const rawH = bilinearSampler(heights, N, HALF);
 
   // ---------------------------------------------------------------- roads
   // No router: every road is the picture's, a curve through the points it was traced by.
@@ -1249,18 +1242,7 @@ export function createMainland(seed) {
     heights[k] = lerp(heights[k], roadH[k] - 0.05, 1 - smoothstep(3, 2.6 + ROAD_BLEND, d));
   }
 
-  const heightAt = (x, z) => {
-    const fx = grid(x);
-    const fz = grid(z);
-    const i = fx | 0;
-    const j = fz | 0;
-    const tx = fx - i;
-    const tz = fz - j;
-    const k = j * N + i;
-    // (triangle-consistent, as the mesh is split: world.js)
-    if (tx + tz <= 1) return heights[k] + (heights[k + 1] - heights[k]) * tx + (heights[k + N] - heights[k]) * tz;
-    return heights[k + N + 1] + (heights[k + N] - heights[k + N + 1]) * (1 - tx) + (heights[k + 1] - heights[k + N + 1]) * (1 - tz);
-  };
+  const heightAt = heightSampler(heights, N, HALF); // (triangle-consistent, as the mesh is split)
   // (is the ground under a prop's footprint level enough to set it down on: within 0.8 m corner to corner?)
   const levelUnder = (type, x, z, ry) => {
     const [sx, , sz] = PROPS[type]?.size || [2, 1, 4];
@@ -2850,15 +2832,10 @@ export function createMainland(seed) {
     deal(big, ['hospital', 'collapse', 'depot', 'tower', 'tower']);
     deal(small, ['aero', 'aero', 'office', 'office', 'office', 'police', 'pharmacy', 'hardware', 'church', 'gas', 'subway']);
     deal(long, ['carpark', 'cinema', 'terrace', 'block', 'warehouse', 'terrace', 'block']);
-    const pick = (W) => {
-      let r = rng() * W.reduce((s, e) => s + e[1], 0);
-      for (const [t, wt] of W) if ((r -= wt) <= 0) return t;
-      return W[0][0];
-    };
     lots.forEach((L, i) => {
       const b = new Builder(L.x, L.z, L.ry, cityH);
       b.zone = ZONE.CITY;
-      const what = plan.get(i) || (L.w < 40 ? pick(SMALL_LOTS) : L.d < 40 ? pick(LONG_LOTS) : pick(BIG_LOTS));
+      const what = plan.get(i) || (L.w < 40 ? pickWeighted(rng, SMALL_LOTS) : L.d < 40 ? pickWeighted(rng, LONG_LOTS) : pickWeighted(rng, BIG_LOTS));
       L.what = what;
       if (what === 'aero') landmarks.push({ x: L.x, z: L.z, name: 'Calder Aero Supply' });
       if (what === 'police') landmarks.push({ x: L.x, z: L.z, name: 'Port Calder Police' });
@@ -3069,11 +3046,6 @@ export function createMainland(seed) {
         }
       }
     }
-    const pickW = (W) => {
-      let r = rng() * W.reduce((s, e) => s + e[1], 0);
-      for (const [t, wt] of W) if ((r -= wt) <= 0) return t;
-      return W[0][0];
-    };
     // (what stands by a kerb: on the paving, unless the block there is the ring's, which has none. lx, lz: in the
     // city's frame; o: what onPave says for an ordinary block. Returns the prop's options)
     const paveAt = (lx, lz, o) => {
@@ -3184,7 +3156,7 @@ export function createMainland(seed) {
             for (let n = 0; n < 3; n++) litter(['glass_shards', 'litter', 'suitcases'][n], s0 - d * rng.range(6, 16), rng.range(-5, 5));
             // the last cars that tried it
             for (const [dd, across, turn] of [[11, -1.8, 0.2], [13.4, 1.9, -0.5], [18, -1.6, 0.1]]) {
-              const type = pickW(TRAFFIC.slice(0, 4));
+              const type = pickWeighted(rng, TRAFFIC.slice(0, 4));
               const ry = faceAlong(d) + turn * rng.range(0.4, 1.4);
               car(type, s0 - d * dd, across, ry, rng.chance(0.5));
             }
@@ -3197,7 +3169,7 @@ export function createMainland(seed) {
             const busLane = rng.chance(0.5) ? 1 : -1;
             for (let n = 0; n < 7; n++) {
               for (const sgn of [-1, 1]) {
-                const type = pickW(TRAFFIC);
+                const type = pickWeighted(rng, TRAFFIC);
                 const ry = yaw + (sgn > 0 ? PI : 0) + rng.range(-0.12, 0.12);
                 const gone = rng.chance(0.1);
                 const along = -19.5 + n * 6.2 + rng.range(-0.4, 0.4);
@@ -3216,7 +3188,7 @@ export function createMainland(seed) {
           for (let n = 0; n < nv; n++) {
             const sgn = n % 2 ? 1 : -1;
             const along = hole ? rng.range(-20, -7) : -19 + (n + rng.range(0.15, 0.85)) * (38 / nv); // (a hole is at +6: clear of it)
-            const type = pickW(TRAFFIC);
+            const type = pickWeighted(rng, TRAFFIC);
             const crash = rng.chance(0.2);
             const ry = yaw + (sgn > 0 ? PI : 0) + (crash ? rng.range(-0.9, 0.9) : rng.range(-0.22, 0.22));
             const across = sgn * rng.range(1.5, 2.3);
@@ -3230,7 +3202,7 @@ export function createMainland(seed) {
             const sgn = rng.chance(0.5) ? 1 : -1;
             const into = rng.chance(0.45);
             const along = hole ? rng.range(-20, -7) : rng.range(-17, 17);
-            const type = pickW(TRAFFIC.slice(0, 5));
+            const type = pickWeighted(rng, TRAFFIC.slice(0, 5));
             const ry = into ? faceIn(-sgn) + rng.range(-0.45, 0.45) : yaw + rng.range(-0.5, 0.5);
             const ok = up && car(type, along, sgn * (into ? 5.5 : rng.range(4.75, 4.95)), ry);
             if (ok && into) {
@@ -3321,8 +3293,8 @@ export function createMainland(seed) {
           if (paveAt(x - 5.2, z + 5.2, { ly: PAVE })?.ly && fits(b, 'traffic_light', x - 5.2, z + 5.2, 0, PAVE)) b.prop('traffic_light', x - 5.2, z + 5.2, 0, { ly: PAVE });
         }
         if (crash && !(fall && Math.hypot(x - (fall.xs - city.x), z - (fall.zc - city.z)) < 34)) {
-          const a = pickW(TRAFFIC.slice(0, 5));
-          const c2 = pickW(TRAFFIC.slice(0, 5));
+          const a = pickWeighted(rng, TRAFFIC.slice(0, 5));
+          const c2 = pickWeighted(rng, TRAFFIC.slice(0, 5));
           const put1 = fits(b, a, x - 1.4, z + 0.6, t1);
           if (put1) b.wreck(a, x - 1.4, z + 0.6, t1, { trunk: false, zone: ZONE.ROADSIDE });
           // (the second clear of the first by more than their plans say: a plan is a shade short of some of them - the
@@ -5724,45 +5696,8 @@ export function createMainland(seed) {
   }
 
   // ---------------------------------------------------------------- queries
-  // The ground under feet at height y over (x,z): the terrain, or the floor of the drift they are down in (as on the
-  // island: world.js). heightAt is the terrain alone.
-  const floorAt = (x, z, y) => {
-    if (mine) {
-      const f = mine.floorFor(x, z, y);
-      if (f === f) return f;
-    }
-    return heightAt(x, z);
-  };
-  const above = (x, y, z) => {
-    if (mine) {
-      const f = mine.voidFloor(x, z, y);
-      if (f === f) return y - f;
-    }
-    return y - heightAt(x, z);
-  };
-  const rayTerrain = (ox, oy, oz, dx, dy, dz, maxT) => {
-    const step = 0.75;
-    let prevT = 0;
-    if (above(ox, oy, oz) < 0) return 0;
-    for (let t = step; t <= maxT + step; t += step) {
-      const tt = t > maxT ? maxT : t;
-      const y = oy + dy * tt;
-      if (y > 420 && dy >= 0) return -1;
-      if (above(ox + dx * tt, y, oz + dz * tt) < 0) {
-        let lo = prevT;
-        let hi = tt;
-        for (let k = 0; k < 6; k++) {
-          const m = (lo + hi) / 2;
-          if (above(ox + dx * m, oy + dy * m, oz + dz * m) < 0) hi = m;
-          else lo = m;
-        }
-        return (lo + hi) / 2;
-      }
-      prevT = tt;
-      if (tt >= maxT) break;
-    }
-    return -1;
-  };
+  // (worldquery.js, as on the island; heightAt is the terrain alone)
+  const { floorAt, rayTerrain } = groundQueries({ heightAt, mine, rail: null, ceiling: 420 });
   const zoneAt = (x, z) => {
     for (const zn of zones) if (Math.hypot(x - zn.x, z - zn.z) < zn.flat + 8) return zn.id;
     return ZONE.FOREST;

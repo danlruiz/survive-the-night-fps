@@ -6,6 +6,7 @@ import { MAP_HALF, GRID_N, GRID_STEP, WATER_LEVEL } from '../constants.js';
 import { ZONE } from '../defs.js';
 import { smoothstep, lerp, clamp } from '../rng.js';
 import { ROAD, gatePoint } from '../layout.js';
+import { heightSampler, nearestSampler } from '../heightfield.js';
 import { createRouter, simplify } from './router.js';
 
 // streets inside places (local coords): [[lx,lz]...], kind, width
@@ -242,33 +243,9 @@ export function layRoads({ rng, nB, nD, zones, zoneById, nearZone, hwyAnchors, l
     }
   }
 
-  const heightAt = (x, z) => {
-    let fx = (x + MAP_HALF) / GRID_STEP;
-    let fz = (z + MAP_HALF) / GRID_STEP;
-    if (fx < 0) fx = 0;
-    if (fz < 0) fz = 0;
-    if (fx > N - 1.001) fx = N - 1.001;
-    if (fz > N - 1.001) fz = N - 1.001;
-    const i = fx | 0;
-    const j = fz | 0;
-    const tx = fx - i;
-    const tz = fz - j;
-    const k = j * N + i;
-    // triangle-consistent interpolation (matches the rendered mesh split along the i+j diagonal)
-    const h00 = heights[k];
-    const h10 = heights[k + 1];
-    const h01 = heights[k + N];
-    const h11 = heights[k + N + 1];
-    if (tx + tz <= 1) return h00 + (h10 - h00) * tx + (h01 - h00) * tz;
-    return h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
-  };
-  const sampleGrid = (arr, x, z) => {
-    const i = clamp(Math.round((x + MAP_HALF) / GRID_STEP), 0, N - 1);
-    const j = clamp(Math.round((z + MAP_HALF) / GRID_STEP), 0, N - 1);
-    return arr[j * N + i];
-  };
-  const roadDistAt = (x, z) => sampleGrid(roadDist, x, z);
-  const roadKindAt = (x, z) => sampleGrid(roadKind, x, z);
+  const heightAt = heightSampler(heights, N, MAP_HALF);
+  const roadDistAt = nearestSampler(roadDist, N, MAP_HALF);
+  const roadKindAt = nearestSampler(roadKind, N, MAP_HALF);
   // the railway's cuttings and embankments, and its bed entered in the road grids
   if (rail) rail.grade({ heights, roadDist, roadKind, roadDir, heightAt });
 

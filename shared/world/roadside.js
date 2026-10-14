@@ -7,6 +7,7 @@ import { ZONE, CONT } from '../defs.js';
 import { PROPS } from '../props.js';
 import { smoothstep, lerp } from '../rng.js';
 import { ROAD } from '../layout.js';
+import { pickWeighted } from '../worldkit.js';
 
 const PI = Math.PI;
 const SITE_ROOM = 5; // (m) how far a roadside or woodland site keeps from the nearest solid prop a place has built
@@ -33,16 +34,6 @@ export function pickSites({ rng, roads, zoneById, nearZone, lake, rail, heights,
   const ROADSIDE_W = [['wreck', 5], ['camp', 2.5], ['logpile', 1.5], ['shed', 1.4], ['stash', 1], ['ruin', 1], ['grave', 0.8], ['roadblock', 1.2], ['bus', 0.5]];
   const TRAIL_W = [['camp', 3], ['hunter', 2.5], ['stash', 1.5], ['logpile', 1], ['grave', 1.2], ['shed', 1]];
   const WOODS_W = [['camp', 2.5], ['hunter', 2.5], ['stash', 2], ['shed', 1.5], ['ruin', 1.5], ['grave', 1.2], ['logpile', 0.8]];
-  const pickW = (list) => {
-    let tot = 0;
-    for (const [, w] of list) tot += w;
-    let r = rng() * tot;
-    for (const [t, w] of list) {
-      r -= w;
-      if (r <= 0) return t;
-    }
-    return list[0][0];
-  };
   for (const road of roads) {
     if (road.length < 60) continue;
     const p = road.pts;
@@ -60,7 +51,7 @@ export function pickSites({ rng, roads, zoneById, nearZone, lake, rail, heights,
       const tl = Math.hypot(tx, tz) || 1;
       const nx = -tz / tl;
       const nz = tx / tl;
-      const type = pickW(road.kind === ROAD.TRAIL ? TRAIL_W : ROADSIDE_W);
+      const type = pickWeighted(rng, road.kind === ROAD.TRAIL ? TRAIL_W : ROADSIDE_W);
       const onRoad = type === 'roadblock';
       const off = onRoad ? 0 : type === 'wreck' || type === 'bus' ? rng.range(5.5, 7.5) : rng.range(9.5, 13);
       let placed = false;
@@ -82,7 +73,7 @@ export function pickSites({ rng, roads, zoneById, nearZone, lake, rail, heights,
     const x = rng.range(-MAP_HALF + 52, MAP_HALF - 52);
     const z = rng.range(-MAP_HALF + 52, MAP_HALF - 52);
     if (!siteOk(x, z) || roadDistAt(x, z) < 20 || !siteFree(x, z, 40)) continue;
-    sites.push({ x, z, ry: rng.range(0, PI * 2), type: pickW(WOODS_W), road: 0 });
+    sites.push({ x, z, ry: rng.range(0, PI * 2), type: pickWeighted(rng, WOODS_W), road: 0 });
   }
   // level the ground under built sites
   const FLAT_SITES = { shed: 5.5, ruin: 6.5, camp: 5, stash: 4, logpile: 4.5, hunter: 3.5, grave: 3.5, wreck: 4.5, bus: 7 };
