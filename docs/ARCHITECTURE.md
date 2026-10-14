@@ -9,8 +9,11 @@ entity interpolation and server-side lag compensation.
 ```
 shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   constants.js   tick rates, physics, map, timings
-  defs.js        items, weapons, recipes (stations + schematics), structures, containers, car supplies,
-                 zombie types, sounds, events (wire ids)
+  defs.js        re-exports shared/defs/, a module for each kind of thing: items, ammunition and the weapons'
+                 numbers (itemdefs.js), car supplies and schematics (escape.js), fire, structures, recipes and
+                 salvage (crafting.js), zombie kinds (zombies.js), projectiles, sounds, events, zones, loot and
+                 containers. Import from defs.js; a new table goes in the module of its kind
+  ids.js         uniqueIds: a hand-numbered wire id table (SOUND, ZTYPE, EVT...) throws at load on a clash
   items.js       the ids of every item that is not a weapon (defs.js adds the weapons' to make ITEM)
   weapons/       one file per weapon: its id, item def, WEAPONS row, recipe, salvage, kill feat, bullet hole,
                  shot sound and kick. index.js lists them; defs.js, achievements.js, surfaces.js and the
