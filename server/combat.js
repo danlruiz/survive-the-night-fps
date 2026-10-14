@@ -371,11 +371,6 @@ export class Combat {
     return off;
   }
 
-  // (the admin's /burst, server/game.js: the Mother's own is in server/specials/mother.js)
-  burstBelly(z, by, dirX = 0, dirZ = 0) {
-    return this.g.zm.burstBelly(z, by, dirX, dirZ);
-  }
-
   // ---------------------------------------------------------------- RPG
   // The grenade leaves the tube along the aim and flies on as a projectile (PROJ.ROCKET, updateProjectiles) until it
   // strikes something. The shooter's client flies its own from the moment of the shot (client/game/rockets.js), so

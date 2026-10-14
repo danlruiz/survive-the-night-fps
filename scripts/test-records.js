@@ -53,7 +53,7 @@ const wellFormed = (r) =>
     let r;
     try {
       r = sanitizeRecord(j);
-    } catch (e) {
+    } catch {
       r = null;
     }
     if (!r || !wellFormed(r)) {

@@ -218,7 +218,6 @@ if (args.before) {
   before = await run(resolve(String(args.before)), join(out, 'before'), list);
   console.log(`failed sign-ins after the second browser: ${badPasswordAttempts()}`);
   for (const s of list) {
-    const a = after[s.name], b = before[s.name];
     const title = `${s.title}  (seed ${SEED}, ${s.map}, /tp ${s.tp[0].toFixed(1)} ${s.tp[1].toFixed(1)})`;
     pair(readPng(readFileSync(join(out, 'before', `${s.name}.png`))), readPng(readFileSync(join(out, 'after', `${s.name}.png`))), title).save(join(out, `${s.name}.png`));
   }

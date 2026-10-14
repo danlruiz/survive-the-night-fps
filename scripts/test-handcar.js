@@ -12,7 +12,7 @@
 //    only rebases it when it gets on
 // usage: node scripts/test-handcar.js [seed] (VERBOSE=1: the numbers behind each check)
 import { Game } from '../server/game.js';
-import { C2S, S2C, ACT, SNAP, ENT, HCAR_AT, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
+import { C2S, S2C, ACT, SNAP, HCAR_AT, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, SPRINT_SPEED, STAMINA_MAX } from '../shared/constants.js';
 import { ITEM, ZTYPE, ZONE } from '../shared/defs.js';
 import { HANDCAR, handcars, linePoint, carFrame } from '../shared/handcar.js';

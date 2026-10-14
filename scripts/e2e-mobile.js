@@ -406,7 +406,7 @@ try {
   check('Back to the game: play, controls up', !s.pause && s.pad && s.locked && s.enabled, s);
 
   // ---- the screens behind MORE: leaderboard, bestiary, Dead Hand
-  for (const [act, sel, name] of [
+  for (const [act, , name] of [
     ['board', '.lb, .leaderboard', 'leaderboard'],
     ['bestiary', '.bestiary', 'bestiary'],
     ['cards', '.cards-screen, .cd-screen', 'cards'],

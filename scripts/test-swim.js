@@ -20,7 +20,6 @@ import { swimming, floatY, SWIM_SPEED, SWIM_FAST, SWIM_TREAD, SWIM_DRAIN, DROWN_
 
 const seeds = process.argv.slice(2).map(Number).filter((n) => n > 0);
 if (!seeds.length) seeds.push(1, 2, 3);
-const DT = 1 / SERVER_TICK_RATE;
 const fails = [];
 const check = (name, ok, info = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${info}`);

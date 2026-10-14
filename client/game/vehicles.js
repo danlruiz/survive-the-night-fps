@@ -787,7 +787,7 @@ export class VehicleClient {
 }
 
 // A survivor's model sv put in seat k of a vehicle's model as it stands: its hips on the seat, facing the way the
-// vehicle does, leaning with it. out: { sitT, sitK, sitSplay, reach } for the survivor's own pose (characters.js).
+// vehicle does, leaning with it. out: { sitT, sitK, sitSplay, reach } for the survivor's own pose (characters/survivor.js).
 // (Also the models sandbox's, so that what is measured there is what the game draws.)
 export function seatBody(model, vk, k, sv, out = {}) {
   const P = VEHICLES[vk];
@@ -796,7 +796,7 @@ export function seatBody(model, vk, k, sv, out = {}) {
   const body = model.body;
   const aimYaw = sv.object.rotation.y; // (their own turn, as set before this: where they aim)
   model.group.updateMatrixWorld(true);
-  // the hips over the model's own origin: by how the legs are folded (characters.js legCycle)
+  // the hips over the model's own origin: by how the legs are folded (characters/survivor.js legCycle)
   const L = sv._inst?.P;
   const ext = (t, kn) => (L ? L.thighLen * Math.cos(t) + L.shinLen * Math.cos(t - kn) : 0);
   const hip = SEAT_HIP + ext(pose[0], pose[1]) - ext(SIT_T, SIT_K);
@@ -810,7 +810,7 @@ export function seatBody(model, vk, k, sv, out = {}) {
   // whoever is carried turns in their seat to where they aim 
   out.sitTwist = k === 0 ? 0 : Math.max(-1.45, Math.min(1.45, wrap(aimYaw - model.group.rotation.y)));
   out.pedal = undefined;
-  // the feet: on the pedals, the footboard, the floor - where the model has them this frame (characters.js solveFeet)
+  // the feet: on the pedals, the footboard, the floor - where the model has them this frame (characters/survivor.js solveFeet)
   const feet = model.feet[k];
   if (!feet) out.feet = null;
   else {

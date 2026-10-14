@@ -9,7 +9,7 @@ import { bindTag, bindLabel } from '../binds.js';
 import { lookWarm } from '../../render/models/characters.js';
 import { bearing } from '../../ui/hud2.js';
 
-// a player's status as the player list sends it (server/game.js: S2C.PLAYERS), and the names the HUD and the list use
+// a player's status as the player list sends it (server/game/net.js: S2C.PLAYERS), and the names the HUD and the list use
 export const PSTATUS = { ALIVE: 0, ZOMBIE: 1, DEAD: 2, DOWNED: 3 };
 const STATUS_NAMES = ['alive', 'zombie', 'dead', 'downed'];
 const statusName = (status) => STATUS_NAMES[status] || 'alive';
@@ -144,7 +144,7 @@ export const methods = {
     this.ui.setProgress(p);
   },
 
-  // The team over the HUD's vitals (ui/hud.js): everyone else in the game, how they are and how far off. Health as the
+  // The team over the HUD's vitals (ui/hud/vitals.js): everyone else in the game, how they are and how far off. Health as the
   // player list has it (pushRoster): it rides in a teammate's entity record, and the dead get no report on the living
   hudTeam(rp) {
     const turned = !this.self.alive || !!this.prediction.state.zombie;

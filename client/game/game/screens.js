@@ -298,7 +298,7 @@ export const methods = {
     this.audio.playLocal(open ? 'card_shuffle' : 'ui_click', { volume: open ? 0.35 : 0.5 });
   },
 
-  // The end screen asks how hard the run was (ui/menus.js EndScreen): the pointer goes free so it can be clicked
+  // The end screen asks how hard the run was (ui/endscreens.js EndScreen): the pointer goes free so it can be clicked
   freePointerForEnd() {
     this.ui.showPause(false);
     this.input.exitLock();

@@ -36,8 +36,6 @@ const view = (name, at, look, o = {}) => views.push([name, at, look, o]);
   view('03-gas-station', [g.x - 40, ground(g.x - 40, g.z + 30) + 3, g.z + 30], [g.x + 4, g.h + 2, g.z]);
   // Pine Lake from its marina's pier
   const m = zp(ZONE.MARINA);
-  const px = m.x + Math.sin(m.ry) * 40;
-  const pz = m.z + Math.cos(m.ry) * 40;
   const [bx, bz] = [m.x + Math.sin(m.ry) * 6, m.z + Math.cos(m.ry) * 6];
   view('04-pine-lake', [bx, m.h + 6, bz], [m.x + Math.sin(m.ry) * 160, -2, m.z + Math.cos(m.ry) * 160], { fog: 0.35, far: 800 });
   // North Pass: the road up to its west mouth

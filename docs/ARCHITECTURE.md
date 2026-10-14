@@ -922,7 +922,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   arrival day and the longer days after it, times `diff.day`), its hordes and the runway stand (`hordeSize`), the dead
   themselves, the loot, and the bridgehead's floor, whose rounds and bandages move as the starting kit's do
   (`diff.ammo`, `diff.bandages`: 48 rounds and 2 bandages on Ember, 24 and 1 on Nightfall, 16 and 1 on Blackout).
-- **The plane** (`suppliesOf(act)` in defs.js: `PLANE_PARTS` has the shape of `SUPPLIES`, four parts and the fuel by
+- **The plane** (`suppliesOf(act)` in `defs/escape.js`: `PLANE_PARTS` has the shape of `SUPPLIES`, four parts and the fuel by
   threes, so the global state, the rumours and the objective tracker read either). Its parts lie at set places:
   `world.partSpots[k].supply` says which part a spot is for (`placeSupplies`).
 - **The runway stand** (`RUNWAY` in acts.js, `updateEscape`): two things to hold in turn - the fuel truck while it
@@ -1529,7 +1529,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   and at no other time: a valley of wrecks at rest costs those few draw calls and no work. Only liftable props are
   recorded when the world is built (`liftable`: what gives scrap, and `LIGHT_PROPS`). A light prop (a barrel, a
   crate, a chair) rocks on its base from a blow and is put back the moment it settles.
-- **Wrecks** (`shared/wrecks.js`, `Game.wreckHit`, `Wreck` in `client/render/wrecks.js`). A blow on a wreck is put
+- **Wrecks** (`shared/wrecks.js`, `Game.wreckHit`, `Wreck` in `client/render/wreck.js`). A blow on a wreck is put
   on its record beside the salvage left in it (`Game.gather`: `hits`, up to `WRECK_HITS_MAX`, each where it landed,
   which way and with what) and sent to everybody (`EVT.WRECK`); who joins or comes back is sent every record whole
   (`WRECKF.REPLAY`, with `EVT.STRIPPED` as before); a save keeps them; dawn forgets them (`EVT.REGROWN`), and every
@@ -1648,7 +1648,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   The backpack does not come off (`ACT.WORN`) while a slot past 24 holds anything, so the locked slots stay empty.
   Worn, it sets `PFLAG.BACKPACK`, and the third-person survivor carries the item's own model on its back.
   The backpack sorts itself (`sortInventory`): each item's stacks merged and the open slots ordered by `BAG_TIER`
-  (defs.js), then item id and size: deterministic, and the locked slots are never touched. It runs whenever
+  (`defs/itemdefs.js`), then item id and size: deterministic, and the locked slots are never touched. It runs whenever
   something is picked up (`giveItem`: the ground, searches, harvesting, salvage's yield; not a craft, whose result
   the client predicts in place) or dropped (`ACT.DROP_SLOT`): `p.invSort`, applied once in `sendTick` before the
   inventory goes out. A split (`p.splitKeep`) is left apart. There is no Sort button.
@@ -1750,7 +1750,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   looks for a clear line every third tick (`batSees`) and comes straight down the first one it gets - a doorway,
   a window, the top of a wall with no roof over it, or the survivor stepping outside.
 - **Fire and burning.** `Combat.ignite(z, attacker, weapon, time)` gives a zombie the burn status (`BURN` in
-  defs.js; `z.burnT` seconds left, `z.burnBy` / `z.burnWeapon` for the kill). `Zombies.updateOne` ticks it
+  `defs/fire.js`; `z.burnT` seconds left, `z.burnBy` / `z.burnWeapon` for the kill). `Zombies.updateOne` ticks it
   through `damageZombie` with `{ fire, dot }` (`fire`: burnt corpse, no loot; `dot`: one small tick of a
   continuous hurt, so it rarely cries out). More fire tops the time back up, it never stacks. It is replicated as
   `ZSTATUS.BURNING` in the zombie's `ZF.STATUS` field (also set while the dawn sun burns the horde), which is all

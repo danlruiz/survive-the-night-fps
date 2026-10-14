@@ -28,7 +28,7 @@ const OUTLINE = [
   [[-0.04, 0], [0.04, 0], [0.5, 0.3], [0.5, 0.74], [0.2, 0.86], [-0.2, 0.86], [-0.5, 0.74], [-0.5, 0.3]],
 ];
 const FILL_MOVE = 14; // m the eye moves before the cards are put in order again
-const FAR = 1750; // past the camera's far plane on the mainland (game.js FAR_BIG): no card is drawn there
+const FAR = 1750; // past the camera's far plane on the mainland (client/game/game/world.js FAR_BIG): no card is drawn there
 const BINS = 160;
 
 let _tex = null;

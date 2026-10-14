@@ -2,7 +2,7 @@
 // on a car, a bullet in a fence post, a grenade beside a barn: the surface that was struck (from the collider's tag,
 // set where the world is built: worldkit.js), the kind of blow (from the weapon), and the mark, the burst of bits
 // and the sound that pair makes. Pure data and pure functions: the client draws from it (render/marks.js,
-// render/effects.js strike), scripts/test-wrecks.js holds it.
+// render/strikefx.js strike), scripts/test-wrecks.js holds it.
 import { STRUCT_DEFS } from './defs.js';
 import { PROPS } from './props.js';
 import { WEAPON_LIST } from './weapons/index.js';
@@ -176,7 +176,7 @@ const BITS = [
 export const bitsFor = (surf) => BITS[surf];
 
 // The sound of the blow: a bank of client/audio/synth-strike.js by surface and blow (SOUND ids in defs.js, STRIKE_*).
-// [surface][blow] -> the key of STRIKE_SOUND (client/audio/audio.js maps it)
+// [surface][blow] -> the key of STRIKE_SOUND (STRIKE_MAP in client/audio/sound-defs.js maps it)
 const SOUNDS = [
   /* earth  */ ['earth_cut', 'earth_cut', 'earth_thud', 'earth_thud', 'earth_thud', 'earth_thud'],
   /* wood   */ ['wood_slash', 'wood_chop', 'wood_thud', 'wood_knock', 'wood_knock', 'wood_thud'],

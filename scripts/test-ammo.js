@@ -28,7 +28,7 @@ function client(name) {
       if (t === S2C.WELCOME) c.id = r.u16();
       else if (t === S2C.SNAPSHOT) readSnapshot(r, c);
       else if (t === S2C.INVENTORY) {
-        // (as Game.onInventory reads it, client/game/game.js)
+        // (as Game.onInventory reads it, client/game/game/inventory.js)
         for (let i = 0; i < INVENTORY_MAX; i++) {
           const item = r.u8();
           const count = r.u16();

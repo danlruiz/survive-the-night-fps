@@ -1,5 +1,5 @@
 // The craftable Backpack (ITEM.BACKPACK): one model for the item lying on the ground (pickups.js) and for the pack
-// a survivor wears (characters.js, on the chest bone while PFLAG.BACKPACK is set), drawn in the character style -
+// a survivor wears (characters/survivor.js, on the chest bone while PFLAG.BACKPACK is set), drawn in the character style -
 // the char atlas's canvas, leather and knit cells under vertex colour, with darker piping along the seams and the
 // edges rubbed pale. A 35-litre canvas rucksack at real size: a padded body 32 cm wide, 44 high and 20 deep that
 // bulges at the front and narrows to the top, a domed lid with its front flap held by two leather straps and
@@ -20,7 +20,7 @@ const PI = Math.PI;
 const W = 0.32;
 const H = 0.44;
 const D = 0.2;
-// where the worn pack sits in the chest bone's space (characters.js): its back panel 14.5 cm behind the bone, clear of
+// where the worn pack sits in the chest bone's space (characters/survivor.js): its back panel 14.5 cm behind the bone, clear of
 // the jacket, and its bottom 30 cm below it, at the small of the back
 export const WORN_AT = [0, -0.3, 0.145];
 
@@ -289,7 +289,7 @@ function grabLoop(mb) {
 
 // the shoulder straps: worn, over the shoulders and down the chest (in pack space, from the chest bone's: WORN_AT);
 // on the ground, lying loose down the back panel. fit(x, y, z): a chest-bone-space point of a strap moved onto the
-// body that wears it (characters.js: the straps lie on each survivor's own chest and shoulders); none: as written
+// body that wears it (characters/survivor.js: the straps lie on each survivor's own chest and shoulders); none: as written
 function shoulderStraps(mb, worn, fit = null) {
   const pad = { region: CR.CANVAS, color: [0.16, 0.17, 0.12], mottle: 0.08 };
   const web = { region: CR.CANVAS, color: WEBBING, mottle: 0.06 };

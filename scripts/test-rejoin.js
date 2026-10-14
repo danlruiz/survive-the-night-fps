@@ -1,4 +1,4 @@
-// Coming back after a drop (server/game.js hold / resume) against a real server process: a player whose socket drops
+// Coming back after a drop (server/game/sessions.js hold / resume) against a real server process: a player whose socket drops
 // keeps their place - the game still counts them, and the same browser (or account) joining again gets the same body
 // back, at the same spot, not a new player - while "Leave game" (LEFT_CODE) lets the place go at once, a drop that
 // nobody comes back for is let go when REJOIN_GRACE runs out, and somebody else's browser cannot take a held body.

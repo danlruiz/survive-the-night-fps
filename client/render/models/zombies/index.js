@@ -52,4 +52,4 @@ for (const [name, k] of Object.entries(KINDS)) {
 }
 
 // (types whose far copy is worth having: everything people.js builds whole)
-export const LOD_TYPES = new Set(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].lod)); // (each kind's row's lod: shared/defs.js)
+export const LOD_TYPES = new Set(Object.values(ZTYPE).filter((t) => ZOMBIE_DEFS[t].lod)); // (each kind's row's lod: shared/defs/zombies.js)

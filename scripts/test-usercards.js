@@ -17,7 +17,7 @@ import { migrate } from '../server/db/migrate.js';
 import { CardService, PgCardStore, MemoryCardStore, MOVES_MAX, INFLIGHT_MAX, PACK_CAP, netMoves } from '../server/usercards.js';
 import { idKey } from '../server/stats.js';
 import { Auth } from '../server/auth.js';
-import { CARDS, K, F, defaultDeck, cardDef } from '../shared/cards.js';
+import { CARDS, K, F, defaultDeck } from '../shared/cards.js';
 
 const fails = [];
 const check = (name, ok, info = '') => {
@@ -30,7 +30,7 @@ const settle = async () => {
 const units = CARDS.filter((c) => c.k === K.UNIT).map((c) => c.id);
 const [C1, C2, C3] = units;
 const guest = () => `g:${createHash('sha256').update(randomUUID()).digest('hex')}`;
-// a game as the network thread knows it (rooms.js Room): what the service tells it is kept
+// a game as the network thread knows it (room.js Room): what the service tells it is kept
 function room(code) {
   const r = { code, closed: false, got: [] };
   r.worker = { postMessage: (m) => r.got.push(m) };
@@ -55,7 +55,7 @@ async function suite(name, store, { addUser, delUser, age }) {
   const R1 = room('R1');
   const R2 = room('R2');
   const a = guest();
-  const b = guest();
+  guest();
 
   // ---------------------------------------------------------------- reading, and finds
   service.fromRoom(R1, { t: 'cards', op: 'enter', owner: a });

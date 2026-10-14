@@ -255,7 +255,7 @@ export class UI {
     if (amount > 0) this.pause.hit(); // (the game never stops for the Esc menu: it says so)
   }
 
-  // the night's tally at dawn; brief: what tonight brings (hud2.js tonightBrief), named under it
+  // the night's tally at dawn; brief: what tonight brings (tonight.js tonightBrief), named under it
   showSummary(stats, brief) {
     this.summary.show(stats, brief);
   }

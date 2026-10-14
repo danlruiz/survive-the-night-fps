@@ -9,7 +9,7 @@
 // usage: node scripts/test-atrifle.js [seed = 1]
 import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
-import { ITEM, ITEM_DEFS, WEAPONS, AMMO, AMMO_ITEMS, RECIPES, LOOT_TABLES, CONT_TABLES, ZONE, ZTYPE, ZOMBIE_DEFS, SOUND, loadedAmmo } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, AMMO, AMMO_ITEMS, RECIPES, LOOT_TABLES, CONT_TABLES, ZONE, ZTYPE, SOUND, loadedAmmo } from '../shared/defs.js';
 import { BTN, CMD_DT, SLOT_PRIMARY } from '../shared/constants.js';
 import { createPlayerState, simulatePlayer } from '../shared/playersim.js';
 

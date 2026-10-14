@@ -391,4 +391,3 @@ export class DamageDir {
 }
 
 export { PING_LABEL };
-export { tonightBrief } from './tonight.js'; // (game.js and the sandbox read it from here)

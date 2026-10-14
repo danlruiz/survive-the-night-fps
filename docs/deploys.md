@@ -198,8 +198,9 @@ back.
   older build stays on it until its run ends, or for up to `HANDOFF_PIN_MAX_HOURS` (12), whichever comes first.
 - Changing how a message is written or read: the codec files (`shared/`, `server/snapshot.js`, `client/net/decode.js`,
   `client/net/connection.js`) change the compat, and every playing page reloads once. A message written in
-  `server/game.js` and read in `client/game/game.js` (which compat does not hash: most client deploys change it) needs a
-  `PROTOCOL_VERSION` bump, as any change to the protocol always has. Changing what the network thread and a worker say to each other (`room-worker.js`'s header): bump
+  `server/game.js` or its parts (`server/game/`) and read in `client/game/game.js` or its parts (`client/game/game/`),
+  which compat does not hash (most client deploys change them), needs a `PROTOCOL_VERSION` bump, as any change to the
+  protocol always has. Changing what the network thread and a worker say to each other (`room-worker.js`'s header): bump
   `WORKER_API`, and say that games on older builds end at that deploy. A change to `shared/`: every playing page reloads
   once (say so); a change that must reach the players' pages at once has to touch `shared/` (or the protocol).
 

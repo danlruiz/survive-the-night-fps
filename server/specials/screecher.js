@@ -6,7 +6,7 @@ import { SPAWN_SPREAD } from '../spawns.js';
 // the first, SCREECH_HORDE_MAX at most) of the dead: SCREECH_RUNNERS of them runners, the rest walkers, coming out of
 // the dark in groups of SCREECH_GROUP from SCREECH_SPAWN_MIN-MAX m round whoever it screamed at, and set on them for
 // SCREECH_AGGRO s. Never past SCREECH_HORDE_ALIVE of the horde alive at once, nor SCREECH_ALIVE_MAX of the dead in all
-// (a day's valley alone can hold more than the 120 of MAX_ZOMBIES_ALIVE in game.js, which only holds back the night's
+// (a day's valley alone can hold more than the 120 of MAX_ZOMBIES_ALIVE in game/phases.js, which only holds back the night's
 // waves). The dead within SCREECH_LOUD m that have nobody to chase come too (noise)
 const SCREECH_HORDE_MAX = 14;
 const SCREECH_RUNNERS = 0.6;

@@ -202,7 +202,7 @@ const ground = (x, z) => w.floorAt(x, z, w.heightAt(x, z) + 1);
   clearInv(a);
   for (const it of [ITEM.MOLOTOV, ITEM.PIPEBOMB, ITEM.GRENADE, ITEM.DECOY, ITEM.FLARE]) game.giveItem(a, it, 2);
   run(1);
-  // [4] on the throwable slot: the next throwable carried, in THROW_ITEMS order (client/game/game.js)
+  // [4] on the throwable slot: the next throwable carried, in THROW_ITEMS order (client/game/game/controls.js)
   const next = () => {
     const i = THROW_ITEMS.indexOf(s.weapons[SLOT_THROW]);
     for (let k = 1; k <= THROW_ITEMS.length; k++) {

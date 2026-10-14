@@ -826,10 +826,10 @@ export class VehicleModel {
 }
 
 // which survivors' hands hold on where: the grip of each hand in the frame of grips[k] - the fingers' way and the
-// palm's (render/models/weapons.js handQ). On bars the fist closes over the grip from above and behind; on a wheel's
+// palm's (render/models/weapons/parts.js handQ). On bars the fist closes over the grip from above and behind; on a wheel's
 // rim from the outside.
 // How a survivor sits in each seat: [the thigh's angle forward of straight down, the knee's bend, how far the knees
-// are apart, the trunk's lean forward] (characters.js: s.sitT / sitK / sitSplay). A moped's rider has their feet on its
+// are apart, the trunk's lean forward] (characters/survivor.js: s.sitT / sitK / sitSplay). A moped's rider has their feet on its
 // footboard and whoever rides behind has their knees round them; in a car the legs go out under the dash, and in the
 // back the knees are up behind the front seats; on a bicycle the feet are down at the pedals.
 // (the legs: solved onto the model's feet places - seatBody; [.., .., the knees apart, the trunk's lean forward,

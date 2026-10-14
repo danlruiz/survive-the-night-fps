@@ -11,7 +11,7 @@ import { needLines } from '../harvest.js';
 import { bindTag } from '../binds.js';
 import { mateDown } from '../matedown.js';
 import { isFirstRun, yawTowards } from '../../ui/firstrun.js';
-import { tonightBrief } from '../../ui/hud2.js';
+import { tonightBrief } from '../../ui/tonight.js';
 
 // what the car's radio says once its battery is in (carRadio), word for word as the owner wrote it
 const CAR_RADIO_LINE = 'if anyone can hear us, we are trying to go to the airfield, it’s our only way to escape this hell';
@@ -82,7 +82,7 @@ export const methods = {
         break;
       case NOTIFY.HORDE_SOON:
         // one line. What tonight brings (its theme, the new kind, its boss) is on the card under the clock from now to
-        // dark (hud2.js Tonight, from Game.tonight), and the objective says where to board up
+        // dark (tonight.js Tonight, from Game.tonight), and the objective says where to board up
         // ...unless tonight is a blood moon: that is said out loud (and the sky turns red as the sun goes)
         if (this.global.moon === MOON.BLOOD) {
           ui.notify('A BLOOD MOON IS RISING', 'big', 6);
@@ -346,7 +346,7 @@ export const methods = {
     return DAWN_RETURN && !g.finale && (g.phase === PHASE.DAY || g.phase === PHASE.NIGHT);
   },
 
-  // The card under the clock from the dusk horn to nightfall (hud2.js Tonight): what the coming night brings, worked
+  // The card under the clock from the dusk horn to nightfall (tonight.js Tonight): what the coming night brings, worked
   // out from the seed as the server does. The same object while it holds (the card rebuilds when the key changes);
   // null by night, before the horn and in the final stand
   tonight(g) {

@@ -9,7 +9,7 @@ import { el, svgEl, clamp } from '../dom.js';
 import { itemIcon, glyph } from '../icons.js';
 import { costLine, shortName } from '../iteminfo.js';
 
-// The backpack's sections, in the order the server's auto sort leaves them (BAG_TIER in defs.js).
+// The backpack's sections, in the order the server's auto sort leaves them (BAG_TIER in shared/defs/itemdefs.js).
 // Only the grid is laid out that way - the server keeps each stack in its slot - so within a section stacks stay in
 // slot order, which a drag onto another stack of the section swaps.
 export const SECTIONS = [

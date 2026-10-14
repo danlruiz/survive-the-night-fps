@@ -43,8 +43,8 @@ On `main`? Make a branch first. Then decide three things from the diff:
 - **Backend?** Any change under `server/` or `shared/` (shared code runs inside the server's simulation too), a new
   file in `server/db/migrations/`, `railway.json`, or `package.json` dependencies. Yes: write the Risk section.
 - **Tuning?** Changed numbers that set how the game plays: timings, damage, health, speeds, ranges, spawn counts and
-  weights, loot odds, recipe costs, stamina, prices (`shared/constants.js`, `shared/defs.js`, `shared/nights.js`,
-  constants at the top of a module). Yes: write the Metrics table.
+  weights, loot odds, recipe costs, stamina, prices (`shared/constants.js`, `shared/defs/`, `shared/weapons/`,
+  `shared/nights.js`, constants at the top of a module). Yes: write the Metrics table.
 - **Big technical refactor?** Mostly moves or rewrites code across many files, with nothing new for players. Yes: the
   overview may be technical (step 4).
 

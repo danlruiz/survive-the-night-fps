@@ -7,7 +7,7 @@
 // its key and from the pause menu; the cross, its key, Esc or a click outside the frame closes it (the game sets
 // onClose); Esc on a page goes back to the cards.
 //
-// The portraits are the game's own models (models/characters.js createZombie), drawn by a small WebGL renderer of its
+// The portraits are the game's own models (models/characters/zombie.js createZombie), drawn by a small WebGL renderer of its
 // own the first time the book opens (or the pause menu's field notes ask: warm()), kept as images, and the renderer
 // let go of again (ui/portrait.js, which Dead Hand's cards draw their dead with too). A locked card is only given the
 // smudge: no clear portrait of a kind not seen is put in the page.

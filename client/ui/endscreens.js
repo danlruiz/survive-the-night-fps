@@ -2,7 +2,7 @@
 //   Downed    a ring round the crosshair that runs out with the bleed, and one line: who is closest, the radio key
 //   Death     a short card: who got you and what it does, then a bar to the rise (the server's RISE_S), not a 9 s screen
 //   DawnLine  lines under the clock at dawn: how the night went, the fresh-night XP bonus back, and the names of what
-//             comes tonight. The dusk card (hud2.js Tonight) says what to do about them when it matters. The middle
+//             comes tonight. The dusk card (tonight.js Tonight) says what to do about them when it matters. The middle
 //             stays the Dawn title's
 //   EndScreen one read order: the outcome, what the run earned (a new best biggest, a level-up with its perk point),
 //             the team, the poll (optional), and a bar at the bottom that never scrolls away: the countdown to the
@@ -108,7 +108,7 @@ export class Downed {
 }
 
 // ---------------------------------------------------------------- death
-// The server raises a dead survivor as one of the dead this long after they fall (server/game.js killPlayer,
+// The server raises a dead survivor as one of the dead this long after they fall (server/game/harm.js killPlayer,
 // p.respawnT): the card lasts until then and the game takes it down on the rise (Game.updateOverlays)
 const RISE_S = 6;
 
@@ -193,14 +193,14 @@ export class DawnLine {
     root.hidden = true;
     this.head = el('div', 'xdawn-head', root, '');
     this.stats = el('div', 'xdawn-stats', root);
-    // the fresh-night bonus starts over with the day (server/game.js phaseXp)
+    // the fresh-night bonus starts over with the day (server/game/experience.js phaseXp)
     el('div', 'xdawn-bonus', root, `Fresh-night bonus: +XP on your next ${XP.killsFull} kills`);
     this.next = el('div', 'xdawn-next', root);
     this.h = -1;
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this._room()).observe(root);
   }
 
-  // s: the night's tally (S2C summary); rows: what tonight brings (hud2.js tonightBrief): its theme, its new kinds, its boss
+  // s: the night's tally (S2C summary); rows: what tonight brings (tonight.js tonightBrief): its theme, its new kinds, its boss
   show(s, rows = []) {
     this.head.textContent = `Night ${s.night} held`;
     this.stats.textContent = '';

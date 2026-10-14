@@ -81,7 +81,6 @@ check('every boot in the valley is found behind its car; the cars have a lid to 
 check('the sedan left in the street with its boot up has nothing to force', !hasBootLid({ type: 'car_open', seed: 3 }) && !hasBootLid({ type: 'car_open', seed: 7 }) && hasBootLid({ type: 'car_open', seed: 4 }) && hasBootLid({ type: 'car_wreck', seed: 3 }) && !hasBootLid({ type: 'pickup_truck', seed: 0 }) && !hasBootLid({ type: 'van_wreck', seed: 0 }) && !hasBootLid(null));
 
 const idOf = (c) => c.id;
-const hold = (p) => p.hold;
 // stand a player at a boot with a weapon in the hand (0: a rifle in it - no lever)
 function at(p, c, weapon) {
   const car = trunkCar(world, c);

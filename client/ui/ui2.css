@@ -1322,7 +1322,7 @@
   color: var(--amber);
 }
 
-/* ------------------------------------------------------------------ dusk card (hud2.js Tonight) */
+/* ------------------------------------------------------------------ dusk card (tonight.js Tonight) */
 /* a field note under the clock from the horn to nightfall: what tonight brings, one row a thing. Up in full (.open)
    for its first seconds, a row at a time; then the names alone */
 .stn-ui .tonight {

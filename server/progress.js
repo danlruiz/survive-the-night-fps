@@ -1,4 +1,4 @@
-// A player's level and perks through the API (server/index.js /api/progress...): what they have, spending a perk point
+// A player's level and perks through the API (server/http/progress.js /api/progress...): what they have, spending a perk point
 // on the tree, taking one back and starting over. The XP itself is earned in the games (Game.award) and kept with the
 // rest of a player's record, in the database (dbstats.js) or the file (stats.js): both give this the same
 // progressOf / setPerks.

@@ -267,11 +267,10 @@ if (q.has('deer')) {
   const d = ZOMBIE_DEFS[t];
   const sp = isSurv ? 1.4 : Math.max(1.4, d.radius * 2.6);
   for (let i = 0; i < 9; i++) {
-    let a;
     const col = q.get('cam') === 'side';
     const gx = col ? 0 : (4 - i) * sp, gz = col ? (i - 4) * sp : 0;
-    if (isSurv) a = addSurvivor(i + 1, +(q.get('item') || ITEM.AK47), gx, gz, g === 'zsurv');
-    else a = addZombie(t, i * 5 + 1, gx, gz, t === ZTYPE.BAT ? 1.2 : 0);
+    if (isSurv) addSurvivor(i + 1, +(q.get('item') || ITEM.AK47), gx, gz, g === 'zsurv');
+    else addZombie(t, i * 5 + 1, gx, gz, t === ZTYPE.BAT ? 1.2 : 0);
     actors[actors.length - 1].fixed = i;
   }
   target.set(0, isSurv ? 0.9 : t === ZTYPE.BAT ? 1.2 : d.height * 0.5, 0);

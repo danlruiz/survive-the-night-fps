@@ -146,7 +146,7 @@ function makeBot({ id, url, name }) {
       try {
         readEntities(r, store, b.net.tick, flags);
         readEvents(r, handler, flags, b.ents);
-      } catch (err) {
+      } catch {
         b.entErr++;
         return;
       }

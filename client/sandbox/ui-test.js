@@ -8,7 +8,7 @@ import { ITEM, ITEM_DEFS, RECIPES, STRUCT, STRUCT_ORDER, ZTYPE, ZOMBIE_DEFS } fr
 import { PHASE, INVENTORY_MAX } from '../../shared/constants.js';
 import { itemIcon, structIcon, glyph, GLYPH_NAMES } from '../ui/icons.js';
 import { ACH_BY_ID } from '../../shared/achievements.js';
-import { tonightBrief } from '../ui/hud2.js';
+import { tonightBrief } from '../ui/tonight.js';
 import { BESTIARY } from '../../shared/bestiary.js';
 import { reloadTracked } from '../ui/books.js';
 import { perkMask, progressView, perkLock, perkDependents, levelOf, xpForLevel } from '../../shared/progress.js';
@@ -610,7 +610,7 @@ switch (screen) {
     ui.updateHud(h);
     ui.notify('Dawn', 'big', 60);
     ui.notify('You made it through the night', 'sub', 60);
-    // (the rows as hud2.js tonightBrief makes them: theme, new kinds, boss)
+    // (the rows as tonight.js tonightBrief makes them: theme, new kinds, boss)
     ui.showSummary({ night: 3, kills: 64, structLost: 5, downs: 2, revives: 1, deaths: 0 }, [
       { kind: 'new', name: ZOMBIE_DEFS[ZTYPE.BOOMER].name + 's' },
       { kind: 'boss', name: ZOMBIE_DEFS[ZTYPE.BOSS_BLOATER].name },

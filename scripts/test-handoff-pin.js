@@ -1,5 +1,5 @@
 // A game the new build cannot carry on is carried on by the build that saved it (server/builds.js, rooms.js
-// Lobby.afterFailed / Room pin, index.js serving that build's page and files). docs/deploys.md.
+// Lobby.afterFailed / room.js Room pin, http/static.js serving that build's page and files). docs/deploys.md.
 //
 // Builds before this one are made here: copies of this tree's server/ and shared/, each changed in one way a save
 // cannot survive - another map of the same seed (the stalled train's toolbox a metre off), another state version, an
@@ -27,7 +27,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { FileStore, worldPrint } from '../server/handoff.js';
-import { packBuild, openBuild, signOf, buildId, buildHash, protocolOf, removeTree, Builds, WORKER_API, SECURITY_EPOCH } from '../server/builds.js';
+import { packBuild, openBuild, signOf, buildHash, protocolOf, removeTree, Builds, WORKER_API, SECURITY_EPOCH } from '../server/builds.js';
 import { Room, Lobby, rejectBytes } from '../server/rooms.js';
 import { worldFor } from '../shared/worlds.js';
 import { PROTOCOL_VERSION, ENDED_CODE, REJECT_REASON, S2C, C2S, Writer } from '../shared/protocol.js';
@@ -97,7 +97,7 @@ async function savedBy(root, pids) {
 
 const oldmap = oldBuild('oldmap', [['shared/rail.js', 'C(b, CONT.TOOLBOX, ds * 0.7, 5.2,', 'C(b, CONT.TOOLBOX, ds * 0.7, 4.2,']]);
 const oldver = oldBuild('oldver', [['server/handoff.js', 'process.env.HANDOFF_STATE_VERSION || 1', 'process.env.HANDOFF_STATE_VERSION || 7']]);
-const oldenum = oldBuild('oldenum', [['shared/defs.js', '  NONE: 0,\n  // resources\n', '  NONE: 0,\n  OLD_TEST_ITEM: 990, // (an item this build no longer has)\n  // resources\n']]);
+const oldenum = oldBuild('oldenum', [['shared/items.js', '  NONE: 0,\n  // resources\n', '  NONE: 0,\n  OLD_TEST_ITEM: 990, // (an item this build no longer has)\n  // resources\n']]);
 // ...and one that also speaks another codec to its own client: the ids of ROOM and REJECT, a reject's reason, the close
 // codes (what this server's network thread writes to that game's players must be in it)
 const oldproto = oldBuild('oldproto', [
@@ -274,7 +274,7 @@ check("a build's signature is of its whole SHA-256: one of its name alone is ref
   };
   const sent = [];
   const notes2 = [];
-  const fakeRoom = { proto: bad, code: 'BADPRO', title: 'Bad', inviteOnly: false, difficulty: 'nightfall', first: '', users: [null], names: [''], socks: [{ send: (b) => sent.push(Buffer.from(b)) }], lobby: { log: (t) => notes2.push(t) }, greetIn: Room.prototype.greetIn };
+  const fakeRoom = { proto: bad, code: 'BADPRO', title: 'Bad', inviteOnly: false, difficulty: 'nightfall', first: '', users: [null], names: [''], socks: [{ send: (b) => sent.push(Buffer.from(b)) }], lobby: { log: (t) => notes2.push(t) }, greetIn: Room.prototype.greetIn, inTheirCodec: Room.prototype.inTheirCodec };
   let threw = null;
   try {
     Room.prototype.greet.call(fakeRoom, 0, Uint8Array.of(C2S.JOIN, PROTOCOL_VERSION));
@@ -321,7 +321,7 @@ check("a build's signature is of its whole SHA-256: one of its name alone is ref
   }
   const proto = await protocolOf({ 'shared/protocol.js': Buffer.from(src) });
   const sent = [];
-  const fakeRoom = { proto, code: 'OLDPRO', title: 'Old', inviteOnly: false, difficulty: 'nightfall', first: '', users: [null], names: [''], socks: [{ send: (b) => sent.push(Buffer.from(b)) }], lobby: { log: () => {} }, greetIn: Room.prototype.greetIn };
+  const fakeRoom = { proto, code: 'OLDPRO', title: 'Old', inviteOnly: false, difficulty: 'nightfall', first: '', users: [null], names: [''], socks: [{ send: (b) => sent.push(Buffer.from(b)) }], lobby: { log: () => {} }, greetIn: Room.prototype.greetIn, inTheirCodec: Room.prototype.inTheirCodec };
   const w = new Writer(32);
   w.u8(C2S.JOIN);
   w.u8(PROTOCOL_VERSION);

@@ -18,7 +18,7 @@ import { CEMETERY, riseDepth } from '../shared/cemetery.js';
 import { mulberry32 } from '../shared/rng.js';
 import { putPlayer } from './entkit.js';
 
-const MAX_ALIVE = 120; // (MAX_ZOMBIES_ALIVE in game.js: the cap on the dead holds for what comes up here too)
+const MAX_ALIVE = 120; // (MAX_ZOMBIES_ALIVE in game/phases.js: the cap on the dead holds for what comes up here too)
 
 export class Cemetery {
   constructor(game) {

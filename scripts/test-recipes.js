@@ -1,4 +1,4 @@
-// Every weapon can be crafted: each item in WEAPONS and THROWABLES has a recipe (shared/defs.js RECIPES), every
+// Every weapon can be crafted: each item in WEAPONS and THROWABLES has a recipe (shared/defs/crafting.js RECIPES), every
 // ingredient of every recipe is a real item that can be found or made, and a real Game hands each weapon over at the
 // workbench once the schematic it needs is found (and refuses it before).
 // usage: node scripts/test-recipes.js [seed]

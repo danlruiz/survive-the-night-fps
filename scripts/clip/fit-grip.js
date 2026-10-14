@@ -1,8 +1,9 @@
 // Fit a first-person hand pose to an item (docs/object-clipping.md, "Fitting a hand pose"). Takes the hand pose an
 // item uses now, measures how far each part of it is inside the item's real mesh (mm, negative = inside), then seats
 // the palm on the surface and closes every finger until it touches, and prints the fitted pose as a HAND_POSES entry
-// to paste into client/render/models/weapons.js (give it a name, and the item's VM entry that name as rPose, or as
-// lGrip.pose for the left hand).
+// to paste into the item's own file, client/render/models/weapons/<item>.js, under its poses (give it a name, and the
+// item's vm entry that name as rPose, or as lGrip.pose for the left hand; a pose several items share goes in
+// weapons/hands.js).
 //
 // usage: node scripts/clip/fit-grip.js <item> [--side R|L] [--base <pose>] [--act reload] [--t 0.69] [--use <item>]
 //          [--search | --open] [--loose] [--keep 0] [--keep-thumb] [--dx m] [--dy m] [--dz m] [--seat m] [--spread r]
@@ -35,7 +36,7 @@ function run(s) {
   if (id === undefined) throw new Error(`no item ${s.item}`);
   const cfg = W.VM_DEBUG.VM[id];
   const base = s.base || (s.side === 'L' ? cfg?.lGrip?.pose : cfg?.rPose) || (s.side === 'L' ? 'support' : 'grip');
-  if (!HAND_POSES[base]) throw new Error(`no hand pose ${base} (HAND_POSES in weapons.js)`);
+  if (!HAND_POSES[base]) throw new Error(`no hand pose ${base} (HAND_POSES: weapons/hands.js, or an item's poses in weapons/<item>.js)`);
   const vm = posedVM(id, { act: s.act || '', t: s.t ?? 1, use: itemId(s.use || 0) || 0 });
   const r = fitPose(vm, s.side, base, s.opt || {});
   console.log(`== ${s.name || s.item} (${s.side} hand, from '${base}'${s.act ? `, ${s.act} at ${s.t ?? 1} s` : ''}): grip center moved ${r.shift.map(mm).join(', ')} mm${r.thumbFound ? '' : ' (no clear thumb found: kept)'}`);

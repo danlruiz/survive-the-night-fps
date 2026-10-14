@@ -1,4 +1,4 @@
-// Blows on the world and wrecks taken apart (shared/surfaces.js, shared/wrecks.js, server/game.js strike / wreckHit,
+// Blows on the world and wrecks taken apart (shared/surfaces.js, shared/wrecks.js, server/game/blows.js strike / wreckHit,
 // client/game/impacts.js, client/render/marks.js / wrecks.js), in node with no browser:
 //   - the server: a hit on a wreck is put on its record and told to everybody; what is left in it goes down with the
 //     salvage and comes back at dawn; who joins late, or comes back, is told every wreck as it is; the salvage a hit

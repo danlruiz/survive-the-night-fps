@@ -277,7 +277,7 @@ export class BridgeView {
     scene.add(root);
   }
 
-  // cam: the eye; viewDist: how far anything is drawn this frame (game.js viewDist)
+  // cam: the eye; viewDist: how far anything is drawn this frame (client/game/game/surroundings.js viewDist)
   update(cam, viewDist) {
     for (const o of this.parts) o.visible = Math.hypot(o.position.x - cam.x, o.position.z - cam.z) < viewDist + 100; // (a span runs 64 m on from its origin)
   }

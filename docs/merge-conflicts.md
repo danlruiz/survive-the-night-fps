@@ -17,7 +17,7 @@ Files that conflicted, counted over those 76 merges (`git merge-tree` on each me
 | `package.json` | 62 | the `test` script: one 3,451-character `&&` line every new test edited. **Fixed** by #340 |
 | `shared/protocol.js` | 13 | `PROTOCOL_VERSION`: one line holding the number and its whole history as a comment. **Fixed**: one line per version |
 | `shared/defs.js` | 10 | `ITEM`, `WEAPONS`, `RECIPES`, `SALVAGE` rows after the pistol; `ZTYPE` and `SOUND` ids. **Mostly fixed** by #354 for weapons; now split into `shared/defs/` (a module per kind of table), and a clashing id throws at load |
-| `server/game.js` | 10 | night wave weights and the Ember/Blackout `\|\|` chain (**moved** to `server/spawns.js` by #355); names appended to import lists |
+| `server/game.js` | 10 | night wave weights and the Ember/Blackout `\|\|` chain (**moved** to `server/spawns.js` by #355, and now read from each kind's row); names appended to import lists (Game's methods are now **split** into `server/game/`) |
 | `client/game/game.js` | 10 | `SHOT_SOUND` (**fixed** by #354); HUD meters (shove, fire) written in the same spot (**moved** to `client/game/hudmeters.js`, and the rest of the class split into `client/game/game/`) |
 | `shared/progress.js` | 5 | `XP.kinds`: every zombie kind's XP on one line. **Fixed**: read from each kind's `ZOMBIE_DEFS` row |
 | `client/ui/menus.js` | 5 | menu screens edited side by side (**split** into `splash.js`, `pause.js` and `invite.js` by the cleanup) |
@@ -28,10 +28,11 @@ Files that conflicted, counted over those 76 merges (`git merge-tree` on each me
 
 **#354, weapons in a file each (issue #349).** Every weapon is now `shared/weapons/<name>.js`: its item id, item
 definition, stats, recipe, salvage, kill feat, bullet hole, shot sound and kick. `shared/weapons/index.js` imports
-them in file-name order and `defs.js`, `achievements.js`, `surfaces.js` and the client's `game.js` build their tables
-from that list. A recipe's id is now the item it makes (`RECIPE_BY_ID`), not its place in `RECIPES`, so recipes never
-renumber. Clashing item ids throw when `defs.js` loads. `scripts/test-weapons.js` checks every weapon has every field,
-a model, a viewmodel and an icon. `PROTOCOL_VERSION` went to 55.
+them in file-name order and `defs.js`, `achievements.js`, `surfaces.js` and the client's `game.js` (now
+`client/game/game/shots.js`) build their tables from that list. A recipe's id is now the item it makes
+(`RECIPE_BY_ID`), not its place in `RECIPES`, so recipes never renumber. Clashing item ids throw when `defs.js` loads.
+`scripts/test-weapons.js` checks every weapon has every field, a model, a viewmodel and an icon. `PROTOCOL_VERSION`
+went to 55.
 
 **#355, each special zombie in its own file (issue #346).** `server/zombies.js` went from 3,367 lines to about 1,700.
 Each special (spitter, leaper, crawler, roper, smoker, screecher, boomer, tank, dog, bat, shade, flammer, bosses) is
@@ -46,6 +47,23 @@ before and after, so nothing changed for players.
 weights added in `server/game.js` go to `server/spawns.js`. A test added to the old `package.json` line is dropped
 from it: take main's line, since `npm test` now finds every `scripts/test-*.js` by name.
 
+## What the October cleanup moved
+
+A behaviour-preserving cleanup (the server traced byte for byte the same) split the big files by responsibility. An
+older branch's change to one of these goes to the new home (smell 9):
+
+- `server/game.js`: `Game`'s methods are in `server/game/<part>.js` (sessions, input, net, phases, harm, items...),
+  laid onto the class by `server/game.js`. The client's `client/game/game.js` likewise: `client/game/game/<part>.js`.
+- `shared/defs.js` re-exports `shared/defs/<table>.js` (`zombies.js`, `itemdefs.js`, `sounds.js`...): import from
+  `defs.js` as before, but edit a table where it is defined.
+- `server/combat.js`: the Mother's belly and burst, the boomer's blast and the smoker's last breath are in their
+  `server/specials/<kind>.js` (the `spots`, `deaths` and `bursts` tables of `server/specials/index.js`).
+- `client/render/models/weapons.js` and `client/ui/icons.js`: a file per held item (refactor 6);
+  `client/render/models/characters.js`: `characters/` and a file per zombie kind in `zombies/`.
+- `client/ui/menus.js`, `hud.js`, `inventory.js` and `cards.js`: `splash.js` / `pause.js` / `invite.js`, `hud/`,
+  `inventory/` and a module per Dead Hand view; `client/audio/audio.js` and `synth.js`: `voice-chat.js`,
+  `sound-defs.js` and `synth-<topic>.js`; `server/index.js` and `rooms.js`: `room.js`, `http/` and `proxy/`.
+
 ## The smells
 
 Each smell below has three parts: how to spot it in a conflict, how to resolve it today, and the refactor that would
@@ -55,7 +73,9 @@ end it.
 
 Two branches that add anything to a one-line list conflict, wherever they add it.
 
-- **Still in the code:** `KINDS` in `server/specials/index.js`; the Ember/Blackout `||` chain in `server/spawns.js`.
+- **Still in the code:** short item lists such as `THROW_ITEMS` (`shared/defs/itemdefs.js`). **Fixed:** `KINDS` in
+  `server/specials/index.js` is one kind per line, and the Ember/Blackout `||` chain is gone (a `scaled` flag on each
+  kind's row).
 - **Resolve:** keep both entries. Check nothing was dropped by counting entries on each side.
 - **Refactor:** one entry per line with a trailing comma. Better still, generate the list from the definitions (smell
   4), so there is no list.
@@ -67,8 +87,8 @@ Git conflicts when two branches change the same or neighbouring lines, so two si
 same goes for names appended to the end of an import list: `BTN` and `PIN_FACE` both went last in `server/game.js`'s
 import from `constants.js`.
 
-- **Still in the code:** wave weights in `server/spawns.js` (new kinds go last), `shared/bestiary.js` rows (in book
-  order), `ZTYPE` and `SOUND` (always appended), import lists.
+- **Still in the code:** `shared/bestiary.js` rows (in book order), `ZTYPE` and `SOUND` (always appended), import
+  lists. (The wave weights are each kind's `wave` on its `ZOMBIE_DEFS` row now.)
 - **Resolve:** keep both, in either order, unless the order means something (bestiary rows are the book's page
   order; `ZTYPE` order means nothing).
 - **Refactor:** put new import names in alphabetical place instead of at the end. Order maps by key name, not by
@@ -106,19 +126,20 @@ twice). Three weapon PRs all took recipe 43.
 
 ### 4. Facts about a kind kept in lists elsewhere
 
-A new zombie kind is registered by hand in about 15 places (issue #347). Miss one and nothing fails: the kind
-silently gets red blood, no XP or the wrong difficulty scaling. Each of those lists is also a conflict waiting to
-happen.
+A new zombie kind was registered by hand in about 15 places (issue #347). Miss one and nothing failed: the kind
+silently got red blood, no XP or the wrong difficulty scaling. Each of those lists was also a conflict waiting to
+happen. Most are now fields of the kind's own row; the few lists left are below.
 
-- **Still in the code:** the green-blood test is written out four times (`server/combat.js`, `client/game/game/shots.js`,
-  twice in `client/game/entities.js`); which kinds Ember/Blackout scales (`server/spawns.js`); XP per kind
-  (`shared/progress.js`); wave weights (`server/spawns.js`); 20 `ztype ===` checks in `client/game/entities.js`
-  (now a table keyed by kind, `client/game/entities/zombiekinds.js`).
+- **Still in the code:** the bestiary's row (`shared/bestiary.js`), the client's view facts per kind (one table,
+  `client/game/entities/zombiekinds.js`), a kind's motif (`client/audio/motifs.js`) and its sound banks
+  (`client/audio/synth.js`). **Fixed:** green blood (`blood`, read by `greenBlood`), Ember/Blackout scaling
+  (`scaled`), XP (`xp`), wave weights (`wave`), `sounds` and `lod` are fields of the kind's `ZOMBIE_DEFS` row
+  (`shared/defs/zombies.js`).
 - **Resolve:** add the new kind to every copy. Grep for a sibling kind (`ZTYPE.SMOKER`) to find them all, since the
   conflict only shows the copies both branches touched.
-- **Refactor:** issue #347, step 1. Put `blood`, `special`, `xp`, `waveWeight(night, wave)`, `sounds` and `lod` on the
-  kind's `ZOMBIE_DEFS` row and read them from there. A new kind is then one row and one specials file, and the
-  conflicts in `progress.js`, `spawns.js` and `bestiary.js` stop.
+- **Refactor:** issue #347, step 1, **mostly done**: the facts above are on the kind's `ZOMBIE_DEFS` row and read
+  from there, so the conflicts in `progress.js` and `spawns.js` stopped. Left: the bestiary row and the client's
+  per-kind tables.
 
 ### 5. A version number with its history on the same line
 
@@ -164,12 +185,12 @@ on a name defined twice, so two branches that add the same method collide loudly
 - **Refactor, in order of payoff:**
   1. Done: the client half of a weapon (builder, `VM` entry, hand poses, pickup lay) is
      `client/render/models/weapons/<name>.js` and its icon `client/ui/icons/<name>.js`, finishing what #354 started.
-     A new gun adds those two files and a line in each folder's `index.js`, and edits neither `weapons.js` nor
-     `icons.js`.
+     A new gun adds those two files and two lines (one in each of its two lists) in each folder's `index.js`, and
+     edits neither `weapons.js` nor `icons.js`.
   2. A zombie kind's model, pose and sounds into `client/render/models/zombies/<kind>.js`, the client twin of
      `server/specials/`. The models and poses are there (`zombies/index.js` builds the tables `characters/` reads),
      and the client's per-kind view facts are one table (`client/game/entities/zombiekinds.js`); the sounds are still
-     to move.
+     to move (their banks are in `client/audio/synth.js` and `synth-creatures.js`). **Partly done.**
   3. HUD meters (shove, fire, pin) out of `client/game/game.js` into one module, one meter each. **Done**:
      `client/game/hudmeters.js`; the rest of `client/game/game.js` is split into `client/game/game/`, one file per
      responsibility.
@@ -209,12 +230,12 @@ pillars in [design.md](design.md):
 
 | # | Refactor | Ends conflicts in | Size |
 |---|---|---|---|
-| 1 | Kind facts on `ZOMBIE_DEFS` (#347 step 1) | `progress.js`, `spawns.js`, `combat.js`, `entities.js`, `bestiary.js` | medium |
+| 1 | Kind facts on `ZOMBIE_DEFS` (#347 step 1; **mostly done**: the bestiary row and client tables are left) | `progress.js`, `spawns.js`, `combat.js`, `entities.js`, `bestiary.js` | medium |
 | 2 | `PROTOCOL_VERSION` history one line per version (**done**) | `protocol.js` | small |
-| 3 | One entry per line: `KINDS`, the `\|\|` chain (`XP.kinds` is read from the kinds' rows now) | `specials/index.js`, `spawns.js` | small |
+| 3 | One entry per line: `KINDS` (**done**), the `\|\|` chain (**gone**: `scaled` on the rows; `XP.kinds` is read from them too) | `specials/index.js`, `spawns.js` | small |
 | 4 | Id ranges and a "next free id" test for `ITEM`, `SOUND`, `ZTYPE` (clash guard and next-free test **done**: `test-wire-ids.js`) | `defs.js` | small |
 | 5 | Remove `merge-dist/` | nothing today, but it is noise in every search | small |
-| 6 | Client weapon files (builder, `VM`, icon): done | `weapons.js`, `icons.js` | large |
-| 7 | Client zombie files (model, pose, sounds) | `characters.js`, `entities.js`, `audio.js` | large |
+| 6 | Client weapon files (builder, `VM`, icon): **done** | `weapons.js`, `icons.js` | large |
+| 7 | Client zombie files (model, pose, sounds): **partly done** (models and poses; the sounds are left) | `characters.js`, `entities.js`, `audio.js` | large |
 | 8 | A random stream per system | seeded tests breaking after merges | medium |
 | 9 | HUD meters module (**done**: `client/game/hudmeters.js`) | `client/game/game.js` | medium |

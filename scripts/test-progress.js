@@ -1,4 +1,4 @@
-// Experience, levels and perks (shared/progress.js, server/progress.js, the XP in server/game.js): the rules on their
+// Experience, levels and perks (shared/progress.js, server/progress.js, the XP in server/game/experience.js): the rules on their
 // own; what a survivor earns in a running game and what they do not (the night's diminishing returns, the wedged dead,
 // a death keeping what was earned); perks in force in the simulation and the server's rules, a pick made during a
 // night waiting for dawn; the client's prediction keeping step with a perk the server set; picking and starting over
@@ -16,7 +16,7 @@ import { migrate } from '../server/db/migrate.js';
 import { C2S, S2C, SNAP, PROGF, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { readHeader, readGlobal, readSelf } from '../client/net/decode.js';
 import { createPlayerState, copyPlayerState, simulatePlayer, hashPlayerState } from '../shared/playersim.js';
-import { BTN, PLAYER_MAX_HP, SPRINT_SPEED, CMD_DT } from '../shared/constants.js';
+import { BTN, PLAYER_MAX_HP, SPRINT_SPEED } from '../shared/constants.js';
 import { ZTYPE, ITEM, WEAPONS } from '../shared/defs.js';
 import { XP, XPS, XP_SRC, LEVEL_CAP, PICK_LEVELS, PERK_POINTS, KEYSTONE_LEVEL, TIER, TIER_LEVELS, BRANCHES, PERKS, PERK_BY_ID, PERK_CAP, xpToNext, xpForLevel, levelOf, levelInfo, picksEarned, perkLock, perkDependents, perksValid, fitPerks, perkMods, perkMask, perkIds, killXp, progressView } from '../shared/progress.js';
 

@@ -1,5 +1,5 @@
 // Procedural vegetation for instanced rendering. Every part geometry is in the variant's local space
-// (origin = base of trunk, y up) and carries an `aVeg` attribute (see materials.js: occlusion + wind weights).
+// (origin = base of trunk, y up) and carries an `aVeg` attribute (see vegshading.js: occlusion + wind weights).
 // Trees come in two LODs: `parts` (near) and `far` (fewer cards / sides), cross-faded by Foliage.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';

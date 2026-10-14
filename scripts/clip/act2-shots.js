@@ -396,7 +396,6 @@ try {
     await cam(pickCam(name, cands, to, { short: Math.max(w, d) * 0.75 }), to, { fog: 0.6 });
     await shot(name);
   };
-  const ground = (x, z) => p.evaluate((x, z) => window.__game.world.heightAt(x, z), x, z);
   await hud(false);
 
   // ---- the two maps at one scale, and the map screen

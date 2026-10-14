@@ -7,7 +7,8 @@ import { bestiaryEvent } from '../../net/bestiary.js';
 import { strippedKey } from '../harvest.js';
 import { PSTATUS } from './players.js';
 import { nkRemoteHit } from '../nunchaku.js';
-import { bearing, tonightBrief } from '../../ui/hud2.js';
+import { bearing } from '../../ui/hud2.js';
+import { tonightBrief } from '../../ui/tonight.js';
 
 export const methods = {
   get eventHandler() {
