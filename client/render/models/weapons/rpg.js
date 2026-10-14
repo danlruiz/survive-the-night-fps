@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, handQ, supportGrip } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, handQ, supportGrip, GRIPS, trigger, triggerGuard, bandZ } from './parts.js';
 
 function buildRPG(P) {
   const hi = P.hi;
@@ -16,8 +16,7 @@ function buildRPG(P) {
   const RT = 0.026, BORE = 0.021, STROKE = 0.1;
   const SX = -0.078, SH = TY + 0.064; // the sight line, left of and above the bore
   const rs = R(hi, 16, 8);
-  const OD = { region: WR.GUNMETAL, color: [1.18, 1.3, 0.62], mottle: 0.06 }; // olive-drab paint
-  const ODd = { ...OD, color: [0.72, 0.8, 0.4] };
+  const oliveDark = { ...M.olive, color: [0.72, 0.8, 0.4] };
   const shield = { ...M.wood, color: [0.7, 0.58, 0.5] }; // varnished
   // tube, with a ring round the muzzle and a dark bore
   barrelZ(B, 0, TY, VZ + 0.005, MZ, RT, BORE, { ...M.gunDark, rs });
@@ -30,10 +29,10 @@ function buildRPG(P) {
   }
   // trigger housing under the tube, pistol grip (runs up through the fist), guard and trigger
   boxR(B, -0.0165, 0.0165, 0.026, TY - RT + 0.008, 0.04, -0.09, M.gun);
-  for (const z of [0.04, -0.09]) latheZ(B, [[RT, -z - 0.006], [RT + 0.0035, -z - 0.006], [RT + 0.0035, -z + 0.006], [RT, -z + 0.006]], 0, TY, { ...M.gunDark, rs, sharp: true });
-  profile(B, [[0.028, 0.029], [0.02, -0.01], [0.012, -0.045], [0.004, -0.072], [-0.03, -0.078], [-0.037, -0.062], [-0.024, -0.02], [-0.014, 0.029]], 0.029, { ...M.polyDark, bevel: 0.004 });
-  B.tube(0, [[0, 0.029, -0.012], [0, 0.004, -0.018], [0, -0.004, -0.045], [0, 0.0, -0.075], [0, 0.029, -0.086]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.03, -0.04], [0, 0.017, -0.043], [0, 0.009, -0.037]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  for (const z of [0.04, -0.09]) bandZ(B, z, 0.006, RT, RT + 0.0035, 0, TY, { ...M.gunDark, rs, sharp: true });
+  profile(B, GRIPS.ak.grip, 0.029, { ...M.polyDark, bevel: 0.004 });
+  triggerGuard(B, hi, GRIPS.ak.guard, 0.0032, M.gun);
+  trigger(B, GRIPS.ak.trigger);
   if (hi) B.seg(0, [-0.017, 0.045, 0.012], [0.017, 0.045, 0.012], 0.004, 0.004, { ...M.gunDark, rs: 6, hs: 1 }); // safety
   // front grip on a clamp band
   latheZ(B, [[RT, 0.138], [RT + 0.0035, 0.138], [RT + 0.0035, 0.192], [RT, 0.192]], 0, TY, { ...M.gunDark, rs, sharp: true });
@@ -42,7 +41,7 @@ function buildRPG(P) {
   // wooden heat shield: two sleeves round the middle, steel bands at their ends
   for (const [z0, z1] of [[0.06, 0.205], [0.215, 0.36]]) {
     latheZ(B, [[0, -z1], [0.031, -z1], [0.0355, -z1 + 0.008], [0.0355, -z0 - 0.008], [0.031, -z0], [0, -z0]], 0, TY, { ...shield, rs });
-    if (hi || z0 > 0.1) for (const z of [z0 + 0.012, z1 - 0.012]) latheZ(B, [[0.0355, -z - 0.004], [0.0366, -z - 0.004], [0.0366, -z + 0.004], [0.0355, -z + 0.004]], 0, TY, { ...M.gun, rs, sharp: true });
+    if (hi || z0 > 0.1) for (const z of [z0 + 0.012, z1 - 0.012]) bandZ(B, z, 0.004, 0.0355, 0.0366, 0, TY, { ...M.gun, rs, sharp: true });
   }
   // venturi: a cone flaring open at the back, dark inside
   latheZ(B, [[0, -0.47], [0.019, -0.47], [0.024, -0.52], [0.04, -0.574], [0.046, -RZ], [0.0475, -RZ + 0.006], [0.042, -0.54], [0.033, -0.49], [0.0305, -VZ], [0, -VZ]], 0, TY, { ...M.gun, rs: R(hi, 18, 8), sharp: hi });
@@ -51,8 +50,8 @@ function buildRPG(P) {
   // top of it that the sight line runs through
   const top = TY + 0.05; // top of the optic
   boxR(B, -0.064, -0.018, TY - 0.012, TY + 0.012, 0.035, -0.03, M.gun);
-  boxR(B, SX - 0.016, SX + 0.016, TY + 0.004, top, 0.07, -0.058, ODd);
-  cylZ(B, SX, TY + 0.027, -0.056, -0.082, 0.0165, { ...ODd, rs: R(hi, 12, 7) });
+  boxR(B, SX - 0.016, SX + 0.016, TY + 0.004, top, 0.07, -0.058, oliveDark);
+  cylZ(B, SX, TY + 0.027, -0.056, -0.082, 0.0165, { ...oliveDark, rs: R(hi, 12, 7) });
   cylZ(B, SX, TY + 0.027, -0.0815, -0.0825, 0.0138, { region: WR.GLASS, color: [0.3, 0.42, 0.5], mottle: 0.02, rs: R(hi, 12, 7) });
   cylZ(B, SX - 0.003, TY + 0.022, 0.068, 0.082, 0.009, { ...M.polyDark, rs: R(hi, 10, 6) }); // eyepiece
   if (hi) B.seg(0, [SX - 0.016, TY + 0.03, 0.012], [SX - 0.025, TY + 0.03, 0.012], 0.008, 0.008, { ...M.gunDark, rs: 10, hs: 1 }); // range drum
@@ -65,7 +64,7 @@ function buildRPG(P) {
   const W = P.get('warhead');
   const f = -MZ;
   cylZ(W, 0, TY, MZ + (P.split ? STROKE : 0.005), MZ - 0.04, 0.0195, { ...M.gunDark, rs: R(hi, 12, 7) });
-  latheZ(W, [[0, f + 0.038], [0.0195, f + 0.038], [0.024, f + 0.044], [0.0405, f + 0.088], [0.0425, f + 0.1], [0.0425, f + 0.165], [0.0412, f + 0.178], [0.035, f + 0.22], [0.025, f + 0.27], [0.0135, f + 0.322], [0.0095, f + 0.332], [0, f + 0.332]], 0, TY, { ...OD, rs });
+  latheZ(W, [[0, f + 0.038], [0.0195, f + 0.038], [0.024, f + 0.044], [0.0405, f + 0.088], [0.0425, f + 0.1], [0.0425, f + 0.165], [0.0412, f + 0.178], [0.035, f + 0.22], [0.025, f + 0.27], [0.0135, f + 0.322], [0.0095, f + 0.332], [0, f + 0.332]], 0, TY, { ...M.olive, rs });
   if (hi) latheZ(W, [[0.0425, f + 0.118], [0.0429, f + 0.119], [0.0429, f + 0.131], [0.0425, f + 0.132]], 0, TY, { ...M.black, rs, sharp: true }); // painted band
   latheZ(W, [[0, f + 0.33], [0.0082, f + 0.33], [0.0082, f + 0.356], [0.0062, f + 0.364], [0, f + 0.368]], 0, TY, { ...M.steel, color: [0.7, 0.7, 0.68], rs: R(hi, 10, 6) });
   P.pivot('warhead', new THREE.Vector3(0, TY, MZ));

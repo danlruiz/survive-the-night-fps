@@ -5,7 +5,7 @@
 // loader (a speedloader of six rounds, reload only).
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ, GRIPS, trigger, triggerGuard } from './parts.js';
 
 const RV_AXIS = 0.055; // the cylinder's axis
 const RV_BORE = 0.068; // the bore: the top chamber lines up with it
@@ -16,7 +16,7 @@ function buildRevolver(P) {
   const B = P.get('body');
   const rs = R(hi, 16, 9);
   // grip: the pistol's, in walnut
-  profile(B, [[-0.016, 0.037], [-0.004, 0.029], [-0.046, -0.08], [0.0, -0.08], [0.006, -0.064], [0.013, -0.057], [0.011, -0.048], [0.02, -0.037], [0.018, -0.028], [0.027, -0.015], [0.026, -0.006], [0.036, 0.012], [0.042, 0.029]], 0.029, { ...M.walnut, bevel: 0.003, curveSegs: 4 });
+  profile(B, GRIPS.pistol.grip, 0.029, { ...M.walnut, bevel: 0.003, curveSegs: 4 });
   if (hi) for (const s of [-1, 1]) B.ellip(0, [s * 0.0145, -0.012, -0.004], [0.0012, 0.004, 0.004], { ...M.gun, ws: 8, hs: 4 }); // grip screw
   // frame: the recoil shield and hammer housing behind the cylinder, the topstrap over it, the front of the window
   // and the strap under it
@@ -31,8 +31,8 @@ function buildRevolver(P) {
     boxR(B, -0.0127, -0.0116, 0.062, 0.068, -0.004, -0.016, M.steel); // cylinder latch
   }
   // trigger guard + trigger (the pistol's: the trigger finger finds it)
-  B.tube(0, [[0, 0.029, -0.04], [0, 0.006, -0.046], [0, 0.0, -0.065], [0, 0.001, -0.094], [0, 0.028, -0.1]], 0.0036, 0.0036, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.03, -0.062], [0, 0.017, -0.064], [0, 0.01, -0.058]], 0.0028, 0.0022, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, GRIPS.pistol.guard, 0.0036, M.gun);
+  trigger(B, GRIPS.pistol.trigger, 0.0028, 0.0022);
   // barrel, a rib along its top, the front sight blade; the rear sight is a notch in the topstrap
   barrelZ(B, 0, RV_BORE, -0.09, -0.192, 0.0092, 0.0046, { ...M.gun, rs });
   boxR(B, -0.0035, 0.0035, 0.074, 0.08, -0.092, -0.19, M.gun);

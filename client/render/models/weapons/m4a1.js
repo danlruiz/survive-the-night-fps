@@ -1,7 +1,7 @@
 // M4A1 carbine (flat-top, collapsible stock)
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, magOutline } from './parts.js';
 
 function buildM4(P) {
   const hi = P.hi;
@@ -50,9 +50,9 @@ function buildM4(P) {
   barrelZ(B, 0, 0.072, -0.498, -0.548, 0.0108, 0.0056, { ...M.black, rs: R(hi, 10, 6) });
   if (hi) for (const s of [-1, 1]) boxR(B, s * 0.004 - 0.0012, s * 0.004 + 0.0012, 0.08, 0.0832, -0.51, -0.538, M.black);
   // A2 pistol grip + squared trigger guard + trigger
-  profile(B, [[0.03, 0.022], [0.022, -0.012], [0.012, -0.03], [0.016, -0.04], [0.006, -0.074], [-0.028, -0.08], [-0.036, -0.066], [-0.024, -0.024], [-0.016, 0.022]], 0.028, { ...M.poly, bevel: 0.004 });
-  B.tube(0, [[0, 0.021, -0.012], [0, 0.0, -0.016], [0, -0.004, -0.04], [0, -0.004, -0.064], [0, 0.021, -0.068]], 0.003, 0.003, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.022, -0.036], [0, 0.009, -0.039], [0, 0.002, -0.034]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  profile(B, GRIPS.a2.grip, 0.028, { ...M.poly, bevel: 0.004 });
+  triggerGuard(B, hi, GRIPS.a2.guard, 0.003, M.gun);
+  trigger(B, GRIPS.a2.trigger);
   // buffer tube + collapsible stock
   cylZ(B, 0, 0.074, 0.062, 0.27, 0.0155, { ...M.gunDark, rs: R(hi, 12, 7) });
   cylZ(B, 0, 0.074, 0.062, 0.074, 0.0185, { ...M.gun, rs: R(hi, 10, 6) });
@@ -61,23 +61,14 @@ function buildM4(P) {
   if (hi) boxR(B, -0.005, 0.005, 0.048, 0.056, 0.2, 0.235, M.polyDark); // adjustment lever
   // STANAG magazine
   const MG = P.get('mag');
-  const magPts = [];
-  const N = hi ? 8 : 4;
-  const cf = (t) => [0.103 + 0.028 * t * t + 0.012 * t, 0.02 - 0.19 * t];
-  for (let i = 0; i <= N; i++) {
-    const c = cf(i / N);
-    magPts.push([c[0] + 0.03, c[1]]);
-  }
-  for (let i = N; i >= 0; i--) {
-    const c = cf(i / N);
-    magPts.push([c[0] - 0.03, c[1]]);
-  }
+  const magMid = (t) => [0.103 + 0.028 * t * t + 0.012 * t, 0.02 - 0.19 * t]; // its middle line, t from the top (0) to the base (1)
+  const magPts = magOutline(magMid, () => 0.03, hi ? 8 : 4);
   profile(MG, magPts, 0.022, { ...M.gun, color: [0.9, 0.88, 0.84], bevel: 0.002 });
   if (hi) {
-    const c = cf(1);
+    const c = magMid(1);
     boxR(MG, -0.0125, 0.0125, c[1] - 0.004, c[1] + 0.006, -(c[0] - 0.032), -(c[0] + 0.033), M.polyDark); // floor plate
     for (const t of [0.35, 0.6]) {
-      const q = cf(t);
+      const q = magMid(t);
       boxR(MG, -0.0115, 0.0115, q[1] - 0.012, q[1] + 0.012, -(q[0] - 0.012), -(q[0] + 0.012), { ...M.gunDark, color: [0.8, 0.78, 0.75] });
     }
   }

@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, cylZ, boxR, M, R, handQ } from './parts.js';
+import { profile, cylZ, boxR, M, handQ, GRIPS, trigger, triggerGuard } from './parts.js';
+import { pistolMag, rearNotch } from './pistol.js';
 
 const DE_STEEL = { region: WR.STEEL, color: [0.82, 0.82, 0.85], mottle: 0.05 };
 const DE_STEEL_DARK = { region: WR.STEEL, color: [0.62, 0.62, 0.66], mottle: 0.05 };
@@ -16,11 +17,11 @@ function buildDeagle(P) {
   // frame + a long dust cover out under the barrel
   profile(B, [[-0.012, 0.047], [-0.012, 0.03], [0.02, 0.028], [0.12, 0.028], [0.2, 0.034], [0.206, 0.047]], 0.024, { ...DE_STEEL_DARK, bevel: 0.002 });
   // grip: the pistol's outline (its hands were fitted to it), black rubber panels over steel
-  profile(B, [[-0.016, 0.037], [-0.004, 0.029], [-0.046, -0.08], [0.0, -0.08], [0.006, -0.064], [0.013, -0.057], [0.011, -0.048], [0.02, -0.037], [0.018, -0.028], [0.027, -0.015], [0.026, -0.006], [0.036, 0.012], [0.042, 0.029]], 0.029, { ...M.polyDark, bevel: 0.003 });
-  if (hi) for (const s of [-1, 1]) profile(B, [[-0.006, 0.01], [-0.034, -0.062], [-0.004, -0.062], [0.018, 0.0]], 0.001, { ...M.black, bevel: 0, x: s * 0.0146 }); // panel texture
+  profile(B, GRIPS.pistol.grip, 0.029, { ...M.polyDark, bevel: 0.003 });
+  if (hi) for (const s of [-1, 1]) profile(B, GRIPS.pistol.panel, 0.001, { ...M.black, bevel: 0, x: s * 0.0146 }); // panel texture
   // squared trigger guard + trigger
-  B.tube(0, [[0, 0.029, -0.04], [0, 0.006, -0.046], [0, 0.0, -0.066], [0, 0.0, -0.096], [0, 0.006, -0.101], [0, 0.028, -0.1]], 0.0036, 0.0036, { ...DE_STEEL_DARK, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.03, -0.062], [0, 0.017, -0.064], [0, 0.01, -0.058]], 0.0028, 0.0022, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.029, -0.04], [0, 0.006, -0.046], [0, 0.0, -0.066], [0, 0.0, -0.096], [0, 0.006, -0.101], [0, 0.028, -0.1]], 0.0036, DE_STEEL_DARK);
+  trigger(B, GRIPS.pistol.trigger, 0.0028, 0.0022);
   // the barrel: a lower block the width of the slide, the narrower upper flats over it, a rib along the top
   profile(B, [[0.108, 0.047], [0.248, 0.047], [0.248, 0.07], [0.108, 0.07]], 0.026, { ...DE_STEEL, bevel: 0.0015 });
   profile(B, [[0.108, 0.068], [0.248, 0.068], [0.248, 0.083], [0.243, 0.0865], [0.108, 0.0865]], 0.021, { ...DE_STEEL, bevel: 0.0015 });
@@ -33,31 +34,14 @@ function buildDeagle(P) {
     boxR(B, 0.0128, 0.0134, 0.052, 0.064, -0.13, -0.236, M.black);
   }
   // mag (the pistol's: same well, seven fat rounds instead of twelve)
-  const MG = P.get('mag');
-  const ga = Math.atan2(0.042, 0.109);
-  const magLen = 0.105;
-  const magStart = MG.parts.length;
-  MG.box(0, [0, -magLen / 2, 0], [0.021, magLen, 0.03], { ...M.polyDark });
-  MG.box(0, [0, -magLen - 0.004, 0.001], [0.027, 0.009, 0.042], { ...DE_STEEL_DARK, round: 0.35, seg: 2 });
-  const magGeoRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -ga);
-  for (let i = magStart; i < MG.parts.length; i++) {
-    const part = MG.parts[i];
-    part.geo.applyQuaternion(magGeoRot);
-    part.geo.translate(0, 0.025, -0.013);
-    part.geo.computeVertexNormals();
-  }
-  P.pivot('mag', new THREE.Vector3(0, 0.025, -0.013));
-  P.meta.magAxis = new THREE.Vector3(0, -Math.cos(ga), Math.sin(ga));
+  pistolMag(P, DE_STEEL_DARK);
   // slide: tall and flat-sided, chamfered along the top
   const S = P.get('slide');
   profile(S, [[-0.022, 0.047], [0.11, 0.047], [0.11, 0.083], [0.104, 0.088], [-0.016, 0.088], [-0.022, 0.082]], 0.03, { ...DE_STEEL, bevel: 0.0015 });
   if (hi) {
     for (let i = 0; i < 7; i++) for (const s of [-1, 1]) boxR(S, s * 0.0149, s * 0.0157, 0.053, 0.08, 0.008 - i * 0.0045, 0.0065 - i * 0.0045, M.black);
     boxR(S, 0.004, 0.0152, 0.084, 0.0882, -0.03, -0.07, M.black); // ejection port
-    // rear sight (notch)
-    boxR(S, -0.011, -0.0024, 0.088, 0.0955, 0.004, -0.004, M.gunDark);
-    boxR(S, 0.0024, 0.011, 0.088, 0.0955, 0.004, -0.004, M.gunDark);
-    boxR(S, -0.011, 0.011, 0.088, 0.0915, 0.004, -0.004, M.gunDark);
+    rearNotch(S, 0.0024, 0.088, 0.0955, 0.0915, 0.004, -0.004);
   } else {
     boxR(S, -0.011, 0.011, 0.088, 0.0945, 0.004, -0.004, M.gunDark);
   }

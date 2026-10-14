@@ -196,6 +196,7 @@ export const M = {
   brass: { region: WR.STEEL, color: [1.05, 0.78, 0.35], mottle: 0.04 },
   red: { region: WR.PLAIN, color: 0x8a1a14, mottle: 0.06 },
   leather: { region: WR.LEATHER, color: [1, 1, 1], mottle: 0.05 },
+  olive: { region: WR.GUNMETAL, color: [1.18, 1.3, 0.62], mottle: 0.06 }, // olive-drab paint (the RPG, the anti-tank rifle)
 };
 
 // ================================================================== part collection
@@ -220,9 +221,80 @@ export class PartSet {
   pivot(name, p) {
     this.pivots[name] = p;
   }
+  /**
+   * For a model authored about another origin (a long gun drawn from its receiver, then moved so the stock's wrist is
+   * the grip): moves every part but those named in `keep` (loose rounds and shells, drawn about their own origin)
+   * and every pivot by o. Returns a function that gives an authored point so moved.
+   */
+  shift(o, keep = []) {
+    for (const [name, mb] of this.map) if (!keep.includes(name)) for (const part of mb.parts) part.geo.translate(o[0], o[1], o[2]);
+    for (const k in this.pivots) this.pivots[k].add(new THREE.Vector3(o[0], o[1], o[2]));
+    return (x, y, z) => new THREE.Vector3(x + o[0], y + o[1], z + o[2]);
+  }
 }
 
 export const R = (hi, a, b) => (hi ? a : b);
+
+// ================================================================== parts more than one item is made of
+/** A band round an axis along Z at (x, y): from radius r0 out to r1, 2 * half long, centred on z. */
+export function bandZ(mb, z, half, r0, r1, x, y, o = {}) {
+  return latheZ(mb, [[r0, -z - half], [r1, -z - half], [r1, -z + half], [r0, -z + half]], x, y, o);
+}
+
+/** Rivet heads on both sides of a receiver x either side of the middle, at height y, at each z of zs. */
+export function rivets(mb, x, y, zs) {
+  for (const z of zs) for (const s of [-1, 1]) cylZ(mb, s * x, y, z + 0.002, z - 0.002, 0.0028, { ...M.gunDark, rs: 5 });
+}
+
+/** A trigger guard: a strap of radius r bent through pts, its open ends buried in the frame. */
+export function triggerGuard(mb, hi, pts, r, mat, o = {}) {
+  return mb.tube(0, pts, r, r, { ...mat, rs: 5, ts: R(hi, 12, 6), cap: false, ...o });
+}
+
+/** A trigger: a short blade curved through pts, r0 at its root to r1 at its tip. */
+export function trigger(mb, pts, r0 = 0.0025, r1 = 0.002, mat = M.gunDark) {
+  return mb.tube(0, pts, r0, r1, { ...mat, rs: 5, ts: 4 });
+}
+
+/** A magazine's side outline (for profile): its middle line mid(t) = [f, u], t from 0 at its top to 1 at its base,
+ *  widened by w(t) to either side along f, in n steps. */
+export function magOutline(mid, w, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const c = mid(i / n);
+    pts.push([c[0] + w(i / n), c[1]]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const c = mid(i / n);
+    pts.push([c[0] - w(i / n), c[1]]);
+  }
+  return pts;
+}
+
+// The pistol grips (side outlines, for profile), trigger guards and triggers that guns held alike share: the hands
+// fitted to the one fit the others.
+export const GRIPS = {
+  // the AK-47's grip; the RPG's is the same
+  ak: {
+    grip: [[0.028, 0.029], [0.02, -0.01], [0.012, -0.045], [0.004, -0.072], [-0.03, -0.078], [-0.037, -0.062], [-0.024, -0.02], [-0.014, 0.029]],
+    guard: [[0, 0.029, -0.012], [0, 0.004, -0.018], [0, -0.004, -0.045], [0, 0.0, -0.075], [0, 0.029, -0.086]],
+    trigger: [[0, 0.03, -0.04], [0, 0.017, -0.043], [0, 0.009, -0.037]],
+  },
+  // the M4A1's A2 grip; the flamethrower's (taped)
+  a2: {
+    grip: [[0.03, 0.022], [0.022, -0.012], [0.012, -0.03], [0.016, -0.04], [0.006, -0.074], [-0.028, -0.08], [-0.036, -0.066], [-0.024, -0.024], [-0.016, 0.022]],
+    guard: [[0, 0.021, -0.012], [0, 0.0, -0.016], [0, -0.004, -0.04], [0, -0.004, -0.064], [0, 0.021, -0.068]],
+    trigger: [[0, 0.022, -0.036], [0, 0.009, -0.039], [0, 0.002, -0.034]],
+  },
+  // the pistol's (slanted, finger grooves), its side panels, its guard and trigger; the revolver's and the Desert
+  // Eagle's are the same, but for the Eagle's squared guard
+  pistol: {
+    grip: [[-0.016, 0.037], [-0.004, 0.029], [-0.046, -0.08], [0.0, -0.08], [0.006, -0.064], [0.013, -0.057], [0.011, -0.048], [0.02, -0.037], [0.018, -0.028], [0.027, -0.015], [0.026, -0.006], [0.036, 0.012], [0.042, 0.029]],
+    panel: [[-0.006, 0.01], [-0.034, -0.062], [-0.004, -0.062], [0.018, 0.0]],
+    guard: [[0, 0.029, -0.04], [0, 0.006, -0.046], [0, 0.0, -0.065], [0, 0.001, -0.094], [0, 0.028, -0.1]],
+    trigger: [[0, 0.03, -0.062], [0, 0.017, -0.064], [0, 0.01, -0.058]],
+  },
+};
 
 /**
  * Blade from cross-sections: rings[i] is a closed loop of [x, y, z] points (the same count in every ring),

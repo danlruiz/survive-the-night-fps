@@ -1,8 +1,8 @@
 // Side-by-side double-barrel shotgun
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { WR } from '../charTextures.js';
-import { profile, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { profile, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+import { bead, wristCheckering, shotgunShell } from './shotgun.js';
 
 function buildDoubleBarrel(P) {
   const hi = P.hi;
@@ -20,36 +20,28 @@ function buildDoubleBarrel(P) {
   }
   // twin triggers + guard
   boxR(B, -0.009, 0.009, 0.004, 0.017, 0.02, -0.06, M.gun);
-  B.tube(0, [[0, 0.006, 0.012], [0, -0.014, 0.004], [0, -0.018, -0.03], [0, -0.008, -0.062], [0, 0.006, -0.07]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  for (const z of [-0.024, -0.04]) B.tube(0, [[0, 0.006, z], [0, -0.006, z - 0.004], [0, -0.012, z + 0.002]], 0.0024, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.006, 0.012], [0, -0.014, 0.004], [0, -0.018, -0.03], [0, -0.008, -0.062], [0, 0.006, -0.07]], 0.0032, M.gun);
+  for (const z of [-0.024, -0.04]) trigger(B, [[0, 0.006, z], [0, -0.006, z - 0.004], [0, -0.012, z + 0.002]], 0.0024, 0.002);
   // walnut stock + pad
   profile(B, [[-0.03, 0.068], [-0.085, 0.056], [-0.38, 0.03], [-0.38, -0.108], [-0.3, -0.085], [-0.2, -0.062], [-0.12, -0.035], [-0.075, -0.012], [-0.045, 0.006], [-0.03, 0.016]], 0.038, { ...M.walnut, bevel: 0.005, curveSegs: 4 });
-  if (hi) for (const s of [-1, 1]) profile(B, [[-0.05, 0.05], [-0.1, 0.04], [-0.1, -0.02], [-0.06, 0.0]], 0.001, { ...M.walnut, color: [0.55, 0.5, 0.5], bevel: 0, x: s * 0.0191 });
+  if (hi) wristCheckering(B);
   profile(B, [[-0.38, 0.032], [-0.398, 0.032], [-0.398, -0.111], [-0.38, -0.111]], 0.04, { ...M.leather, bevel: 0.003 });
   // barrels, rib, bead, lug and splinter forend: one part that breaks open around the hinge pin
   const BR = P.get('barrels');
   for (const s of [-1, 1]) barrelZ(BR, s * 0.0118, 0.052, -0.075, -0.64, 0.0122, 0.0094, { ...M.gun, r1: 0.0112, rs: R(hi, 14, 8) });
   boxR(BR, -0.0045, 0.0045, 0.058, 0.067, -0.078, -0.636, M.gunDark);
-  BR.ellip(0, [0, 0.0695, -0.628], [0.0023, 0.0023, 0.0023], { region: WR.PLAIN, color: 0xd8d0b0, ws: 6, hs: 4 });
+  bead(BR, 0.0695, -0.628);
   boxR(BR, -0.009, 0.009, 0.022, 0.046, -0.075, -0.12, M.gun); // under-lug
   profile(BR, [[0.105, 0.046], [0.105, 0.026], [0.12, 0.016], [0.3, 0.02], [0.33, 0.03], [0.34, 0.046]], 0.05, { ...M.walnut, bevel: 0.006, curveSegs: 4 });
   if (hi) boxR(BR, -0.0035, 0.0035, 0.018, 0.02, -0.28, -0.3, M.steel); // forend latch
   // two spare shells (loading animation only)
   if (P.split) {
     const SH = P.get('shell');
-    for (const s of [-1, 1]) {
-      cylZ(SH, s * 0.0118, 0, 0.0, -0.052, 0.009, { region: WR.PLAIN, color: 0xa01810, rs: 10 });
-      cylZ(SH, s * 0.0118, 0, 0.012, 0.0, 0.0102, { ...M.brass, rs: 10 });
-    }
+    for (const s of [-1, 1]) shotgunShell(SH, s * 0.0118, 0.009, 0.0102);
   }
   const hinge = new THREE.Vector3(0, 0.03, -0.075);
   P.pivot('barrels', hinge);
-  for (const [name, mb] of P.map) {
-    if (name === 'shell') continue;
-    for (const part of mb.parts) part.geo.translate(O[0], O[1], O[2]);
-  }
-  for (const k in P.pivots) P.pivots[k].add(new THREE.Vector3(O[0], O[1], O[2]));
-  const sh = (x, y, z) => new THREE.Vector3(x + O[0], y + O[1], z + O[2]);
+  const sh = P.shift(O, ['shell']);
   P.meta.muzzle = sh(0, 0.052, -0.642);
   P.meta.leftHand = sh(0, 0.034, -0.23);
   P.meta.sight = sh(0, 0.072, -0.628); // front bead

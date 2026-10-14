@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, latheY, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { profile, latheZ, latheY, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, bandZ, rivets } from './parts.js';
 
 function buildFlamethrower(P) {
   const hi = P.hi;
@@ -20,17 +20,17 @@ function buildFlamethrower(P) {
   cylZ(B, 0, 0.07, 0.07, -0.17, 0.0215, { ...M.gun, rs: R(hi, 14, 8) });
   latheY(B, [[0, 0.004], [0.021, 0.004], [0.023, 0.008], [0.023, 0.024], [0, 0.024]], 0, BZ, { ...M.gunDark, rs: R(hi, 12, 7), sharp: true });
   if (hi) {
-    for (const z of [0.05, -0.02, -0.15]) for (const s of [-1, 1]) cylZ(B, s * 0.0202, 0.034, z + 0.002, z - 0.002, 0.0028, { ...M.gunDark, rs: 5 }); // rivets
+    rivets(B, 0.0202, 0.034, [0.05, -0.02, -0.15]);
     boxR(B, -0.0206, 0.0206, 0.05, 0.053, 0.06, -0.16, M.gunDark); // weld seam
   }
   // pistol grip (taped), strap trigger guard, trigger
-  profile(B, [[0.03, 0.022], [0.022, -0.012], [0.012, -0.03], [0.016, -0.04], [0.006, -0.074], [-0.028, -0.08], [-0.036, -0.066], [-0.024, -0.024], [-0.016, 0.022]], 0.028, { ...M.tape, bevel: 0.004 });
-  B.tube(0, [[0, 0.021, -0.012], [0, 0.0, -0.016], [0, -0.004, -0.04], [0, -0.004, -0.064], [0, 0.021, -0.068]], 0.003, 0.003, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.022, -0.036], [0, 0.009, -0.039], [0, 0.002, -0.034]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  profile(B, GRIPS.a2.grip, 0.028, { ...M.tape, bevel: 0.004 });
+  triggerGuard(B, hi, GRIPS.a2.guard, 0.003, M.gun);
+  trigger(B, GRIPS.a2.trigger);
   // gas bottle behind the receiver (it is the stock), taped butt pad
   latheZ(B, [[0, -0.3], [0.022, -0.3], [0.034, -0.282], [0.034, -0.105], [0.02, -0.078], [0.011, -0.07], [0, -0.07]], 0, 0.058, { ...blue, rs: R(hi, 14, 8) });
   latheZ(B, [[0, -0.312], [0.03, -0.312], [0.034, -0.304], [0.034, -0.284], [0, -0.284]], 0, 0.058, { ...M.tape, rs: R(hi, 14, 8), sharp: true });
-  if (hi) for (const z of [0.13, 0.23]) latheZ(B, [[0.034, -z - 0.006], [0.0355, -z - 0.006], [0.0355, -z + 0.006], [0.034, -z + 0.006]], 0, 0.058, { ...M.steel, rs: 14, sharp: true }); // hose clamps
+  if (hi) for (const z of [0.13, 0.23]) bandZ(B, z, 0.006, 0.034, 0.0355, 0, 0.058, { ...M.steel, rs: 14, sharp: true }); // hose clamps
   // lance: pipe, wooden sleeve for the support hand, finned heat shield, flared nozzle
   cylZ(B, 0, AX, -0.17, -0.61, 0.0125, { ...M.steel, rs: R(hi, 12, 7) });
   latheZ(B, [[0, 0.168], [0.024, 0.168], [0.024, 0.19], [0, 0.19]], 0, AX, { ...M.gun, rs: R(hi, 12, 7), sharp: true });

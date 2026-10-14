@@ -1,7 +1,7 @@
 // MP5 (fixed polymer stock)
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard, magOutline } from './parts.js';
 
 function buildMP5(P) {
   const hi = P.hi;
@@ -37,8 +37,8 @@ function buildMP5(P) {
   // polymer trigger group, pistol grip, trigger guard + trigger, selector
   profile(B, [[0.066, 0.031], [0.066, 0.012], [0.04, 0.004], [-0.026, 0.004], [-0.046, 0.018], [-0.05, 0.031]], 0.034, { ...M.poly, bevel: 0.003 });
   profile(B, [[0.03, 0.01], [0.022, -0.012], [0.012, -0.03], [0.017, -0.042], [0.007, -0.074], [-0.027, -0.08], [-0.035, -0.066], [-0.026, -0.024], [-0.02, 0.01]], 0.029, { ...M.poly, bevel: 0.004 });
-  B.tube(0, [[0, 0.006, -0.012], [0, -0.008, -0.016], [0, -0.012, -0.04], [0, -0.008, -0.062], [0, 0.006, -0.066]], 0.003, 0.003, { ...M.poly, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.008, -0.034], [0, -0.002, -0.037], [0, -0.008, -0.032]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.006, -0.012], [0, -0.008, -0.016], [0, -0.012, -0.04], [0, -0.008, -0.062], [0, 0.006, -0.066]], 0.003, M.poly);
+  trigger(B, [[0, 0.008, -0.034], [0, -0.002, -0.037], [0, -0.008, -0.032]]);
   if (hi) {
     boxR(B, -0.0195, -0.0175, 0.016, 0.026, 0.02, -0.012, M.gunDark); // selector lever
     boxR(B, -0.006, 0.006, 0.0, 0.01, -0.07, -0.086, M.gunDark); // paddle release
@@ -50,20 +50,11 @@ function buildMP5(P) {
   profile(B, [[-0.34, 0.066], [-0.35, 0.066], [-0.35, -0.066], [-0.34, -0.066]], 0.04, { ...M.polyDark, color: [0.7, 0.7, 0.7], bevel: 0.002 });
   // curved 9mm magazine
   const MG = P.get('mag');
-  const magPts = [];
-  const N = hi ? 8 : 4;
-  const cf = (t) => [0.123 + 0.05 * t * t + 0.018 * t, 0.024 - 0.2 * t];
-  for (let i = 0; i <= N; i++) {
-    const c = cf(i / N);
-    magPts.push([c[0] + 0.021, c[1]]);
-  }
-  for (let i = N; i >= 0; i--) {
-    const c = cf(i / N);
-    magPts.push([c[0] - 0.021, c[1]]);
-  }
+  const magMid = (t) => [0.123 + 0.05 * t * t + 0.018 * t, 0.024 - 0.2 * t]; // its middle line, t from the top (0) to the base (1)
+  const magPts = magOutline(magMid, () => 0.021, hi ? 8 : 4);
   profile(MG, magPts, 0.02, { ...M.gun, color: [0.92, 0.9, 0.86], bevel: 0.002 });
   if (hi) {
-    const c = cf(1);
+    const c = magMid(1);
     boxR(MG, -0.0115, 0.0115, c[1] - 0.004, c[1] + 0.005, -(c[0] - 0.023), -(c[0] + 0.024), M.gunDark);
   }
   P.pivot('mag', new THREE.Vector3(0, 0.024, -0.123));

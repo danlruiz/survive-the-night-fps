@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, cylZ, plateY, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { PI, profile, latheZ, cylZ, plateY, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
 
 function buildCrossbow(P) {
   const hi = P.hi;
@@ -26,8 +26,8 @@ function buildCrossbow(P) {
   }
   // trigger plate, strap guard, trigger
   boxR(B, -0.008, 0.008, 0.006, 0.02, 0.02, -0.075, M.gun);
-  B.tube(0, [[0, 0.008, 0.012], [0, -0.014, 0.004], [0, -0.018, -0.03], [0, -0.008, -0.062], [0, 0.008, -0.07]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.008, -0.024], [0, -0.006, -0.028], [0, -0.012, -0.022]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.008, 0.012], [0, -0.014, 0.004], [0, -0.018, -0.03], [0, -0.008, -0.062], [0, 0.008, -0.07]], 0.0032, M.gun);
+  trigger(B, [[0, 0.008, -0.024], [0, -0.006, -0.028], [0, -0.012, -0.022]]);
   // prod bracket, rope lashing (clear of the rail), stirrup
   boxR(B, -0.028, 0.028, 0.04, RAIL - 0.001, PROD + 0.016, PROD - 0.016, M.gun);
   const rope = { region: WR.RAG, color: [0.72, 0.6, 0.4], mottle: 0.08 };
@@ -79,12 +79,7 @@ function buildCrossbow(P) {
   latheZ(A, [[0, -tipZ - 0.002], [0.0052, -tipZ - 0.002], [0.0068, -tipZ + 0.006], [0, -tipZ + 0.042]], 0, by, { ...M.steel, rs: R(hi, 8, 5), sharp: true });
   for (const s of [-1, 1]) profile(A, [[-nock + 0.012, s * 0.004], [-nock + 0.022, s * 0.013], [-nock + 0.062, s * 0.013], [-nock + 0.075, s * 0.004]], 0.0012, { ...M.red, bevel: 0 });
   for (const part of A.parts.slice(-2)) part.geo.rotateZ(PI / 2).translate(0, by, 0); // vanes were drawn upright: lay them flat
-  for (const [name, mb] of P.map) {
-    if (name === 'stringR' || name === 'stringL') continue;
-    for (const part of mb.parts) part.geo.translate(O[0], O[1], O[2]);
-  }
-  for (const k in P.pivots) P.pivots[k].add(new THREE.Vector3(O[0], O[1], O[2]));
-  const sh = (x, y, z) => new THREE.Vector3(x + O[0], y + O[1], z + O[2]);
+  const sh = P.shift(O, ['stringR', 'stringL']);
   P.meta.muzzle = sh(0, by, PROD - 0.05);
   P.meta.leftHand = sh(0, 0.046, -0.3);
   P.meta.sight = sh(0, RAIL + 0.0295, PROD + 0.014); // front pin (ADS pivots around it)

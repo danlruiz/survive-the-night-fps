@@ -1,7 +1,7 @@
 // AK-47
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, GRIPS, trigger, triggerGuard, magOutline, rivets } from './parts.js';
 
 // its sights: the line of sight's height over the grip, how far ahead of the grip the rear notch stands, the notch
 // (width, depth) and the hood's inner radius. The post is at f = 0.57: a sight radius of 41 cm
@@ -17,8 +17,7 @@ function buildAK(P) {
   boxR(B, -0.008, 0.008, 0.086, 0.094, 0.07, 0.058, M.gun); // rear latch
   if (hi) {
     for (let i = 0; i < 3; i++) boxR(B, -0.0206, 0.0206, 0.083 + i * 0.0015, 0.0845 + i * 0.0015, -0.03 - i * 0.04, -0.05 - i * 0.04, M.gunDark);
-    // rivets
-    for (const z of [0.03, -0.02, -0.12, -0.17]) for (const s of [-1, 1]) cylZ(B, s * 0.0212, 0.035, z + 0.002, z - 0.002, 0.0028, { ...M.gunDark, rs: 5 });
+    rivets(B, 0.0212, 0.035, [0.03, -0.02, -0.12, -0.17]);
     // magazine well lip
     boxR(B, -0.022, 0.022, 0.026, 0.033, -0.078, -0.145, M.gun);
   }
@@ -68,10 +67,10 @@ function buildAK(P) {
   boxR(B, -0.0265, 0.0265, 0.03, 0.089, -0.222, -0.232, M.gun); // retainer
   boxR(B, -0.027, 0.027, 0.03, 0.089, -0.412, -0.422, M.gun);
   // pistol grip
-  profile(B, [[0.028, 0.029], [0.02, -0.01], [0.012, -0.045], [0.004, -0.072], [-0.03, -0.078], [-0.037, -0.062], [-0.024, -0.02], [-0.014, 0.029]], 0.029, { ...M.wood, bevel: 0.004, x: 0 });
+  profile(B, GRIPS.ak.grip, 0.029, { ...M.wood, bevel: 0.004, x: 0 });
   // trigger guard + trigger
-  B.tube(0, [[0, 0.029, -0.012], [0, 0.004, -0.018], [0, -0.004, -0.045], [0, 0.0, -0.075], [0, 0.029, -0.086]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.03, -0.04], [0, 0.017, -0.043], [0, 0.009, -0.037]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, GRIPS.ak.guard, 0.0032, M.gun);
+  trigger(B, GRIPS.ak.trigger);
   // selector lever (right side)
   boxR(B, 0.021, 0.0232, 0.052, 0.066, 0.02, -0.115, M.gun);
   boxR(B, 0.021, 0.026, 0.036, 0.052, -0.1, -0.118, M.gun);
@@ -82,22 +81,13 @@ function buildAK(P) {
   boxR(B, 0.0206, 0.0214, 0.056, 0.066, -0.03, -0.155, M.black);
   // magazine
   const MG = P.get('mag');
-  const magPts = [];
-  const N = hi ? 10 : 5;
-  const cf = (t) => [0.11 + 0.075 * t * t + 0.018 * t, 0.032 - 0.235 * t];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, c = cf(t), w = 0.025 + 0.007 * t;
-    magPts.push([c[0] + w, c[1]]);
-  }
-  for (let i = N; i >= 0; i--) {
-    const t = i / N, c = cf(t), w = 0.025 + 0.007 * t;
-    magPts.push([c[0] - w, c[1]]);
-  }
+  const magMid = (t) => [0.11 + 0.075 * t * t + 0.018 * t, 0.032 - 0.235 * t]; // its middle line, t from the top (0) to the base (1)
+  const magPts = magOutline(magMid, (t) => 0.025 + 0.007 * t, hi ? 10 : 5);
   profile(MG, magPts, 0.027, { ...M.gun, color: [0.95, 0.9, 0.85], bevel: 0.0025 });
   if (hi) {
     // ribs
     for (let i = 1; i < 4; i++) {
-      const t = i / 4.5, c = cf(t);
+      const t = i / 4.5, c = magMid(t);
       boxR(MG, -0.0147, 0.0147, c[1] - 0.004, c[1] + 0.004, -(c[0] - 0.02), -(c[0] + 0.02), { ...M.gunDark, color: [0.8, 0.76, 0.72] });
     }
   }

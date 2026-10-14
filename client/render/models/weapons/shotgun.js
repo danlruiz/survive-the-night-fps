@@ -1,8 +1,24 @@
 // Pump shotgun
-import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
+
+// The parts the double-barrel shares with it (the same maker's furniture):
+// the bead front sight, on the rib at height y
+export function bead(mb, y, z) {
+  mb.ellip(0, [0, y, z], [0.0023, 0.0023, 0.0023], { region: WR.PLAIN, color: 0xd8d0b0, ws: 6, hs: 4 });
+}
+
+// the checkered panels either side of the stock's wrist
+export function wristCheckering(mb) {
+  for (const s of [-1, 1]) profile(mb, [[-0.05, 0.05], [-0.1, 0.04], [-0.1, -0.02], [-0.06, 0.0]], 0.001, { ...M.walnut, color: [0.55, 0.5, 0.5], bevel: 0, x: s * 0.0191 });
+}
+
+// a shell, its brass head to the rear: the red hull r thick, the rim rimR, at x (drawn about its own origin)
+export function shotgunShell(mb, x, r, rimR) {
+  cylZ(mb, x, 0, 0.0, -0.052, r, { region: WR.PLAIN, color: 0xa01810, rs: 10 });
+  cylZ(mb, x, 0, 0.012, 0.0, rimR, { ...M.brass, rs: 10 });
+}
 
 function buildShotgun(P) {
   const hi = P.hi;
@@ -22,14 +38,11 @@ function buildShotgun(P) {
   }
   // trigger group
   boxR(B, -0.009, 0.009, 0.004, 0.019, 0.02, -0.075, M.gun);
-  B.tube(0, [[0, 0.006, 0.012], [0, -0.012, 0.005], [0, -0.016, -0.03], [0, -0.006, -0.062], [0, 0.006, -0.07]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.006, -0.02], [0, -0.006, -0.024], [0, -0.012, -0.018]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.006, 0.012], [0, -0.012, 0.005], [0, -0.016, -0.03], [0, -0.006, -0.062], [0, 0.006, -0.07]], 0.0032, M.gun);
+  trigger(B, [[0, 0.006, -0.02], [0, -0.006, -0.024], [0, -0.012, -0.018]]);
   // stock (walnut)
   profile(B, [[-0.03, 0.074], [-0.085, 0.058], [-0.38, 0.03], [-0.38, -0.108], [-0.3, -0.085], [-0.2, -0.062], [-0.12, -0.035], [-0.075, -0.012], [-0.045, 0.006], [-0.03, 0.018]], 0.038, { ...M.walnut, bevel: 0.005, curveSegs: 4 });
-  if (hi) {
-    // checkering at wrist
-    for (const s of [-1, 1]) profile(B, [[-0.05, 0.05], [-0.1, 0.04], [-0.1, -0.02], [-0.06, 0.0]], 0.001, { ...M.walnut, color: [0.55, 0.5, 0.5], bevel: 0, x: s * 0.0191 });
-  }
+  if (hi) wristCheckering(B);
   profile(B, [[-0.38, 0.032], [-0.402, 0.032], [-0.402, -0.111], [-0.38, -0.111]], 0.04, { ...M.polyDark, bevel: 0.003 }); // recoil pad
   // barrel + vent rib + bead
   barrelZ(B, 0, 0.062, -0.19, -0.72, 0.0118, 0.0092, { ...M.gun, rs: R(hi, 14, 8) });
@@ -37,7 +50,7 @@ function buildShotgun(P) {
     boxR(B, -0.004, 0.004, 0.0775, 0.0795, -0.2, -0.712, M.gun);
     for (let i = 0; i < 9; i++) boxR(B, -0.0015, 0.0015, 0.071, 0.078, -0.23 - i * 0.055, -0.236 - i * 0.055, M.gun);
   }
-  B.ellip(0, [0, 0.0815, -0.706], [0.0023, 0.0023, 0.0023], { region: WR.PLAIN, color: 0xd8d0b0, ws: 6, hs: 4 });
+  bead(B, 0.0815, -0.706);
   // magazine tube + cap
   cylZ(B, 0, 0.036, -0.19, -0.63, 0.0108, { ...M.gun, rs: R(hi, 12, 7) });
   latheZ(B, [[0, 0.628], [0.0128, 0.628], [0.0128, 0.64], [0.0122, 0.642], [0.0128, 0.645], [0.0128, 0.658], [0.009, 0.664], [0, 0.664]], 0, 0.036, { ...M.gunDark, rs: R(hi, 12, 7), sharp: true });
@@ -58,15 +71,10 @@ function buildShotgun(P) {
   // spare shell (for loading anims)
   if (P.split) {
     const SH = P.get('shell');
-    cylZ(SH, 0, 0, 0.0, -0.052, 0.0105, { region: WR.PLAIN, color: 0xa01810, rs: 10 });
-    cylZ(SH, 0, 0, 0.012, 0.0, 0.0112, { ...M.brass, rs: 10 });
+    shotgunShell(SH, 0, 0.0105, 0.0112);
   }
   // shift so the stock wrist is the grip origin
-  for (const [name, mb] of P.map) {
-    if (name === 'shell') continue;
-    for (const part of mb.parts) part.geo.translate(O[0], O[1], O[2]);
-  }
-  const sh = (x, y, z) => new THREE.Vector3(x + O[0], y + O[1], z + O[2]);
+  const sh = P.shift(O, ['shell']);
   P.meta.muzzle = sh(0, 0.062, -0.722);
   P.meta.leftHand = sh(0, 0.041, -0.355);
   P.meta.sight = sh(0, 0.0845, -0.706); // front bead (ADS pivots around it)

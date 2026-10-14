@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip } from './parts.js';
+import { PI, profile, latheZ, cylZ, barrelZ, boxR, M, R, gunGrip, supportGrip, trigger, triggerGuard } from './parts.js';
 
 function buildRifle(P) {
   const hi = P.hi;
@@ -31,8 +31,8 @@ function buildRifle(P) {
   if (hi) boxR(B, 0.004, 0.0168, 0.078, 0.0852, -0.02, -0.1, M.black); // ejection port
   // floor plate + trigger guard + trigger
   boxR(B, -0.01, 0.01, 0.012, 0.018, -0.02, -0.12, M.gun);
-  B.tube(0, [[0, 0.016, 0.02], [0, -0.004, 0.018], [0, -0.012, -0.005], [0, -0.004, -0.03], [0, 0.016, -0.038]], 0.0032, 0.0032, { ...M.gun, rs: 5, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.016, -0.004], [0, 0.002, -0.006], [0, -0.004, 0.0]], 0.0025, 0.002, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.016, 0.02], [0, -0.004, 0.018], [0, -0.012, -0.005], [0, -0.004, -0.03], [0, 0.016, -0.038]], 0.0032, M.gun);
+  trigger(B, [[0, 0.016, -0.004], [0, 0.002, -0.006], [0, -0.004, 0.0]]);
   // barrel (tapered)
   barrelZ(B, 0, 0.07, -0.16, -0.685, 0.0125, 0.004, { ...M.gun, r1: 0.0092, rs: R(hi, 12, 8) });
   // scope rings + bases (ring = outer band only, keeps the tube see-through from inside)
@@ -67,9 +67,7 @@ function buildRifle(P) {
     cylZ(RD, 0, 0, 0.0, -0.05, 0.006, { ...M.brass, rs: 8 });
     latheZ(RD, [[0, 0.05], [0.0045, 0.05], [0.004, 0.062], [0.0015, 0.072], [0, 0.074]], 0, 0, { region: WR.STEEL, color: [0.95, 0.55, 0.35], rs: 8 });
   }
-  for (const [name, mb] of P.map) if (name !== 'round') for (const part of mb.parts) part.geo.translate(O[0], O[1], O[2]);
-  for (const k in P.pivots) P.pivots[k].add(new THREE.Vector3(O[0], O[1], O[2]));
-  const sh = (x, y, z) => new THREE.Vector3(x + O[0], y + O[1], z + O[2]);
+  const sh = P.shift(O, ['round']);
   P.meta.muzzle = sh(0, 0.07, -0.688);
   P.meta.leftHand = sh(0, 0.038, -0.3);
   P.meta.sight = sh(0, 0.123, 0.13);

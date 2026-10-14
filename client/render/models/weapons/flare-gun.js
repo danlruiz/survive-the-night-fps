@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { ITEM } from '../../../../shared/defs.js';
 import { WR } from '../charTextures.js';
-import { profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ } from './parts.js';
+import { profile, latheZ, cylZ, barrelZ, boxR, M, R, handQ, trigger, triggerGuard } from './parts.js';
 
 const FG_ORANGE = { region: WR.PLAIN, color: 0xe0601c, mottle: 0.06 };
 const FG_SEAM = { region: WR.PLAIN, color: 0xa8401a, mottle: 0.05 };
@@ -26,8 +26,8 @@ function buildFlareGun(P) {
   profile(B, [[-0.034, 0.06], [-0.026, 0.07], [-0.003, 0.074], [-0.003, 0.038], [0.098, 0.036], [0.106, 0.029], [0.098, 0.02], [0.0, 0.022], [-0.034, 0.03]], 0.03, { ...FG_ORANGE, bevel: 0.003 });
   if (hi) for (const s of [-1, 1]) profile(B, [[-0.03, 0.04], [-0.006, 0.04], [-0.006, 0.064], [-0.024, 0.062]], 0.001, { ...FG_SEAM, bevel: 0, x: s * 0.0151 }); // side plate seam
   // trigger guard + trigger (where the pistol's are: the trigger finger finds it)
-  B.tube(0, [[0, 0.024, -0.04], [0, 0.004, -0.046], [0, -0.003, -0.066], [0, -0.001, -0.093], [0, 0.023, -0.1]], 0.0042, 0.0042, { ...FG_ORANGE, rs: 6, ts: R(hi, 12, 6), cap: false });
-  B.tube(0, [[0, 0.024, -0.062], [0, 0.013, -0.064], [0, 0.006, -0.058]], 0.003, 0.0024, { ...M.gunDark, rs: 5, ts: 4 });
+  triggerGuard(B, hi, [[0, 0.024, -0.04], [0, 0.004, -0.046], [0, -0.003, -0.066], [0, -0.001, -0.093], [0, 0.023, -0.1]], 0.0042, FG_ORANGE, { rs: 6 });
+  trigger(B, [[0, 0.024, -0.062], [0, 0.013, -0.064], [0, 0.006, -0.058]], 0.003, 0.0024);
   // barrel latch: a thumb lever on the left of the frame
   boxR(B, -0.0172, -0.0146, 0.061, 0.068, 0.002, 0.014, M.gunDark);
   // hinge pin through the lug
