@@ -57,12 +57,14 @@ server/      authoritative game server (uWebSockets.js)
                  moon: a blood moon now and then, a clear one for a team that is struggling (see Night waves)
 client/      three.js client (Vite root)
   index.html, main.js
-  net/        connection, snapshot decode, interpolation, prediction
+  net/        connection, snapshot decode, the JSON API (api.js) and its clients (lobby, account, friends...)
   game/       client game state, entity views, input, weather schedule (weather.js). game.js is the Game: it builds
               every subsystem and runs the frame; its methods are in game/game/, one file per responsibility (the
               world's build, the session, the server's events and notices, shots, the screens, the keys, the
               inventory, building, [E] and holds, the look target, the HUD, markers, the view...), laid onto it by
               game/game/index.js. The HUD's mash meter (pinned, on fire): hudmeters.js
+    entities.js   the entity store; each kind's view in entities/ (zombies.js + zombiekinds.js, survivors.js,
+                  structures.js, projectiles.js, ropes.js, glints.js) and the interpolation (entities/samples.js)
   render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
               (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
@@ -1063,7 +1065,8 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
   sparse daytime tones, night drone, a "dread" layer that follows the nearest zombie, the horde's taiko (muffled
   until something is close) and the boss theme, all in or around D minor. Each generative layer gives way to its
   stem once loaded. Stingers (`STINGERS` in `audio.js`) are recorded cues too, with the procedural ones behind them.
-- **Zombie voices** are chosen on the client (`entities.js`): shambling zombies moan (`SOUND.ZOMBIE_MOAN`),
+- **Zombie voices** are chosen on the client (`game/entities/zombies.js`, a kind's own cadence, pitch and steps in
+  `zombiekinds.js`): shambling zombies moan (`SOUND.ZOMBIE_MOAN`),
   hunting ones growl, each at its own stable pitch (`e.voice`, passed as `rate`); each carries a breathing loop
   (the engine only plays the nearest few); a kill is followed by the body hitting the ground (`SOUND.BODY_FALL`,
   `delay`). Special infected, dogs and bosses have their own recorded sets. Voices of the `zombie` category

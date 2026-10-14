@@ -11,14 +11,14 @@
 //     with the merged copy, which is kept here.
 //   - signing out leaves this browser's copy as it is.
 // Without accounts on the server (no database), or not signed in, nothing is asked: the survivors are this browser's.
-import { call } from './lobby.js';
-import { onAccountChange, accountState } from './account.js';
+import { call, put, putAsPageGoes } from './api.js';
+import { onSignIn, signedInUser } from './account.js';
 import { exportCustoms, adoptCustoms, onCustomsChange } from '../ui/customs.js';
 import { mergeCustoms, sameCustoms, tidyCustoms } from '../../shared/customs.js';
 
 const DEBOUNCE = 1200; // ms after the last change
 const PATH = '/api/me/customs';
-// (lobby.js call gives up after this long, body and all: a page opening is busy for seconds building the valley, and
+// (api.js call gives up after this long, body and all: a page opening is busy for seconds building the valley, and
 // an answer whose body was cut off by the default 4 s came back as nothing - taken for an account with no survivors)
 const WAIT = 20000;
 const RETRY = [3000, 10000]; // ms: a pull that had no answer is tried again after these
@@ -26,7 +26,7 @@ const RETRY = [3000, 10000]; // ms: a pull that had no answer is tried again aft
 let timer = 0;
 let quiet = false; // (taking the merged copy is a change of the list that must not go straight back up)
 let seq = 0; // (a sign-out or a new sign-in while a request is out: its answer is about somebody else)
-const signedIn = () => !!accountState().user;
+const signedIn = () => !!signedInUser();
 
 // the account's copy merged into this browser's, kept here (only when it changes anything)
 function take(theirs, mine) {
@@ -47,7 +47,7 @@ async function push() {
   if (!signedIn()) return;
   const mine = seq;
   try {
-    const r = await call(PATH, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customs: exportCustoms() }) }, WAIT);
+    const r = await put(PATH, { customs: exportCustoms() }, WAIT);
     take(r?.customs, mine);
   } catch {
     /* (kept here; it goes up with the next change, or the next sign-in) */
@@ -79,16 +79,6 @@ let started = false;
 export function startCustomsSync() {
   if (started) return;
   started = true;
-  let user = '';
-  onAccountChange((a) => {
-    const id = a.user?.id || '';
-    if (id === user) return;
-    user = id;
-    clearTimeout(timer);
-    timer = 0;
-    if (id) pull();
-    else seq++;
-  });
   onCustomsChange((why) => {
     if (quiet || why !== 'edit' || !signedIn()) return;
     clearTimeout(timer);
@@ -99,14 +89,13 @@ export function startCustomsSync() {
     if (!timer || !signedIn()) return;
     clearTimeout(timer);
     timer = 0;
-    try {
-      fetch(PATH, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customs: exportCustoms() }), keepalive: true }).catch(() => {});
-    } catch {
-      /* (too late to say anything) */
-    }
+    putAsPageGoes(PATH, { customs: exportCustoms() });
   });
-  if (accountState().user) {
-    user = accountState().user.id;
-    pull();
-  }
+  // signing in (or a page opening signed in), out, or as someone else
+  onSignIn((id) => {
+    clearTimeout(timer);
+    timer = 0;
+    if (id) pull();
+    else seq++;
+  });
 }

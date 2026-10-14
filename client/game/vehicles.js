@@ -12,8 +12,8 @@
 //   - [E] on one: gets in (a tap), or does what it wants done (held: a part fitted, fuel poured, a patch); in one, [E]
 //     gets out. The fire button is the horn, the flashlight's key the headlamp
 import * as THREE from 'three';
-import { BTN, INTERACT_REACH, EYE_HEIGHT } from '../../shared/constants.js';
-import { ITEM, ITEM_DEFS, AMMO, SOUND, NOTIFY, VEH_NO, VEH_OFFS } from '../../shared/defs.js';
+import { BTN, INTERACT_REACH } from '../../shared/constants.js';
+import { ITEM_DEFS, AMMO, SOUND, NOTIFY, VEH_NO, VEH_OFFS } from '../../shared/defs.js';
 import { ACT, VACT, VFLAG, HOLD, SIPHON_ID, qpos, dqangle16 } from '../../shared/protocol.js';
 import { WORLD } from '../../shared/acts.js';
 import { VEH, VSTATE, VEHICLES, VEH_NAMES, FIX, REPAIR, HORN, STARTER_TIME, vehicleGrid, parkedCollider, questCar, siphonOf, seatFeet } from '../../shared/vehicles.js';
@@ -22,6 +22,7 @@ import { VehicleModel, GRIP_HOLD, SEAT_POSE, SIT_T, SIT_K, SEAT_HIP, ANKLE } fro
 import { VMArm, handQ, ARM_L1, ARM_L2 } from '../render/models/weapons.js';
 import { ikTwoBone, getPropMaterial } from '../render/models/skinning.js';
 import { bindTag } from './binds.js';
+import { wrapAngle as wrap } from './entities/samples.js';
 
 const SAG0 = [0, 0, 0];
 const HOLD_AFTER = 0.28; // s: [E] held this long on a vehicle that runs is not getting in, it is working on it
@@ -37,12 +38,7 @@ const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _pole = new THREE.Vector3();
 const _S = new THREE.Vector3();
-const _e = new THREE.Euler(0, 0, 0, 'YXZ');
 const _ray = { t: -1, col: null, terrain: false };
-const wrap = (a) => {
-  a %= Math.PI * 2;
-  return a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a;
-};
 const NEED_TEXT = { [VEH_NO.FULL]: 'The tank is full and it needs nothing', [VEH_NO.NO_FUEL]: 'You carry no Fuel', [VEH_NO.NO_PARTS]: 'You lack the parts for it', [VEH_NO.FINE]: 'It needs nothing', [VEH_NO.SEATS]: 'Every seat is taken', [VEH_NO.BROKEN]: 'It does not run yet: fit its parts', [VEH_NO.WRECK]: 'Burnt out: nothing to be done with it', [VEH_NO.NO_ROOM]: 'No room beside the bench to stand it', [VEH_NO.NOT_HERE]: 'Nothing to build it from here' };
 
 export class VehicleClient {
@@ -223,7 +219,6 @@ export class VehicleClient {
         this.detach(e);
         continue;
       }
-      const v = e.veh;
       const q = e.q;
       if (e === mine && s.drive === e.id) {
         // ours: where the prediction has it, between the last two commands
@@ -284,12 +279,10 @@ export class VehicleClient {
       v.steerV = 0;
     } else {
       const w = 16;
-      for (let left = Math.min(dt, 0.1); left > 1e-6; ) {
-        const h = Math.min(left, 1 / 120);
+      substeps(dt, (h) => {
         v.steerV += ((steer - v.steerS) * w * w - 2 * w * v.steerV) * h;
         v.steerS += v.steerV * h;
-        left -= h;
-      }
+      });
     }
     steer = v.steerS;
     v.steer = steer;
@@ -315,10 +308,8 @@ export class VehicleClient {
       v.pitch = pitch;
       v.roll = roll;
     } else {
-      // (in steps of at most 1/120 s: the same at 30 frames a second as at 144, and on a hitch)
       const ac = Math.max(-12, Math.min(12, acc));
-      for (let left = Math.min(dt, 0.1); left > 1e-6; ) {
-        const h = Math.min(left, 1 / 120);
+      substeps(dt, (h) => {
         v.acc += (ac - v.acc) * Math.min(1, h * 8);
         const k = 90, c = 13;
         v.vy += ((y - v.y) * k - v.vy * c) * h;
@@ -326,8 +317,7 @@ export class VehicleClient {
         const e2 = Math.min(1, h * 9);
         v.pitch += (pitch - v.pitch) * e2;
         v.roll += (roll - v.roll) * e2;
-        left -= h;
-      }
+      });
       if (v.y < y - 0.12) v.y = y - 0.12;
     }
     // into its turns: on two wheels it leans in, a car rolls out
@@ -335,18 +325,16 @@ export class VehicleClient {
     const lat = (vf * turn) / 9.8;
     const lean = P.two ? Math.max(-0.62, Math.min(0.62, Math.atan(lat))) : Math.max(-0.07, Math.min(0.07, -lat * 0.05));
     // ...on a spring, critically damped: it takes a moment to go over and settles without a wobble or a corner, whatever
-    // the frame rate (in steps of at most 1/120 s)
+    // the frame rate
     if (snap || dt <= 0) {
       v.lean = lean;
       v.leanV = 0;
     } else {
       const w = P.two ? 8 : 6;
-      for (let left = Math.min(dt, 0.1); left > 1e-6; ) {
-        const h = Math.min(left, 1 / 120);
+      substeps(dt, (h) => {
         v.leanV = (v.leanV || 0) + ((lean - v.lean) * w * w - 2 * w * (v.leanV || 0)) * h;
         v.lean += v.leanV * h;
-        left -= h;
-      }
+      });
     }
     // standing with nobody on it, a two-wheeler rests on its stand
     const prop = P.two && !v.seats[0] && Math.abs(vf) < 0.3 ? (e.vk === VEH.BIKE ? 0.2 : 0.14) : 0;
@@ -848,6 +836,16 @@ export function seatBody(model, vk, k, sv, out = {}) {
   return out;
 }
 
+// The springs of what is drawn (the bars, the body on its wheels, the lean) are stepped in steps of at most 1/120 s:
+// the same at 30 frames a second as at 144, and on a hitch (a frame longer than 0.1 s counts as 0.1 s)
+function substeps(dt, step) {
+  for (let left = Math.min(dt, 0.1); left > 1e-6; ) {
+    const h = Math.min(left, 1 / 120);
+    step(h);
+    left -= h;
+  }
+}
+
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 const costText = (cost) => Object.keys(cost).map((k) => `${cost[k]} ${ITEM_DEFS[k].name}`).join(', ');
 
@@ -869,6 +867,3 @@ function rayBox(ox, oy, oz, dx, dy, dz, hx, hy, hz, maxT) {
   }
   return t0;
 }
-void EYE_HEIGHT;
-void ITEM;
-void _e;

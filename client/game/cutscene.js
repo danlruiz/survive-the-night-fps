@@ -31,13 +31,21 @@ const _v = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _q = [];
 
+// the shot's lens on the camera (its projection is only worked out again when it changes)
+function setFov(cam, fov) {
+  if (Math.abs(cam.fov - fov) > 0.01) {
+    cam.fov = fov;
+    cam.updateProjectionMatrix();
+  }
+}
+
 // The car as it drives: the quest car, repaired. { group, wheels } (wheels: what turns)
 function driveCar() {
   if (PropModels.createDriveCar) return PropModels.createDriveCar(7);
   return { group: createProp('car', 7), wheels: [] };
 }
 // ...and the plane as it flies: { group, props } (props: its propellers)
-export function flightPlane() {
+function flightPlane() {
   if (PropModels.createFlightPlane) return PropModels.createFlightPlane(7);
   return { group: createProp('plane_wreck', 7), props: [] };
 }
@@ -745,10 +753,7 @@ export class Crossing {
     // mainland's first shot comes up
     if (w.kind === WORLD.ISLAND && t >= OUT) fade = 1;
     this.card.set(w.kind === WORLD.ISLAND ? t >= OUT - OUT_FADE || this.card.forced : this.reveal === 0);
-    if (Math.abs(cam.fov - this.fov) > 0.01) {
-      cam.fov = this.fov;
-      cam.updateProjectionMatrix();
-    }
+    setFov(cam, this.fov);
     // the car, its wheels, and the people in it
     const car = this.car.group;
     car.position.set(P.x, P.y, P.z);
@@ -917,10 +922,7 @@ export class Takeoff {
     }
     cam.lookAt(_look);
     if (t < AWAY_CUT) cam.position.y += Math.sin(t * 29) * 0.008 * Math.min(1, run / 30); // (the ground shakes as it goes by)
-    if (Math.abs(cam.fov - this.fov) > 0.01) {
-      cam.fov = this.fov;
-      cam.updateProjectionMatrix();
-    }
+    setFov(cam, this.fov);
     // the dead: after it down the runway, and left there (near or far copies by this shot's camera)
     setZombieViewer(cam.position.x, cam.position.y, cam.position.z);
     this.dead.forEach((z, k) => {

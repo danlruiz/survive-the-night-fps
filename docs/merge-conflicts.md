@@ -111,7 +111,8 @@ happen.
 
 - **Still in the code:** the green-blood test is written out four times (`server/combat.js`, `client/game/game/shots.js`,
   twice in `client/game/entities.js`); which kinds Ember/Blackout scales (`server/spawns.js`); XP per kind
-  (`shared/progress.js`); wave weights (`server/spawns.js`); 20 `ztype ===` checks in `client/game/entities.js`.
+  (`shared/progress.js`); wave weights (`server/spawns.js`); 20 `ztype ===` checks in `client/game/entities.js`
+  (now a table keyed by kind, `client/game/entities/zombiekinds.js`).
 - **Resolve:** add the new kind to every copy. Grep for a sibling kind (`ZTYPE.SMOKER`) to find them all, since the
   conflict only shows the copies both branches touched.
 - **Refactor:** issue #347, step 1. Put `blood`, `special`, `xp`, `waveWeight(night, wave)`, `sounds` and `lod` on the

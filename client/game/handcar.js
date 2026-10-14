@@ -16,6 +16,7 @@ import { HANDCAR, carFrame, linePoint, leverAngle } from '../../shared/handcar.j
 import { canReach } from '../../shared/collision.js';
 import { createHandcar, createHandcarView, WHEEL_R } from '../render/models/handcar.js';
 import { bindTag } from './binds.js';
+import { rayNear } from './pickray.js';
 
 const PROMPT_TIME = 6; // seconds the full list of what the keys do stays up after getting on
 const BAR_Y = -0.2; // the handle bar in our view, with the lever level: this far below the eye...
@@ -175,15 +176,8 @@ export class HandcarClient {
       const y = _f.y + HANDCAR.pick.y;
       const z = _f.z;
       // (the same test Entities.pick makes: the ray passes within r of the point, inside reach, with no wall between)
-      const rx = x - ox;
-      const ry = y - oy;
-      const rz = z - oz;
-      const t = rx * dx + ry * dy + rz * dz;
-      if (t < 0 || t >= bestT) continue;
-      const px = rx - dx * t;
-      const py = ry - dy * t;
-      const pz = rz - dz * t;
-      if (px * px + py * py + pz * pz > r * r || !canReach(g.world, ox, oy, oz, x, y, z, reachTop)) continue;
+      const t = rayNear(ox, oy, oz, dx, dy, dz, x, y, z, r);
+      if (t < 0 || t >= bestT || !canReach(g.world, ox, oy, oz, x, y, z, reachTop)) continue;
       bestT = t;
       best = k;
     }

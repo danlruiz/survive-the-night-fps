@@ -2,29 +2,18 @@
 // kind of sample ring a zombie is and at the same render time, so the server, which rewinds its deer to that time
 // before it judges a shot (Combat.fire), has the animal where the shooter saw it.
 import * as THREE from 'three';
-import { SERVER_TICK_RATE } from '../../shared/constants.js';
 import { SOUND } from '../../shared/defs.js';
 import { DANIM, DEER } from '../../shared/deer.js';
 import { createDeer } from '../render/models/deer.js';
+import { initPath, followPath } from './entities/samples.js';
+import { CORPSE_SINK } from './entities/zombies.js';
 
-const TAU = Math.PI * 2;
 const HOOF_RANGE = 32; // hoofbeats are heard from this far (m)
 const _sph = new THREE.Sphere();
 
-function wrapAngle(a) {
-  a %= TAU;
-  if (a > Math.PI) a -= TAU;
-  if (a < -Math.PI) a += TAU;
-  return a;
-}
-
 // Entities.onCreate
 export function createDeerView(ents, e) {
-  e.vx = e.vy = e.vz = 0; // rendered velocity (m/s) and the fading correction offset, as for a zombie
-  e.ex = e.ey = e.ez = 0;
-  e.sx = e.rx;
-  e.sy = e.ry;
-  e.sz = e.rz;
+  initPath(e); // (drawn along a smooth path, as a zombie is)
   e.falls = -1;
   e.dead = e.q[4] === DANIM.DEAD;
   const v = createDeer(e.variant, e.id);
@@ -44,44 +33,15 @@ export function deerAnimChanged(ents, e, initial) {
 // Entities.onRemove: a dead one sinks into the ground with the other corpses (true), anything else just goes
 export function removeDeerView(ents, e) {
   if (!e.dead || !e.view) return false;
-  ents.corpses.push({ view: e.view, t: 7, x: e.rx, y: e.ry, z: e.rz, yaw: e.ryaw, burning: 0 });
+  ents.corpses.push({ view: e.view, t: CORPSE_SINK, x: e.rx, y: e.ry, z: e.rz, yaw: e.ryaw, burning: 0 });
   e.view = null;
   return true;
 }
 
 // Entities.update, once a frame
-export function updateDeer(ents, e, dt, renderTick, time, camPos, frustum) {
+export function updateDeer(ents, e, dt, renderTick, time, camPos) {
   const g = ents.g;
-  const tmp = ents.tmp;
-  // (the zombie's path, step for step: a cubic through the samples, coasting through a late packet, a jump of the
-  // path carried as an offset that fades)
-  e.samples.sampleSmooth(renderTick, tmp, e.samples.lastTick() >= g.latestTick - 1 ? 2 : 0);
-  const sp = Math.hypot(tmp.vx, tmp.vz) * SERVER_TICK_RATE;
-  e.speed += (Math.min(sp, 14) - e.speed) * Math.min(1, dt * 6);
-  const fade = Math.exp(-dt * 8);
-  e.ex *= fade;
-  e.ey *= fade;
-  e.ez *= fade;
-  const jx = tmp.x - (e.sx + e.vx * dt);
-  const jy = tmp.y - (e.sy + e.vy * dt);
-  const jz = tmp.z - (e.sz + e.vz * dt);
-  e.sx = tmp.x;
-  e.sy = tmp.y;
-  e.sz = tmp.z;
-  const jump = Math.hypot(jx, jy, jz);
-  if (jump > 3) e.ex = e.ey = e.ez = 0;
-  else if (jump > 0.02 + 40 * dt * dt) {
-    e.ex -= jx;
-    e.ey -= jy;
-    e.ez -= jz;
-  }
-  e.vx = tmp.vx * SERVER_TICK_RATE;
-  e.vy = tmp.vy * SERVER_TICK_RATE;
-  e.vz = tmp.vz * SERVER_TICK_RATE;
-  e.rx = tmp.x + e.ex;
-  e.ry = tmp.y + e.ey;
-  e.rz = tmp.z + e.ez;
-  e.ryaw += wrapAngle(tmp.yaw - e.ryaw) * Math.min(1, dt * 12);
+  followPath(e, renderTick, g.latestTick, dt, ents.tmp); // (the zombie's path, step for step)
   const v = e.view;
   if (!v) return;
   v.object.position.set(e.rx, e.ry, e.rz);
@@ -92,7 +52,7 @@ export function updateDeer(ents, e, dt, renderTick, time, camPos, frustum) {
   if (distC < 60 * 60 || ((g.frame + e.id) & 1) === 0) {
     _sph.center.set(e.rx, e.ry + 0.7, e.rz);
     _sph.radius = 1.6;
-    v.update(distC < 60 * 60 ? dt : dt * 2, anim, e.speed, time, frustum.intersectsSphere(_sph));
+    v.update(distC < 60 * 60 ? dt : dt * 2, anim, e.speed, time, ents.frustum.intersectsSphere(_sph));
   }
   // hoofbeats when it runs close by: the hind pair, then the fore, of every bound (client-side, no bandwidth)
   if ((anim === DANIM.RUN || anim === DANIM.CHARGE) && e.speed > DEER.run * 0.4 && distC < HOOF_RANGE * HOOF_RANGE) {

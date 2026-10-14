@@ -10,8 +10,9 @@
 //     that was behind is put right by its own save.
 //   - signing out leaves this browser's copy as it is.
 // Without accounts on the server (no database), or not signed in, nothing is asked: the binds are this browser's.
-import { call } from './lobby.js';
-import { onAccountChange, accountState } from './account.js';
+import { call, put, putAsPageGoes } from './api.js';
+import { listeners } from './listeners.js';
+import { onSignIn, signedInUser } from './account.js';
 import { exportBinds, adoptBinds, bindsUpdatedAt, onBindsChange } from '../game/binds.js';
 
 const DEBOUNCE = 1200; // ms after the last change
@@ -20,7 +21,7 @@ const st = {
   where: 'local', // 'local' this browser only | 'account' on the account too | 'saving' on its way | 'error' could not be saved there
   user: '', // the account they are synced with
 };
-const subs = new Set();
+const news = listeners();
 let timer = 0;
 let quiet = false; // (taking the account's copy is a change of the binds that must not go straight back up)
 let seq = 0; // (a sign-out or a new sign-in while a request is out: its answer is about somebody else)
@@ -28,23 +29,14 @@ let seq = 0; // (a sign-out or a new sign-in while a request is out: its answer 
 function set(where) {
   if (st.where === where) return;
   st.where = where;
-  for (const fn of subs) {
-    try {
-      fn(st);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  news.emit(st);
 }
 
 // fn({ where }) whenever where the binds are kept changes; returns the way to stop
-export function onBindsSync(fn) {
-  subs.add(fn);
-  return () => subs.delete(fn);
-}
+export const onBindsSync = news.on;
 export const bindsSync = () => st;
 
-const signedIn = () => !!accountState().user;
+const signedIn = () => !!signedInUser();
 
 function take(b, mine) {
   if (b && Number.isFinite(b.updatedAt) && b.updatedAt > bindsUpdatedAt() && mine === seq) {
@@ -63,7 +55,7 @@ async function push() {
   const mine = seq;
   set('saving');
   try {
-    const b = await call('/api/me/binds', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(exportBinds()) }, 8000);
+    const b = await put('/api/me/binds', exportBinds(), 8000);
     if (mine !== seq) return;
     take(b, mine);
     set('account');
@@ -91,19 +83,6 @@ let started = false;
 export function startBindsSync() {
   if (started) return;
   started = true;
-  let user = '';
-  onAccountChange((a) => {
-    const id = a.user?.id || '';
-    if (id === user) return;
-    user = st.user = id;
-    clearTimeout(timer);
-    timer = 0;
-    if (id) pull();
-    else {
-      seq++;
-      set('local');
-    }
-  });
   onBindsChange((why) => {
     if (quiet || why !== 'edit' || !signedIn()) return;
     clearTimeout(timer);
@@ -115,14 +94,17 @@ export function startBindsSync() {
     if (!timer || !signedIn()) return;
     clearTimeout(timer);
     timer = 0;
-    try {
-      fetch('/api/me/binds', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(exportBinds()), keepalive: true }).catch(() => {});
-    } catch {
-      /* (too late to say anything) */
+    putAsPageGoes('/api/me/binds', exportBinds());
+  });
+  // signing in (or a page opening signed in), out, or as someone else
+  onSignIn((id) => {
+    st.user = id;
+    clearTimeout(timer);
+    timer = 0;
+    if (id) pull();
+    else {
+      seq++;
+      set('local');
     }
   });
-  if (accountState().user) {
-    user = st.user = accountState().user.id;
-    pull();
-  }
 }
