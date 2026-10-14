@@ -1,6 +1,6 @@
 // The leaderboard and every player's lifetime stats, kept in Postgres (player_stats, migrations/001). The same
 // face to the games as the file-kept one (stats.js PlayerStats): enter / leave / bump / board, from the records the
-// worker of each game posts (room-worker.js RemoteRecords, rooms.js Room.record).
+// worker of each game posts (room-worker.js RemoteRecords, room.js Room.record).
 //
 // A player signed in to an account is filed under 'u:<user id>'. A guest - not signed in, as anybody can play - is
 // filed under 'g:<SHA-256 of their browser's id>' as before there were accounts, and that record moves onto their

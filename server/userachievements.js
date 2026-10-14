@@ -44,7 +44,7 @@ export class AchievementStore {
     return e;
   }
 
-  // ---------------------------------------------------------------- what the games say (rooms.js)
+  // ---------------------------------------------------------------- what the games say (room.js)
   // An account earned counts (stat -> n), feats (ids), and revived these accounts (strangers, unless they are friends)
   add(userId, add, feats, strangers, room) {
     const e = this.entry(userId, room);
