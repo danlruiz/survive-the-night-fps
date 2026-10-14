@@ -2,6 +2,7 @@
 // thins out with distance and lets light through its thin outer shell, all in its material (materials.js holds the
 // shared instances: MAT.pine, MAT.grass ...). Felled, blown-apart and shot-down trees get their own twins here.
 import * as THREE from 'three';
+import { hash2 } from '../../shared/rng.js';
 import { getTexture, tiledTexture } from './textures.js';
 
 // Every vegetation geometry carries `aVeg` (vec4):
@@ -22,11 +23,7 @@ export function groundNoiseTexture() {
   if (VEG.tGroundNoise.value) return VEG.tGroundNoise.value;
   const N = 256;
   const data = new Uint8Array(N * N * 4);
-  const hash = (x, y, c) => {
-    let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(c + 11, 2147483647)) | 0;
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-  };
+  const hash = (x, y, c) => hash2(x, y, c + 11);
   [4, 8, 16, 32].forEach((cells, c) => {
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {

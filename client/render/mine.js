@@ -8,7 +8,7 @@
 // shows black from the yard at noon, and what a survivor sees down there is what their own light falls on.
 import * as THREE from 'three';
 import { MINE_H, MINE_R, PORTAL } from '../../shared/mine.js';
-import { smoothstep } from '../../shared/rng.js';
+import { smoothstep, hash2 } from '../../shared/rng.js';
 import { getTexture, TEXTURE_WORLD_SIZE } from './textures.js';
 
 const REACH = 0.8; // the floor and the roof run this far into the rock, behind the walls
@@ -21,11 +21,6 @@ const LAMP = [13, 9.2, 5.4];
 const FRAME_TINT = [[0.5, 0.42, 0.34], [0.4, 0.2, 0.13], [0.62, 0.54, 0.44]];
 
 // smooth value noise on a lattice, 0..1 (the clinic's blotches too: render/clinic.js)
-function hash3(x, y, z) {
-  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(z | 0, 2147483647)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
 export function noise3(x, y, z) {
   const xi = Math.floor(x);
   const yi = Math.floor(y);
@@ -38,8 +33,8 @@ export function noise3(x, y, z) {
   const sw = w * w * (3 - 2 * w);
   const l = (a, b, t) => a + (b - a) * t;
   return l(
-    l(l(hash3(xi, yi, zi), hash3(xi + 1, yi, zi), su), l(hash3(xi, yi + 1, zi), hash3(xi + 1, yi + 1, zi), su), sv),
-    l(l(hash3(xi, yi, zi + 1), hash3(xi + 1, yi, zi + 1), su), l(hash3(xi, yi + 1, zi + 1), hash3(xi + 1, yi + 1, zi + 1), su), sv),
+    l(l(hash2(xi, yi, zi), hash2(xi + 1, yi, zi), su), l(hash2(xi, yi + 1, zi), hash2(xi + 1, yi + 1, zi), su), sv),
+    l(l(hash2(xi, yi, zi + 1), hash2(xi + 1, yi, zi + 1), su), l(hash2(xi, yi + 1, zi + 1), hash2(xi + 1, yi + 1, zi + 1), su), sv),
     sw,
   );
 }

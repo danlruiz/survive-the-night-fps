@@ -13,7 +13,8 @@
 //  - fx_* sprites are white/grey on transparent (RGB is never black under transparent pixels -> premultiply-friendly).
 //  - decal_* textures carry their own colour + alpha.
 // The generators are in textures/, a file a family (what they paint with is textures/kit.js); this file is the
-// registry: it bakes a texture on its first use, keeps it, and hands out copies with their own repeat.
+// registry: it bakes a texture on its first use, keeps it, and hands out copies with their own repeat. (The marks'
+// atlas, textures/marks.js, is not in it: render/marks.js paints and keeps its own.)
 import * as THREE from 'three';
 import { SURFACE_GEN } from './textures/surfaces.js';
 import { PROP_GEN } from './textures/props.js';
