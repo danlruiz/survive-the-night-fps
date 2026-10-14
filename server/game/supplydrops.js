@@ -47,8 +47,7 @@ export const methods = {
     const humans = this.humans();
     // somewhere 70-200 m from the survivors
     let pts = this.world.resourceSpawns.filter((p) => {
-      let md = Infinity;
-      for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - p.x, h.state.z - p.z));
+      const md = this.distToHumans(p.x, p.z, humans);
       return md > 70 && md < 200;
     });
     if (!pts.length) pts = this.world.resourceSpawns;

@@ -51,9 +51,7 @@ export const methods = {
     const hs = this.humans();
     for (const z of [...this.zombies]) {
       if (z.dead) continue;
-      let md = Infinity;
-      for (const h of hs) md = Math.min(md, Math.hypot(h.state.x - z.x, h.state.z - z.z));
-      if (z.horde || z.boss || md < FINAL_STAND_JOIN_RANGE) {
+      if (z.horde || z.boss || this.distToHumans(z.x, z.z, hs) < FINAL_STAND_JOIN_RANGE) {
         z.horde = true;
         if (!z.boss) {
           this.escape.sent++;

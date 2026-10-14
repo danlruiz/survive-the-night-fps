@@ -113,8 +113,7 @@ export const methods = {
     const far = [];
     for (const z of this.zombies) {
       if (z.dead || z.horde || z.boss || z.pack || z.herd || z.target) continue;
-      let md = Infinity;
-      for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - z.x, h.state.z - z.z));
+      const md = this.distToHumans(z.x, z.z, humans);
       if (md > 150) far.push({ z, md });
     }
     far.sort((a, b) => b.md - a.md);

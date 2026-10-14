@@ -378,6 +378,12 @@ export class Game {
     for (const p of this.players.values()) if (!p.zombie) n++;
     return n;
   }
+  // how far (x, z) is from the nearest of survivors hs (on the ground plan; Infinity with none)
+  distToHumans(x, z, hs = this.humans()) {
+    let md = Infinity;
+    for (const h of hs) md = Math.min(md, Math.hypot(h.state.x - x, h.state.z - z));
+    return md;
+  }
 
   // ---------------------------------------------------------------- the two acts (shared/acts.js)
   // A wipe on the mainland of a run that crossed to it: the same mainland again, as the team found it coming off the
