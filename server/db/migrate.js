@@ -4,8 +4,8 @@
 // a migration that fails leaves the database as it was.
 //
 // Run by `npm run migrate` (scripts/migrate.js) - on Railway that is the service's pre-deploy command
-// (railway.json), so a deploy whose migrations fail never goes live - and by the server itself on start when the
-// database is a PGlite one (local development) or MIGRATE_ON_START=1.
+// (railway.json), so a deploy whose migrations fail never goes live - and by the server itself as it starts, unless
+// MIGRATE_ON_START=0 (index.js), and by the proxy (proxy/index.js).
 //
 // A migration that has been applied is never edited: changing the schema is a new file. One whose text changed
 // after it went in is said out loud (its checksum), not run again.

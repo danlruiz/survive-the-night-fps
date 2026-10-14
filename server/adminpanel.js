@@ -415,7 +415,6 @@ export class AdminPanel {
     const w = s.tick?.window;
     const budget = s.tick?.budgetMs || 50;
     const p99 = w?.p99Ms || 0;
-    const net = this.net();
     return {
       code: room.code,
       name: room.title,

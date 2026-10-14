@@ -25,6 +25,8 @@ pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
 pg.types.setTypeParser(1700, (v) => (v === null ? null : Number(v))); // numeric (avg, round)
 
 const norm = (r) => ({ rows: r.rows || [], rowCount: r.rowCount ?? r.affectedRows ?? (r.rows ? r.rows.length : 0) });
+// db.query / db.exec over a pg pool or one of its clients (pg runs any number of statements through query)
+const pgWrap = (c) => ({ query: (text, params) => c.query(text, params).then(norm), exec: (text) => c.query(text).then(() => {}) });
 
 // where a URL points, for the log: never its password
 export function describeUrl(url) {
@@ -52,14 +54,12 @@ export async function openDb(url = process.env.DATABASE_URL, { log = () => {} } 
   pool.on('error', (err) => log(`db: idle connection lost (${err.message})`));
   return {
     kind: 'postgres',
-    query: (text, params) => pool.query(text, params).then(norm),
-    exec: (text) => pool.query(text).then(() => {}),
+    ...pgWrap(pool),
     async tx(fn) {
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
-        const t = { query: (text, params) => c.query(text, params).then(norm), exec: (text) => c.query(text).then(() => {}) };
-        const out = await fn(t);
+        const out = await fn(pgWrap(c));
         await c.query('COMMIT');
         return out;
       } catch (err) {

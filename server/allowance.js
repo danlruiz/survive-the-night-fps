@@ -1,6 +1,5 @@
 // Rate allowances: so many of something in a row, then one every so often. Per key (an address, an account).
-// The same rule as the lobby's (rooms.js allow): n is how much was used lately, wearing off by one every `every`
-// seconds.
+// (The lobby's per-address ones too: rooms.js.) n is how much was used lately, wearing off by one every `every` seconds.
 export class Allowance {
   constructor(burst, every) {
     this.burst = burst;

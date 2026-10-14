@@ -1,5 +1,5 @@
 // Every match, written to the database (migrations/002): the records a game's MatchTracker (analytics.js) posts
-// from its worker, by way of its Room (rooms.js), queued here and written once a second, in order - a match's row
+// from its worker, by way of its Room (room.js), queued here and written once a second, in order - a match's row
 // before anything that hangs off it, its end after. A stint of a match also goes onto the player's lifetime stats
 // (DbStats.addStint).
 //

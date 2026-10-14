@@ -8,7 +8,7 @@
 // ON CONFLICT DO NOTHING ... RETURNING says which were new. A feat is written within SOON_MS, so its banner comes
 // promptly. A write that fails is put back in the queue for the next one.
 //
-// The HTTP side (server/index.js): an account's record for its profile page (forUser), a friend's too, and a
+// The HTTP side (server/http/accounts.js): an account's record for its profile page (forUser), a friend's too, and a
 // browser's guest record merged in when it signs in (merge: the greater of each count, every unlock of either). The
 // merge is taken on trust - a browser can say anything - so it only ever reaches these two tables, never the board.
 import { ACH_STATS, ACH_STAT_MAX, ACHIEVEMENTS, ACH_BY_ID, isFeat, sanitizeProgress } from '../shared/achievements.js';
@@ -44,7 +44,7 @@ export class AchievementStore {
     return e;
   }
 
-  // ---------------------------------------------------------------- what the games say (rooms.js)
+  // ---------------------------------------------------------------- what the games say (room.js)
   // An account earned counts (stat -> n), feats (ids), and revived these accounts (strangers, unless they are friends)
   add(userId, add, feats, strangers, room) {
     const e = this.entry(userId, room);

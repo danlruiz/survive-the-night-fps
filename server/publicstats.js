@@ -40,6 +40,7 @@ const DIFF_LABEL = Object.fromEntries(DIFFICULTIES.map((d) => [d.id, d.name]));
 export const label = (key) => OTHER_LABEL[key] || ZOMBIE_LABEL[key] || ITEM_LABEL[key] || String(key || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 const num = (v) => (v === null || v === undefined ? 0 : +v || 0);
+const numOrNull = (v) => (v === null ? null : num(v)); // (null: nothing to count it over)
 const r1 = (v) => Math.round(num(v) * 10) / 10;
 const iso = (d) => (d instanceof Date ? d.toISOString() : d ? new Date(d).toISOString() : null);
 const dayKey = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
@@ -123,9 +124,9 @@ export class PublicStats {
       online24h: online,
       heatmap: heat,
       outcomes: outcomes.map((r) => ({ outcome: r.outcome, n: num(r.n) })),
-      nights: funnel.map((r) => ({ night: r.night, reached: num(r.reached), survived: num(r.survived), wiped: num(r.wiped), escaped: num(r.escaped), survivePct: r.survive_pct === null ? null : num(r.survive_pct), avgHorde: num(r.avg_horde) })),
+      nights: funnel.map((r) => ({ night: r.night, reached: num(r.reached), survived: num(r.survived), wiped: num(r.wiped), escaped: num(r.escaped), survivePct: numOrNull(r.survive_pct), avgHorde: num(r.avg_horde) })),
       killsByType: kinds.map((r) => ({ key: r.zombie, label: label(r.zombie), kills: num(r.kills), pct: num(r.share_pct) })),
-      weapons: weapons.map((r) => ({ key: r.weapon, label: label(r.weapon), shots: num(r.shots), hits: num(r.hits), accuracy: r.accuracy_pct === null ? null : num(r.accuracy_pct), kills: num(r.kills) })),
+      weapons: weapons.map((r) => ({ key: r.weapon, label: label(r.weapon), shots: num(r.shots), hits: num(r.hits), accuracy: numOrNull(r.accuracy_pct), kills: num(r.kills) })),
       deathCauses: causes.map((r) => ({ key: r.cause, label: label(r.cause), deaths: num(r.deaths), downs: num(r.downs) })),
       bosses: bosses.map((r) => ({ key: r.boss, label: label(r.boss), nights: num(r.nights), killed: num(r.killed), killPct: num(r.kill_pct), wipePct: num(r.wipe_pct) })),
       teams: teams.map((r) => ({ team: r.team, matches: num(r.matches), victoryPct: num(r.victory_pct), avgNights: num(r.avg_nights_survived), avgMinutes: num(r.avg_minutes) })),
@@ -405,9 +406,9 @@ export class PublicStats {
       bounce: { newPlayers: num(bn.n), bounced: num(bn.bounced), pct: num(bn.n) ? Math.round((100 * num(bn.bounced)) / num(bn.n)) : 0 },
       loyalty: loyalty.map((r) => ({ bucket: r.matches_played, players: num(r.players), accounts: num(r.accounts), avgDays: num(r.avg_days_active), avgHours: num(r.avg_hours) })),
       health: health.map((r) => ({ day: dayKey(r.day), samples: num(r.samples), tickMs: num(r.avg_tick_ms), tickP99: num(r.worst_tick_p99), pingMs: num(r.avg_ping_ms), zombies: num(r.most_zombies), players: num(r.most_players) })),
-      builds: builds.map((r) => ({ build: r.build, first: iso(r.first), last: iso(r.last), matches: num(r.matches), victoryPct: r.victory_pct === null ? null : num(r.victory_pct), avgNights: num(r.avg_nights), avgMinutes: num(r.avg_minutes), avgKills: num(r.avg_kills) })),
+      builds: builds.map((r) => ({ build: r.build, first: iso(r.first), last: iso(r.last), matches: num(r.matches), victoryPct: numOrNull(r.victory_pct), avgNights: num(r.avg_nights), avgMinutes: num(r.avg_minutes), avgKills: num(r.avg_kills) })),
       votes: votes.map((r) => ({ bucket: r.bucket, votes: num(r.votes), avg: num(r.avg), tooEasy: num(r.too_easy), easy: num(r.easy), justRight: num(r.just_right), hard: num(r.hard), tooHard: num(r.too_hard) })),
-      pacing: pacing.map((r) => ({ key: r.item, label: label(r.item), found: num(r.matches_found), foundMin: r.avg_found_min === null ? null : num(r.avg_found_min), installed: num(r.matches_installed), installedMin: r.avg_installed_min === null ? null : num(r.avg_installed_min) })),
+      pacing: pacing.map((r) => ({ key: r.item, label: label(r.item), found: num(r.matches_found), foundMin: numOrNull(r.avg_found_min), installed: num(r.matches_installed), installedMin: numOrNull(r.avg_installed_min) })),
       quits: quits.map((r) => ({ day: num(r.day), byDay: num(r.by_day), byNight: num(r.by_night) })),
       regulars: regulars.map((r) => ({ name: r.name, account: !!r.account, hours: r1(r.hours), matches: num(r.matches), days: num(r.days), firstSeen: iso(r.first_seen), lastSeen: iso(r.last_seen) })),
     };
