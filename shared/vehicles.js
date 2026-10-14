@@ -85,8 +85,6 @@ export const REPAIR_TIME = 3; // ...per patch...
 export const FUEL_TIME = 1.2; // ...and per pour
 export const FUEL_POUR = 20; // Fuel a pour takes out of the reserve
 export const SIPHON_TIME = 4; // s of [E] held at a wreck's filler cap
-export const VEH_PICK = 1.5; // [E] is offered when the view ray passes this near the middle of one (the car: its box)
-export const ENTER_REACH = 3.6; // ...this close (server: + slack)
 // a wreck that still has something in its tank (by its prop type): what a siphon draws from it, least and most
 export const SIPHON = { car_wreck: [8, 22], pickup_truck: [12, 28], car_open: [8, 22], van_wreck: [12, 30], box_truck: [16, 34], ambulance: [12, 26], school_bus: [14, 30], city_bus: [14, 30], army_truck: [18, 40], tractor: [8, 18], dump_truck: [16, 36], semi_truck: [20, 40], fire_truck: [16, 36] };
 export const SIPHON_CHANCE = 0.4; // of them have any

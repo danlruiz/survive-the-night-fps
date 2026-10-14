@@ -1,6 +1,6 @@
 // Items: every item's id (ITEM), what each is (ITEM_DEFS), the ammunition reserves, the weapons' numbers, and what
 // throwing, eating or using one does. Numeric ids are part of the wire protocol - do not renumber.
-import { FLASHLIGHT_MAX, STAMINA_MAX } from '../constants.js';
+import { FLASHLIGHT_MAX, STAMINA_MAX, SLOT_THROW } from '../constants.js';
 import { BASE_ITEM } from '../items.js';
 import { WEAPON_LIST } from '../weapons/index.js';
 
@@ -140,11 +140,8 @@ export function isFirearm(item) {
 export function slotForItem(item) {
   const w = WEAPONS[item];
   if (w) return w.slot;
-  if (THROW_ITEMS.includes(item)) return 3;
+  if (THROW_ITEMS.includes(item)) return SLOT_THROW;
   return -1;
-}
-export function isThrowable(item) {
-  return THROW_ITEMS.includes(item);
 }
 
 // Player-zombie claws (not an item)

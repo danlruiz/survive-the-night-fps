@@ -5,7 +5,6 @@ import { ITEM } from './itemdefs.js';
 // Your car broke down on Route 9. Install every supply, start the engine and survive the final stand.
 export const SUPPLIES = [ITEM.CAR_BATTERY, ITEM.SPARE_TIRE, ITEM.SPARK_PLUGS, ITEM.FAN_BELT, ITEM.FUEL_CAN];
 export const SUPPLY_NEED = [1, 1, 1, 1, 3];
-export const CAR_PARTS = SUPPLIES; // (legacy name)
 // ...and on the mainland (act 2, shared/acts.js) the same loop with a plane: its parts are at set places, the fuel at
 // the depot. The list has the car's shape - four single parts, then the fuel by threes - so the global state, the
 // rumours and the objective tracker read either the same way.
