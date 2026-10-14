@@ -36,7 +36,10 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
                  the bits and the sound each kind of blow makes on it (see Blows on the world below)
   wrecks.js      a wreck's record of the blows it took, and its alarm (see Blows on the world below)
   trunk.js       a car's boot is forced open, not just searched: the times by weapon, the heaves, which cars (see Blows)
-  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server)
+  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server):
+                 simulatePlayer runs a command through named steps (switchSlot, stepStamina, steer, moveBody,
+                 stepWeapons...). playerstate.js: the simulated state, and copying, comparing, snapping and
+                 fingerprinting it
   nights.js      night themes: nightTheme(seed, night) picks what a night's horde is made of. The server applies
                  it to the wave weights and the client announces it, each from the seed: nothing on the wire
   progress.js    XP, levels and perks: the rules both ends read (see Experience, levels and perks below)
@@ -146,8 +149,8 @@ more than its bytes**, so put things into the packets that already flow.
   that command, or when anything else changed the state - detected by comparing against `p.shadow`, the copy
   taken right after the last command, so code that shoves, teleports, arms or disarms a player needs no
   bookkeeping. On a sync the server rounds its own floats to what went on the wire (`snapPlayerState`) so both
-  ends continue from identical numbers. A new field of the simulated state must be added to `copyPlayerState`,
-  `samePlayerState`, `snapPlayerState` (floats), `hashPlayerState`, a `writeSelf` chunk and `readSelf`.
+  ends continue from identical numbers. A new field of the simulated state must be added to `createPlayerState` and
+  `SIM_FIELDS` (`SIM_FLOATS` too for a float) and `hashPlayerState` in `shared/playerstate.js`, a `writeSelf` chunk and `readSelf`.
   Server-driven values the HUD shows (hp, armor, battery, hold progress...) are the status groups: sent when
   they change. `scripts/test-netsync.js` shoves a player on a laggy link and checks both ends agree again
   within a round trip.
