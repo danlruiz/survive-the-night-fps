@@ -5,6 +5,7 @@ import { heardShow, loadHeardSeen, saveHeardSeen } from '../../ui/heard.js';
 import { achievementEvent } from '../../net/achievements.js';
 import { bestiaryEvent } from '../../net/bestiary.js';
 import { strippedKey } from '../harvest.js';
+import { PSTATUS } from './players.js';
 import { nkRemoteHit } from '../nunchaku.js';
 import { bearing, tonightBrief } from '../../ui/hud2.js';
 
@@ -48,7 +49,7 @@ export const methods = {
         const angle = Math.hypot(dx, dz) > 0.3 ? bearing(dx, dz) + g.input.yaw : null;
         g.ui.damage(amount, angle);
         if (g.ui.cardsOpen) g.ui.cards.hurt(amount); // (a red edge round the cards: something is hitting you)
-        g.camShake = Math.min(1, (g.camShake || 0) + amount / 60);
+        g.shakeView(amount / 60);
         g.audio.playLocal(g.self.zombie ? 'zombie_player_growl' : 'hurt', { volume: Math.min(1, 0.4 + amount / 40) });
       },
       killfeed(kk, killerId, victimId, weapon, flags) {
@@ -56,7 +57,7 @@ export const methods = {
         const sunKill = kk === KILLER.WORLD && !!(victimId & 0x8000);
         const killer = kk === KILLER.PLAYER ? g.name(killerId) : kk === KILLER.ZOMBIE ? ZOMBIE_DEFS[killerId]?.name || 'Zombie' : sunKill ? 'The sun' : flags & 4 ? 'The water' : flags & 8 ? 'Undead Deer' : 'The world'; // (flags 4: drowned; 8: an undead deer's charge)
         const victim = victimId & 0x8000 ? ZOMBIE_DEFS[victimId & 0xff]?.name || 'Zombie' : g.name(victimId);
-        g.ui.killfeed({ killer, victim, weaponItem: weapon, headshot: !!(flags & 1), killerZombie: kk === KILLER.ZOMBIE || !!(flags & 8) || (kk === KILLER.PLAYER && g.players.get(killerId)?.status === 1), victimPlayer: !(victimId & 0x8000) });
+        g.ui.killfeed({ killer, victim, weaponItem: weapon, headshot: !!(flags & 1), killerZombie: kk === KILLER.ZOMBIE || !!(flags & 8) || (kk === KILLER.PLAYER && g.players.get(killerId)?.status === PSTATUS.ZOMBIE), victimPlayer: !(victimId & 0x8000) });
         if (sunKill) g.ui.notify(`${victim.startsWith('The ') ? victim : 'The ' + victim} burned in the sun, and what it carried with it. Kill a boss before sunrise to loot it.`, 'toast', 7);
       },
       notify(msg, arg) {
@@ -68,7 +69,7 @@ export const methods = {
         if (kind === 0 || kind === 2) g.impacts.blast(x, y, z, radius);
         if (kind === 0 || kind === 2) g.lights.flashFx(x, y, z, kind === 2 ? 40 : 120, 0.5);
         const d = Math.hypot(x - g.renderPos.x, z - g.renderPos.z);
-        g.camShake = Math.min(1.5, (g.camShake || 0) + Math.max(0, 1 - d / (radius * 5)) * 1.2);
+        g.shakeView(Math.max(0, 1 - d / (radius * 5)) * 1.2, 1.5);
       },
       pickup(item, count) {
         g.ui.pickup(item, count);

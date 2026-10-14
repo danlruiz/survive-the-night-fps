@@ -9,6 +9,11 @@ import { bindTag, bindLabel } from '../binds.js';
 import { lookWarm } from '../../render/models/characters.js';
 import { bearing } from '../../ui/hud2.js';
 
+// a player's status as the player list sends it (server/game.js: S2C.PLAYERS), and the names the HUD and the list use
+export const PSTATUS = { ALIVE: 0, ZOMBIE: 1, DEAD: 2, DOWNED: 3 };
+const STATUS_NAMES = ['alive', 'zombie', 'dead', 'downed'];
+const statusName = (status) => STATUS_NAMES[status] || 'alive';
+
 export const methods = {
   onChat(id, flags, text) {
     if (flags & CHATF.SYSTEM) {
@@ -69,7 +74,7 @@ export const methods = {
       seen.add(id);
       const prev = this.players.get(id);
       // when we saw them go down (the player list [Tab] says for how long; 0: down before we heard of them)
-      const downAt = status !== 3 ? 0 : prev?.status === 3 ? prev.downAt : prev ? performance.now() : 0;
+      const downAt = status !== PSTATUS.DOWNED ? 0 : prev?.status === PSTATUS.DOWNED ? prev.downAt : prev ? performance.now() : 0;
       this.players.set(id, { name, status, onAir, kills, ping, level, way, downAt });
       // a teammate's new waypoint (not one they already had when we first heard of them, nor one being cleared)
       if (way && prev && id !== this.myId && !(prev.way && prev.way.x === way.x && prev.way.z === way.z)) this.waypointSet(id, way);
@@ -90,7 +95,6 @@ export const methods = {
   // What the player list [Tab] shows: the players as the server lists them, plus everyone's health. Health is not
   // in the list message: a teammate's rides in their entity record (field 7, 0..255), our own in the self state.
   pushRoster() {
-    const ST = ['alive', 'zombie', 'dead', 'downed'];
     const list = [];
     const turned = !this.self.alive || !!this.prediction.state.zombie; // the dead get no report on the living
     for (const [id, p] of this.players) {
@@ -99,7 +103,7 @@ export const methods = {
       const hp = self ? (this.self.maxHp ? this.self.hp / this.self.maxHp : 1) : e ? e.q[7] / 255 : -1; // -1: nothing to show
       const where = this.rosterWhere(self ? this.renderPos : e && { x: e.rx, z: e.rz }, self);
       const downFor = p.downAt ? (performance.now() - p.downAt) / 1000 : null;
-      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: ST[p.status] || 'alive', hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self, ...where, downFor });
+      list.push({ id, name: p.name, account: this.conn.accounts.get(id) || '', status: statusName(p.status), hp, kills: p.kills, ping: self ? Math.round(this.conn.rtt) : p.ping, level: p.level, perks: p.perks || 0, talking: this.talkPeers.includes(id), radio: p.onAir, self, ...where, downFor });
     }
     this.ui.setPlayers(list);
   },
@@ -143,12 +147,11 @@ export const methods = {
   // The team over the HUD's vitals (ui/hud.js): everyone else in the game, how they are and how far off. Health as the
   // player list has it (pushRoster): it rides in a teammate's entity record, and the dead get no report on the living
   hudTeam(rp) {
-    const ST = ['alive', 'zombie', 'dead', 'downed'];
     const turned = !this.self.alive || !!this.prediction.state.zombie;
     const out = [];
     for (const [id, p] of this.players) {
       if (id === this.myId) continue;
-      const status = ST[p.status] || 'alive';
+      const status = statusName(p.status);
       const e = turned ? null : this.entities.ents.get(id);
       const hp = e && status === 'alive' ? e.q[7] / 255 : -1;
       const d = e && status !== 'dead' ? Math.hypot(e.rx - rp.x, e.rz - rp.z) : -1;

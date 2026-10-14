@@ -35,6 +35,20 @@ const FAR_SMALL = 520;
 const FAR_BIG = 1700;
 const BUILD_SLICE_MS = 10; // loadWorldSoon: the longest the world's build holds the page at a time (a frame is 16)
 
+// fn, once, as soon as the loading card is on screen: the frame after it is drawn, or after a second at most (a hidden
+// tab draws no frames)
+function whenPainted(card, fn) {
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  const wait = () => (card.painted ? go() : requestAnimationFrame(wait));
+  requestAnimationFrame(wait);
+  setTimeout(go, 1000);
+}
+
 export const methods = {
   // The server says which world the game is on now (S2C.WORLD_RESET): a new run's island, or - CROSSING.SWAP seconds
   // into the crossing, as the cutscene cuts to black - the mainland. Entities that follow are that world's, and their
@@ -47,16 +61,10 @@ export const methods = {
     if (card && !card.painted && act !== this.act) {
       card.set(true, true);
       this.conn.hold();
-      let done = false;
-      const go = () => {
-        if (done) return;
-        done = true;
+      whenPainted(card, () => {
         this.swapWorld(seed, act);
         this.conn.release();
-      };
-      const wait = () => (card.painted ? go() : requestAnimationFrame(wait));
-      requestAnimationFrame(wait);
-      setTimeout(go, 1000); // (a hidden tab draws no frames)
+      });
       return;
     }
     // A new world in play with no cutscene to cover it (/map2, a new run's island): a loading card of its own goes up
@@ -71,10 +79,7 @@ export const methods = {
       const own = new LoadingCard(root, null, { title: `Loading map ${act}`, sub: where[0].toUpperCase() + where.slice(1) });
       own.set(true, true);
       this.conn.hold();
-      let done = false;
-      const go = () => {
-        if (done) return;
-        done = true;
+      whenPainted(own, () => {
         try {
           this.swapWorld(seed, act);
         } finally {
@@ -82,10 +87,7 @@ export const methods = {
           own.set(false);
           setTimeout(() => root.remove(), 600);
         }
-      };
-      const wait = () => (own.painted ? go() : requestAnimationFrame(wait));
-      requestAnimationFrame(wait);
-      setTimeout(go, 1000); // (a hidden tab draws no frames)
+      });
       return;
     }
     this.swapWorld(seed, act);

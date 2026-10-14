@@ -14,6 +14,32 @@ export const methods = {
     return ui.inventoryOpen || ui.mapOpen || ui.boardOpen || ui.bestiaryOpen || ui.cardsOpen || ui.spawnOpen || ui.rosterPinned || ui.pledgeOpen || this.perksUp || this.achUp;
   },
 
+  // A screen that takes the pointer has gone up or down (the map, the leaderboard, the bestiary, the spawn menu): the
+  // game's keys are off while it, the inventory or the pause menu is up, and whatever was held is let go. Up, the
+  // pointer is freed for it; down, it is taken back (relock: not when something else that needs it is taking over, nor
+  // back to the pause menu under it)
+  pointerForScreen(open, relock) {
+    const ui = this.ui;
+    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
+    this.input.releaseAll();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && !ui.pauseOpen) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  },
+
+  // ...and as one of the panels goes up or down (the perks, the pledge, the achievements): the keys are off while any
+  // screen is up, an early press is dropped too, and the pointer is taken back only into play
+  pointerForPanel(open, relock) {
+    this.input.enabled = !open && !this.screenUp();
+    this.input.releaseAll();
+    this.inputBuffer.clear();
+    this.endHold();
+    if (open) this.input.exitLock();
+    else if (relock && this.input.enabled) this.input.requestLock();
+    this.audio.playLocal('ui_click', { volume: 0.5 });
+  },
+
   resumeFromPause() {
     this.ui.showPause(false);
     if (this.screenUp()) return; // (the map or the bestiary opened over the menu keeps the pointer)
@@ -135,14 +161,9 @@ export const methods = {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setMapOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
-    this.input.releaseAll();
-    this.endHold();
     // the map takes clicks (your waypoint), so it frees the pointer the way the inventory does. Clicks made
     // while it is free never reach the weapon: Input only counts a mouse button pressed under the lock.
-    if (open) this.input.exitLock();
-    else if (relock && !ui.pauseOpen) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForScreen(open, relock);
   },
 
   // The leaderboard [L]: it takes clicks (which list, which column), so it frees the pointer the way the map does.
@@ -154,14 +175,8 @@ export const methods = {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBoardOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
-    this.input.releaseAll();
-    this.endHold();
-    if (open) {
-      this.boardT = 0; // ask the server at once (update)
-      this.input.exitLock();
-    } else if (relock && !ui.pauseOpen) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    if (open) this.boardT = 0; // ask the server at once (updateBoard)
+    this.pointerForScreen(open, relock);
   },
 
   // The bestiary [J] (and the pause menu's button): it scrolls, so it frees the pointer as the leaderboard does.
@@ -175,12 +190,7 @@ export const methods = {
     if (open && ui.spawnOpen) this.toggleSpawn(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setBestiaryOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
-    this.input.releaseAll();
-    this.endHold();
-    if (open) this.input.exitLock();
-    else if (relock && !ui.pauseOpen) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForScreen(open, relock);
   },
 
   // The Perks panel [P] (ui/progress.js: the kit screens' Perks tab; the pause menu and the splash open it too): a
@@ -204,13 +214,7 @@ export const methods = {
     else if (ui.progress.visible) ui.progress.hide(); // (calls back here, and finds it shut already)
     // (shut over the end screen, after a leave: the input stays as they left it)
     if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
-    this.input.enabled = !open && !this.screenUp();
-    this.input.releaseAll();
-    this.inputBuffer.clear();
-    this.endHold();
-    if (open) this.input.exitLock();
-    else if (relock && this.input.enabled) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForPanel(open, relock);
   },
 
   // The pledge window (server/pledge.js) as the server sees it for us. Its panel opens by itself once a window, when
@@ -246,13 +250,7 @@ export const methods = {
     ui.pledge.setOpen(open);
     if (!open && ui.pledge.view.open) ui.notify(`Pledge & buy (${bindLabel('pledge')}) stays open until the window closes`, 'sub', 3);
     if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
-    this.input.enabled = !open && !this.screenUp();
-    this.input.releaseAll();
-    this.inputBuffer.clear();
-    this.endHold();
-    if (open) this.input.exitLock();
-    else if (relock && this.input.enabled) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForPanel(open, relock);
   },
 
   // The Achievements panel [U] (ui/achievements.js: the kit screens' third tab; the pause menu and the splash open it
@@ -277,13 +275,7 @@ export const methods = {
     if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
     // (its Sign in took them to the account panel: the pause menu under it, as when it was opened from there)
     if (!open && ui.accountPanel.visible) return ui.showPause(true);
-    this.input.enabled = !open && !this.screenUp();
-    this.input.releaseAll();
-    this.inputBuffer.clear();
-    this.endHold();
-    if (open) this.input.exitLock();
-    else if (relock && this.input.enabled) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForPanel(open, relock);
   },
 
   // The admin spawn menu [`] (ui/spawnmenu.js): a search box and a list to click, so it frees the pointer and keeps
@@ -298,13 +290,8 @@ export const methods = {
     if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
     if (open && ui.cardsOpen) this.toggleCards(false, false);
     ui.setSpawnOpen(open);
-    this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
-    this.input.releaseAll();
     this.inputBuffer.clear();
-    this.endHold();
-    if (open) this.input.exitLock();
-    else if (relock && !ui.pauseOpen) this.input.requestLock();
-    this.audio.playLocal('ui_click', { volume: 0.5 });
+    this.pointerForScreen(open, relock);
   },
 
   // Dead Hand [K] (and the pause menu's row, a teammate's [E]): the card game's screen (ui/cards.js), over a world that
@@ -351,28 +338,34 @@ export const methods = {
     this.input.enabled = false;
   },
 
+  // the screens over the game shut at once, by no key of the player's (the run's end, a cutscene)
+  closeScreens() {
+    this.ui.setMapOpen(false);
+    this.ui.setBoardOpen(false);
+    this.ui.setBestiaryOpen(false);
+    this.ui.setCardsOpen(false);
+    this.ui.setSpawnOpen(false);
+  },
+
+  // everyone's kills, for the end screens
+  runKills() {
+    return [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
+  },
+
   updateOverlays() {
     const g = this.global;
     if (g.phase === PHASE.GAMEOVER && this.overlay !== 'gameover') {
       this.overlay = 'gameover';
-      this.ui.setMapOpen(false);
-      this.ui.setBoardOpen(false);
-      this.ui.setBestiaryOpen(false);
-      this.ui.setCardsOpen(false);
-      this.ui.setSpawnOpen(false);
-      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
+      this.closeScreens();
+      const kills = this.runKills();
       // (a run that has got to the mainland starts again at the bridge, never back on the island)
       const reason = !this.world.car.plane ? 'Every survivor has fallen.' : 'Every survivor has fallen on the mainland. The team goes back to the bridgehead.';
       this.ui.showGameOver({ days: g.day, kills, reason, restartIn: Math.ceil(g.restartT), record: this.runReport, progress: this.progress });
       this.freePointerForEnd();
     } else if (g.phase === PHASE.VICTORY && this.overlay !== 'victory' && !this.cine) {
       this.overlay = 'victory';
-      this.ui.setMapOpen(false);
-      this.ui.setBoardOpen(false);
-      this.ui.setBestiaryOpen(false);
-      this.ui.setCardsOpen(false);
-      this.ui.setSpawnOpen(false);
-      const kills = [...this.players].map(([id, p]) => ({ name: p.name, kills: p.kills, me: id === this.myId }));
+      this.closeScreens();
+      const kills = this.runKills();
       // The run is won for everyone, but the car took whoever was at it: a survivor further off than ESCAPE_RADIUS
       // when it left stayed in the valley, and so did the players who had already turned.
       const car = this.world.car;

@@ -1,6 +1,7 @@
 // Game: waypoints - our own, set on the field map, and the team's, from the player list.
 import { ZONE_NAMES } from '../../../shared/defs.js';
 import { ACT } from '../../../shared/protocol.js';
+import { PSTATUS } from './players.js';
 
 const WAYPOINT_REACH = 10; // metres: this close to a waypoint that is not on a named place and it is reached
 // two waypoints on one spot: on the same place, or bare spots a few steps apart
@@ -44,7 +45,7 @@ export const methods = {
   // a teammate has just set a waypoint: a word on screen, if it is one teamWaypoints shows us
   waypointSet(id, way) {
     const p = this.players.get(id);
-    if (!this.world || p.status === 2 || (p.status === 1) !== !!this.prediction.state.zombie) return;
+    if (!this.world || p.status === PSTATUS.DEAD || (p.status === PSTATUS.ZOMBIE) !== !!this.prediction.state.zombie) return;
     this.ui.notify(`${p.name} marked ${this.knowsPlace(way.zone) ? ZONE_NAMES[way.zone] : 'a waypoint'}`, 'toast', 3);
     this.audio.playLocal('ui_click', { volume: 0.4 });
   },
@@ -60,7 +61,7 @@ export const methods = {
     for (const [id, p] of this.players) {
       const w = p.way;
       // (status: 0 alive, 1 zombie, 2 dead, 3 downed)
-      if (!w || id === this.myId || p.status === 2 || (p.status === 1) !== turned) continue;
+      if (!w || id === this.myId || p.status === PSTATUS.DEAD || (p.status === PSTATUS.ZOMBIE) !== turned) continue;
       const same = out.find((o) => sameSpot(o, w));
       if (same) same.names.push(p.name);
       else out.push({ x: w.x, y: this.world.heightAt(w.x, w.z), z: w.z, zone: w.zone, names: [p.name], mine: !!this.waypoint && sameSpot(this.waypoint, w) });

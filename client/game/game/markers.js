@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { ZOMBIE_DEFS, ZTYPE, ZONE, ZONE_NAMES } from '../../../shared/defs.js';
 import { ACT, ENT, PING_KIND, PFLAG, ZSTATUS } from '../../../shared/protocol.js';
-import { SUPPLIES, SUPPLY_NEED, W } from '../act.js';
+import { SUPPLIES, SUPPLY_NEED, W, supplyOfHint } from '../act.js';
 import { SUPPLY_HELP, narrowedAt } from '../../../shared/supplyhelp.js';
 import { roleList } from '../../../shared/roles.js';
 import { raycastWorld } from '../../../shared/collision.js';
@@ -60,7 +60,7 @@ export const methods = {
     const out = (this._crowSpots ||= []);
     out.length = 0;
     g.spots.forEach((si, k) => {
-      const i = Math.min(k, 4);
+      const i = supplyOfHint(k);
       if (si !== 0xffff && !(g.found & (1 << k)) && g.supplies[i] < SUPPLY_NEED[i] && !out.includes(si)) out.push(si);
     });
     return out;
@@ -97,7 +97,7 @@ export const methods = {
     const done = (i) => g.supplies[i] >= SUPPLY_NEED[i];
     const hintSeen = new Set();
     g.hints.forEach((zid, i) => {
-      const si = Math.min(i, 4);
+      const si = supplyOfHint(i);
       if (zid === 255 || done(si) || g.found & (1 << i)) return;
       const z = this.world.zoneById[zid];
       if (!z) return;
@@ -268,7 +268,7 @@ export const methods = {
       hints: g.hints,
       found: g.found,
       // the help a team that has found nothing gets (shared/supplyhelp.js): where each still hidden one is, near enough
-      helped: g.hints.map((zid, k) => ({ k, at: this.supplyHintAt(k) })).filter((h) => h.at && g.supplies[Math.min(h.k, 4)] < SUPPLY_NEED[Math.min(h.k, 4)]).map(({ k, at }) => ({ item: SUPPLIES[Math.min(k, 4)], x: at.x, z: at.z, exact: this.supplyPinned(k) })),
+      helped: g.hints.map((zid, k) => ({ k, at: this.supplyHintAt(k) })).filter((h) => h.at && g.supplies[supplyOfHint(h.k)] < SUPPLY_NEED[supplyOfHint(h.k)]).map(({ k, at }) => ({ item: SUPPLIES[supplyOfHint(k)], x: at.x, z: at.z, exact: this.supplyPinned(k) })),
       schemHints: g.schemHints,
       unlocked: g.unlocked | 0,
       supplies: g.supplies,

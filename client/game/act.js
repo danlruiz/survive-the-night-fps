@@ -17,6 +17,10 @@ export let W = WORDS[ACT_NOW];
 // the words of any act's, not only this one's (the loading card of a world being changed to)
 export const wordsOf = (act) => WORDS[act] || WORDS[WORLD.ISLAND];
 
+// which supply hint k (global.hints / spots / found) is of: the four single parts, then the fuel cans, each of the last
+// (as shared/defs.js supplyRumours reads them)
+export const supplyOfHint = (k) => Math.min(k, SUPPLIES.length - 1);
+
 export function setAct(act) {
   ACT_NOW = act === WORLD.MAINLAND ? WORLD.MAINLAND : WORLD.ISLAND;
   ({ items: SUPPLIES, need: SUPPLY_NEED } = suppliesOf(ACT_NOW));

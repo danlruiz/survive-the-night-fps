@@ -38,7 +38,7 @@ export const methods = {
             if (hit) {
               this.vm.nkHit(hit.kind, hit.nx, hit.ny, hit.nz, hit.power);
               this.selfBody?.nkHit(hit.kind, hit.power);
-              this.camShake = Math.min(1, (this.camShake || 0) + 0.1 * hit.power);
+              this.shakeView(0.1 * hit.power);
             }
             break;
           }
@@ -72,7 +72,7 @@ export const methods = {
           this.faceLatch?.jolt(); // (a crawler on our face jolts off it)
           this.shoves = (this.shoves | 0) + 1;
           a.playLocal('hit', { volume: 0.3 + 0.25 * ev.v, rate: 0.75 });
-          this.camShake = Math.min(1, (this.camShake || 0) + 0.05);
+          this.shakeView(0.05);
           break;
         case 'land':
           a.playLocal('land'); // the view's dip comes with every landing, see the camera in update()

@@ -34,11 +34,7 @@ export const methods = {
 
   startCine(c) {
     this.cine = c;
-    this.ui.setMapOpen(false);
-    this.ui.setBoardOpen(false);
-    this.ui.setBestiaryOpen(false);
-    this.ui.setCardsOpen(false);
-    this.ui.setSpawnOpen(false);
+    this.closeScreens();
     this.closeBuildMenu();
     this.ui.setRosterOpen(false);
     if (this.ui.inventoryOpen) this.toggleInventory(false);

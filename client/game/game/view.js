@@ -21,6 +21,9 @@ const LAND_SPRING = 16; // rad/s of the camera's landing dip: lowest ~60 ms afte
 // match exactly; 0.82 keeps an ordinary gun where the flat 0.6 it replaces had it (0.82 * 0.73 at 75 degrees). The
 // "Aim sensitivity" setting multiplies it (1.22 there is the exact match).
 const AIM_SENS = 0.82;
+// the field of view down the sights, of the hip one: the scoped rifles' closer, any other gun's this
+const ADS_ZOOM = { [ITEM.HUNTING_RIFLE]: 0.45, [ITEM.AT_RIFLE]: 0.6 };
+const ADS_ZOOM_ANY = 0.78;
 const _nkAcc = new THREE.Vector3();
 const _nkQ = new THREE.Quaternion();
 
@@ -47,6 +50,11 @@ export const methods = {
       if (_wcHit.t >= 0) near = Math.min(near, _wcHit.t * d.dot(f));
     }
     return near;
+  },
+
+  // something jolts the view: the shake builds up, to cap at most (updateCamera lets it die away)
+  shakeView(amount, cap = 1) {
+    this.camShake = Math.min(cap, (this.camShake || 0) + amount);
   },
 
   // a round of ours punches the view (aimview.js)
@@ -140,9 +148,9 @@ export const methods = {
     const self = this.self;
     const cam = this.camera;
     // ADS zoom
-    const aiming = self.alive && !!(buttons & 256) && wdef && !wdef.melee && s.reloadT <= 0 && !this.handcar.handsOn && !this.vehicles.handsOn && !swim && !s.pet; // (hands on a handcar's lever or a vehicle's controls, swimming, or the cat in our arms: no sights)
+    const aiming = self.alive && !!(buttons & BTN.ALT) && wdef && !wdef.melee && s.reloadT <= 0 && !this.handcar.handsOn && !this.vehicles.handsOn && !swim && !s.pet; // (hands on a handcar's lever or a vehicle's controls, swimming, or the cat in our arms: no sights)
     const baseFov = (this.debugCam && this.debugCam.fov) || this.settings.fov || 75; // (a debug camera may bring its own lens)
-    const targetFov = aiming ? baseFov * (currentWeapon(s) === ITEM.HUNTING_RIFLE ? 0.45 : currentWeapon(s) === ITEM.AT_RIFLE ? 0.6 : 0.78) : s.sprinting ? baseFov * 1.06 : baseFov;
+    const targetFov = aiming ? baseFov * (ADS_ZOOM[currentWeapon(s)] ?? ADS_ZOOM_ANY) : s.sprinting ? baseFov * 1.06 : baseFov;
     this.fovCur += (targetFov - this.fovCur) * Math.min(1, dt * 12);
     if (!cine && Math.abs(cam.fov - this.fovCur) > 0.01) {
       cam.fov = this.fovCur;

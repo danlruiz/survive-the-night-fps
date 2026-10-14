@@ -21,6 +21,29 @@ const _shotHits = [];
 const _hbPos = { x: 0, y: 0, z: 0 };
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _aim = { x: 0, y: 0, z: 0 };
+const _hand = { x: 0, y: 0, z: 0 };
+const OWN_IMPACTS_MAX = 48; // our own impacts kept for the server's word on them (sameAsOwn)...
+const OWN_IMPACT_WAIT = 2; // ...for this many seconds at most
+
+// which way a shot's eye looks (ev: yaw, pitch; yaw 0 faces -Z), into out
+function aimOf(ev, out) {
+  const cp = Math.cos(ev.pitch);
+  out.x = -Math.sin(ev.yaw) * cp;
+  out.y = Math.sin(ev.pitch);
+  out.z = -Math.cos(ev.yaw) * cp;
+  return out;
+}
+
+// where our own shot is drawn from: ahead m along the aim from a point low on the right of the eye, about where the
+// muzzle is (ev: the eye and its aim), into out
+function handOf(ev, ahead, out) {
+  const cp = Math.cos(ev.pitch);
+  out.x = ev.x + Math.cos(ev.yaw) * 0.12 - Math.sin(ev.yaw) * cp * ahead;
+  out.y = ev.y - 0.12 + Math.sin(ev.pitch) * ahead;
+  out.z = ev.z - Math.sin(ev.yaw) * 0.12 - Math.cos(ev.yaw) * cp * ahead;
+  return out;
+}
 
 export const methods = {
   remoteShot(ev) {
@@ -46,10 +69,7 @@ export const methods = {
     this.audio.play(SHOT_SOUND[ev.weapon] || SOUND.PISTOL, { x: mx, y: my, z: mz });
     if (def.rocket) {
       // no tracer: the grenade is a projectile of its own (entities.js). The backblast out of the back of the tube
-      const cp = Math.cos(ev.pitch);
-      const fx = -Math.sin(ev.yaw) * cp;
-      const fy = Math.sin(ev.pitch);
-      const fz = -Math.cos(ev.yaw) * cp;
+      const { x: fx, y: fy, z: fz } = aimOf(ev, _aim);
       this.effects.backblast(mx - fx, my - fy, mz - fz, -fx, -fy, -fz);
       return;
     }
@@ -71,10 +91,7 @@ export const methods = {
   // One puff of a flamethrower's stream, ours or someone else's: the fire, its light, and the roar while it lasts.
   // (mx,my,mz) = the nozzle; the stream follows the aim from the eye (ev)
   flamePuff(id, ev, mx, my, mz, def) {
-    const cp = Math.cos(ev.pitch);
-    const dx = -Math.sin(ev.yaw) * cp;
-    const dy = Math.sin(ev.pitch);
-    const dz = -Math.cos(ev.yaw) * cp;
+    const { x: dx, y: dy, z: dz } = aimOf(ev, _aim);
     raycastWorld(this.world, ev.x, ev.y, ev.z, dx, dy, dz, def.range, _ray);
     const ahead = (mx - ev.x) * dx + (my - ev.y) * dy + (mz - ev.z) * dz; // the nozzle is this far along the stream
     const dist = Math.max(0.3, (_ray.t >= 0 ? _ray.t : def.range) - ahead);
@@ -108,11 +125,9 @@ export const methods = {
       this.effects.vmMuzzle(_v, 0.55, 0.1);
       this.renderer.vmMuzzle.intensity = 3;
       this.vmMuzzleT = 0.12;
-      const cp = Math.cos(ev.pitch);
-      const fx = ev.x + Math.cos(ev.yaw) * 0.12 - Math.sin(ev.yaw) * cp * 0.7;
-      const fz = ev.z - Math.sin(ev.yaw) * 0.12 - Math.cos(ev.yaw) * cp * 0.7;
-      this.flamePuff(-1, ev, fx, ev.y - 0.12 + Math.sin(ev.pitch) * 0.7, fz, def);
-      this.camShake = Math.min(1, (this.camShake || 0) + 0.012);
+      const nozzle = handOf(ev, 0.7, _hand);
+      this.flamePuff(-1, ev, nozzle.x, nozzle.y, nozzle.z, def);
+      this.shakeView(0.012);
       return;
     }
     this.audio.playLocal(def.sound || 'pistol');
@@ -131,37 +146,29 @@ export const methods = {
       // No pellets: a grenade, flown on from here by game/rockets.js along the line the server flies it. It
       // leaves the muzzle on the right shoulder, and the backblast leaves the back of the tube behind it
       shotDirections(ev.yaw, ev.pitch, ev.recoilPitch, ev.spread, 1, ev.seed, _dirs);
-      const cp = Math.cos(ev.pitch);
-      const fx = -Math.sin(ev.yaw) * cp;
-      const fy = Math.sin(ev.pitch);
-      const fz = -Math.cos(ev.yaw) * cp;
+      const { x: fx, y: fy, z: fz } = aimOf(ev, _aim);
       const rx = Math.cos(ev.yaw) * 0.16;
       const rz = -Math.sin(ev.yaw) * 0.16;
       this.rockets.fire(def, ev.x, ev.y, ev.z, _dirs[0], _dirs[1], _dirs[2], ev.x + rx + fx * 0.8, ev.y - 0.1 + fy * 0.8, ev.z + rz + fz * 0.8);
       this.effects.backblast(ev.x + rx - fx * 0.5, ev.y - 0.1 - fy * 0.5, ev.z + rz - fz * 0.5, -fx, -fy, -fz);
       this.punchView(def, ev.aiming);
-      this.camShake = Math.min(1, (this.camShake || 0) + kick[1]);
+      this.shakeView(kick[1]);
       return;
     }
     if (def.skyflare) {
       // no bullet: the flare, flown from the eye along the aim (as the server will) and drawn off the gun's
       // muzzle, low on the right ahead of the eye
       shotDirections(ev.yaw, ev.pitch, ev.recoilPitch, ev.spread, 1, ev.seed, _dirs);
-      const cp = Math.cos(ev.pitch);
-      const mx = ev.x + Math.cos(ev.yaw) * 0.12 - Math.sin(ev.yaw) * cp * 0.5;
-      const mz = ev.z - Math.sin(ev.yaw) * 0.12 - Math.cos(ev.yaw) * cp * 0.5;
-      this.skyflares.fire(ev, _dirs[0], _dirs[1], _dirs[2], mx, ev.y - 0.12 + Math.sin(ev.pitch) * 0.5, mz);
+      const muzzle = handOf(ev, 0.5, _hand);
+      this.skyflares.fire(ev, _dirs[0], _dirs[1], _dirs[2], muzzle.x, muzzle.y, muzzle.z);
       this.punchView(def, ev.aiming);
-      this.camShake = Math.min(1, (this.camShake || 0) + (kick ? kick[1] : 0.06));
+      this.shakeView(kick ? kick[1] : 0.06);
       return;
     }
     // Tracers from the gun, and what every pellet strikes (predictPellet): the blood or the puff off the wall is
     // shown now, not a round trip later. The damage and the hit marker are still the server's alone
     const n = shotDirections(ev.yaw, ev.pitch, ev.recoilPitch, ev.spread, def.pellets, ev.seed, _dirs);
-    const cp = Math.cos(ev.pitch);
-    const sx = ev.x + Math.cos(ev.yaw) * 0.12 - Math.sin(ev.yaw) * cp * 0.5;
-    const sz = ev.z - Math.sin(ev.yaw) * 0.12 - Math.cos(ev.yaw) * cp * 0.5;
-    const sy = ev.y - 0.12 + Math.sin(ev.pitch) * 0.5;
+    const { x: sx, y: sy, z: sz } = handOf(ev, 0.5, _hand);
     for (let i = 0; i < n; i++) {
       const dx = _dirs[i * 3];
       const dy = _dirs[i * 3 + 1];
@@ -174,7 +181,7 @@ export const methods = {
       else if (Math.random() < (def.pellets > 1 ? 1 : 0.6)) this.effects.tracer(sx, sy, sz, dx, dy, dz, dist, 1);
     }
     this.punchView(def, ev.aiming);
-    this.camShake = Math.min(1, (this.camShake || 0) + (kick ? kick[1] : 0.06));
+    this.shakeView(kick ? kick[1] : 0.06);
   },
 
   // One pellet of our own shot, judged the way the server will judge it (Combat.fire): against the world (_ray holds
@@ -222,11 +229,7 @@ export const methods = {
     // it (Impacts.shot: by what that is made of), and the window it went through on its way. The server's word of
     // the same impact, a round trip later, is dropped (sameAsOwn).
     this.impacts.shot(ev.weapon ?? MOUNTED_GUN, ev.x, ev.y, ev.z, dx, dy, dz, wall, col, terrain, def.range); // (a round with no weapon named is the mounted gun's)
-    if (wall >= 0) {
-      const list = this.ownImpacts || (this.ownImpacts = []);
-      if (list.length >= 48) list.shift();
-      list.push({ x: ev.x + dx * wall, y: ev.y + dy * wall, z: ev.z + dz * wall, t: this.time });
-    }
+    if (wall >= 0) this.rememberOwnImpact(ev.x + dx * wall, ev.y + dy * wall, ev.z + dz * wall);
     return wall;
   },
 
@@ -240,10 +243,15 @@ export const methods = {
   // An impact of our own shot, shown as it is fired. The server sends word of the same impact a round trip later,
   // and sameAsOwn drops that one.
   ownImpact(kind, x, y, z, nx, ny, nz) {
-    const list = this.ownImpacts || (this.ownImpacts = []);
-    if (list.length >= 48) list.shift();
-    list.push({ x, y, z, t: this.time });
+    this.rememberOwnImpact(x, y, z);
     this.eventHandler.impact(kind, x, y, z, nx, ny, nz, true);
+  },
+
+  // an impact of ours shown already, for sameAsOwn to know the server's word on it when it comes
+  rememberOwnImpact(x, y, z) {
+    const list = this.ownImpacts || (this.ownImpacts = []);
+    if (list.length >= OWN_IMPACTS_MAX) list.shift();
+    list.push({ x, y, z, t: this.time });
   },
 
   // Is this impact from the server one that was shown already (ownImpact)? It is when one of ours from the last two
@@ -252,7 +260,7 @@ export const methods = {
   sameAsOwn(x, y, z) {
     const list = this.ownImpacts;
     if (!list || !list.length) return false;
-    while (list.length && this.time - list[0].t > 2) list.shift();
+    while (list.length && this.time - list[0].t > OWN_IMPACT_WAIT) list.shift();
     let best = -1;
     let bd = 1;
     for (let i = 0; i < list.length; i++) {
