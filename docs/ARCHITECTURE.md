@@ -864,9 +864,18 @@ screen). `scripts/test-airfield-hints.js` holds them.
 - **The checkpoint** (`Game.checkpointAt`): everybody arrives alive - whoever was dead or turned comes back - with
   what they carried, and at the least the bridgehead cache's floor (`Game.bridgehead`, `BRIDGEHEAD` in acts.js: a
   pistol and magazine for whoever has no gun, two magazines in reserve per gun carried, a bandage, a knife, a
-  hammer; nothing for whoever has them). It is no save point: a wipe on the mainland is a game over like one on the
-  island, and the next run begins on the island (`startGame` -> `rollWorld`). `game.checkpoint` keeps only the day the
-  team arrived (that day is `ARRIVAL_DAY` long). A late joiner joins the act being played:
+  hammer; nothing for whoever has them). It is a save point, on every difficulty and for good: a wipe on the mainland
+  is a game over, and the restart clock then puts the team back at the bridgehead on the day it arrived, each survivor
+  as they came over (`checkpoint.kits`; `Game.restartFromBridge`, `NOTIFY.CHECKPOINT` with that day). A run that has
+  got to the mainland never goes back to the island; a wipe on the island starts a new one there (`startGame` ->
+  `rollWorld`). `game.checkpoint` keeps the day the team arrived (that day is `ARRIVAL_DAY` long) and what each
+  survivor carried over.
+- **A game made to start on the mainland** (`startAct`, map 2 on the new-game card; `MAINLAND_START` in acts.js):
+  `startGame` builds the mainland at once and puts the team down at the bridgehead on day `MAINLAND_START.DAY`, with
+  the gun crates (`Game.startCrates`, at `world.startCrates`; [E] drops a gun, its magazines and the stock). Each of its
+  wipes starts a new run there, on a new mainland (`startGame`), never on the island. Only a player who has
+  beaten map 1 (`crossings` in the stats, `map1_at` in the database) may create one or take a seat in one
+  (`map1Gate` in server/index.js, `REJECT_REASON.MAP1_FIRST`); admins may always. Quick join never picks one. A late joiner joins the act being played:
   beside the team, or at the act's start, with `starterKit(day)`.
 - **Difficulty** (shared/difficulty.js) is the game's, so it holds on both maps: the mainland's days (`dayLen`: the
   arrival day and the longer days after it, times `diff.day`), its hordes and the runway stand (`hordeSize`), the dead
@@ -894,7 +903,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
 - **Who a player is** does not change with the map: `p.character` is set once, from the JOIN, and the crossing, the
   checkpoint's revival, a wipe's new run on the island, a rejoin into a held body and a deploy's handoff all keep
   the player (sim-act2.js holds each).
-- **Saved across a deploy**: `act`, `checkpoint` and `crossing` (gamestate.js `GAME_FIELDS`); the constructor builds
+- **Saved across a deploy**: `startAct`, `act`, `checkpoint` and `crossing` (gamestate.js `GAME_FIELDS`); the constructor builds
   the save's act.
 - **Debug**: `/map2` (or `/mainland`: straight to the mainland's first day from anywhere on the island, the end
   screen too, with no cutscene and no escape XP), `/map1` (or `/island`: back to the island, a new run from its first

@@ -129,7 +129,7 @@ export const SIPHON_ID = 0xffdf; // the target of a HOLD.SIPHON (the wreck is na
 // ENDED_UPDATE, ENDED_MAP: the game that went by that code was ended by a deploy - the new server could not carry it
 // over (server/handoff.js), ENDED_MAP because the update makes another map of its seed. It does not come back: the
 // client says so once and stops asking (client/net/comeback.js). A client from before these shows 'Rejected'.
-export const REJECT_REASON = { FULL: 1, VERSION: 2, BAD_NAME: 3, NO_GAME: 4, ENDED_UPDATE: 5, ENDED_MAP: 6 };
+export const REJECT_REASON = { FULL: 1, VERSION: 2, BAD_NAME: 3, NO_GAME: 4, ENDED_UPDATE: 5, ENDED_MAP: 6, MAP1_FIRST: 7 }; // MAP1_FIRST: a game that starts on the mainland, for a player who has not beaten map 1 (server/index.js map1Gate)
 // The close code a client's socket goes with when the player pressed "Leave game". Any other close is a drop, and the
 // game holds the player's place for REJOIN_GRACE seconds (server/game.js hold).
 export const LEFT_CODE = 4001;

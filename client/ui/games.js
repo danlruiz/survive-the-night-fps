@@ -7,6 +7,8 @@ import { el, svgEl } from './dom.js';
 import { isFirstRun, suggestedDifficulty, rememberDifficulty, NEW_DIFFICULTY } from './firstrun.js';
 import { glyph } from './icons.js';
 import { listGames, createGame } from '../net/lobby.js';
+import { fetchProgress, lastProgress } from '../net/progress.js';
+import { playerId } from '../net/identity.js';
 import './ux-splash.css'; // (the splash's layout and these panels as sheets beside it)
 
 export function phaseText(phase, day) {
@@ -18,6 +20,11 @@ export function phaseText(phase, day) {
   return 'Starting';
 }
 export const seatsText = (g) => `${g.players} / ${g.max}`;
+// whether this player has beaten map 1, as far as the last answer about their progress says (progress.js): what opens
+// games that start on the mainland to them. The server decides it again whatever this says.
+const map1Done = () => !!lastProgress()?.map1;
+// (asked again each time a panel opens: a run may have been won since)
+const askProgress = () => fetchProgress().catch(() => null);
 export const difficultyText = (id) => difficultyLabel(id);
 
 // a card in the settings panel's style, with a head (title, sub line, close cross), a body and a foot
@@ -93,6 +100,7 @@ export class GameBrowser extends Panel {
 
   show() {
     super.show();
+    askProgress().then(() => this.visible && this.games && this.render(this.games));
     if (!this.games) this.render(null, 'Looking for games…');
     this.poll();
     clearInterval(this._iv);
@@ -133,14 +141,17 @@ export class GameBrowser extends Panel {
       const row = el('div', 'gb-row' + (g.full ? ' full' : ''), this.list);
       const who = el('div', 'gb-who', row);
       el('div', 'gb-name', who, g.name);
-      el('div', 'gb-meta', who, `${difficultyText(g.difficulty)} · ${phaseText(g.phase, g.day)}${g.phase === PHASE.NIGHT ? ' · the horde is out' : ''}`);
+      el('div', 'gb-meta', who, `${g.map === 2 ? 'Map 2 · ' : ''}${difficultyText(g.difficulty)} · ${phaseText(g.phase, g.day)}${g.phase === PHASE.NIGHT ? ' · the horde is out' : ''}`);
       const seats = el('div', 'gb-seats', row);
       svgEl('i', 'gb-ico', seats, glyph('people'));
       el('span', '', seats, seatsText(g));
       const join = el('button', 'btn btn-ghost gb-join', row);
       join.type = 'button';
-      join.disabled = g.full || this.splash.joining;
-      el('span', '', join, g.full ? 'Full' : 'Join');
+      // (a game on the mainland: only for whoever has beaten map 1)
+      const locked = g.map === 2 && !map1Done();
+      join.disabled = g.full || locked || this.splash.joining;
+      if (locked) join.title = 'Beat map 1 to play map 2';
+      el('span', '', join, g.full ? 'Full' : locked ? 'Locked' : 'Join');
       join.addEventListener('click', () => {
         this.hide();
         this.splash.join(g.code);
@@ -162,6 +173,7 @@ export class GameCreator extends Panel {
     this.first = false; // no run in this browser's record yet
     this.seats = MAX_PLAYERS;
     this.cap = MAX_PLAYERS;
+    this.map = 1; // the map every run of it begins on (2: the mainland, once map 1 is beaten)
 
     const nameRow = el('label', 'set-row', this.body);
     const nl = el('span', 'set-label', nameRow, 'Name');
@@ -184,6 +196,24 @@ export class GameCreator extends Panel {
         this.sync();
       });
       return [d, b];
+    });
+
+    const mapRow = el('div', 'set-row', this.body);
+    const ml = el('span', 'set-label', mapRow, 'Start on');
+    this.mapHint = el('span', 'set-hint', ml, '');
+    const mapSeg = el('div', 'set-seg', mapRow);
+    this.mapBtns = [
+      [1, 'Map 1'],
+      [2, 'Map 2'],
+    ].map(([map, label]) => {
+      const b = el('button', 'seg-btn', mapSeg, label);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        if (map === 2 && !map1Done()) return;
+        this.map = map;
+        this.sync();
+      });
+      return [map, b];
     });
 
     const seatRow = el('div', 'set-row', this.body);
@@ -260,6 +290,13 @@ export class GameCreator extends Panel {
     for (const [d, b] of this.diffBtns) b.classList.toggle('on', d.id === this.difficulty);
     const picked = DIFFICULTIES.find((d) => d.id === this.difficulty) || NIGHTFALL;
     this.diffHint.textContent = `${picked.name}${this.first && picked.id === NEW_DIFFICULTY ? ', suggested for your first game' : ''}. ${picked.blurb}`;
+    const open2 = map1Done();
+    if (!open2) this.map = 1;
+    for (const [map, b] of this.mapBtns) {
+      b.classList.toggle('on', map === this.map);
+      b.disabled = map === 2 && !open2;
+    }
+    this.mapHint.textContent = this.map === 2 ? 'the mainland, with gun crates at the bridgehead' : open2 ? 'the island: the whole run' : 'the island. Beat it to open map 2';
     for (const [only, b] of this.whoBtns) b.classList.toggle('on', only === this.inviteOnly);
     this.whoHint.textContent = this.inviteOnly ? 'only people you send the link to' : 'listed under Browse games for anybody';
     this.go.disabled = this.busy;
@@ -271,7 +308,9 @@ export class GameCreator extends Panel {
     // Ember for a brand-new player, else the last one picked here (firstrun.js)
     this.first = isFirstRun();
     this.difficulty = suggestedDifficulty();
+    this.map = 1;
     this.sync();
+    askProgress().then(() => this.visible && this.sync());
     this.err.hidden = true;
     this.name.placeholder = `${this.splash.playerName()}'s game`;
     setTimeout(() => this.visible && this.name.focus({ preventScroll: true }), 30);
@@ -284,7 +323,7 @@ export class GameCreator extends Panel {
     this.sync();
     try {
       const host = this.splash.playerName();
-      const g = await createGame({ name: this.name.value.trim() || `${host}'s game`, host, inviteOnly: this.inviteOnly, maxPlayers: this.seats, difficulty: this.difficulty });
+      const g = await createGame({ name: this.name.value.trim() || `${host}'s game`, host, inviteOnly: this.inviteOnly, maxPlayers: this.seats, difficulty: this.difficulty, map: this.map, guestId: playerId() });
       rememberDifficulty(this.difficulty);
       this.hide();
       this.splash.join(g.code);

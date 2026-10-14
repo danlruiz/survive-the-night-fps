@@ -112,7 +112,7 @@ export class Router {
     let bestKey = -1;
     for (const { server_id, info } of r.rows) {
       const s = this.live(server_id);
-      if (!s || s.draining || info.full) continue;
+      if (!s || s.draining || info.full || info.map === 2) continue; // (a game on the mainland: not for a quick join)
       const ending = info.phase === PHASE.GAMEOVER || info.phase === PHASE.VICTORY;
       const key = (ending ? 0 : 1000) + info.seats;
       if (key > bestKey) {
