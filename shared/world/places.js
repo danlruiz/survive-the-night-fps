@@ -15,7 +15,7 @@ import { buildFair } from '../fair.js';
 const PI = Math.PI;
 
 // builds a place if this map has it: build(builder in the place's frame, the place)
-export function placer(zoneById, Builder) {
+function placer(zoneById, Builder) {
   return (id, build) => {
     const zone = zoneById[id];
     if (!zone) return;
