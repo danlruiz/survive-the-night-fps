@@ -32,6 +32,14 @@ function findNamed(names, text) {
   return [];
 }
 
+// Puts p down on whatever is under their x, z, from fromY down (from high up: the top of what stands there), at rest
+function land(game, p, fromY = 200) {
+  const s = p.state;
+  s.y = groundAt(game.world, s.x, s.z, fromY, 0.3);
+  s.vx = s.vy = s.vz = 0;
+  game.fillHistory(p);
+}
+
 export const methods = {
   debugCommand(p, args) {
     const s = p.state;
@@ -174,9 +182,7 @@ export const methods = {
           const a = this.rng() * Math.PI * 2;
           s.x = best.homeX + Math.sin(a) * 15;
           s.z = best.homeZ + Math.cos(a) * 15;
-          s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-          s.vx = s.vy = s.vz = 0;
-          this.fillHistory(p);
+          land(this, p);
         }
         break;
       }
@@ -187,9 +193,7 @@ export const methods = {
           const a = this.rng() * Math.PI * 2;
           s.x = h.cx + Math.sin(a) * 45;
           s.z = h.cz + Math.cos(a) * 45;
-          s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-          s.vx = s.vy = s.vz = 0;
-          this.fillHistory(p);
+          land(this, p);
         }
         break;
       }
@@ -282,9 +286,7 @@ export const methods = {
         if (zn) {
           s.x = zn.x;
           s.z = zn.z - 3;
-          s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-          s.vx = s.vy = s.vz = 0;
-          this.fillHistory(p);
+          land(this, p);
         }
         break;
       }
@@ -292,9 +294,7 @@ export const methods = {
         // /plane: to the plane (the car, on the island), with every part of it in the backpack
         s.x = this.world.car.x - 6;
         s.z = this.world.car.z + 2;
-        s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-        s.vx = s.vy = s.vz = 0;
-        this.fillHistory(p);
+        land(this, p);
         this.sup.items.forEach((it, i) => this.giveItem(p, it, this.sup.need[i] - this.supplies[i]));
         break;
       case 'wipe':
@@ -309,9 +309,7 @@ export const methods = {
         if (Number.isFinite(x) && Number.isFinite(z)) {
           s.x = x;
           s.z = z;
-          s.y = groundAt(this.world, x, z, Number.isFinite(+args[3]) && args[3] !== undefined ? +args[3] : 200, 0.3);
-          s.vx = s.vy = s.vz = 0;
-          this.fillHistory(p);
+          land(this, p, Number.isFinite(+args[3]) && args[3] !== undefined ? +args[3] : 200);
         }
         break;
       }
@@ -325,9 +323,7 @@ export const methods = {
         const pt = mine.portals[args[1] === 'far' ? 1 : 0];
         const rm = mine.rooms[0];
         [s.x, s.z] = args[1] === 'in' ? [rm.x + 2.5, rm.z] : [pt.x - pt.dx * 4.5, pt.z - pt.dz * 4.5];
-        s.y = groundAt(this.world, s.x, s.z, args[1] === 'in' ? rm.y + 0.2 : 200, 0.3);
-        s.vx = s.vy = s.vz = 0;
-        this.fillHistory(p);
+        land(this, p, args[1] === 'in' ? rm.y + 0.2 : 200);
         break;
       }
       case 'clinic': {
@@ -339,9 +335,7 @@ export const methods = {
         }
         const at = args[1] === 'ward' ? c.ward : c.door;
         [s.x, s.z] = [at.x, at.z];
-        s.y = groundAt(this.world, s.x, s.z, c.y + 0.3, 0.3); // (from above, the ground in a ward is its roof)
-        s.vx = s.vy = s.vz = 0;
-        this.fillHistory(p);
+        land(this, p, c.y + 0.3); // (from above, the ground in a ward is its roof)
         break;
       }
       case 'depot':
@@ -354,9 +348,7 @@ export const methods = {
           break;
         }
         [s.x, s.z] = spot;
-        s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-        s.vx = s.vy = s.vz = 0;
-        this.fillHistory(p);
+        land(this, p);
         break;
       }
       case 'gun':
@@ -402,9 +394,7 @@ export const methods = {
           s.z = z;
           break;
         }
-        s.y = groundAt(this.world, s.x, s.z, 200, 0.3);
-        s.vx = s.vy = s.vz = 0;
-        this.fillHistory(p);
+        land(this, p);
         const b = Math.atan2(gr.cx - s.x, -(gr.cz - s.z));
         this.sendChat(p, 0, CHATF.SYSTEM, `${gr.members.length} deer 34 m to the ${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / (Math.PI / 4)) & 7]}`);
         break;
