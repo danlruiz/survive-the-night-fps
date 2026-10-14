@@ -3,6 +3,7 @@
 // ask it themselves, the way they ask whether something is down the mine.
 import { ZTYPE } from '../shared/defs.js';
 import { mulberry32 } from '../shared/rng.js';
+import { withRng } from './entkit.js';
 
 export const WARD_DARK = 0.5; // world.darkAt from which a spot counts as in the dark (Zombies.inDark)
 const HOME = 'wards'; // the dwellers' flow field on the valley's grid: the way back to the middle of the hall (nav.js)
@@ -30,10 +31,15 @@ export class Wards {
     const g = this.g;
     const c = g.world.clinic;
     if (!c || humans.some((h) => g.world.darkAt(h.state.x, h.state.y + 1, h.state.z) > 0)) return 0;
-    const own = g.rng;
-    g.rng = this.luck(); // (Zombies.spawn rolls a body's looks and timers from the game's)
+    // (Zombies.spawn rolls a body's looks and timers from the game's stream: the wards' own luck in its place)
+    return withRng(g, this.luck(), () => this.stockDens(c.dens));
+  }
+
+  // a dweller for every den of these whose own is not about: how many came
+  stockDens(dens) {
+    const g = this.g;
     let n = 0;
-    for (const d of c.dens) {
+    for (const d of dens) {
       if (d.kind === 2 && !g.joined(ZTYPE.SHADE)) continue; // (the isolation ward's Shade, once the run has met shades: Game.joined)
       // (its dweller is still about, and not one the sunrise has just caught outside)
       if (g.zombies.some((z) => z.ward && !z.dead && z.burning <= 0 && !z.onFire && Math.hypot(z.homeX - d.x, z.homeZ - d.z) < 0.5)) continue;
@@ -49,7 +55,6 @@ export class Wards {
       }
       n++;
     }
-    g.rng = own;
     return n;
   }
 

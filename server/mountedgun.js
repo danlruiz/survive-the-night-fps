@@ -9,11 +9,11 @@
 // they do it is theirs (s.hmg in their simulated state, which slows them and empties their hands), the entity rides
 // along with them, and it goes down again where they set it up (ACT.GUN_PUT), where they drop it (a weapon switch,
 // [G]) or where they fall (down, dead, turned, pinned, roped, gone or dropped off the game).
-import { BTN, INTERACT_SLACK, HOLD_SLACK, SLOT_BUILD, SLOT_THROW, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_RADIO } from '../shared/constants.js';
+import { BTN, INTERACT_SLACK, HOLD_SLACK } from '../shared/constants.js';
 import { AMMO, SOUND } from '../shared/defs.js';
 import { ENT, HOLD } from '../shared/protocol.js';
 import { groundAt } from '../shared/collision.js';
-import { swimming } from '../shared/swim.js';
+import { canCarry, freeHands } from './entkit.js';
 import { GUN, GUN_FIRED, GUN_DRY, GUN_STANDS, GUN_CARRIED, GUN_LYING, gunNest, atGrips, gunAim, gunShot, stepGun, snapNest, setUpSpot, canLift } from '../shared/mountedgun.js';
 
 const _shot = {};
@@ -123,7 +123,7 @@ export class MountedGun {
     const e = this.gun;
     const s = p.state;
     if (!e || e.mode === GUN_CARRIED || (e.gunner && e.gunner !== p.id)) return false;
-    if (!p.alive || p.zombie || p.downed || s.hmg || s.ride || s.cart || s.pinned || s.pulled || swimming(this.g.world, s)) return false;
+    if (s.hmg || !canCarry(p, this.g.world)) return false;
     return canLift(this.nest, e.mode === GUN_LYING, s.x, s.y, s.z, slack);
   }
 
@@ -153,10 +153,7 @@ export class MountedGun {
     e.feed = 0;
     this.nest = null;
     s.hmg = 1;
-    s.reloadT = 0;
-    s.recoil = 0;
-    // (a hammer, a throwable or the walkie-talkie in the hand would still have the mouse: the hand goes back to a weapon)
-    if (s.slot === SLOT_BUILD || s.slot === SLOT_THROW || s.slot === SLOT_RADIO) s.slot = s.weapons[SLOT_PRIMARY] ? SLOT_PRIMARY : s.weapons[SLOT_PISTOL] ? SLOT_PISTOL : SLOT_MELEE;
+    freeHands(s);
     this.follow(p);
     this.g.sound(SOUND.METAL_HIT, s.x, s.y + 1, s.z, 25);
   }
@@ -188,33 +185,32 @@ export class MountedGun {
   }
 
   lay(x, y, z, ry) {
-    const e = this.gun;
     const g = this.g;
-    const n = (this.nest = snapNest({ x, y: groundAt(g.world, x, z, y + 0.1, 0.3), z, ry }));
-    e.mode = GUN_LYING;
-    e.carrier = 0;
-    e.gunner = 0;
-    e.x = n.x;
-    e.y = n.y + GUN.pivotY;
-    e.z = n.z;
-    e.ry = n.ry;
+    const n = this.settle(snapNest({ x, y: groundAt(g.world, x, z, y + 0.1, 0.3), z, ry }), GUN_LYING);
     g.sound(SOUND.METAL_HIT, n.x, n.y + 0.3, n.z, 30);
   }
 
   // up on its tripod at a spot setUpSpot found, pointing the way the tripod faces
   stand(n) {
     const e = this.gun;
-    this.nest = { x: n.x, y: n.y, z: n.z, ry: n.ry };
-    e.mode = GUN_STANDS;
+    this.settle({ x: n.x, y: n.y, z: n.z, ry: n.ry }, GUN_STANDS);
+    e.held = 0;
+    e.yaw = n.ry;
+    e.pitch = 0;
+  }
+
+  // down at nest n (its new place), standing or lying (mode), and nobody's: carried by nobody, manned by nobody
+  settle(n, mode) {
+    const e = this.gun;
+    this.nest = n;
+    e.mode = mode;
     e.carrier = 0;
     e.gunner = 0;
-    e.held = 0;
     e.x = n.x;
     e.y = n.y + GUN.pivotY;
     e.z = n.z;
     e.ry = n.ry;
-    e.yaw = n.ry;
-    e.pitch = 0;
+    return n;
   }
 
   // the entity goes where its carrier does (for who sees it, and where it falls if they vanish)
@@ -238,7 +234,7 @@ export class MountedGun {
     if (e.mode === GUN_CARRIED) {
       const p = g.players.get(e.carrier);
       const s = p?.state;
-      if (!p || p.away || !p.alive || p.zombie || p.downed || !s.hmg || s.pinned || s.pulled || s.ride || s.cart || swimming(g.world, s)) {
+      if (!p || p.away || !s.hmg || !canCarry(p, g.world)) {
         if (s) {
           s.hmg = 0;
           this.lay(s.x, s.y, s.z, s.yaw);

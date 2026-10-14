@@ -156,12 +156,13 @@ function assemble(root, files, { client, dist = new Map(), key = '' }, gz, yield
     const body = gz(JSON.stringify({ ...b, files: packed }));
     return body instanceof Promise ? body.then(done) : done(body);
   };
+  const steps = hashAll();
   if (!yields) {
-    for (const _ of hashAll());
+    while (!steps.next().done);
     return rest();
   }
   return (async () => {
-    for (const _ of hashAll()) await new Promise((r) => setImmediate(r));
+    while (!steps.next().done) await breathe();
     return rest();
   })();
 }
