@@ -6,7 +6,8 @@ import { instantiateRig, setFx, getCharacterMaterial, mulberry32, clamp, smooth 
 import { createZombieDog } from '../dog.js';
 import { SHIN_L, SHIN_R } from './skeleton.js';
 import { blendPose } from './posekit.js';
-import { poseHumanoid, gaitLen, legCycleLen, updateGaze, viewer, COVER_T } from './pose.js';
+import { poseHumanoid, legCycleLen, updateGaze, viewer, COVER_T } from './pose.js';
+import { gaitLen } from './gait.js';
 import { BUILDERS, STYLES, VARIANTS, GLOWS, POSES, CALIBRATE_RUN, LOD_TYPES } from '../zombies/index.js';
 import { DOG_RIGS } from '../zombies/dogs.js';
 import { setBuildDetail } from '../zombies/helpers.js';

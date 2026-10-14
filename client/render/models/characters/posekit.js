@@ -106,5 +106,37 @@ export function blendPose(out, from, to, w) {
   for (let i = 0, n = out.length; i < n; i++) out[i] = from[i] + (to[i] - from[i]) * w;
 }
 
+export const frac = (x) => x - Math.floor(x);
+
+// the vector rotXYZ turns in place (set it, then call it)
+export const rotVec = { x: 0, y: 0, z: 0 };
+/** v = R * v for three.js Euler XYZ (R = Rx Ry Rz); inv applies the transpose. */
+export function rotXYZ(ax, ay, az, inv) {
+  let { x, y, z } = rotVec, c, s, t;
+  if (!inv) {
+    c = Math.cos(az); s = Math.sin(az); t = x * c - y * s; y = x * s + y * c; x = t;
+    c = Math.cos(ay); s = Math.sin(ay); t = x * c + z * s; z = -x * s + z * c; x = t;
+    c = Math.cos(ax); s = Math.sin(ax); t = y * c - z * s; z = y * s + z * c; y = t;
+  } else {
+    c = Math.cos(ax); s = Math.sin(ax); t = y * c + z * s; z = -y * s + z * c; y = t;
+    c = Math.cos(ay); s = Math.sin(ay); t = x * c - z * s; z = x * s + z * c; x = t;
+    c = Math.cos(az); s = Math.sin(az); t = x * c + y * s; y = -x * s + y * c; x = t;
+  }
+  rotVec.x = x;
+  rotVec.y = y;
+  rotVec.z = z;
+  return rotVec;
+}
+
 // deterministic per-instance noise helpers
 export const n1 = (t, seed) => noise3(t, seed * 1.7, 0.5, 11) * 2 - 1;
+
+/** Occasional sharp twitches: -1..1 impulses, `rate` chances a second. */
+export function twitch(z, t, rate) {
+  const cell = Math.floor(t * rate);
+  const h = noise3(cell * 7.13, z.seed, 1.3, 77);
+  if (h < 0.62) return 0;
+  const f = t * rate - cell;
+  const env = f < 0.15 ? f / 0.15 : Math.max(0, 1 - (f - 0.15) / 0.3);
+  return (noise3(cell * 3.1, z.seed, 2.7, 78) * 2 - 1) * env;
+}

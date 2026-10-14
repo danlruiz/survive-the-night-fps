@@ -1937,7 +1937,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     look earlier in the game). Not in `S2C.PLAYERS`, which goes out again whenever a rounded ping changes; a game of
     roster survivors sends no `S2C.LOOKS` at all. No protocol bump: it is all trailing bytes and a message an
     older client ignores.
-  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters/survivor.js getSurvivorRig`, cached as
+  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters/survivorrig.js getSurvivorRig`, cached as
     `${ref}|h` / `${ref}|z`; a custom one about 1.5 MB with both, counted by the instances holding it and let go
     past the eight last used: `evictLooks`). Your own is built at join, under the load. Another player's is built by
     `client/game/lookwarm.js` one model at a time between frames (6-20 ms each), and until both are built they are
