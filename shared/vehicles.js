@@ -17,11 +17,12 @@
 //   Shift        (bicycle) stand on the pedals, on stamina
 // Passengers are carried: `pass` (the entity id) and `passN` (the seat) in their state stop their feet, and the
 // server puts them in the seat every tick. Their hands are free.
-import { BTN, WATER_LEVEL, STAMINA_DRAIN, STAMINA_REGEN, STAMINA_REGEN_DELAY, STAMINA_MAX, STAMINA_UNLOCK, EYE_HEIGHT, GRID_STEP } from './constants.js';
+import { BTN, WATER_LEVEL, STAMINA_DRAIN, EYE_HEIGHT, GRID_STEP } from './constants.js';
 import { ITEM } from './defs.js';
 import { ColliderGrid, makeBox, pushCircle, footprintContains, COL } from './collision.js';
 import { ROAD } from './layout.js';
-import { mulberry32 } from './rng.js';
+import { mulberry32, wrapAngle } from './rng.js';
+import { spendStamina, recoverStamina } from './stamina.js';
 
 export const VEH = { MOPED: 1, CAR: 2, BIKE: 3 };
 // what state one is in (two bits on the wire)
@@ -85,8 +86,6 @@ export const REPAIR_TIME = 3; // ...per patch...
 export const FUEL_TIME = 1.2; // ...and per pour
 export const FUEL_POUR = 20; // Fuel a pour takes out of the reserve
 export const SIPHON_TIME = 4; // s of [E] held at a wreck's filler cap
-export const VEH_PICK = 1.5; // [E] is offered when the view ray passes this near the middle of one (the car: its box)
-export const ENTER_REACH = 3.6; // ...this close (server: + slack)
 // a wreck that still has something in its tank (by its prop type): what a siphon draws from it, least and most
 export const SIPHON = { car_wreck: [8, 22], pickup_truck: [12, 28], car_open: [8, 22], van_wreck: [12, 30], box_truck: [16, 34], ambulance: [12, 26], school_bus: [14, 30], city_bus: [14, 30], army_truck: [18, 40], tractor: [8, 18], dump_truck: [16, 36], semi_truck: [20, 40], fire_truck: [16, 36] };
 export const SIPHON_CHANCE = 0.4; // of them have any
@@ -251,9 +250,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   // (by all of its speed, not only what is still along it: sliding sideways it keeps coming round)
   const vAll = hb && P.hbSpin ? Math.hypot(v.vx, v.vz) : 0;
   const spin = vAll > 3 ? (vf >= -0.5 ? 1 : -1) * vAll * P.hbSpin : vf;
-  v.yaw -= (spin / P.wb) * Math.tan(v.steer) * dt;
-  if (v.yaw > Math.PI) v.yaw -= Math.PI * 2;
-  else if (v.yaw < -Math.PI) v.yaw += Math.PI * 2;
+  v.yaw = wrapAngle(v.yaw - (spin / P.wb) * Math.tan(v.steer) * dt);
   sy = Math.sin(v.yaw);
   cy = Math.cos(v.yaw);
   const fx = -sy;
@@ -404,9 +401,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   } else if (turned !== 0) {
     // pushed at one end, it comes round - unless coming round would put the other end into something
     const y1 = v.yaw;
-    v.yaw += turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned;
-    if (v.yaw > Math.PI) v.yaw -= Math.PI * 2;
-    else if (v.yaw < -Math.PI) v.yaw += Math.PI * 2;
+    v.yaw = wrapAngle(v.yaw + (turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned));
     if (inSolid(v, P, world, grid)) v.yaw = y1;
   }
   // water too deep for it, and the mouth of the mine: it does not go in
@@ -460,20 +455,10 @@ export function driveStep(s, b, world, events, dt) {
     // standing on the pedals costs what sprinting does; easing along, the breath comes back
     if (thr > 0 && b & BTN.SPRINT && !s.exhausted && s.stamina > 0) {
       hard = true;
-      s.stamina -= STAMINA_DRAIN * PEDAL_COST * dt;
-      s.staminaDelay = STAMINA_REGEN_DELAY;
-      if (s.stamina <= 0) {
-        s.stamina = 0;
-        s.exhausted = 1;
-        if (events) events.push({ type: 'exhausted' });
-      }
+      spendStamina(s, STAMINA_DRAIN * PEDAL_COST * dt, events);
     }
   }
-  if (!hard) {
-    if (s.staminaDelay > 0) s.staminaDelay -= dt;
-    else s.stamina = Math.min(STAMINA_MAX, s.stamina + STAMINA_REGEN * dt);
-    if (s.exhausted && s.stamina >= STAMINA_UNLOCK) s.exhausted = 0;
-  }
+  if (!hard) recoverStamina(s, dt);
   const impact = stepVehicle(_v, thr, turn, !!(b & BTN.JUMP), hard, world, dt, events);
   // a crowd of the dead against its nose holds it (s.dhold: how many, by the server's count - Vehicles.strike): going
   // slowly it loses this share of its speed each command, in the driver's own prediction as on the server
@@ -660,7 +645,7 @@ function plan(world) {
       if (free(kind, x, z, yaw, 1)) at = { x, z, yaw }; // (room all round it to walk up to it from any side)
     }
     if (!at) continue;
-    const s = { kind, x: at.x, y: world.heightAt(at.x, at.z), z: at.z, yaw: wrap(at.yaw), tint: n % 6, zone: 0, starter: n + 1 };
+    const s = { kind, x: at.x, y: world.heightAt(at.x, at.z), z: at.z, yaw: wrapAngle(at.yaw), tint: n % 6, zone: 0, starter: n + 1 };
     res.starters.push(s);
     out.push(s); // (the rest keep clear of them)
   }
@@ -676,7 +661,7 @@ function plan(world) {
       if (!at) continue;
       used.set(zone, (used.get(zone) || 0) + 1);
       const y = world.heightAt(at.x, at.z);
-      out.push({ kind, x: at.x, y, z: at.z, yaw: wrap(at.yaw), tint: Math.floor(rng() * 6), zone: zone.id });
+      out.push({ kind, x: at.x, y, z: at.z, yaw: wrapAngle(at.yaw), tint: Math.floor(rng() * 6), zone: zone.id });
       return true;
     }
     return false;
@@ -698,10 +683,6 @@ function plan(world) {
   out.splice(0, nStart);
   return res;
 }
-const wrap = (a) => {
-  a %= Math.PI * 2;
-  return a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a;
-};
 function inRoof(r, x, z, pad) {
   const dx = x - r.x;
   const dz = z - r.z;
@@ -734,7 +715,7 @@ export function questCar(world) {
   let at = null;
   const prop = world.kind === 2 ? world.props.find((p) => p.type === 'car' && p.live) : null;
   if (prop) {
-    at = { x: prop.x, y: prop.y, z: prop.z, yaw: wrap(prop.ry) };
+    at = { x: prop.x, y: prop.y, z: prop.z, yaw: wrapAngle(prop.ry) };
     const seen = new Set();
     for (const c of world.staticGrid.query(prop.x, prop.z, 4, [])) {
       if (seen.has(c) || !(c.tag === prop || (c.tag && c.tag.type === 'car' && Math.hypot(c.x - prop.x, c.z - prop.z) < 3))) continue;

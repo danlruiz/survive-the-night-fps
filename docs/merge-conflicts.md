@@ -15,11 +15,11 @@ Files that conflicted, counted over those 76 merges (`git merge-tree` on each me
 | File | Merges | What collided |
 |---|---|---|
 | `package.json` | 62 | the `test` script: one 3,451-character `&&` line every new test edited. **Fixed** by #340 |
-| `shared/protocol.js` | 13 | `PROTOCOL_VERSION`: one line holding the number and its whole history as a comment |
-| `shared/defs.js` | 10 | `ITEM`, `WEAPONS`, `RECIPES`, `SALVAGE` rows after the pistol; `ZTYPE` and `SOUND` ids. **Mostly fixed** by #354 for weapons |
+| `shared/protocol.js` | 13 | `PROTOCOL_VERSION`: one line holding the number and its whole history as a comment. **Fixed**: one line per version |
+| `shared/defs.js` | 10 | `ITEM`, `WEAPONS`, `RECIPES`, `SALVAGE` rows after the pistol; `ZTYPE` and `SOUND` ids. **Mostly fixed** by #354 for weapons; now split into `shared/defs/` (a module per kind of table), and a clashing id throws at load |
 | `server/game.js` | 10 | night wave weights and the Ember/Blackout `\|\|` chain (**moved** to `server/spawns.js` by #355); names appended to import lists |
 | `client/game/game.js` | 10 | `SHOT_SOUND` (**fixed** by #354); HUD meters (shove, fire) written in the same spot (**moved** to `client/game/hudmeters.js`, and the rest of the class split into `client/game/game/`) |
-| `shared/progress.js` | 5 | `XP.kinds`: every zombie kind's XP on one line |
+| `shared/progress.js` | 5 | `XP.kinds`: every zombie kind's XP on one line. **Fixed**: read from each kind's `ZOMBIE_DEFS` row |
 | `client/ui/menus.js` | 5 | menu screens edited side by side |
 | `shared/bestiary.js` | 4 | a new kind's `B(...)` row added after the last special |
 | `server/zombies.js` | 4 | `switch` cases and hand-numbered special acts (**moved** to `server/specials/` by #355) |
@@ -55,8 +55,7 @@ end it.
 
 Two branches that add anything to a one-line list conflict, wherever they add it.
 
-- **Still in the code:** `XP.kinds` in `shared/progress.js`; `KINDS` in `server/specials/index.js`; the
-  Ember/Blackout `||` chain in `server/spawns.js`; the `PROTOCOL_VERSION` history comment.
+- **Still in the code:** `KINDS` in `server/specials/index.js`; the Ember/Blackout `||` chain in `server/spawns.js`.
 - **Resolve:** keep both entries. Check nothing was dropped by counting entries on each side.
 - **Refactor:** one entry per line with a trailing comma. Better still, generate the list from the definitions (smell
   4), so there is no list.
@@ -101,7 +100,9 @@ twice). Three weapon PRs all took recipe 43.
 - **Zombie kinds:** a player's bestiary record is a bitmask with a bit per `ZTYPE` (`1 << t` in `shared/bestiary.js`),
   which breaks past 30. The top kind is 20, so about ten more fit before it needs a different record.
 - **Refactor:** reserve a range per kind of thing (weapons 100 to 149, sounds per system) and add a test that prints
-  the next free id in each range. A clash already throws at load for items; make `SOUND` and `ZTYPE` do the same.
+  the next free id in each range. **Done in part:** a clash throws at load in `ITEM` and in every hand-numbered table
+  of `defs.js` and `protocol.js` (`uniqueIds`, `shared/ids.js`), and `node scripts/test-wire-ids.js` prints each
+  table's next free id.
 
 ### 4. Facts about a kind kept in lists elsewhere
 
@@ -121,14 +122,15 @@ happen.
 
 ### 5. A version number with its history on the same line
 
-`PROTOCOL_VERSION` is one line: the number, then a comment with every version since 26. Any two branches that bump it
+`PROTOCOL_VERSION` was one line: the number, then a comment with every version since 26. Any two branches that bump it
 conflict, which is right, since two protocol changes do need a new number. But the conflict hides the real question
 under a 3,000-character line.
 
 - **Resolve:** take main's number plus one, and keep both history notes: main's for its number, the branch's for the
   new one. If main moved past the number the branch claimed, fix the branch's comments and memory notes that name it.
 - **Refactor:** move the history onto its own lines above the constant, one version per line. The number line then
-  conflicts only when it should, and the history merges cleanly.
+  conflicts only when it should, and the history merges cleanly. **Done:** add the new version's line at the end of
+  the history.
 
 ### 6. Display text that names every member of a set
 
@@ -204,9 +206,9 @@ pillars in [design.md](design.md):
 | # | Refactor | Ends conflicts in | Size |
 |---|---|---|---|
 | 1 | Kind facts on `ZOMBIE_DEFS` (#347 step 1) | `progress.js`, `spawns.js`, `combat.js`, `entities.js`, `bestiary.js` | medium |
-| 2 | `PROTOCOL_VERSION` history one line per version | `protocol.js` | small |
-| 3 | One entry per line: `KINDS`, `XP.kinds`, the `\|\|` chain | `specials/index.js`, `progress.js`, `spawns.js` | small |
-| 4 | Id ranges and a "next free id" test for `ITEM`, `SOUND`, `ZTYPE` | `defs.js` | small |
+| 2 | `PROTOCOL_VERSION` history one line per version (**done**) | `protocol.js` | small |
+| 3 | One entry per line: `KINDS`, the `\|\|` chain (`XP.kinds` is read from the kinds' rows now) | `specials/index.js`, `spawns.js` | small |
+| 4 | Id ranges and a "next free id" test for `ITEM`, `SOUND`, `ZTYPE` (clash guard and next-free test **done**: `test-wire-ids.js`) | `defs.js` | small |
 | 5 | Remove `merge-dist/` | nothing today, but it is noise in every search | small |
 | 6 | Client weapon files (builder, `VM`, icon): done | `weapons.js`, `icons.js` | large |
 | 7 | Client zombie files (model, pose, sounds) | `characters.js`, `entities.js`, `audio.js` | large |

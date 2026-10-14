@@ -9,6 +9,7 @@
 // id, a slider's step); fields missing at the end, ids this build does not know and retired ones all become the field's
 // default (decode), and a length byte goes in front of it in a message (writeLook / readLook).
 import { FIELDS, PALETTES, SECTIONS, RETIRED_WIRE } from './wardrobe.js';
+import { mulberry32 } from './rng.js';
 
 export const LOOK_FORMAT = 1;
 const MAX_FIELDS = 160;
@@ -415,7 +416,7 @@ export function createAppearance(fields = FIELDS, palettes = PALETTES, retiredWi
    */
   function coveringLooks({ randoms = 0, seed = 1, bodies = 'random', colours = false } = {}) {
     const out = [];
-    const rngOf = (s) => mulberry(s);
+    const rngOf = (s) => mulberry32(s);
     const BODY = { lo: 0, hi: 1 };
     const shape = (v, b, end) => {
       const r = { ...v, body: b };
@@ -449,17 +450,8 @@ export function createAppearance(fields = FIELDS, palettes = PALETTES, retiredWi
   };
 }
 
-// a small seeded generator (the same as client/render/models/skinning.js mulberry32: shared code may not import that)
-export function mulberry(a) {
-  a >>>= 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// a small seeded generator: shared/rng.js's mulberry32, under the name the wardrobe's callers know it by
+export const mulberry = mulberry32;
 
 /** The wardrobe's own: what the game uses. */
 export const APPEARANCE = createAppearance();

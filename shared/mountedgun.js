@@ -11,6 +11,7 @@ import { AMMO } from './defs.js';
 import { eyeHeight } from './playersim.js';
 import { groundAt, raycastWorld, deepWaterAt } from './collision.js';
 import { qpos, dqpos, qangle16, dqangle16 } from './protocol.js';
+import { wrapAngle } from './rng.js';
 
 // The weapon id its shots and kills carry on the wire (EVT.SHOT, the killfeed): a number among the items that no
 // item has. It is not an item: it never goes in a backpack or a weapon slot, and it cannot be given.
@@ -90,9 +91,7 @@ export function atGrips(nest, x, y, z, reach = GUN.reach) {
 
 // Where the gun points for a gunner looking along (yaw, pitch): their view, held inside the arc. -> out.yaw, out.pitch
 export function gunAim(nest, yaw, pitch, out) {
-  let d = (yaw - nest.ry) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  else if (d < -Math.PI) d += Math.PI * 2;
+  const d = wrapAngle(yaw - nest.ry);
   out.yaw = nest.ry + (d < -GUN.arc ? -GUN.arc : d > GUN.arc ? GUN.arc : d);
   out.pitch = pitch < GUN.pitchMin ? GUN.pitchMin : pitch > GUN.pitchMax ? GUN.pitchMax : pitch;
   return out;

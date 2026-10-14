@@ -3,13 +3,15 @@
 // the hand, the blows the lever makes on the way (EVT.STRIKE, as any swing that lands on a wreck) and that the lid
 // then stands open for everybody (the container's own searched state: client/render/wrecks.js `pry`).
 // Every number of it is here.
-import { ITEM, CONT } from './defs.js';
+import { CONT } from './defs.js';
 import { COL } from './collision.js';
+import { WEAPON_LIST } from './weapons/index.js';
 
 export const PRY = {
   // seconds to get it open, by the melee weapon in the hand (a plain search is SEARCH_TIME, 1 s): a claw or a long
-  // blade is a better lever than a short one; the search perk shortens all of them as it shortens a search
-  time: { [ITEM.HAMMER]: 1.2, [ITEM.MACHETE]: 1.3, [ITEM.SPIKED_BAT]: 1.5, [ITEM.BAT]: 1.5, [ITEM.NUNCHAKU]: 1.6, [ITEM.KNIFE]: 1.8 },
+  // blade is a better lever than a short one; the search perk shortens all of them as it shortens a search. Each is
+  // `pry` in the weapon's file (shared/weapons/)
+  time: Object.fromEntries(WEAPON_LIST.filter((w) => w.pry).map((w) => [w.id, w.pry])),
   hand: 2.8, // ...and with no melee weapon in the hand: fingers under the lid, slowly. Nobody is locked out of a boot
   lever: 0.4, // s between heaves: each is a blow on the lid's edge that those near see and hear
   noise: 26, // m each heave carries to the dead (a swing at a wreck for scrap is 35, a gunshot 70)

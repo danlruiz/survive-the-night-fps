@@ -9,4 +9,5 @@ export default {
   salvage: { [ITEM.SCRAP]: 1 },
   feat: null,
   blow: 'HAMMER',
+  pry: 1.2,
 };

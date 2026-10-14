@@ -9,8 +9,11 @@ entity interpolation and server-side lag compensation.
 ```
 shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   constants.js   tick rates, physics, map, timings
-  defs.js        items, weapons, recipes (stations + schematics), structures, containers, car supplies,
-                 zombie types, sounds, events (wire ids)
+  defs.js        re-exports shared/defs/, a module for each kind of thing: items, ammunition and the weapons'
+                 numbers (itemdefs.js), car supplies and schematics (escape.js), fire, structures, recipes and
+                 salvage (crafting.js), zombie kinds (zombies.js), projectiles, sounds, events, zones, loot and
+                 containers. Import from defs.js; a new table goes in the module of its kind
+  ids.js         uniqueIds: a hand-numbered wire id table (SOUND, ZTYPE, EVT...) throws at load on a clash
   items.js       the ids of every item that is not a weapon (defs.js adds the weapons' to make ITEM)
   weapons/       one file per weapon: its id, item def, WEAPONS row, recipe, salvage, kill feat, bullet hole,
                  shot sound and kick. index.js lists them; defs.js, achievements.js, surfaces.js and the
@@ -33,12 +36,15 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
                  the bits and the sound each kind of blow makes on it (see Blows on the world below)
   wrecks.js      a wreck's record of the blows it took, and its alarm (see Blows on the world below)
   trunk.js       a car's boot is forced open, not just searched: the times by weapon, the heaves, which cars (see Blows)
-  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server)
+  playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server):
+                 simulatePlayer runs a command through named steps (switchSlot, stepStamina, steer, moveBody,
+                 stepWeapons...). playerstate.js: the simulated state, and copying, comparing, snapping and
+                 fingerprinting it. stamina.js: spending and winning back stamina (a sprint, pedals, a lever, a move)
   nights.js      night themes: nightTheme(seed, night) picks what a night's horde is made of. The server applies
                  it to the wave weights and the client announces it, each from the seed: nothing on the wire
   progress.js    XP, levels and perks: the rules both ends read (see Experience, levels and perks below)
-  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES) and the simulation of their chain
-                 and free handle that both views draw (ChainSim) - see Nunchucks below
+  nunchaku.js    the nunchucks: their moveset as rules (simNunchaku, NK_MOVES); nunchaku-chain.js the simulation
+                 of their chain and free handle that both views draw (ChainSim) - see Nunchucks below
   achievements.js the achievement list (ids, wire numbers, tiers, groups) and the rules on a player's progress
                  (see Achievements below)
   bestiary.js    the bestiary: every kind of the dead, its vague line and its tip, and what seeing one is (see The
@@ -161,8 +167,8 @@ more than its bytes**, so put things into the packets that already flow.
   that command, or when anything else changed the state - detected by comparing against `p.shadow`, the copy
   taken right after the last command, so code that shoves, teleports, arms or disarms a player needs no
   bookkeeping. On a sync the server rounds its own floats to what went on the wire (`snapPlayerState`) so both
-  ends continue from identical numbers. A new field of the simulated state must be added to `copyPlayerState`,
-  `samePlayerState`, `snapPlayerState` (floats), `hashPlayerState`, a `writeSelf` chunk and `readSelf`.
+  ends continue from identical numbers. A new field of the simulated state must be added to `createPlayerState` and
+  `SIM_FIELDS` (`SIM_FLOATS` too for a float) and `hashPlayerState` in `shared/playerstate.js`, a `writeSelf` chunk and `readSelf`.
   Server-driven values the HUD shows (hp, armor, battery, hold progress...) are the status groups: sent when
   they change. `scripts/test-netsync.js` shoves a player on a laggy link and checks both ends agree again
   within a round trip.
@@ -2108,7 +2114,7 @@ half of what is on screen is not animated at all.
   means "winding up", which is how others see the whirl. A move counts once in `fireCount`; which move it was is
   not sent - a watching client works it out the way the rules would (`NunchakuTP.swing`). `scripts/test-nunchucks.js`
   holds all of it, a client predicting it over a laggy link included.
-- **The chain** (`ChainSim`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
+- **The chain** (`ChainSim`, `shared/nunchaku-chain.js`). One handle is in a hand: its end of the chain goes where the hand takes it. The other
   is a rigid rod on the chain: two point masses at its radius of gyration (so it turns like a stick, not a
   dumbbell), a rope constraint from the chain's far eye to the hand's (never longer than the chain; slack when it
   is nearer), capsules for the arms, the head and the trunk, the other handle. The links between are drawn, not simulated: an arc
