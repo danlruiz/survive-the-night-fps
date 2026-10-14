@@ -137,7 +137,7 @@ export const methods = {
     e.growlT -= dt;
     if (e.growlT <= 0) {
       e.growlT = kind.growlGap[0] + Math.random() * kind.growlGap[1];
-      // what its row says it utters (shared/defs.js ZOMBIE_DEFS sounds): on the run, its fast one; else its growl,
+      // what its row says it utters (shared/defs/zombies.js ZOMBIE_DEFS sounds): on the run, its fast one; else its growl,
       // a boss's roar, or - shambling about somewhere off in the trees, it moans; on the hunt or on top of you, it growls
       const say = def.sounds;
       const growl = say?.growl ?? kind.growl;

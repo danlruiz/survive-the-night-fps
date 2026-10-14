@@ -168,7 +168,7 @@ export const methods = {
       }
       case 'burst': {
         // /burst: tear open the belly of every Mother within 30 m, as a shot in it does: her babies come for you
-        for (const z of [...this.zombies]) if (!z.dead && z.ztype === ZTYPE.MOTHER && Math.hypot(z.x - s.x, z.z - s.z) <= 30) this.combat.burstBelly(z, p);
+        for (const z of [...this.zombies]) if (!z.dead && Math.hypot(z.x - s.x, z.z - s.z) <= 30) this.zm.burstBelly(z, p);
         break;
       }
       case 'den': {

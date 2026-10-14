@@ -46,7 +46,7 @@ export const ZTYPE = uniqueIds('ZTYPE', {
 //     file (common) nor a boss has one
 //   blood: 'green' for the ones that bleed bile and acid (the impact a bullet makes, the gore a blown-apart one leaves)
 //   lod: the client builds a far copy of its model (client/render/models/characters.js LOD_TYPES)
-//   sounds: { loop, growl, fast, fastChance } - SOUND keys and createLoop names (client/game/entities.js). loop: the
+//   sounds: { loop, growl, fast, fastChance } - SOUND keys and createLoop names (client/game/entities/zombies.js). loop: the
 //     loop it carries ('zombie_idle' when unset, null for none); growl: what it utters now and then (the moan or the
 //     growl when unset, a boss's roar); fast: what it utters instead on the run, fastChance of the time (default 1)
 export const ZOMBIE_DEFS = {
@@ -103,8 +103,8 @@ export const ZOMBIE_DEFS = {
   // breaks: a team that holds one wall and shoots what it sees. Within smokeRange of a survivor it stops and breathes out
   // a cloud of dark smoke (smokeRadius m, smokeLife s) every smokeRate s, and the dead come at them out of it. When it
   // dies it bursts into one more (deathSmoke); killed among what the survivors built - baseCount pieces or more within
-  // baseRange m (Combat.inBase) - the cloud it lets go is big enough to fill the base (baseSmoke). Kill it out past the
-  // walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
+  // baseRange m (Zombies.inBase, server/specials/smoker.js) - the cloud it lets go is big enough to fill the base
+  // (baseSmoke). Kill it out past the walls. (AREA.SMOKE: the client's view thickens with it, shared/smoke.js)
   [ZTYPE.SMOKER]: { name: 'Smoker', hp: 130, speed: 2.0, dmg: 8, rate: 1.1, range: 1.55, radius: 0.38, height: 1.86, headY: 1.68, headR: 0.17, structDmg: 15, loot: 0.6, smokeRange: 20, smokeRate: 11, smokeRadius: 4.5, smokeLife: 9, deathSmoke: { radius: 5, life: 10 }, baseSmoke: { radius: 14, life: 26 }, baseRange: 12, baseCount: 4, legs: true, intro: 'Smokers join the horde: they breathe out clouds you cannot see through. Kill them out past your walls, or their last breath fills the base.', introBrief: 'Smoke you cannot see through. Kill them past the walls.', scaled: true, xp: 20, wave: (n, sp) => 3 + sp * 3, lod: true },
   // a flying squirrel the infection has grown to the size of a cat. It never claws or bites in passing (noMelee): it only
   // hurts whoever it has by the face, a nibble of latchDmg every latchRate s (+5% a night). It waits up a tree near the survivors, eyes glowing, chittering now and then (server/specials/crawler.js
@@ -119,11 +119,11 @@ export const ZOMBIE_DEFS = {
   // igniteRange m of its body (STRUCT_FIRE), and its blows set survivors alight (PLAYER_FIRE). Breaks the wooden fort:
   // metal does not burn, and a hammer puts a fire out
   [ZTYPE.FLAMMER]: { name: 'Flammer', hp: 150, speed: 2.1, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.85, headY: 1.67, headR: 0.18, structDmg: 15, loot: 0.6, fireproof: true, igniteRange: 1.2, igniteRate: 1.5, deathFire: { radius: 2.5, time: 8, dps: 40 }, legs: true, intro: 'Flammers join the horde: they set your walls and you alight. A hammer puts out a fire; mash Space to put out you.', introBrief: 'Set walls and you alight. Hammer the fire, mash Space.', scaled: true, xp: 20, wave: (n, sp) => 3 + sp * 3, lod: true },
-  // one walker in twenty spawns as her (ZombieManager.spawn's roll), from the first night: not a kind that joins the
+  // one walker in twenty spawns as her (Zombies.rollMother, server/specials/mother.js), from the first night: not a kind that joins the
   // horde on a night of its own (rolled: Game.startNight never draws her in, and no dawn card names her). Shot in the
-  // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (Combat.bellyHit) -
+  // belly - a bullet that strikes her front between the hips (LEG_ZONE) and bellyTop of her height (her belly spot, server/specials/mother.js) -
   // it bursts open (ZSTATUS.BURST) and twins, her brood of babies, crawl out of it after whoever shot her, crying as they
-  // come (Combat.burstBelly). Her head, her legs or her back and nothing comes out
+  // come (Zombies.burstBelly). Her head, her legs or her back and nothing comes out
   [ZTYPE.MOTHER]: { name: 'Mother', hp: 160, speed: 1.8, dmg: 9, rate: 1.2, range: 1.55, radius: 0.4, height: 1.72, headY: 1.55, headR: 0.16, structDmg: 14, loot: 0.6, bellyTop: 0.68, brood: 2, broodSpread: 0.9, broodKick: 5, minNight: 1, legs: true, rolled: true, xp: 20, lod: true },
   // a Mother's baby (crawl: on its front and its hands from birth, low and quick, crying as it comes). It never joins the
   // horde on its own (born: it only comes out of her belly, Game.startNight passes it over); its minNight is hers, for the bestiary
