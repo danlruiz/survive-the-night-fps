@@ -23,7 +23,6 @@ import {
   INVENTORY_MAX,
   REVIVE_HP,
   DAWN_RETURN,
-  SLOT_RADIO,
   PIN_FACE,
 } from '../shared/constants.js';
 import {
@@ -53,7 +52,7 @@ import { hitTree, treeBroken, treeCutMax, TREE_CUT_MIN, TREE_PIECE_MIN } from '.
 import { blowOf, BLOW } from '../shared/surfaces.js';
 import { WRECK_SALVAGE, WRECK_HITS_MAX, HITF, WRECKF, WRECK_ALARM, ALARM, ALARM_SAY, alarmStep, wreckOf, wreckLocal, wreckUnit, wreckHalf } from '../shared/wrecks.js';
 import { MineNav } from './minenav.js';
-import { copyPlayerState, samePlayerState, snapPlayerState, radioKeyed } from '../shared/playersim.js';
+import { copyPlayerState, samePlayerState, snapPlayerState } from '../shared/playersim.js';
 import { groundAt } from '../shared/collision.js';
 import { mulberry32 } from '../shared/rng.js';
 import * as Director from './director.js';
@@ -103,11 +102,12 @@ import * as input from './game/input.js';
 import * as survivors from './game/survivors.js';
 import * as experience from './game/experience.js';
 import * as sessions from './game/sessions.js';
+import * as chat from './game/chat.js';
 import { HANDOFF_FREEZE, JOIN_EVERY } from './game/sessions.js';
 import { starterKit } from './game/survivors.js';
 import { MAX_DROPS, looseSupply } from './game/items.js';
 
-const PARTS = { commands, blows, phases, escape, supplydrops, trunks, items, crafting, equipment, building, harm, interact, input, survivors, experience, sessions };
+const PARTS = { commands, blows, phases, escape, supplydrops, trunks, items, crafting, equipment, building, harm, interact, input, survivors, experience, sessions, chat };
 
 const randomSeed = () => (Math.random() * 0x7fffffff) | 0;
 
@@ -949,60 +949,6 @@ export class Game {
     });
   }
 
-  // ---------------------------------------------------------------- chat
-  handleChat(p, text) {
-    text = text.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 140);
-    if (!text) return;
-    // Old clients may still send `/admin <password>`; consume it so a former secret is never broadcast as chat.
-    if (/^\/admin(?:\s|$)/i.test(text)) return this.sendChat(p, 0, CHATF.SYSTEM, 'Admin access comes from your signed-in account.');
-    if (p.admin && text.startsWith('/')) {
-      const args = text.slice(1).split(/\s+/);
-      this.track.event('admin', p, { command: args.join(' ').slice(0, 60) }); // (a match with these in it is no ordinary one)
-      return this.debugCommand(p, args);
-    }
-    if (this.time - p.chatT > 5) {
-      p.chatT = this.time;
-      p.chatCount = 0;
-    }
-    if (++p.chatCount > 6) return;
-    // text chat reaches everyone in the game, wherever they are (the voice still carries only so far: TALK_RANGE)
-    if (this.radioInHand(p)) this.ach.onAir(p);
-    const w = new Writer(text.length * 3 + 8);
-    w.u8(S2C.CHAT);
-    w.u16(p.id);
-    w.u8(p.zombie ? CHATF.ZOMBIE : 0);
-    w.str(text);
-    this.broadcast(w.bytes());
-  }
-  sendChat(to, id, flags, text) {
-    const w = new Writer(text.length * 3 + 8);
-    w.u8(S2C.CHAT);
-    w.u16(id);
-    w.u8(flags);
-    w.str(text);
-    to.session.conn.send(w.bytes());
-  }
-  // every survivor carries a walkie-talkie (SLOT_RADIO; the dead and the turned have none)...
-  hasWalkie(p) {
-    return p.alive && !p.zombie;
-  }
-  // ...chat said with it in hand counts towards its achievement...
-  radioInHand(p) {
-    return this.hasWalkie(p) && p.state.slot === SLOT_RADIO;
-  }
-  // ...and while it is keyed, so does the voice (the clients route it, told by the player list: PLF.ON_AIR)
-  onAir(p) {
-    return this.hasWalkie(p) && radioKeyed(p.state);
-  }
-
-  systemChat(text) {
-    const w = new Writer(text.length * 3 + 8);
-    w.u8(S2C.CHAT);
-    w.u16(0);
-    w.u8(CHATF.SYSTEM);
-    w.str(text);
-    this.broadcast(w.bytes());
-  }
   broadcast(bytes) {
     for (const p of this.players.values()) p.session.conn.send(bytes);
   }
