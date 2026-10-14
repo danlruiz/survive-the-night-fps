@@ -27,7 +27,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { FileStore, worldPrint } from '../server/handoff.js';
-import { packBuild, openBuild, signOf, buildId, buildHash, protocolOf, removeTree, Builds, WORKER_API, SECURITY_EPOCH } from '../server/builds.js';
+import { packBuild, openBuild, signOf, buildHash, protocolOf, removeTree, Builds, WORKER_API, SECURITY_EPOCH } from '../server/builds.js';
 import { Room, Lobby, rejectBytes } from '../server/rooms.js';
 import { worldFor } from '../shared/worlds.js';
 import { PROTOCOL_VERSION, ENDED_CODE, REJECT_REASON, S2C, C2S, Writer } from '../shared/protocol.js';

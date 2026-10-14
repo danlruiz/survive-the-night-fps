@@ -16,7 +16,7 @@ import { createServer, connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { C2S, PROTOCOL_VERSION, REJECT_REASON, MOVED_CODE, Writer, writeInput } from '../shared/protocol.js';
+import { PROTOCOL_VERSION, REJECT_REASON, MOVED_CODE } from '../shared/protocol.js';
 import { moveBack, verdictFor, joinVerdict, pageBuild, NO_GAME_MS, mayReload, reloadedInto, RELOAD_MAX, RELOAD_MS, RELOAD_LOOP_TEXT } from '../client/net/moveback.js';
 import { compatOf, CODEC_FILES } from '../server/compat.js';
 import { Connection } from '../client/net/connection.js';

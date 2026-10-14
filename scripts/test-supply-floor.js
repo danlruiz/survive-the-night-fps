@@ -8,7 +8,7 @@ import { Game } from '../server/game.js';
 import { groundAt } from '../shared/collision.js';
 import { STEP_HEIGHT } from '../shared/constants.js';
 import { ITEM_DEFS, ZONE_NAMES } from '../shared/defs.js';
-import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
+import { C2S, PROTOCOL_VERSION, Writer } from '../shared/protocol.js';
 
 const SEEDS = process.argv.length > 2 ? process.argv.slice(2).map(Number) : [4242, 1, 2, 8, 9];
 const fails = [];

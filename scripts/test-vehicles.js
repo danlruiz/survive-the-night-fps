@@ -26,7 +26,7 @@ import { Prediction } from '../client/game/prediction.js';
 import { worldFor } from '../shared/worlds.js';
 import { createWorld } from '../shared/world.js';
 import { createPlayerState, copyPlayerState } from '../shared/playersim.js';
-import { COL, groundAt, footprintContains, pushCircle } from '../shared/collision.js';
+import { COL, groundAt, pushCircle } from '../shared/collision.js';
 import { worldHash, envelope } from '../server/handoff.js';
 import { client, mainlandGame, quiet, seatsFor } from './vehicle-seats.js';
 import { clearance, flood, drive, walk } from './vehicle-routes.js';

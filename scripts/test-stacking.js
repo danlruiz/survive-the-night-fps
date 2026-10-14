@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { Game } from '../server/game.js';
 import { invCap } from '../server/inventory.js';
 import { C2S, S2C, ACT, LEFT_CODE, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
-import { INVENTORY_SIZE, INVENTORY_MAX } from '../shared/constants.js';
+import { INVENTORY_MAX } from '../shared/constants.js';
 import { ITEM, ITEM_DEFS, RECIPE_BY_ID, CONT, CONT_DEFS, SALVAGE } from '../shared/defs.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { craftRun, copyInv } from '../client/game/bulkcraft.js';

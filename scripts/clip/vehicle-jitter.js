@@ -18,8 +18,8 @@
 import '../lib/headless-dom.js';
 import { worldFor } from '../../shared/worlds.js';
 import { ZONE_NAMES } from '../../shared/defs.js';
-import { BTN, CMD_DT, SERVER_TICK_RATE, INTERP_DELAY } from '../../shared/constants.js';
-import { COL, groundAt } from '../../shared/collision.js';
+import { BTN, SERVER_TICK_RATE, INTERP_DELAY } from '../../shared/constants.js';
+import { groundAt } from '../../shared/collision.js';
 import { qpos, dqpos, qangle16, dqangle16, usePos } from '../../shared/protocol.js';
 import { VEH, VEHICLES, vehicleGrid, questCar } from '../../shared/vehicles.js';
 import { createPlayerState, copyPlayerState, simulatePlayer } from '../../shared/playersim.js';
@@ -28,6 +28,7 @@ import { VehicleClient, seatBody } from '../../client/game/vehicles.js';
 import { createSurvivor } from '../../client/render/models/characters.js';
 import * as THREE from 'three';
 import { clearance, flood, makePilot } from '../vehicle-routes.js';
+import { VehicleModel as VC_MODEL } from '../../client/render/models/vehicles.js';
 
 const KIND = { bike: VEH.BIKE, moped: VEH.MOPED, car: VEH.CAR };
 export const JITTER_RATES = [30, 60, 144, 'uneven'];
@@ -295,8 +296,6 @@ function analyse(series, from) {
   }
   return out;
 }
-
-import { VehicleModel as VC_MODEL } from '../../client/render/models/vehicles.js';
 
 // the worst of every run
 export function survey({ vehs = ['bike', 'moped', 'car'], rates = JITTER_RATES, only = null } = {}) {

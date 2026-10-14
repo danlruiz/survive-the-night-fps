@@ -76,8 +76,8 @@ function client(name) {
   game.onMessage(c.session, wr.bytes().slice());
   return c;
 }
-const A = client('Alice');
-const B = client('Bob');
+client('Alice');
+client('Bob');
 const players = [...game.players.values()];
 const a = players[0];
 const b = players[1];

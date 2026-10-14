@@ -7,7 +7,7 @@
 import { Game } from '../server/game.js';
 import { C2S, S2C, ACT, SALVAGE_FROM, PROTOCOL_VERSION, Writer, Reader } from '../shared/protocol.js';
 import { INVENTORY_SIZE, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_THROW, SLOT_BUILD } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO, AMMO_ITEMS } from '../shared/defs.js';
+import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, SALVAGE, AMMO } from '../shared/defs.js';
 
 const seed = +(process.argv[2] || 4242);
 const game = new Game({ seed, godMode: true, dayLength: 3600, log: () => {} });

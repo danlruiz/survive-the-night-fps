@@ -9,8 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { Game } from '../server/game.js';
 import { invCap, removeItem } from '../server/inventory.js';
 import { C2S, S2C, ACT, PFLAG, WORN, WORN_DO, PROTOCOL_VERSION, Writer, Reader, qangle16, qpitch, writeInput } from '../shared/protocol.js';
-import { BTN, INVENTORY_SIZE, INVENTORY_MAX, BACKPACK_SLOTS, SLOT_PISTOL, SLOT_BUILD } from '../shared/constants.js';
-import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, STRUCT, STRUCT_DEFS, CONT, CONT_DEFS, AMMO, AMMO_MAX, NOTIFY, salvageOf } from '../shared/defs.js';
+import { INVENTORY_SIZE, INVENTORY_MAX, BACKPACK_SLOTS, SLOT_BUILD } from '../shared/constants.js';
+import { ITEM, ITEM_DEFS, RECIPES, RECIPE_BY_ID, STRUCT, CONT, CONT_DEFS, NOTIFY, salvageOf } from '../shared/defs.js';
 import { readSnapshot } from '../client/net/decode.js';
 
 const seed = +(process.argv[2] || 4242);

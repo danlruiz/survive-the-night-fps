@@ -14,7 +14,7 @@ import { ITEM, ITEM_DEFS, WEAPONS, RECIPES, RECIPE_BY_ID, SALVAGE, LOOT_TABLES, 
 import { createPlayerState, copyPlayerState, samePlayerState, simulatePlayer, hashPlayerState } from '../shared/playersim.js';
 import { groundAt } from '../shared/collision.js';
 import { createWorld } from '../shared/world.js';
-import { NK, NK_MOVE, NK_MOVES, NK_GEOM, NK_CHAIN, NK_SIM, NK_COL, ChainSim, heavyMove, nkMove, nkWind } from '../shared/nunchaku.js';
+import { NK, NK_MOVE, NK_MOVES, NK_GEOM, NK_CHAIN, NK_SIM, NK_COL, ChainSim, heavyMove, nkWind } from '../shared/nunchaku.js';
 import { readHeader, readGlobal, readSelf, readEntities, readEvents } from '../client/net/decode.js';
 import { Connection } from '../client/net/connection.js';
 import { Prediction } from '../client/game/prediction.js';

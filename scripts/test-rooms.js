@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { C2S, S2C, ROOMF, REJECT_REASON, PROTOCOL_VERSION, BOARDF, Writer, Reader, readBoard } from '../shared/protocol.js';
+import { C2S, S2C, ROOMF, REJECT_REASON, PROTOCOL_VERSION, Writer, Reader, readBoard } from '../shared/protocol.js';
 
 let failed = 0;
 function check(name, ok, detail = '') {

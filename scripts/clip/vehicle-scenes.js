@@ -307,10 +307,6 @@ export async function shots(c) {
   await enter(c, c.A, car.id);
   console.log(`
   car seats ${JSON.stringify(vehId(c, car.id).seats)} pass ${c.info.s.pass}`);
-  const cam3 = (side, pitch, dist, fov = 42) => {
-    const m = vehId(c, car.id);
-    return c.orbit([m.x, m.y + 1.0, m.z], m.yaw + side, pitch, dist, { fov, body: true });
-  };
   // the passenger's shots, seen by the driver's camera from outside their side: a target to hit, off to that side
   await c.chat(c.A, '/give 9mm 60');
   {

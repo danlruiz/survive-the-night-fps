@@ -17,7 +17,6 @@ import { Game } from '../server/game.js';
 import { C2S, S2C, PROTOCOL_VERSION, Writer, Reader, ENT, PSTAT, qangle16, qpitch, writeInput } from '../shared/protocol.js';
 import { BTN, SERVER_TICK_RATE, SLOT_BUILD, PHASE } from '../shared/constants.js';
 import { ZTYPE, ZOMBIE_DEFS, STRUCT, STRUCT_DEFS, ITEM, AREA, STRUCT_FIRE, PLAYER_FIRE, structBurns } from '../shared/defs.js';
-import { makeBox, COL } from '../shared/collision.js';
 import { readSnapshot } from '../client/net/decode.js';
 import { joinNight } from '../shared/nights.js';
 
