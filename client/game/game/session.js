@@ -1,6 +1,6 @@
 // Game: being in a game - joining it, the snapshots and the clock they keep, the commands sent up, a drop, a deploy, leaving,
 // and the personal record of the run.
-import { PHASE, SERVER_TICK_RATE } from '../../../shared/constants.js';
+import { PHASE, SERVER_TICK_RATE, INTERP_DELAY } from '../../../shared/constants.js';
 import { ZONE } from '../../../shared/defs.js';
 import { LEFT_CODE, MOVED_CODE, SNAP } from '../../../shared/protocol.js';
 import { WORLD, MAINLAND_START } from '../../../shared/acts.js';
@@ -266,5 +266,16 @@ export const methods = {
         team: this.players.size,
       });
     }
+  },
+
+  // The interpolation clock, a frame on: corrections are eased in (a step in the clock is a step in every remote entity),
+  // and the render delay widens a little when snapshots arrive unevenly so entities don't stall and lurch
+  advanceClock(dt) {
+    const adj = this.clockAdj * Math.min(1, dt * 6);
+    this.clockAdj -= adj;
+    this.clientTick += dt * SERVER_TICK_RATE + adj;
+    const extra = Math.min(1.5, Math.max(0, 2.5 * Math.sqrt(this.jitter2) - 0.6));
+    this.interpExtra += Math.max(-dt * 0.5, Math.min(dt * 0.5, extra - this.interpExtra));
+    this.renderTick = this.clientTick - INTERP_DELAY * SERVER_TICK_RATE - this.interpExtra;
   },
 };

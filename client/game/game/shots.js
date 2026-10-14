@@ -266,4 +266,27 @@ export const methods = {
     list.splice(best, 1);
     return true;
   },
+
+  // a flamethrower's roar stops a moment after its last puff; its light dies down with the fire it left
+  updateFlames(dt) {
+    this.flameLights.length = 0;
+    for (const [id, f] of this.flames) {
+      const L = f.light;
+      if (f.t > 0) {
+        L.intensity += (f.glow - L.intensity) * Math.min(1, dt * 18);
+        if ((f.t -= dt) <= 0) {
+          f.loop?.stop();
+          f.loop = undefined;
+        }
+      } else if ((L.intensity -= dt * 3.5) <= 0) {
+        this.flames.delete(id);
+        continue;
+      }
+      const m = Math.min(1, dt * 14); // (it follows the aim, not jumping puff to puff)
+      L.x += (f.at.x - L.x) * m;
+      L.y += (f.at.y - L.y) * m;
+      L.z += (f.at.z - L.z) * m;
+      this.flameLights.push(L);
+    }
+  },
 };

@@ -4,6 +4,8 @@ import { PHASE, ESCAPE_RADIUS } from '../../../shared/constants.js';
 import { bindPair, bindLabel } from '../binds.js';
 import { screenLeft } from '../../ui/screentabs.js';
 
+const BOARD_EVERY = 4000; // ms between two requests for the leaderboard while it is open
+
 export const methods = {
   // A screen that takes clicks is up (the inventory, the map, the leaderboard, the bestiary, Dead Hand, the spawn menu,
   // the pinned player list): the pointer is free for it, and the game's keys and buttons are off
@@ -398,6 +400,14 @@ export const methods = {
       this.ui.hideOverlays();
       this.ui.notify('YOU HAVE RISEN', 'big', 4);
       this.ui.notify(this.dawnAhead() ? `Hunt the survivors until dawn. [${bindPair('aim')}] to leap.` : `Hunt the survivors. [${bindPair('aim')}] to leap.`, 'sub', 4);
+    }
+  },
+
+  // the leaderboard is asked for while it is up: as it opens, then every few seconds (it moves as people play)
+  updateBoard() {
+    if (this.ui.boardOpen && performance.now() >= this.boardT) {
+      this.boardT = performance.now() + BOARD_EVERY;
+      this.conn.board();
     }
   },
 };

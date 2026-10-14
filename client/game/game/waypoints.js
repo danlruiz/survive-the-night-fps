@@ -67,4 +67,34 @@ export const methods = {
     }
     return out;
   },
+
+  // the places come up as we reach them, and the waypoint has done its job once we are there
+  updatePlaces(dt, s, rp, cine) {
+    const self = this.self;
+    // discovery of places
+    this.discoverT -= dt;
+    // (a drift of the mine runs under places it does not come up in)
+    if (this.discoverT <= 0 && self.alive && !cine && !s.zombie && !this.world.mine?.under(rp.x, rp.y + 0.3, rp.z)) {
+      this.discoverT = 0.5;
+      for (const z of this.world.zones) {
+        if (this.discovered.has(z.id)) continue;
+        if (Math.hypot(rp.x - z.x, rp.z - z.z) < z.flat + 6) {
+          this.discovered.add(z.id);
+          this.ui.notify(`Discovered · ${ZONE_NAMES[z.id]}`, 'toast', 3.5);
+        }
+      }
+    }
+    // the waypoint has done its job once you are there
+    const wp = this.waypoint;
+    if (wp && self.alive && !s.zombie) {
+      const d = Math.hypot(rp.x - wp.x, rp.z - wp.z);
+      if (d > wp.r + 2) wp.away = true; // (set where you already stand, it waits until you have left and come back)
+      else if (wp.away && d < wp.r) {
+        this.waypoint = null;
+        this.shareWaypoint();
+        // a place seen for the first time has just said so itself ("Discovered")
+        if (wp.visited) this.ui.notify(wp.zone >= 0 ? `Arrived · ${ZONE_NAMES[wp.zone]}` : 'Waypoint reached', 'toast', 2.5);
+      }
+    }
+  },
 };

@@ -212,4 +212,18 @@ export const methods = {
     const runner = hasRole(this.prediction.state.perks, ROLE.RUNNER) ? ` · crouch ${bindTag('interact')} to drag` : '';
     return `hold ${bindTag('interact')} to revive${runner}${guard}`;
   },
+
+  // voice: how loud everyone is talking, for their mouths (entities.js), and the talking indicators
+  updateTalking() {
+    this.voice.sampleMouths(performance.now());
+    if (this.frame % 6 === 0) {
+      const talking = this.voice.poll();
+      const key = talking.map((id) => (this.voice.overRadio(id) ? 'r' : '') + id).join();
+      if (key !== this.talkKey) {
+        this.talkKey = key;
+        this.talkPeers = talking;
+        this.ui.setVoiceState({ enabled: this.voice.enabled, transmitting: this.voice.transmitting, speakers: this.speakers() });
+      }
+    }
+  },
 };

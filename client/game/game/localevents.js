@@ -3,6 +3,10 @@ import { WATER_LEVEL } from '../../../shared/constants.js';
 import { ITEM } from '../../../shared/defs.js';
 import { currentWeapon } from '../../../shared/playersim.js';
 import { nkStrike } from '../nunchaku.js';
+import { perkMods } from '../../../shared/progress.js';
+
+// the anti-tank rifle's long reload: how far into it the round goes home (its bolt opens at the start, closes at the end)
+const AT_ROUND_IN = 0.62;
 
 export const methods = {
   onLocalEvents(events, s) {
@@ -97,5 +101,16 @@ export const methods = {
           break;
       }
     }
+  },
+
+  // the anti-tank rifle's round going home, partway through its long reload (no event says when: the state does)
+  updateReloadSound(s, wdef) {
+    if (currentWeapon(s) === ITEM.AT_RIFLE && s.reloadT > 0) {
+      const reload = wdef.reload * perkMods(s.perks).reload;
+      if (!this.atRoundIn && reload - s.reloadT >= reload * AT_ROUND_IN) {
+        this.atRoundIn = true;
+        this.audio.playLocal('at_round');
+      }
+    } else this.atRoundIn = false;
   },
 };

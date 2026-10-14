@@ -1,5 +1,5 @@
 // Game: [E] - what it does to what we look at, and the holds it starts (the ring every held key shows: holdring.js).
-import { SEARCH_TIME, REVIVE_TIME } from '../../../shared/constants.js';
+import { SEARCH_TIME, REVIVE_TIME, SLOT_THROW } from '../../../shared/constants.js';
 import { repairCostOf, CONT_DEFS } from '../../../shared/defs.js';
 import { ACT, ENT, HOLD, CAR_ID } from '../../../shared/protocol.js';
 import { currentWeapon } from '../../../shared/playersim.js';
@@ -117,5 +117,19 @@ export const methods = {
     // a hold the server took up after the ring had given up on it (a long trip): back up, quietly
     if (!r.active && r.cancelT <= 0 && this.holding && self.holdKind) this.startHoldRing(this.holding, self.holdKind, {}, true);
     if (r.update(dt, this.holding ? self.holdKind : 0, self.holdProgress, this.conn.rtt / 1000) === 'cancel') this.audio.playLocal('hold_cancel');
+  },
+
+  // the drop key held long enough (and still able to: alive, on their feet, the controls live, the same weapon out), and
+  // its ring
+  updateDropHold(dt, s) {
+    const self = this.self;
+    const canDrop = !!self.alive && !s.zombie && !s.downed && this.input.enabled;
+    const dropped = this.dropHold.update(dt, s.slot, canDrop) === 'drop';
+    if (dropped && s.weapons[s.slot] && s.slot !== SLOT_THROW) this.conn.action(ACT.DROP_WEAPON, s.slot);
+    if (this.holdRing.key === 'drop') {
+      if (dropped) this.holdRing.end();
+      else if (!this.dropHold.holding) this.cancelHoldRing();
+      else this.holdRing.local(this.dropHold.progress);
+    }
   },
 };

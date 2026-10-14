@@ -1,11 +1,11 @@
 // Game: the keys and buttons - what a key going down or up does in play (binds.js says which action it is).
-import { SLOT_THROW, SLOT_BUILD } from '../../../shared/constants.js';
+import { SLOT_THROW, SLOT_BUILD, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE } from '../../../shared/constants.js';
 import { ITEM_DEFS, THROW_ITEMS } from '../../../shared/defs.js';
 import { ACT, ENT } from '../../../shared/protocol.js';
 import { SPAWN_KEY } from '../../ui/spawnmenu.js';
 import { actionsOf, bindTag, bindLabel } from '../binds.js';
 import { DROP_HOLD, TAP_HINT } from '../drophold.js';
-import { BUILD_ROT_STEP, BUILD_ROT_FINE } from './build.js';
+import { BUILD_ROT_STEP, BUILD_ROT_FINE, BUILD_ROT_WHEEL } from './build.js';
 
 export const methods = {
   setupInputHandlers() {
@@ -285,5 +285,24 @@ export const methods = {
       return true;
     }
     return false;
+  },
+
+  // The mouse wheel: with the hammer out it steps round the structures, or with a piece picked and the fine-rotate key
+  // held it turns the piece (down clockwise, as a right click does); otherwise it cycles the weapons carried
+  onWheel(wheel, s) {
+    if (s.slot === SLOT_BUILD && !s.zombie && this.buildPicked && !this.buildMenu && this.input.held('buildFine')) this.buildRot = (this.buildRot - wheel * BUILD_ROT_WHEEL) & 255;
+    else if (s.slot === SLOT_BUILD) this.cycleBuild(wheel > 0 ? 1 : -1);
+    else if (!s.zombie) {
+      const order = [SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE, SLOT_THROW];
+      let i = order.indexOf(s.slot);
+      for (let k = 0; k < 4; k++) {
+        i = (i + (wheel > 0 ? 1 : -1) + 4) % 4;
+        const sl = order[i];
+        if (sl === SLOT_THROW ? s.throwCount > 0 && s.weapons[SLOT_THROW] : s.weapons[sl]) {
+          this.prediction.requestSlot(sl);
+          break;
+        }
+      }
+    }
   },
 };
