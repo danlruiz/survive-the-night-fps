@@ -80,25 +80,16 @@ const tag = `[game ${code}]`;
 const congested = new Int32Array(congestion); // per slot: the network thread is holding that socket's sends back
 const post = (m, transfer) => parentPort.postMessage(m, transfer);
 
-// ---------------------------------------------------------------- the card collections, kept by the network thread
-// What Cards (cards.js) says to the collections (usercards.js CardService), posted on; the answers come back as
-// { t: 'cards' } (onMessage below). Owner keys go to the network thread and nowhere else.
-class RemoteCards {
-  attach(cards) {
-    this.cards = cards;
+// ---------------------------------------------------------------- the card and loadout collections, kept by the network thread
+// What Cards (cards.js) and Loadouts (loadouts.js) say to the collections (usercards.js CardService, userloadout.js
+// LoadoutService), posted on as { t, ...message }; the answers come back as { t: 'cards' } / { t: 'loadout' } (onMessage
+// below). Owner keys go to the network thread and nowhere else.
+class RemoteCollection {
+  constructor(t) {
+    this.t = t;
   }
   post(m) {
-    post({ t: 'cards', ...m });
-  }
-}
-
-// ---------------------------------------------------------------- the loadout collections, kept by the network thread
-class RemoteLoadouts {
-  attach(loadouts) {
-    this.loadouts = loadouts;
-  }
-  post(m) {
-    post({ t: 'loadout', ...m });
+    post({ t: this.t, ...m });
   }
 }
 
@@ -148,8 +139,8 @@ try {
     analytics: opts.analytics ? (rec) => post({ t: 'an', rec }) : undefined,
     achieve: opts.achievements ? (m) => post({ t: 'ach', ...m }) : undefined,
     bestiary: opts.bestiary ? (m) => post({ t: 'seen', ...m }) : undefined,
-    cards: new RemoteCards(),
-    loadouts: new RemoteLoadouts(),
+    cards: new RemoteCollection('cards'),
+    loadouts: new RemoteCollection('loadout'),
     log: (...a) => console.log(tag, ...a),
   });
 } catch (err) {

@@ -34,8 +34,8 @@ const MAX_RECORDS = 20000;
 export const idKey = (id) => (typeof id === 'string' && ID.test((id = id.toLowerCase())) ? createHash('sha256').update(id).digest('hex') : '');
 
 const whole = (v) => (typeof v === 'number' && v > 0 ? Math.min(Math.floor(v), STAT_MAX) : 0);
-// a stored name, as handleJoin would have let it through
-const cleanName = (v) => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} _\-.#]/gu, '').trim().slice(0, 16) : '') || 'Survivor';
+// a stored name, as handleJoin would have let it through (dbstats.js too)
+export const cleanName = (v) => (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} _\-.#]/gu, '').trim().slice(0, 16) : '') || 'Survivor';
 const scored = (rec) => rec.xp > 0 || rec.crossings > 0 || BOARD_STATS.some((k) => rec[k] > 0);
 // what bump counts besides the board's stats
 const COUNTED = ['xp', 'crossings'];

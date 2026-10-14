@@ -101,8 +101,8 @@ async function status(res) {
       }
     })
   );
-  const lobby = await router.lobby().catch(() => ({}));
-  const { list: _, ...info } = lobby;
+  const info = await router.lobby().catch(() => ({}));
+  delete info.list; // (the servers' own lists are merged below)
   send(res, 200, { ...info, db: 'postgres', proxy: { id: ID, sockets: tunnels.size }, servers: servers.map(({ list, ...s }) => s), list: servers.flatMap((s) => s.list || []) });
 }
 

@@ -64,8 +64,8 @@ export class Router {
     if (best && made) best.games++;
     return best;
   }
-  // any of them, in turn: the page, the API, /social
-  // any server, in turn. via: one asked for by id (x-stn-via, for checking a cluster from outside), when it is up
+  // any of them, in turn: the page, the API, /social. via: one asked for by id (x-stn-via, for checking a cluster from
+  // outside), when it is up
   any(via = null) {
     const asked = via && this.live(via);
     if (asked && !asked.draining) return asked;
