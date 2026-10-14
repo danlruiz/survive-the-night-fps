@@ -17,14 +17,14 @@ import { PERKS, PERK_BY_ID, PERK_GROUPS, BRANCHES, TIER, TIER_NAMES, TIER_LEVELS
 import { ROLES, ROLE_TIER } from '../../shared/roles.js';
 
 export const BRANCH_ICON = ['heart', 'headshot', 'search', 'cross', 'bolt', 'star', 'link'];
-export const BRANCH_LINE = ['Hard to put down', 'Quicker and surer with a gun', 'More out of the valley', 'Keeping the team on its feet', 'Getting there, and not being seen'];
+const BRANCH_LINE = ['Hard to put down', 'Quicker and surer with a gun', 'More out of the valley', 'Keeping the team on its feet', 'Getting there, and not being seen'];
 const names = (ids) => ids.map((id) => PERK_BY_ID[id].name);
 export const andList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a.at(-1)}`);
 const orList = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} or ${a.at(-1)}`);
 const CAP_PCT = Math.round(PERK_CAP * 100);
 
 // What each perk does, in the few words a card has room for (the full sentence is PERKS' text)
-export const PERK_SHORT = {
+const PERK_SHORT = {
   0: '+10 max health',
   1: 'Sprint drain −15%',
   3: 'Heal 25% faster',
@@ -92,7 +92,7 @@ export function takeBackWhy(owned, id) {
 }
 
 // "Survivor · Tier 3 · after Field Medic", what a perk is and where it hangs
-export function perkKind(p, { after = false } = {}) {
+function perkKind(p, { after = false } = {}) {
   if (p.keystone) return `Keystone · level ${p.level} · one per survivor`;
   if (p.tier === TIER.COMBO) return `Combination · level ${p.level}`;
   const head = `${PERK_GROUPS[p.group]} · ${TIER_NAMES[p.tier]} · level ${p.level}`;
@@ -146,7 +146,7 @@ const STATS = {
   reviveSelf: ['Health back a revive', 'add'],
 };
 
-export function fmtStat(k, v) {
+function fmtStat(k, v) {
   const kind = STATS[k]?.[1] ?? 'mul';
   if (v === NO_PERKS[k]) return '—';
   switch (kind) {
@@ -168,7 +168,7 @@ export function fmtStat(k, v) {
 
 // What taking (or, for one you have, taking back) a perk does to your numbers: { back, rows: [{ key, label, from, to,
 // capped }], nothing }. capped: the 25% limit took some of what the perk says; nothing: it changes no number at all.
-export function perkChange(owned, id) {
+function perkChange(owned, id) {
   const p = PERK_BY_ID[id];
   const back = owned.includes(id);
   const rest = owned.filter((o) => o !== id);
@@ -183,7 +183,7 @@ export function perkChange(owned, id) {
 }
 
 // Fill a before-and-after box (cleared first) for a perk
-export function fillChange(box, owned, id) {
+function fillChange(box, owned, id) {
   box.textContent = '';
   const c = perkChange(owned, id);
   el('div', 'prk-fx-h', box, c.back ? 'Taking it back' : 'What it changes for you');

@@ -39,7 +39,7 @@ export function undock(ui, keepProfile = false) {
   if (!keepProfile && docked(ui.profile)) ui.profile.hide();
 }
 
-export function syncTabs() {
+function syncTabs() {
   for (const r of rails) r.sync();
 }
 

@@ -12,7 +12,7 @@ import { F, F_PERKS, ROW_NAMES } from '../../shared/cards.js';
 import { ITEM } from '../../shared/defs.js';
 import { bindLabel } from '../game/binds.js';
 
-export const GUIDE_KEY = 'stn.cards.guide'; // 'seen' (went through it) | 'skipped' (said not now): offered once either way
+const GUIDE_KEY = 'stn.cards.guide'; // 'seen' (went through it) | 'skipped' (said not now): offered once either way
 export const guideOffered = () => lsGet(GUIDE_KEY, '') !== '';
 const markGuide = (how) => {
   if (lsGet(GUIDE_KEY, '') !== 'seen') lsSet(GUIDE_KEY, how);

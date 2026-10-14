@@ -18,7 +18,7 @@ const RECENT_MAX = 10;
 const ZOMBIE_MAX = 20; // what one /spawn makes at most
 
 // the sidebar, in this order. Items go under their ITEM_DEFS category (ITEM_CAT), zombies under zombie or boss
-export const SPAWN_CATS = [
+const SPAWN_CATS = [
   { id: 'all', label: 'Everything' },
   { id: 'recent', label: 'Recent' },
   { id: 'weapon', label: 'Weapons', words: ['weapons', 'guns', 'melee'] },
@@ -90,7 +90,7 @@ export function spawnCatalog() {
 }
 
 /** "walker 5" -> { tokens: ['walker'], qty: 5 }. A number on its own is a search ("308"), not how many. */
-export function parseQuery(text) {
+function parseQuery(text) {
   const raw = String(text || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   let qty = null;
   if (raw.length > 1) {
@@ -133,7 +133,7 @@ function scoreWord(e, t) {
 }
 
 /** How well the query's words fit an entry (0: not at all). A plural fits the singular ("walkers"). */
-export function scoreEntry(e, tokens) {
+function scoreEntry(e, tokens) {
   let total = 0;
   for (const t of tokens) {
     let s = scoreWord(e, t);
@@ -145,7 +145,7 @@ export function scoreEntry(e, tokens) {
 }
 
 /** The entries that fit, best first. recent: keys, most recent first (they win a tie). */
-export function searchSpawns(catalog, tokens, recent = []) {
+function searchSpawns(catalog, tokens, recent = []) {
   const out = [];
   catalog.forEach((e, i) => {
     const s = scoreEntry(e, tokens);

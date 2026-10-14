@@ -903,7 +903,7 @@ const RUST = '#a5462a';
 const NAVY = '#24548a';
 const BLACK = '#1c1a18';
 // the glyphs, each drawn in a square of half size r about the origin
-export const GLYPH = {
+const GLYPH = {
   // a civic building: a pediment over columns
   town(g, r) {
     g.beginPath();

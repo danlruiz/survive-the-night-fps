@@ -37,7 +37,7 @@ export function dangerOf(t) {
   const r = threat(d) / threat(WALKER);
   return Math.max(1, Math.min(5, Math.round(1 + Math.log10(Math.max(r, 1e-3)) * 2)));
 }
-export const DANGER_HELP = 'Danger: its health times the damage it does a second, against a walker (1). Each step is about three times the last.';
+const DANGER_HELP = 'Danger: its health times the damage it does a second, against a walker (1). Each step is about three times the last.';
 
 // the first night it can come on the island, and how: [night, words]
 export function firstNight(t) {
@@ -149,7 +149,7 @@ export const nextOnCount = (a) => (a.stat ? COUNTERS[a.stat].find((x) => x.goal 
 // Stored as JSON under 'stn.achTracked': { v: 1, ids: [achievement id] }, three at the most. One that unlocks drops
 // off the HUD by itself (it stays in the list until untracked or another takes its place).
 const TRACK_KEY = 'stn.achTracked';
-export const TRACK_MAX = 3;
+const TRACK_MAX = 3;
 let tracked = null;
 const trackSubs = new Set();
 
@@ -187,11 +187,11 @@ export function reloadTracked() {
   saveTracked(loadTracked());
 }
 export const onTracked = (fn) => (trackSubs.add(fn), () => trackSubs.delete(fn));
-export const isTracked = (id) => loadTracked().includes(id);
+const isTracked = (id) => loadTracked().includes(id);
 // the tracked ones still locked in this record, in the order they were tracked
-export const trackedLocked = (v) => loadTracked().map((id) => ACH_BY_ID.get(id)).filter((a) => a && !v.unlocked[a.id]);
+const trackedLocked = (v) => loadTracked().map((id) => ACH_BY_ID.get(id)).filter((a) => a && !v.unlocked[a.id]);
 // -> 'on', 'off', or 'full' (three tracked and still locked: one has to go first)
-export function toggleTrack(id, v) {
+function toggleTrack(id, v) {
   const ids = loadTracked().slice();
   const at = ids.indexOf(id);
   if (at >= 0) {

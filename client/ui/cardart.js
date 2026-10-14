@@ -28,7 +28,7 @@ const queue = [];
 let running = null;
 let io = null;
 
-export const artKey = (art) => (Array.isArray(art) ? art.join(':') : '');
+const artKey = (art) => (Array.isArray(art) ? art.join(':') : '');
 const isDrawn = (art) => Array.isArray(art) && DRAWN.has(art[0]);
 
 // What a card shows until (or instead of) its picture: markup of a glyph (trusted, ours)
@@ -54,7 +54,7 @@ export function artGlyph(art) {
 }
 
 // The picture already drawn for this art ('' if none yet)
-export function artUrl(art) {
+function artUrl(art) {
   const key = artKey(art);
   return cache.get(key) || (art?.[0] === 'z' ? monsterPic(art[1], art[2]) : '') || '';
 }

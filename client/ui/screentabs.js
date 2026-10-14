@@ -21,7 +21,7 @@ const bars = new Set();
 let held = null; // the row the HUD's clock is in...
 let home = null; // ...and where it lives when no row has it
 
-export function syncScreenTabs() {
+function syncScreenTabs() {
   for (const b of bars) b.sync();
 }
 

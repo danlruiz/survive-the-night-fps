@@ -9,7 +9,6 @@ import { itemIcon, glyph } from './icons.js';
 import { bindTag } from '../game/binds.js';
 import { trackStatus } from '../game/tracked.js';
 
-
 export class Objective {
   constructor(parent) {
     this.root = el('div', 'obj scrap', parent);

@@ -5,7 +5,6 @@ import { nightBoss, nightTheme, kindsJoining } from '../../shared/nights.js';
 import { el, svgEl, replay } from './dom.js';
 import { glyph } from './icons.js';
 
-
 // the kinds of the dead that join the horde on night n: one a night, in the order drawn from the seed
 // (shared/nights.js kindsJoining; on the mainland every night ranks the fourth at the least)
 function newKinds(seed, night, act) {

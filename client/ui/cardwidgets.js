@@ -17,7 +17,7 @@ export function deckLabel(c, slot) {
 }
 
 // the decks a player may play: the kept slots with a legal deck, and the two starter decks. -> [[slot, label, ok]]
-export function deckChoices(c) {
+function deckChoices(c) {
   const out = [];
   for (let i = 0; i < DECK_SLOTS; i++) {
     const d = c.deckIn(i);

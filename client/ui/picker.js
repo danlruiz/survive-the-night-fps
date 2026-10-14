@@ -19,9 +19,9 @@ import { getStage, looksModule, releaseStage } from './stage.js';
 import { CreatorPanel } from './creator.js';
 
 export { releaseStage };
-export const CHARACTER_KEY = 'stn.character';
+const CHARACTER_KEY = 'stn.character';
 export const RANDOM = 'random';
-export const STRANGER = 'stranger';
+const STRANGER = 'stranger';
 const isCustom = (v) => typeof v === 'string' && v.startsWith('c:');
 const customOf = (v) => (isCustom(v) ? getCustom(v.slice(2)) : null);
 
@@ -33,12 +33,12 @@ export function storedChoice() {
   const n = Number(v);
   return v !== RANDOM && Number.isInteger(n) && n >= 0 && n < CHARACTER_COUNT ? n : RANDOM;
 }
-export function storeChoice(v) {
+function storeChoice(v) {
   lsSet(CHARACTER_KEY, typeof v === 'number' ? String(v | 0) : v);
 }
 
 // The stranger: the one on the turntable is the one the next join is (made up when there is none, kept until then)
-export const STRANGER_KEY = 'stn.stranger';
+const STRANGER_KEY = 'stn.stranger';
 let strangerNow = null; // { code, values }
 function stranger() {
   if (strangerNow) return strangerNow.values;
@@ -49,7 +49,7 @@ function stranger() {
   return values;
 }
 /** Another stranger, made up now (a click of the Stranger's dice; every join, for the next). */
-export function rollStranger() {
+function rollStranger() {
   const values = randomLook(mulberry((Math.random() * 2 ** 32) >>> 0));
   strangerNow = { code: lookCode(values), values };
   lsSet(STRANGER_KEY, strangerNow.code);
@@ -179,7 +179,7 @@ export class CharacterCard {
 }
 
 // ---------------------------------------------------------------- the picker
-export class CharacterPanel extends Panel {
+class CharacterPanel extends Panel {
   constructor(ui, parent, card) {
     super(ui, parent, 'cp-panel', 'Survivors');
     this.card = card;
