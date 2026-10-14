@@ -39,7 +39,7 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   playersim.js   deterministic player movement + weapon simulation (prediction on client, authority on server):
                  simulatePlayer runs a command through named steps (switchSlot, stepStamina, steer, moveBody,
                  stepWeapons...). playerstate.js: the simulated state, and copying, comparing, snapping and
-                 fingerprinting it
+                 fingerprinting it. stamina.js: spending and winning back stamina (a sprint, pedals, a lever, a move)
   nights.js      night themes: nightTheme(seed, night) picks what a night's horde is made of. The server applies
                  it to the wave weights and the client announces it, each from the seed: nothing on the wire
   progress.js    XP, levels and perks: the rules both ends read (see Experience, levels and perks below)
