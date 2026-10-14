@@ -13,6 +13,7 @@ import { worldFor } from '../../shared/worlds.js';
 import { Nav } from '../nav.js';
 import { worldPrint } from '../handoff.js';
 import { MineNav } from '../minenav.js';
+import { groundAt } from '../../shared/collision.js';
 
 export const randomSeed = () => (Math.random() * 0x7fffffff) | 0;
 
@@ -207,5 +208,16 @@ export const methods = {
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+  },
+
+  // where a run on this map begins: one of its spawn points, facing away from what was left behind
+  putAtStart(s) {
+    const w = this.world;
+    const sp = w.spawnPoints[Math.floor(this.rng() * w.spawnPoints.length)];
+    s.x = sp.x + (this.rng() - 0.5) * 1.5;
+    s.z = sp.z + (this.rng() - 0.5) * 1.5;
+    s.y = groundAt(w, s.x, s.z, 50, 0.3);
+    const car = w.kind === WORLD.MAINLAND ? { x: w.bridge.x1 - 40, z: w.bridge.z } : w.car;
+    s.yaw = Math.atan2(-(car.x - s.x), -(car.z - s.z)) + Math.PI; // back to the car (or the bridge), facing the road
   },
 };
