@@ -1196,7 +1196,7 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
   `Zombies.updateOne` hands it to `Cemetery.climb`, which only raises it (`riseDepth`: two heaves) and holds
   `ZANIM.RISE`. Nothing else knows: the hitbox goes with `z.y`, so `raycastWorld` stops a shot at the terrain before
   it reaches what is still under it, and the client draws the zombie where it is replicated, the terrain covering
-  the rest. `poseRise` (`characters.js`) is the body meanwhile: arms overhead, then hands on the grass, then a knee
+  the rest. `poseRise` (`characters/pose.js`) is the body meanwhile: arms overhead, then hands on the grass, then a knee
   over the lip.
 - **On the client** (`client/render/cemetery.js`, `Game.graves`): the broken earth of every grave is one
   `InstancedMesh`, in the scene from the moment the valley loads (warm-up), an instance scaled to nothing until its
@@ -1777,7 +1777,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   it for a carrier who is down, dead, turned, pinned, roped, away or gone, and clears a stray `s.hmg` on anyone
   else.
 - **The stray cat in a survivor's arms** (`server/cats.js`, `client/game/catcarry.js`, the poses in
-  `client/render/models/cat.js`, `weapons.js` (`ViewModel.holdCat`) and `characters.js` (`s.cradle`, `cradleAt`,
+  `client/render/models/cat.js`, `weapons.js` (`ViewModel.holdCat`) and `characters/survivor.js` (`s.cradle`, `cradleAt`,
   `solvePet`)). `[E]` on the cat is `ACT.INTERACT` on its entity (reach and walls as for an item: `PICK_RADIUS.CAT`);
   `Cats.lift` takes it out of its wandering (`CAT_MODE.HELD`) and sets `s.pet`, the one field of the player
   simulation it touches: no weapon goes off, swings or reloads (the hands skip the weapon block, as with `s.hmg`), the
@@ -1937,7 +1937,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     look earlier in the game). Not in `S2C.PLAYERS`, which goes out again whenever a rounded ping changes; a game of
     roster survivors sends no `S2C.LOOKS` at all. No protocol bump: it is all trailing bytes and a message an
     older client ignores.
-  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters.js getSurvivorRig`, cached as
+  - *Drawn.* A model is a reference: a roster id, or a look's key (`characters/survivor.js getSurvivorRig`, cached as
     `${ref}|h` / `${ref}|z`; a custom one about 1.5 MB with both, counted by the instances holding it and let go
     past the eight last used: `evictLooks`). Your own is built at join, under the load. Another player's is built by
     `client/game/lookwarm.js` one model at a time between frames (6-20 ms each), and until both are built they are
