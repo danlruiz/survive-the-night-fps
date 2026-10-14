@@ -11,6 +11,7 @@
 import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
 import { PIANO_NOTES, BOX_NOTES } from './synth-amb.js';
 import { gainNode, biquad } from './nodes.js';
+import { LoopLayer } from './loop-layer.js';
 import { mtof } from './dsp.js';
 import { clamp01, rand } from './curves.js';
 
@@ -60,13 +61,11 @@ const STEMS = {
 const TONE_SHUT = 420; // Hz: the horde's drums from far off, before anything is close
 
 // one looping recorded stem: decoded when first wanted, stopped (and left to be evicted) once it has faded out
-class Stem {
+class Stem extends LoopLayer {
   constructor(music, def) {
+    super(music.ctx, music.out);
     this.m = music;
     this.def = def;
-    this.gain = gainNode(music.ctx, 0);
-    this.gain.connect(music.out);
-    this.head = this.gain; // what the source plays into
     this.lp = null;
     if (def.tone) {
       this.lp = biquad(music.ctx, 'lowpass', TONE_SHUT, 0.6);
@@ -74,10 +73,6 @@ class Stem {
       this.head = this.lp;
     }
     this.tone = -1;
-    this.src = null;
-    this.target = 0;
-    this.offAt = 0;
-    this.rate = 1;
   }
   // 0 = muffled, as if from far off; 1 = wide open
   setTone(k, now) {
@@ -100,13 +95,7 @@ class Stem {
       if (this.src) this.gain.gain.setTargetAtTime(v, now, v > this.target ? d.in ?? d.tc : d.tc);
       this.target = v;
     }
-    if (want) {
-      this.offAt = 0;
-      if (!this.src && buf) this._start(buf, now);
-    } else if (this.src) {
-      if (!this.offAt) this.offAt = now + d.tc * 6 + 1;
-      else if (now > this.offAt) this._stop();
-    }
+    if (this._wanted(want, now, d.tc) && buf) this._start(buf, now);
   }
   setRate(r, now) {
     if (r === this.rate) return;
@@ -115,26 +104,7 @@ class Stem {
   }
   _start(buf, now) {
     const d = this.def;
-    const s = this.m.ctx.createBufferSource();
-    s.buffer = buf;
-    s.loop = true;
-    s.playbackRate.value = this.rate;
-    s.connect(this.head);
-    const g = this.gain.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(0, now);
-    g.setTargetAtTime(this.target, now, d.in ?? d.tc);
-    s.start(now, d.at === undefined ? Math.random() * buf.duration : Math.min(d.at, buf.duration * 0.5));
-    this.src = s;
-  }
-  _stop() {
-    const s = this.src;
-    this.src = null;
-    this.offAt = 0;
-    try {
-      s.stop();
-    } catch {}
-    s.disconnect();
+    this._startFadingIn(buf, now, d.in ?? d.tc, d.at === undefined ? Math.random() * buf.duration : Math.min(d.at, buf.duration * 0.5));
   }
 }
 

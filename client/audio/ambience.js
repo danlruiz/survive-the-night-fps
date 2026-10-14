@@ -17,6 +17,7 @@
 //    louder for a moment. One night theme (s.homeless) leaves the home bed out: nowhere feels safe.
 import { clamp01, smooth, bell, rand, expWait, gustField, windField } from './curves.js';
 import { setPannerPos, gainNode, biquad } from './nodes.js';
+import { LoopLayer } from './loop-layer.js';
 
 const TAU = Math.PI * 2;
 const POOL = 10;
@@ -92,28 +93,18 @@ const REC_BEDS = {
 };
 
 // procedural looping bed
-class Bed {
+class Bed extends LoopLayer {
   constructor(amb, bank, dest) {
+    super(amb.ctx, dest);
     this.a = amb;
     this.bank = bank;
-    this.gain = gainNode(amb.ctx, 0);
-    if (dest) this.gain.connect(dest);
-    this.src = null;
-    this.target = 0;
-    this.offAt = 0;
   }
   set(v, now, tc) {
     if (Math.abs(v - this.target) > 0.003) {
       this.target = v;
       this.gain.gain.setTargetAtTime(v, now, tc);
     }
-    if (v > 0.002) {
-      this.offAt = 0;
-      if (!this.src) this._start(now);
-    } else if (this.src) {
-      if (!this.offAt) this.offAt = now + tc * 6 + 1;
-      else if (now > this.offAt) this._stop();
-    }
+    if (this._wanted(v > 0.002, now, tc)) this._start(now);
   }
   _start(now) {
     const pool = this.a.e._pools.get(this.bank);
@@ -127,26 +118,15 @@ class Bed {
     s.start(now, Math.random() * buf.duration);
     this.src = s;
   }
-  _stop() {
-    const s = this.src;
-    this.src = null;
-    this.offAt = 0;
-    try {
-      s.stop();
-    } catch {}
-    s.disconnect();
-  }
 }
 
 // recorded looping bed: random start phase, slow breathing, optional playback-rate modulation
-class RecBed {
+class RecBed extends LoopLayer {
   constructor(amb, key, def, dest) {
+    super(amb.ctx, dest);
     this.a = amb;
     this.key = key;
     this.def = def;
-    this.gain = gainNode(amb.ctx, 0);
-    this.gain.connect(dest);
-    this.head = this.gain; // what the source plays into
     if (def.lp) {
       const f = biquad(amb.ctx, 'lowpass', def.lp, 0.5);
       f.connect(this.gain);
@@ -157,10 +137,6 @@ class RecBed {
       this.gain.connect(send);
       send.connect(amb.e._ambSend);
     }
-    this.src = null;
-    this.target = 0;
-    this.offAt = 0;
-    this.rate = 1;
     this.ph = Math.random() * 100;
     this.br = 0.03 + Math.random() * 0.05;
   }
@@ -176,40 +152,12 @@ class RecBed {
       this.target = v;
       if (this.src) this.gain.gain.setTargetAtTime(v, now, tc);
     }
-    if (on) {
-      this.offAt = 0;
-      if (!this.src && buf) this._start(buf, now, tc);
-    } else if (this.src) {
-      if (!this.offAt) this.offAt = now + tc * 6 + 1;
-      else if (now > this.offAt) this._stop();
-    }
+    if (this._wanted(on, now, tc) && buf) this._startFadingIn(buf, now, tc, Math.random() * buf.duration);
   }
   setRate(r, now) {
     if (Math.abs(r - this.rate) < 0.002) return;
     this.rate = r;
     if (this.src) this.src.playbackRate.setTargetAtTime(r, now, 0.4);
-  }
-  _start(buf, now, tc) {
-    const s = this.a.ctx.createBufferSource();
-    s.buffer = buf;
-    s.loop = true;
-    s.playbackRate.value = this.rate;
-    s.connect(this.head);
-    const g = this.gain.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(0, now);
-    g.setTargetAtTime(this.target, now, tc);
-    s.start(now, Math.random() * buf.duration);
-    this.src = s;
-  }
-  _stop() {
-    const s = this.src;
-    this.src = null;
-    this.offAt = 0;
-    try {
-      s.stop();
-    } catch {}
-    s.disconnect();
   }
 }
 
