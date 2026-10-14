@@ -1,7 +1,7 @@
 // The building blocks every procedural sound is made of: the sample rates the banks render at, and small pure
 // generators (a pitch-dropping thump, filtered noise, struck modes, whooshes, crackles, bubbles, creaks, rustles)
 // that the synth*.js sounds layer with addNorm. No DOM / WebAudio: Float32Arrays only, so Node can run them.
-import { TAU, lerp, rrange, Biquad, OnePole, ModeBank, Pink, Wander, ar, hann, normalize, mixInto, loopify, dcBlock, peakOf } from './dsp.js';
+import { TAU, lerp, rrange, Biquad, OnePole, ModeBank, Pink, Wander, ar, hann, normalize, mixInto, loopify, sanitize, peakOf } from './dsp.js';
 
 export const HI = 44100;
 export const MID = 32000;
@@ -14,6 +14,12 @@ export function addNorm(dst, src, sr, t, peak) {
   const p = peakOf(src);
   if (p < 1e-9) return dst;
   return mixInto(dst, src, Math.floor(t * sr), peak / p);
+}
+
+// add mono `src` into the stereo pair `outs` at time `t`, its peak at `peak`, panned equal-power (pan 0 left .. 1 right)
+export function addPanned(outs, src, sr, t, peak, pan) {
+  addNorm(outs[0], src, sr, t, peak * Math.sqrt(1 - pan));
+  addNorm(outs[1], src, sr, t, peak * Math.sqrt(pan));
 }
 
 // pitch-dropping sine thump
@@ -206,12 +212,23 @@ export function rustle(sr, rng, dur, f = 2400) {
   return out;
 }
 
+// A train of short noise bursts, the excitation of an engine's firings: the phase starts at ph and advances by
+// rate(i) / sr at each sample i; every time it wraps, a burst `len` samples long, falling away linearly, is added at
+// amp(i) times. Both may draw on rng (in that order: rate every sample, amp once a burst, before its noise).
+export function pulseTrain(sr, rng, n, len, ph, rate, amp) {
+  const ex = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    ph += rate(i) / sr;
+    if (ph < 1) continue;
+    ph -= 1;
+    const a = amp(i);
+    for (let j = 0; j < len && i + j < n; j++) ex[i + j] += (rng() * 2 - 1) * (1 - j / len) * a;
+  }
+  return ex;
+}
+
 // Final tidy-up for a seamless loop: NaN guard and DC block on every channel, then the tail crossfaded into the head
 // (loopify: the input is loop + xf seconds long) and the loop normalised to `peak`.
 export function finishLoop(x, sr, xf, peak = 0.85) {
-  for (const c of Array.isArray(x) ? x : [x]) {
-    for (let i = 0; i < c.length; i++) if (c[i] !== c[i]) c[i] = 0;
-    dcBlock(c, sr);
-  }
-  return normalize(loopify(x, sr, xf), peak);
+  return normalize(loopify(sanitize(x, sr), sr, xf), peak);
 }

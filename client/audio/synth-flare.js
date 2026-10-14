@@ -6,8 +6,8 @@
 // burning star leaving the muzzle, and a rush that drops in pitch as it climbs away. At the top of its climb the star
 // bursts alight under its chute (a muffled pop, then a crackling fizz), and burns down as a magnesium flare does:
 // a fierce, sputtering hiss with a slow irregular flutter.
-import { Biquad, ModeBank, Pink, Brown, Wander, alloc, normalize, finish, softclip, loopify, dcBlock, rrange } from './dsp.js';
-import { HI, MID, addNorm, thump, noise, modal, metalClick, crackles } from './synth-blocks.js';
+import { Biquad, Pink, Brown, Wander, alloc, normalize, finish, softclip, rrange } from './dsp.js';
+import { HI, MID, addNorm, thump, noise, modal, metalClick, crackles, finishLoop } from './synth-blocks.js';
 
 // the bore struck by the blast: a short open pipe (quarter-wave near 500 Hz) and its next partials
 function borePok(sr, rng, k = 1) {
@@ -136,9 +136,7 @@ export function loopSkyflare(sr, rng) {
   normalize(out, 0.55);
   addNorm(out, crackles(sr, rng, L + X, 38, { hp: 1500, bp: 3000, pow: 3, len: 0.0012 }), sr, 0, 0.8);
   addNorm(out, crackles(sr, rng, L + X, 3, { hp: 400, bp: 1100, pow: 1.5, len: 0.004 }), sr, 0, 0.5);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 // break-open reload, first person. Open: the latch, the barrel dropping on its hinge, the spent case drawn out, a new

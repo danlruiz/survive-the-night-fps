@@ -1,7 +1,7 @@
 // Procedural 2D event sounds, heard the same wherever the listener is: the supply plane passing over, the horde's
 // horn, the dawn chorus (and the songbird phrase it is made of).
-import { TAU, clamp, lerp, rrange, Biquad, OnePole, Pink, Wander, hann, alloc, normalize, finish } from './dsp.js';
-import { addNorm } from './synth-blocks.js';
+import { TAU, smoothstep, lerp, rrange, Biquad, OnePole, Pink, Wander, hann, alloc, normalize, finish } from './dsp.js';
+import { addNorm, addPanned } from './synth-blocks.js';
 
 // ------------------------------------------------------------------ 2D event sounds
 export function plane(sr, rng) {
@@ -56,7 +56,7 @@ export function hordeHorn(sr, rng) {
     p2 += 93.3 / sr;
     p3 += 124.6 / sr;
     const horn = lp2.run(lp.run((2 * (p1 % 1) - 1) + 0.8 * (2 * (p2 % 1) - 1) + 0.5 * (2 * (p3 % 1) - 1))) * he;
-    const sf = t < 0.5 ? 170 : t < 3 ? lerp(170, 430, smoothU((t - 0.5) / 2.5)) : lerp(430, 150, smoothU((t - 3) / 3.6));
+    const sf = t < 0.5 ? 170 : t < 3 ? lerp(170, 430, smoothstep((t - 0.5) / 2.5)) : lerp(430, 150, smoothstep((t - 3) / 3.6));
     ps += (sf * (1 + 0.01 * Math.sin(TAU * 0.9 * t))) / sr;
     const s = Math.sin(TAU * ps) + 0.3 * Math.sin(3 * TAU * ps);
     const se = Math.min(1, Math.max(0, t - 0.4) / 1.2) * (t > 5.6 ? Math.max(0, 1 - (t - 5.6) / 1.4) : 1);
@@ -77,10 +77,6 @@ export function hordeHorn(sr, rng) {
     out.push(c);
   }
   return finish(out, sr, 0.9, 0.05, 0.5);
-}
-function smoothU(u) {
-  u = clamp(u, 0, 1);
-  return u * u * (3 - 2 * u);
 }
 
 // songbird phrase
@@ -142,8 +138,7 @@ export function dawnSfx(sr, rng) {
     const b = birdPhrase(sr, rng, k % 3);
     const pan = rng();
     const a = rrange(rng, 0.2, 0.5);
-    addNorm(outs[0], b, sr, t, a * Math.sqrt(1 - pan));
-    addNorm(outs[1], b, sr, t, a * Math.sqrt(pan));
+    addPanned(outs, b, sr, t, a, pan);
   }
   return finish(outs, sr, 0.8, 0.1, 0.8);
 }

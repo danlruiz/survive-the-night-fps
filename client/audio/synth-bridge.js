@@ -2,8 +2,8 @@
 // The car that drives the bridge: a four-cylinder at a steady 2400 rpm, played faster or slower with its speed. A
 // tyre thump over a deck joint. And the last span going: the steel groaning as it lets go of its bearings, then
 // sixty metres of deck and truss into the sea.
-import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { MID, LO, addNorm, thump, noise, modal, bubbles } from './synth-blocks.js';
+import { TAU, lerp, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, finish, softclip, dcBlock } from './dsp.js';
+import { MID, LO, addNorm, thump, noise, modal, bubbles, finishLoop, pulseTrain } from './synth-blocks.js';
 
 const FIRE = 80; // firings a second: four cylinders at 2400 rpm
 // what a firing rings in: the exhaust and the box of the silencer, duller than the generator's open pipe
@@ -15,18 +15,10 @@ export function loopCar(sr, rng) {
   const L = 2;
   const X = 0.2;
   const n = Math.ceil((L + X) * sr);
-  const ex = new Float32Array(n);
-  const len = Math.floor(0.0016 * sr);
-  let ph = 0.4;
   let k = 0;
-  for (let i = 0; i < n; i++) {
-    // (a whole number of firings to a loop, and a slow lope that comes round twice in it)
-    ph += (FIRE * (1 + 0.012 * Math.sin((TAU * 2 * i) / (L * sr)))) / sr;
-    if (ph < 1) continue;
-    ph -= 1;
-    const a = (++k % 4 === 0 ? 1.15 : 1) * (0.85 + rng() * 0.2);
-    for (let j = 0; j < len && i + j < n; j++) ex[i + j] += (rng() * 2 - 1) * (1 - j / len) * a;
-  }
+  // (a whole number of firings to a loop, and a slow lope that comes round twice in it)
+  const rate = (i) => FIRE * (1 + 0.012 * Math.sin((TAU * 2 * i) / (L * sr)));
+  const ex = pulseTrain(sr, rng, n, Math.floor(0.0016 * sr), 0.4, rate, () => (++k % 4 === 0 ? 1.15 : 1) * (0.85 + rng() * 0.2));
   const pipe = new ModeBank(sr, EXHAUST);
   const rum = new Biquad().lp(sr, 140, 0.8);
   const road = new Biquad().bp(sr, 520, 0.6);
@@ -39,9 +31,7 @@ export function loopCar(sr, rng) {
     out[i] = pipe.run(ex[i]) + rum.run(br.next()) * 0.3 + road.run(pk.next()) * 0.1 + fan.run(pk.next()) * 0.03 + 0.08 * Math.sin(TAU * FIRE * 0.5 * t) + 0.04 * Math.sin(TAU * FIRE * t);
   }
   softclip(out, 1.5);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 // a tyre over a joint in the deck: two knocks an axle apart, the plate ringing dully under them
@@ -82,7 +72,7 @@ export function bridgeGroan(sr, rng) {
     out[i] = modes.run(x) * 1.6 * (0.4 + 0.6 * Math.min(1, u * 3)) + shriek.run(pk.next()) * 0.5 * env;
   }
   // rivets and bolts shearing: sharp cracks, closer together towards the end
-  for (let k = 0, t = 0.5; t < dur - 0.25; k++, t += rrange(rng, 0.5, 0.12) * (1 - t / dur) + 0.07) {
+  for (let t = 0.5; t < dur - 0.25; t += rrange(rng, 0.5, 0.12) * (1 - t / dur) + 0.07) {
     const f = rrange(rng, 1400, 2600);
     addNorm(out, modal(sr, rng, [{ f, d: 0.02, a: 1 }, { f: f * 1.63, d: 0.014, a: 0.7 }, { f: f * 2.71, d: 0.008, a: 0.4 }, { f: rrange(rng, 240, 420), d: 0.09, a: 0.8 }], 0.3, 0.5), sr, t, rrange(rng, 0.25, 0.5));
   }

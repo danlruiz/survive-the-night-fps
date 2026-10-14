@@ -1,7 +1,7 @@
 // Procedural seamless loops (fire, acid, radio static, a zombie's breathing, the generator, the supply plane, the
 // fair's calliope, a rocket in flight): each rendered loop + crossfade long and closed with finishLoop.
-import { TAU, rrange, rpick, Biquad, ModeBank, Pink, Brown, Wander, alloc, normalize, softclip } from './dsp.js';
-import { addNorm, thump, crackles, bubbles, finishLoop } from './synth-blocks.js';
+import { TAU, rrange, rpick, Biquad, ModeBank, Pink, Brown, Wander, alloc, normalize, softclip, mtof } from './dsp.js';
+import { addNorm, thump, crackles, bubbles, finishLoop, pulseTrain } from './synth-blocks.js';
 import { voice, vowelPath } from './synth-voice.js';
 import { GROWL_V } from './synth-creatures.js';
 import { rocketMotor } from './synth-weapons.js';
@@ -117,16 +117,7 @@ export function loopGenerator(sr, rng) {
   const L = 2;
   const X = 0.2;
   const n = Math.ceil((L + X) * sr);
-  const ex = new Float32Array(n);
-  let fp = 0;
-  for (let i = 0; i < n; i++) {
-    fp += (30 * (1 + (rng() - 0.5) * 0.04)) / sr;
-    if (fp >= 1) {
-      fp -= 1;
-      const Ls = Math.floor(0.0015 * sr);
-      for (let j = 0; j < Ls && i + j < n; j++) ex[i + j] += (rng() * 2 - 1) * (1 - j / Ls);
-    }
-  }
+  const ex = pulseTrain(sr, rng, n, Math.floor(0.0015 * sr), 0, () => 30 * (1 + (rng() - 0.5) * 0.04), () => 1);
   const bank = new ModeBank(sr, [{ f: 95, d: 0.025 }, { f: 190, d: 0.015, a: 0.6 }, { f: 420, d: 0.008, a: 0.4 }, { f: 1300, d: 0.004, a: 0.3 }]);
   const hum = new Float32Array(n);
   const rat = new Biquad().bp(sr, 2400, 1.5);
@@ -181,7 +172,7 @@ export function loopCalliope(sr, rng) {
   const L = 16 * 3 * BEAT;
   const X = 0.5;
   const out = alloc(sr, L + X);
-  const pipe = (m) => 440 * Math.pow(2, (m - 69) / 12) * (1 + ((((m * 2654435761) >>> 0) % 1000) / 1000 - 0.5) * 0.02);
+  const pipe = (m) => mtof(m) * (1 + ((((m * 2654435761) >>> 0) % 1000) / 1000 - 0.5) * 0.02);
   const note = (m, t0, dur, amp) => {
     const f = pipe(m);
     const i0 = Math.floor(t0 * sr);

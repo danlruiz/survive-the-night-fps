@@ -1,9 +1,9 @@
 // Pure generators for ambience beds, ambient one-shots, music instruments and cinematic stingers.
 import {
   TAU, clamp, lerp, rrange, Biquad, OnePole, Pink, Brown, Wander, Curve, polyblep, hann, alloc, normalize,
-  finish, softclip, mixInto, loopify, reverse, widen, semis,
+  finish, softclip, mixInto, loopify, reverse, widen, semis, mtof, peakOf,
 } from './dsp.js';
-import { HI, MID, LO, addNorm, thump, noise, modal, metalModes, woodModes, creak, crackles, finishLoop } from './synth-blocks.js';
+import { HI, MID, LO, addNorm, thump, noise, modal, metalModes, woodModes, creak, crackles, finishLoop, addPanned } from './synth-blocks.js';
 import { voice } from './synth-voice.js';
 import { birdPhrase } from './synth-events.js';
 import { metalHit } from './synth-world.js';
@@ -256,8 +256,7 @@ export function bedHorde(sr, rng) {
     const t = rng() * (T - dur);
     const pan = rng();
     const a = rrange(rng, 0.3, 1);
-    addNorm(outs[0], v, sr, t, a * Math.sqrt(1 - pan));
-    addNorm(outs[1], v, sr, t, a * Math.sqrt(pan));
+    addPanned(outs, v, sr, t, a, pan);
   }
   for (const c of outs) distant(c, sr, 1600, [[0.31, 0.35], [0.72, 0.2]]);
   return finishLoop(outs, sr, X, 0.8);
@@ -673,7 +672,7 @@ function st2(sr, dur) {
 }
 function addSt(dst, src, sr, t, peak, pan = 0.5) {
   if (Array.isArray(src)) {
-    const m = Math.max(1e-9, ...src.map((c) => c.reduce((a, v) => Math.max(a, Math.abs(v)), 0)));
+    const m = Math.max(1e-9, peakOf(src));
     mixInto(dst[0], src[0], Math.floor(t * sr), peak / m);
     mixInto(dst[1], src[1], Math.floor(t * sr), peak / m);
   } else {
@@ -832,12 +831,13 @@ export const AMB_DEFS = [
   { bank: 'amb_woodpecker', n: 1, sr: MID, group: 'late', gen: woodpecker },
 ];
 
-// mus_piano variant i is the note A(1+i) (55 * 2^i Hz); mus_box i is A(4+i); mus_taiko i is the drum kind.
-export const PIANO_BASE_HZ = [55, 110, 220, 440, 880];
-export const BOX_BASE_HZ = [440, 880];
+// The notes (MIDI) the instrument banks are rendered at, one per variant: mus_piano i is A(1+i), mus_box i is A(4+i)
+// (music.js plays each note from the nearest of them); mus_taiko i is the drum kind.
+export const PIANO_NOTES = [33, 45, 57, 69, 81];
+export const BOX_NOTES = [69, 81];
 export const MUSIC_DEFS = [
-  { bank: 'mus_piano', n: 5, sr: MID, gen: (sr, r, i) => pianoNote(sr, r, PIANO_BASE_HZ[i], [7, 6, 5, 4, 3][i]) },
-  { bank: 'mus_box', n: 2, sr: HI, gen: (sr, r, i) => musicBox(sr, r, BOX_BASE_HZ[i]) },
+  { bank: 'mus_piano', n: 5, sr: MID, gen: (sr, r, i) => pianoNote(sr, r, mtof(PIANO_NOTES[i]), [7, 6, 5, 4, 3][i]) },
+  { bank: 'mus_box', n: 2, sr: HI, gen: (sr, r, i) => musicBox(sr, r, mtof(BOX_NOTES[i])) },
   { bank: 'mus_taiko', n: 3, sr: MID, gen: taiko },
   { bank: 'mus_pulse', n: 1, sr: LO, gen: subPulse },
   { bank: 'mus_swell', n: 2, sr: MID, gen: revSwell },

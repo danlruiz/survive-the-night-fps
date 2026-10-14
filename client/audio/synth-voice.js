@@ -1,6 +1,6 @@
 // The voice: a glottal pulse through formant filters, the source of every zombie, creature and survivor sound
 // (synth-creatures.js) and of the ambience's voices (synth-amb.js). Pure, like dsp.js.
-import { TAU, clamp, rrange, Biquad, OnePole, Wander, Curve, polyblep, normalize, finish } from './dsp.js';
+import { TAU, clamp, rrange, Biquad, OnePole, Wander, Curve, polyblep, normalize, finish, softclip } from './dsp.js';
 import { addNorm, bubbles } from './synth-blocks.js';
 
 const VOWELS = {
@@ -73,9 +73,7 @@ export function voice(sr, rng, p) {
     const b = bubbles(sr, rng, dur, p.bubbles, 250, 900, { env: (u) => env.at(u) });
     addNorm(out, b, sr, 0, 0.35 * (p.bubbleAmp ?? 1));
   }
-  const drive = p.drive ?? 1.5;
-  const nd = Math.tanh(drive);
-  for (let i = 0; i < n; i++) out[i] = Math.tanh(out[i] * drive) / nd;
+  softclip(out, p.drive ?? 1.5);
   if (p.hp) {
     const h = new Biquad().hp(sr, p.hp, 0.7);
     for (let i = 0; i < n; i++) out[i] = h.run(out[i]);

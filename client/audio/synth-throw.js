@@ -5,8 +5,8 @@
 // thin-walled steel bell rings at a few inharmonic partials (no tierce: what makes it a clock bell and not a church
 // bell is that it is tiny and shrill); the two bells are a little out of tune with each other, so the ring has a
 // rough, insistent beat. The spring winding down shows as the hammer's rate and force wandering a little.
-import { TAU, ModeBank, Biquad, Pink, normalize, softclip, dcBlock, loopify } from './dsp.js';
-import { MID } from './synth-blocks.js';
+import { TAU, ModeBank, Biquad, Pink, softclip } from './dsp.js';
+import { MID, finishLoop } from './synth-blocks.js';
 
 // [ratio to the bell's strike note, level, seconds to 1/e] - a thin steel cup
 const CUP = [
@@ -58,9 +58,7 @@ export function loopAlarm(sr, rng) {
     out[i] = A.run(exA[i]) + B.run(exB[i]) * 0.9 + tick.run(rattle[i]) * 0.5 + box.run(rattle[i]) * 0.35 + air.run(pk.next()) * 0.012;
   }
   softclip(out, 1.4);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 // { bank, n (variants), sr, gen } rows for registry.js, as SFX_DEFS in synth.js

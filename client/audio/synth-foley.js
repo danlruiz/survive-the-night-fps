@@ -7,6 +7,13 @@ import { zPain, humanDeath } from './synth-creatures.js';
 import { woodHit, metalHit } from './synth-world.js';
 
 // ------------------------------------------------------------------ first-person / UI foley
+// noise torn into a ragged rip: its level wandering `hz` times a second between floor and floor + depth (in place)
+function ragged(x, rng, sr, hz, floor, depth) {
+  const w = new Wander(rng, sr, hz);
+  for (let i = 0; i < x.length; i++) x[i] *= floor + depth * Math.abs(w.next());
+  return x;
+}
+
 export function throwSnd(sr, rng) {
   const out = alloc(sr, 0.35);
   addNorm(out, whoosh(sr, rng, 0.26, 700, 2000, 900, 1.5, 0.35), sr, 0.02, 1);
@@ -31,18 +38,14 @@ export function craftSnd(sr, rng) {
   for (let k = 0; k < 3; k++) addNorm(out, rustle(sr, rng, rrange(rng, 0.1, 0.16), rrange(rng, 1800, 2800)), sr, k * 0.24, 0.55);
   addNorm(out, metalClick(sr, rng, 2200, 0.02), sr, 0.15, 0.4);
   addNorm(out, metalClick(sr, rng, 3100, 0.02), sr, 0.44, 0.35);
-  const rip = noise(sr, rng, 0.32, { hp: 1500, env: (u) => Math.min(1, u * 10) * (1 - u) });
-  const w = new Wander(rng, sr, 90);
-  for (let i = 0; i < rip.length; i++) rip[i] *= 0.4 + 0.6 * Math.abs(w.next());
+  const rip = ragged(noise(sr, rng, 0.32, { hp: 1500, env: (u) => Math.min(1, u * 10) * (1 - u) }), rng, sr, 90, 0.4, 0.6);
   addNorm(out, rip, sr, 0.72, 0.6);
   return finish(out, sr);
 }
 export function bandageSnd(sr, rng) {
   const out = alloc(sr, 1.4);
   for (let k = 0; k < 4; k++) addNorm(out, rustle(sr, rng, 0.2, 1600 + k * 350), sr, k * 0.24, 0.6);
-  const rip = noise(sr, rng, 0.25, { hp: 1800, env: (u) => Math.min(1, u * 10) * (1 - u) });
-  const w = new Wander(rng, sr, 110);
-  for (let i = 0; i < rip.length; i++) rip[i] *= 0.3 + 0.7 * Math.abs(w.next());
+  const rip = ragged(noise(sr, rng, 0.25, { hp: 1800, env: (u) => Math.min(1, u * 10) * (1 - u) }), rng, sr, 110, 0.3, 0.7);
   addNorm(out, rip, sr, 1.05, 0.5);
   return finish(out, sr);
 }
@@ -240,9 +243,7 @@ export function flashlightClick(sr, rng) {
 export function clawSnd(sr, rng) {
   const out = alloc(sr, 0.45);
   addNorm(out, whoosh(sr, rng, 0.14, 800, 2600, 1200, 1.6, 0.6), sr, 0, 0.8);
-  const tear = noise(sr, rng, 0.12, { hp: 1500, a: 0.001, d: 0.04 });
-  const w = new Wander(rng, sr, 160);
-  for (let i = 0; i < tear.length; i++) tear[i] *= 0.3 + 0.7 * Math.abs(w.next());
+  const tear = ragged(noise(sr, rng, 0.12, { hp: 1500, a: 0.001, d: 0.04 }), rng, sr, 160, 0.3, 0.7);
   addNorm(out, tear, sr, 0.09, 0.8);
   addNorm(out, zPain(sr, rng, 1), sr, 0.02, 0.3);
   return finish(out, sr);
@@ -292,9 +293,7 @@ export function eatSnd(sr, rng) {
 export function canOpenSnd(sr, rng) {
   const out = alloc(sr, 0.75);
   addNorm(out, metalClick(sr, rng, rrange(rng, 3200, 3600), 0.012), sr, 0.02, 0.6);
-  const peel = noise(sr, rng, 0.36, { hp: 1400, bp: [2400, 1.2], sweep: [2400, 4200], env: (u) => Math.min(1, u * 8) * (1 - u * 0.6) });
-  const w = new Wander(rng, sr, 70);
-  for (let i = 0; i < peel.length; i++) peel[i] *= 0.35 + 0.65 * Math.abs(w.next());
+  const peel = ragged(noise(sr, rng, 0.36, { hp: 1400, bp: [2400, 1.2], sweep: [2400, 4200], env: (u) => Math.min(1, u * 8) * (1 - u * 0.6) }), rng, sr, 70, 0.35, 0.65);
   addNorm(out, peel, sr, 0.12, 0.55);
   addNorm(out, metalClick(sr, rng, rrange(rng, 1700, 2000), 0.03), sr, 0.5, 0.5);
   return finish(out, sr);

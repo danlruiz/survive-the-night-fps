@@ -9,19 +9,17 @@
 //    once that has loaded, and stands in for it until then (or for good, when the recordings are unavailable).
 
 import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
+import { PIANO_NOTES, BOX_NOTES } from './synth-amb.js';
+import { mtof } from './dsp.js';
+import { clamp01, rand } from './curves.js';
 
 const LOOK = 0.5; // seconds scheduled ahead of currentTime
 const ROOT = 38; // D2
 const SCALE = [0, 1, 3, 5, 6, 7, 8, 10]; // D phrygian + b5
-const PIANO_BASE = [33, 45, 57, 69, 81]; // mus_piano variants (A1..A5)
-const BOX_BASE = [69, 81]; // mus_box variants (A4, A5)
 const BASS_BASE = 33; // mus_bass (A1)
 const BRASS_BASE = 33; // mus_brass (A1)
 
-const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-const rand = (a, b) => a + (b - a) * Math.random();
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // drone "chords": [root offset, interval] in semitones
 const DRONE_CHORDS = [[0, 7], [0, 1], [0, 6], [-2, 5], [1, 8], [0, 3], [-4, 3], [0, 10]];
@@ -399,7 +397,7 @@ export class Music {
   // ---------------------------------------------------------------- note helpers
   // pan: where in the stereo field (-1..1); left out, somewhere at random
   _note(t, midi, vel, box, bend = 0, dest = this.pianoG, pan = null) {
-    const bases = box ? BOX_BASE : PIANO_BASE;
+    const bases = box ? BOX_NOTES : PIANO_NOTES;
     let bi = 0;
     for (let k = 1; k < bases.length; k++) if (Math.abs(midi - bases[k]) < Math.abs(midi - bases[bi])) bi = k;
     const buf = this._buffer(box ? 'mus_box' : 'mus_piano', bi);

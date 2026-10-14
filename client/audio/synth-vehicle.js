@@ -8,8 +8,8 @@
 //   vehMount    a leg swung over a saddle: the springs take the weight
 //   vehSkid     tyres letting go on a hard road: a short squeal
 //   bikeBell    a bicycle's bell, struck twice
-import { TAU, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, normalize, finish, softclip, dcBlock, loopify } from './dsp.js';
-import { HI, MID, LO, addNorm, thump, noise, modal } from './synth-blocks.js';
+import { TAU, hann, rrange, Biquad, ModeBank, Pink, Brown, alloc, finish, softclip, dcBlock } from './dsp.js';
+import { HI, MID, LO, addNorm, thump, noise, modal, finishLoop, pulseTrain } from './synth-blocks.js';
 
 const FIRE = 56; // firings a second: a single at 3400 rpm (it fires every turn)
 // what a firing rings in: a thin steel pipe and a tin expansion box
@@ -19,17 +19,9 @@ export function loopMoped(sr, rng) {
   const L = 1.5;
   const X = 0.15;
   const n = Math.ceil((L + X) * sr);
-  const ex = new Float32Array(n);
-  const len = Math.floor(0.0011 * sr);
-  let ph = 0.3;
-  for (let i = 0; i < n; i++) {
-    // (a whole number of firings to the loop; it four-strokes a little: every so often one misses)
-    ph += (FIRE * (1 + 0.01 * Math.sin((TAU * 3 * i) / (L * sr)))) / sr;
-    if (ph < 1) continue;
-    ph -= 1;
-    const a = rng() < 0.07 ? 0.35 : 0.85 + rng() * 0.3;
-    for (let j = 0; j < len && i + j < n; j++) ex[i + j] += (rng() * 2 - 1) * (1 - j / len) * a;
-  }
+  // (a whole number of firings to the loop; it four-strokes a little: every so often one misses)
+  const rate = (i) => FIRE * (1 + 0.01 * Math.sin((TAU * 3 * i) / (L * sr)));
+  const ex = pulseTrain(sr, rng, n, Math.floor(0.0011 * sr), 0.3, rate, () => (rng() < 0.07 ? 0.35 : 0.85 + rng() * 0.3));
   const pipe = new ModeBank(sr, PIPE);
   const rattle = new Biquad().bp(sr, 3100, 2.5);
   const whine = new Biquad().bp(sr, 1500, 6);
@@ -43,9 +35,7 @@ export function loopMoped(sr, rng) {
     out[i] = pipe.run(ex[i]) * 1.1 + rattle.run(pk.next()) * 0.12 * fire + whine.run(pk.next()) * 0.05 + low.run(br.next()) * 0.12 + 0.05 * Math.sin(TAU * FIRE * t);
   }
   softclip(out, 1.8);
-  for (let i = 0; i < n; i++) if (out[i] !== out[i]) out[i] = 0;
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 export function loopHorn(sr, rng) {
@@ -66,8 +56,7 @@ export function loopHorn(sr, rng) {
     out[i] = horn.run(x) * 0.9 + x * 0.25 + (rng() - 0.5) * 0.01;
   }
   softclip(out, 1.6);
-  dcBlock(out, sr);
-  return normalize(loopify(out, sr, X), 0.8);
+  return finishLoop(out, sr, X, 0.8);
 }
 
 const PANEL = (rng) => [{ f: rrange(rng, 90, 130), d: 0.16, a: 1 }, { f: rrange(rng, 210, 290), d: 0.1, a: 0.8 }, { f: rrange(rng, 470, 640), d: 0.06, a: 0.6 }, { f: rrange(rng, 1100, 1500), d: 0.035, a: 0.4 }, { f: rrange(rng, 2400, 3300), d: 0.02, a: 0.25 }];
@@ -167,4 +156,3 @@ export const VEHICLE_DEFS = [
   { bank: 'veh_skid', n: 3, sr: MID, gen: vehSkid, group: 'late' },
   { bank: 'bike_bell', n: 1, sr: HI, gen: bikeBell, group: 'late' },
 ];
-void normalize;
