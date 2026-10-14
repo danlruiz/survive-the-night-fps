@@ -19,7 +19,8 @@
 //   runway   the runway and what stands on it: { x, z, ry (its heading: the plane takes off along -Z turned by it),
 //            z0, z1 (its ends along that line, from its middle), half (its half width), y, truck: { x, y, z, ry } }
 //   car      is the plane: the thing this act's supplies go into and its final stand is fought at (plane: true)
-//   partSpots[i].supply   which of the plane's parts lies there (an index into PLANE_PARTS): they are at set places
+//   partSpots[i].supply   which of the plane's parts may lie there: one (an index into PLANE_PARTS) at its own set
+//            places, or any (HIDE.ANY) or any but the propeller (HIDE.SMALL) at the hiding places (mainland/hiding.js)
 //   props[i].live   set on the car at the bridgehead and on the plane: the client draws those two itself, because its
 //            cutscenes move them (the car drives to that very spot; the plane is swapped for the one that flies)
 //   city     { x, z, pitch, grid, lots: [{ x, z, w, d, ry, what }] }: what was built on every lot of Town Center; and
@@ -52,6 +53,7 @@ import { buildAirfield } from './mainland/airfield.js';
 import { landReach, placeSites, buildFarm, postRoadSigns, dressMainRoads } from './mainland/sites.js';
 import { sinkPassage, dressQuarryPit, buildPassageYard } from './mainland/passage.js';
 import { scatterSpawns } from './mainland/spawns.js';
+import { hidingPlaces } from './mainland/hiding.js';
 import { mapMainland } from './mainland/fieldmap.js';
 import { planMainland } from './mainland/plan.js';
 import { layMainRoads } from './mainland/roads.js';
@@ -276,6 +278,7 @@ export function createMainland(seed) {
     return best;
   };
   const start = { x: head.x, z: head.z };
+  hidingPlaces({ lootSpawns, partSpots, staticGrid, heightAt, zoneById });
   // (what only the building of the world needed goes now: every closure made here keeps all that any of them can see,
   // so a grid left in reach of one would be held as long as the world is)
   seaMask = lakeMask = islets = mtnMask = cut = wallMask = reliefGrid = roadH = occ = roadDir = null;

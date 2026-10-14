@@ -923,8 +923,12 @@ screen). `scripts/test-airfield-hints.js` holds them.
   themselves, the loot, and the bridgehead's floor, whose rounds and bandages move as the starting kit's do
   (`diff.ammo`, `diff.bandages`: 48 rounds and 2 bandages on Ember, 24 and 1 on Nightfall, 16 and 1 on Blackout).
 - **The plane** (`suppliesOf(act)` in `defs/escape.js`: `PLANE_PARTS` has the shape of `SUPPLIES`, four parts and the fuel by
-  threes, so the global state, the rumours and the objective tracker read either). Its parts lie at set places:
-  `world.partSpots[k].supply` says which part a spot is for (`placeSupplies`).
+  threes, so the global state, the rumours and the objective tracker read either). Every run deals its parts round
+  the whole map, a place apiece, as the island deals the car's (`placeSupplies`): `world.partSpots[k].supply` says
+  which part a spot is for - one part's own set place (Layout 12's), or a hiding place any part fits (`HIDE.ANY`, the
+  propeller too) or any but the propeller (`HIDE.SMALL`), made from the floor loot points with room round them
+  (`shared/mainland/hiding.js`). A restart at the bridge rolls a new mainland (a new seed: new lots, loot and deal;
+  the same map), so no two tries are alike.
 - **The runway stand** (`RUNWAY` in acts.js, `updateEscape`): two things to hold in turn - the fuel truck while it
   pumps (`escape.stage` 0), then the plane while its engines warm (1) - then the plane goes only while no more than
   `RUNWAY.CLEAR` of the dead stand on the strip ahead of it (`onRunway`, `NOTIFY.RUNWAY_BLOCKED`). Its groups appear

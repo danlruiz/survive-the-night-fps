@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { createMainland } from '../shared/mainland.js';
 import { worldFor } from '../shared/worlds.js';
-import { WORLD, MAINLAND_SIZE } from '../shared/acts.js';
+import { WORLD, MAINLAND_SIZE, HIDE } from '../shared/acts.js';
 import { ZONE, ZONE_NAMES, MAINLAND_ZONES, PLANE_PARTS, PLANE_NEED } from '../shared/defs.js';
 import { PROPS } from '../shared/props.js';
 import { BRIDGE } from '../shared/bridge.js';
@@ -151,7 +151,11 @@ for (const seed of SEEDS) {
   // (the propeller and the fuel at the airport, the magneto in the city, the hydraulic pump down in the South Passage
   // Mines, the flight radio at North Ridge Outpost: issue #232's deal)
   const where = [[ZONE.HANGARS], [ZONE.CITY], [ZONE.PASSAGE], [ZONE.OUTPOST], [ZONE.FUEL_DEPOT, ZONE.HANGARS]];
-  each('every part of the plane has its set places: two or more each, four or more for the fuel', seed, at.every((list, i) => list.length >= (PLANE_NEED[i] > 1 ? 4 : 2) && list.every((sp) => where[i].includes(sp.zone))) && w.partSpots.every((sp) => sp.supply >= 0 && sp.supply < PLANE_PARTS.length) && at[2].every((sp) => w.mine.under(sp.x, sp.y + 0.5, sp.z)), at.map((l) => l.length).join(' '));
+  each('every part of the plane has its set places: two or more each, four or more for the fuel', seed, at.every((list, i) => list.length >= (PLANE_NEED[i] > 1 ? 4 : 2) && list.every((sp) => where[i].includes(sp.zone))) && w.partSpots.every((sp) => (sp.supply >= 0 && sp.supply < PLANE_PARTS.length) || sp.supply === HIDE.ANY || sp.supply === HIDE.SMALL) && at[2].every((sp) => w.mine.under(sp.x, sp.y + 0.5, sp.z)), at.map((l) => l.length).join(' '));
+  // ...and hiding places all over the map besides, so a run's parts are dealt round all of it (HIDE in acts.js)
+  const hides = w.partSpots.filter((q) => q.supply < 0);
+  const hidePlaces = (kind) => new Set(hides.filter((q) => q.supply === kind || kind === undefined).map((q) => q.zone)).size;
+  each('hiding places for any part in a dozen places or more, and for the propeller in eight or more, none at the bridgehead', seed, hidePlaces() >= 12 && hidePlaces(HIDE.ANY) >= 8 && hides.every((q) => q.zone !== ZONE.BRIDGEHEAD && q.zone !== ZONE.LIGHTHOUSE), `${hidePlaces()} places, ${hidePlaces(HIDE.ANY)} for the propeller`);
   // the bridgehead
   const sp = w.spawnPoints;
   const solidAt = (x, y, z) => w.staticGrid.query(x, z, 0.5, []).some((c) => !(c.flags & COL.NOBLOCK) && y + 0.5 < c.y1 && y + 1.7 > c.y0 && footprintContains(c, x, z, 0.36));

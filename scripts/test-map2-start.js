@@ -6,7 +6,7 @@
 //     and the stock
 //   - a wipe in a game made on the mainland: a new run there, on a new mainland, with the crates again; a wipe on the
 //     mainland of a run that crossed to it: back at the bridge with what the team had there, every time, whatever
-//     the difficulty - such a run never goes back to the island
+//     the difficulty - such a run never goes back to the island - on a new mainland with its parts dealt afresh
 //   - a deploy keeps the map the game starts on, and the crates
 //   - the server: a map 2 game is made (POST /api/games) and joined (the socket's JOIN) only by whoever has beaten map
 //     1; /api/progress says so; quick joins never go to one; the list marks them
@@ -203,6 +203,31 @@ const wipe = (game) => {
     }
     check(`...and back to it after every wipe, on ${difficulty} too: never the island again`, game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && game.day === game.checkpoint.day && kitOf(a) === kit, `act ${game.act} day ${game.day}`);
   }
+}
+
+// ================================================================ no two tries alike
+// (a game with no seed of its own: every restart at the bridge is a new mainland, its parts dealt afresh)
+{
+  const game = new Game({ log: quiet, themes: false, godMode: true });
+  const ann = join_(game, 'Ann');
+  ticks(game, 0.2);
+  const a = ann.p();
+  game.giveItem(a, ITEM.SHOTGUN, 1, 6);
+  game.cross(a, false);
+  game.arrive();
+  const kit = kitOf(a);
+  const day = game.checkpoint.day;
+  const seeds = [game.seed];
+  const deals = [game.supplyHints.join()];
+  for (let i = 0; i < 2; i++) {
+    const resets = ann.resets.length;
+    wipe(game);
+    ticks(game, GAME_OVER_DELAY + 0.5);
+    check(`a wipe at the bridge (${i + 1}): a new mainland, every page told, the same day and what they crossed with`, game.phase === PHASE.DAY && game.act === WORLD.MAINLAND && !seeds.includes(game.seed) && ann.resets.length === resets + 1 && ann.resets.at(-1).act === WORLD.MAINLAND && ann.resets.at(-1).seed === game.seed >>> 0 && game.day === day && kitOf(a) === kit, `seed ${game.seed} resets ${JSON.stringify(ann.resets)}`);
+    seeds.push(game.seed);
+    deals.push(game.supplyHints.join());
+  }
+  check('...and the parts dealt to other places each time', new Set(deals).size === deals.length, deals.join(' / '));
 }
 
 // ================================================================ the server
