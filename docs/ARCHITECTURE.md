@@ -21,7 +21,10 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
                  (a spanning tree out from Route 9 + loops)
   world.js       deterministic world generation from a seed: builds the plan - terrain, A*-routed roads,
                  roadside/woodland sites, buildings, props, containers, supply spots, doorways,
-                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it
+                 vegetation, colliders. A new playthrough is a new seed (S2C.WORLD_RESET); SEED pins it.
+                 It calls the stages in world/ in order: terrain.js, roads.js (router.js: the A*),
+                 roadside.js (the sites, the road dressing), places.js (every named place, the mine's
+                 workings), vegetation.js, spawns.js
   mine.js        the workings under Blackrock Mine: a second level under the heightfield (see The mine below)
   clinic.js      Mercy Clinic and the rule that its wards are dark at noon (see Dark interiors below)
   rail.js        the railway: its heights, the cut and fill, Whitlock Depot, the stalled train (see The railway)
