@@ -3,7 +3,7 @@ import { LOADOUT_CATALOG, LOADOUT_RARITY, LOADOUT_RARITY_NAMES, LOADOUT_SLOTS, L
 import { AUCTION, SKULLS, sellerProceeds } from '../../shared/economy.js';
 import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { buyAuctionListing, cancelAuctionListing, fetchAuction, fetchLoadout, listAuctionItem, saveLoadout } from '../net/loadout.js';
 import { accountState } from '../net/account.js';
 import { bestiaryView } from '../net/bestiary.js';

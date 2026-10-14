@@ -13,7 +13,7 @@ import { CHARACTERS, CHARACTER_COUNT } from '../../shared/characters.js';
 import { randomLook, lookKey, lookCode, fromLookCode, mulberry } from '../../shared/appearance.js';
 import { el, svgEl, lsGet, lsSet, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { customs, getCustom, MAX_CUSTOMS, takeNote, onCustomsChange } from './customs.js';
 import { getStage, looksModule, releaseStage } from './stage.js';
 import { CreatorPanel } from './creator.js';

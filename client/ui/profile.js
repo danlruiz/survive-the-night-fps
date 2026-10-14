@@ -5,7 +5,7 @@
 // (games.js) and closes the same ways: the cross, Esc, or a click outside the card.
 import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { duration } from './account.js';
 import { BRANCH_ICON } from './perktree.js';
 import { PERKS, PERK_GROUPS, perkIds } from '../../shared/progress.js';

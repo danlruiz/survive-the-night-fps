@@ -10,7 +10,8 @@
 // the pointer and the keys stay with the game.
 import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel, phaseText, seatsText, difficultyText } from './games.js';
+import { phaseText, seatsText, difficultyText } from './games.js';
+import { Panel } from './panel.js';
 import { ago } from './account.js';
 import { bindLabel } from '../game/binds.js';
 import { accountState, onAccountChange } from '../net/account.js';

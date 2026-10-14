@@ -4,7 +4,7 @@
 // the same ways: the cross, Esc, or a click outside the card.
 import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { accountState, onAccountChange, refreshAccount, register, login, logout, myStats } from '../net/account.js';
 
 // the four the leaderboard ranks, as it calls them (leaderboard.js)

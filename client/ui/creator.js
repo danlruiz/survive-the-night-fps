@@ -13,7 +13,7 @@ import { SECTIONS } from '../../shared/wardrobe.js';
 import { CHARACTERS } from '../../shared/characters.js';
 import { el, iconButton, button } from './dom.js';
 import { glyph } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { saveCustom, deleteCustom, getCustom, noteFor, cleanName, customs, NAME_MAX, MAX_CUSTOMS } from './customs.js';
 import { getStage, looksModule } from './stage.js';
 

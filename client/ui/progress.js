@@ -6,7 +6,7 @@
 //
 // Also the small pieces the rest of the UI shows it with: the level badge and the XP bar (xpBar).
 import { el, button } from './dom.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { PerkTree } from './perktree.js';
 import { PerkPick } from './perkpick.js';
 import { tabbed } from './screentabs.js';

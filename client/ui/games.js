@@ -1,9 +1,10 @@
 // The lobby's panels, opened from the splash: the list of public games (Browse games) and making a game of your own
-// (Create game). Both borrow the settings panel's card (settings.js) and close the same ways: the cross, Esc, or a
+// (Create game). Both are panels (panel.js: the settings panel's card) and close the same ways: the cross, Esc, or a
 // click outside the card. The lobby itself is client/net/lobby.js.
 import { PHASE, MAX_PLAYERS } from '../../shared/constants.js';
 import { DIFFICULTIES, NIGHTFALL, difficultyLabel } from '../../shared/difficulty.js';
-import { el, svgEl, iconButton, button, replay } from './dom.js';
+import { el, svgEl, button } from './dom.js';
+import { Panel } from './panel.js';
 import { isFirstRun, suggestedDifficulty, rememberDifficulty, NEW_DIFFICULTY } from './firstrun.js';
 import { glyph } from './icons.js';
 import { listGames, createGame } from '../net/lobby.js';
@@ -26,51 +27,6 @@ const map1Done = () => !!lastProgress()?.map1;
 // (asked again each time a panel opens: a run may have been won since)
 const askProgress = () => fetchProgress().catch(() => null);
 export const difficultyText = (id) => difficultyLabel(id);
-
-// a card in the settings panel's style, with a head (title, sub line, close cross), a body and a foot
-export class Panel {
-  constructor(ui, parent, cls, title) {
-    this.ui = ui;
-    this.root = el('div', `stn-settings ${cls}`, parent);
-    this.root.setAttribute('role', 'dialog');
-    this.root.hidden = true;
-    const card = (this.card = el('div', 'set-card paper', this.root));
-    const head = el('div', 'set-head', card);
-    el('h2', 'set-title', head, title);
-    this.sub = el('span', 'set-sub', head, '');
-    const close = iconButton('set-close btn-icon', head, glyph('xmark'));
-    close.title = 'Close';
-    close.addEventListener('click', () => this.hide());
-    this.body = el('div', 'set-body', card);
-    this.foot = el('div', 'set-foot', card);
-    this.root.addEventListener('pointerdown', (e) => {
-      if (e.target === this.root) this.hide();
-    });
-    document.addEventListener(
-      'keydown',
-      (e) => {
-        if (this.root.hidden || e.key !== 'Escape') return;
-        e.preventDefault();
-        e.stopPropagation();
-        this.hide();
-      },
-      true
-    );
-  }
-
-  show() {
-    this.root.hidden = false;
-    replay(this.root, 'in');
-  }
-
-  hide() {
-    this.root.hidden = true;
-  }
-
-  get visible() {
-    return !this.root.hidden;
-  }
-}
 
 // ---------------------------------------------------------------- Browse games
 // splash: the splash, whose name field and join the list's Join buttons use

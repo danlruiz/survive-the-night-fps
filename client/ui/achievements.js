@@ -12,7 +12,7 @@
 //                      A guest's from this browser, an account's from the server, or (show({ friend })) a friend's.
 import { el, svgEl, button } from './dom.js';
 import { glyph, achIcon } from './icons.js';
-import { Panel } from './games.js';
+import { Panel } from './panel.js';
 import { tabbed } from './screentabs.js';
 import { ago } from './account.js';
 import { ACHIEVEMENTS, ACH_GROUPS, ACH_TIERS, ACH_STATS, achProgress } from '../../shared/achievements.js';

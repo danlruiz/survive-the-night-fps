@@ -20,7 +20,7 @@ Files that conflicted, counted over those 76 merges (`git merge-tree` on each me
 | `server/game.js` | 10 | night wave weights and the Ember/Blackout `\|\|` chain (**moved** to `server/spawns.js` by #355); names appended to import lists |
 | `client/game/game.js` | 10 | `SHOT_SOUND` (**fixed** by #354); HUD meters (shove, fire) written in the same spot |
 | `shared/progress.js` | 5 | `XP.kinds`: every zombie kind's XP on one line |
-| `client/ui/menus.js` | 5 | menu screens edited side by side |
+| `client/ui/menus.js` | 5 | menu screens edited side by side (**split** into `splash.js`, `pause.js` and `invite.js` by the cleanup) |
 | `shared/bestiary.js` | 4 | a new kind's `B(...)` row added after the last special |
 | `server/zombies.js` | 4 | `switch` cases and hand-numbered special acts (**moved** to `server/specials/` by #355) |
 
@@ -149,7 +149,7 @@ draw after it, and seeded tests that have nothing to do with the change start fa
 ### 8. Very large files
 
 `server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (4,800),
-`client/render/models/characters.js` (5,500) and `client/ui/menus.js` are where unrelated features meet. A conflict
+`client/render/models/characters.js` (5,500) and `client/ui/menus.js` (now split into `splash.js` and `pause.js`) are where unrelated features meet. A conflict
 in one of them is often two features that only share a file.
 
 - **Resolve:** read both sides whole. These are the conflicts where logic really can clash: two HUD meters drawn in the
