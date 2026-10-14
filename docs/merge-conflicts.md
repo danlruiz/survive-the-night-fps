@@ -148,15 +148,17 @@ draw after it, and seeded tests that have nothing to do with the change start fa
 
 ### 8. Very large files
 
-`server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (4,800),
+`server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (1,900 since its held items moved out),
 `client/render/models/characters.js` (5,500) and `client/ui/menus.js` are where unrelated features meet. A conflict
 in one of them is often two features that only share a file.
 
 - **Resolve:** read both sides whole. These are the conflicts where logic really can clash: two HUD meters drawn in the
   same frame, two handlers for the same message.
 - **Refactor, in order of payoff:**
-  1. The client half of a weapon (builder, `VM` entry, icon) into `client/render/models/weapons/<name>.js`, finishing
-     what #354 started. Today a new gun still edits `BUILDERS`, `VM` and `ITEM_ICONS`.
+  1. Done: the client half of a weapon (builder, `VM` entry, hand poses, pickup lay) is
+     `client/render/models/weapons/<name>.js` and its icon `client/ui/icons/<name>.js`, finishing what #354 started.
+     A new gun adds those two files and a line in each folder's `index.js`, and edits neither `weapons.js` nor
+     `icons.js`.
   2. A zombie kind's model, pose and sounds into `client/render/models/zombies/<kind>.js`, the client twin of
      `server/specials/`.
   3. HUD meters (shove, fire, pin) out of `client/game/game.js` into one module, one meter each.
@@ -201,7 +203,7 @@ pillars in [design.md](design.md):
 | 3 | One entry per line: `KINDS`, `XP.kinds`, the `\|\|` chain | `specials/index.js`, `progress.js`, `spawns.js` | small |
 | 4 | Id ranges and a "next free id" test for `ITEM`, `SOUND`, `ZTYPE` | `defs.js` | small |
 | 5 | Remove `merge-dist/` | nothing today, but it is noise in every search | small |
-| 6 | Client weapon files (builder, `VM`, icon) | `weapons.js`, `icons.js` | large |
+| 6 | Client weapon files (builder, `VM`, icon): done | `weapons.js`, `icons.js` | large |
 | 7 | Client zombie files (model, pose, sounds) | `characters.js`, `entities.js`, `audio.js` | large |
 | 8 | A random stream per system | seeded tests breaking after merges | medium |
 | 9 | HUD meters module | `client/game/game.js` | medium |

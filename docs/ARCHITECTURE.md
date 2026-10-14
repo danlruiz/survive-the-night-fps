@@ -62,8 +62,9 @@ client/      three.js client (Vite root)
   render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
               (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
               models/weapons/: one file per held item (the client half of shared/weapons/, the throwables, the
-              walkie-talkie): its model, how it is held in first person, its own hand poses; index.js lists them
-              (its icon: client/ui/icons/<name>.js)
+              walkie-talkie): its model, how it is held in first person, its own hand poses, how its pickup lies;
+              index.js lists them (its icon: client/ui/icons/<name>.js). parts.js: the shapes, materials and parts
+              they share; hands.js: the hand and arm. weapons.js keeps the world models and the ViewModel
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
               them after init; any sound whose file fails to load/decode falls back to its procedural version)
   ui/         DOM HUD (hud.js + hud2.js: compass, objective, world markers, downed, summary), field map
