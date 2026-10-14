@@ -17,6 +17,7 @@ import { createPickup } from '../render/models/pickups.js';
 import { StructureBatch } from '../render/structbatch.js';
 import { createSupplyCrate } from '../render/models/misc.js';
 import { getTexture } from '../render/textures.js';
+import { rayNear } from './pickray.js';
 import { Samples } from './entities/samples.js';
 import { methods as zombieMethods } from './entities/zombies.js';
 import { methods as survivorMethods } from './entities/survivors.js';
@@ -37,20 +38,6 @@ function setShadowFlags(obj, cast, receive) {
     o.castShadow = cast;
     o.receiveShadow = receive;
   });
-}
-
-// How far along the ray (o + d * t, d of unit length) it passes within r of c: t, or -1 when it misses or the sphere
-// lies behind the eye or past maxT (+ r)
-function rayReach(ox, oy, oz, dx, dy, dz, cx, cy, cz, r, maxT) {
-  const rx = cx - ox;
-  const ry = cy - oy;
-  const rz = cz - oz;
-  const t = rx * dx + ry * dy + rz * dz;
-  if (t < 0 || t > maxT + r) return -1;
-  const px = rx - dx * t;
-  const py = ry - dy * t;
-  const pz = rz - dz * t;
-  return px * px + py * py + pz * pz > r * r ? -1 : t;
 }
 
 export class Entities {
@@ -519,8 +506,8 @@ export class Entities {
         r = PICK_RADIUS.CAT;
       } else continue;
       if (e === stick) r *= PICK_STICK;
-      const t = rayReach(ox, oy, oz, dx, dy, dz, cx, cy, cz, r, bestT);
-      if (t < 0) continue;
+      const t = rayNear(ox, oy, oz, dx, dy, dz, cx, cy, cz, r);
+      if (t < 0 || t > bestT + r) continue;
       const adj = e.kind === ENT.STRUCTURE ? t + 0.6 : e.kind === ENT.CACHE ? t + 0.15 : t; // prefer items over containers over structures
       if (adj < bestT && (reachTop === undefined || canReach(this.g.world, ox, oy, oz, cx, cy, cz, reachTop))) {
         bestT = adj;
@@ -546,8 +533,8 @@ export class Entities {
       const cx = e.rx;
       const cy = e.ry + MATE_PICK_Y;
       const cz = e.rz;
-      const t = rayReach(ox, oy, oz, dx, dy, dz, cx, cy, cz, r, bestT);
-      if (t < 0) continue;
+      const t = rayNear(ox, oy, oz, dx, dy, dz, cx, cy, cz, r);
+      if (t < 0 || t > bestT + r) continue;
       if (t < bestT && (reachTop === undefined || canReach(g.world, ox, oy, oz, cx, cy, cz, reachTop))) {
         bestT = t;
         best = e;
