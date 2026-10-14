@@ -6,7 +6,7 @@ import { bloodied } from '../deadlooks.js';
 import { blister } from '../monsters.js';
 import { SPINE, CHEST, NECK, HEAD, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, arm, legsStatic } from '../characters/posekit.js';
-import { buildDetail, standardHumanoid } from './helpers.js';
+import { buildingFar, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 
@@ -19,7 +19,7 @@ export const type = ZTYPE.SMOKER;
  */
 function buildSmoker() {
   const P = humanP({ hipY: 0.99, thighLen: 0.46, shinLen: 0.46, spineLen: 0.14, chestLen: 0.22, neckOff: 0.19, neckLen: 0.09, headR: 0.112, shoulderW: 0.195, uarmLen: 0.32, farmLen: 0.29, handLen: 0.19 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   // soot: blackest round the vents, the throat and the mouth, streaked down the front where it leaks
   const soot = (p, n, c) => {
     const m = fbm3(p.x * 10, p.y * 10, p.z * 10, 2, 41);

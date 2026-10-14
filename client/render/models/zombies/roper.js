@@ -7,7 +7,7 @@ import { limb, blister } from '../monsters.js';
 import { surfPoint } from '../humans.js';
 import { SPINE, CHEST, NECK, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, A, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { buildDetail, standardHumanoid } from './helpers.js';
+import { buildingFar, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -21,7 +21,7 @@ export const type = ZTYPE.ROPER;
  */
 function buildRoper() {
   const P = humanP({ hipY: 1.0, thighLen: 0.46, shinLen: 0.46, spineLen: 0.14, chestLen: 0.22, neckOff: 0.2, neckLen: 0.1, headR: 0.12, shoulderW: 0.2, uarmLen: 0.33, farmLen: 0.3, handLen: 0.19 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const L = {
     dead: true, skin: 0x8e8672, eye: 0xe0e0c0, eyeGlow: 0.25, noBrows: true,
     face: { sockets: 1.8, gaunt: 0.5, rot: 0.6, w: 1.1, jaw: 1.5, chin: 1.25, lips: 0.3, nose: 0.6 },

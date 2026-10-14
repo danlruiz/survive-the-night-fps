@@ -17,7 +17,7 @@ import { catBackY } from '../cat.js';
 import {
   HIPS, SPINE, CHEST, NECK, HEAD, JAW, CLAV_L, UARM_L, FARM_L, HAND_L, CLAV_R, UARM_R, FARM_R, HAND_R, THIGH_L, SHIN_L, FOOT_L, THIGH_R, SHIN_R, FOOT_R, humanP, addHumanoidBones,
 } from './skeleton.js';
-import { clearPose, R, A, chestPitch, arm, legCycle } from './posekit.js';
+import { clearPose, R, A, chestPitch, arm, legCycle, blendPose } from './posekit.js';
 import { poseHumanoid, gaitLen } from './pose.js';
 import { STYLES } from '../zombies/index.js';
 
@@ -570,11 +570,8 @@ class SurvivorInstance {
       ik = this.hold !== HOLD_NONE;
     }
     const o = this.out;
-    if (this.fadeT < this.fadeDur) {
-      const w = smooth(this.fadeT / this.fadeDur);
-      const sn = this.snap;
-      for (let i = 0, n = o.length; i < n; i++) o[i] = sn[i] + (p[i] - sn[i]) * w;
-    } else o.set(p);
+    if (this.fadeT < this.fadeDur) blendPose(o, this.snap, p, smooth(this.fadeT / this.fadeDur));
+    else o.set(p);
     this.applyPose(o);
     if (ik) this.solveArms(s, time);
     else if (s.cradle && s.pet && !this.zombie && !s.dead) this.solvePet(time);

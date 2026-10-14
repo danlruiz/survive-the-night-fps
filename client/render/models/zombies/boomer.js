@@ -8,7 +8,7 @@ import { hulk, field, bigHand, bigFoot, blister, bound, ragPants } from '../mons
 import { sheet } from '../humans.js';
 import { SPINE, CHEST, HEAD, JAW, humanP, addHumanoidBones } from '../characters/skeleton.js';
 import { R, A, arm, headLook } from '../characters/posekit.js';
-import { buildDetail, legStumps, swollen, marbled, pox, split } from './helpers.js';
+import { buildDetail, buildingFar, onHead, legStumps, swollen, marbled, pox, split } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -22,9 +22,9 @@ export const type = ZTYPE.BOOMER;
  */
 function buildBoomer() {
   const P = humanP({ hipY: 0.88, hipW: 0.13, thighLen: 0.4, shinLen: 0.4, spineLen: 0.14, chestLen: 0.22, neckOff: 0.2, neckLen: 0.06, headR: 0.12, shoulderW: 0.27, uarmLen: 0.28, farmLen: 0.26, handLen: 0.17 });
-  const d = buildDetail, far = d < 0.7;
+  const d = buildDetail, far = buildingFar();
   const g = (n) => Math.max(6, Math.round(n * (far ? 0.62 : 1)));
-  const skinC = 0xaeaa6a;
+  const skinC = 0xaeaa6a, skinT = swollen(21);
   const mb = new MeshBuilder();
   addHumanoidBones(mb, P);
   mb.addBone('belly', 'spine', 0, P.spineY + 0.02, -0.08); // (it swells and pulses: poseExtras)
@@ -42,7 +42,7 @@ function buildBoomer() {
   ]);
   const vein = marbled(8);
   const B = hulk(mb, P, {
-    skin: { color: skinC, region: CR.SKIN, mottle: 0.16, tint: swollen(21) }, shade: 12,
+    skin: { color: skinC, region: CR.SKIN, mottle: 0.16, tint: skinT }, shade: 12,
     torso: [
       [0.74, 0.08, 0.08, 0.1, 2],
       [0.8, 0.24, 0.2, 0.2, 2.3, 0, -0.03],
@@ -86,7 +86,7 @@ function buildBoomer() {
   const L = oldLook({
     face: { w: 1.22, cheek: 1.8, jaw: 1.4, chin: 0.8, nose: 1.1, gaunt: 0, sockets: 1.5, rot: 0.2, lips: 1.3 },
     skin: skinC, gaunt: 0, eye: 0xe0dc80, eyeGlow: 0.3, jawScale: 1.1, missingTeeth: 0x48,
-    headTint: (lx, ly, lz, c) => swollen(21)({ x: lx * 3, y: ly * 3, z: lz * 3 }, { y: 0 }, c),
+    headTint: onHead(skinT, 3, { y: 0 }),
   });
   L.blood = null;
   deadHead(mb, P, L, d);
@@ -102,8 +102,8 @@ function buildBoomer() {
       bound(mb, [mb.bi('hand' + n), 1, 0, 0], () => mb.box('hand' + n, [0, -0.08, 0], [0.04, 0.16, 0.085], { round: 0.5, seg: 1, color: skinC, region: CR.SKIN }));
       bound(mb, [mb.bi('foot' + n), 1, 0, 0], () => mb.box('foot' + n, [0, -P.ankleY + 0.035, -0.05], [0.11, 0.07, 0.26], { round: 0.5, seg: 1, color: skinC, region: CR.SKIN }));
     } else {
-      bigHand(mb, 'hand' + n, s, { scale: 1.2, curl: 0.45, thick: 1.5, skin: skinC, region: CR.SKIN, tint: swollen(21) });
-      bigFoot(mb, 'foot' + n, s, { w: 1.4, l: 1.1, h: 1.3, skin: skinC, region: CR.SKIN, tint: swollen(21) });
+      bigHand(mb, 'hand' + n, s, { scale: 1.2, curl: 0.45, thick: 1.5, skin: skinC, region: CR.SKIN, tint: skinT });
+      bigFoot(mb, 'foot' + n, s, { w: 1.4, l: 1.1, h: 1.3, skin: skinC, region: CR.SKIN, tint: skinT });
     }
   }
   if (!far) {

@@ -7,7 +7,7 @@ import { bloodied } from '../deadlooks.js';
 import { ringLoft, tornOpen, blister, surfTube, bound } from '../monsters.js';
 import { SPINE, CHEST, NECK, HEAD, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, arm, legsStatic } from '../characters/posekit.js';
-import { buildDetail, standardHumanoid, ripTint } from './helpers.js';
+import { buildDetail, buildingFar, standardHumanoid, ripTint } from './helpers.js';
 
 const PI = Math.PI;
 
@@ -22,7 +22,7 @@ export const glow = (time, off) => 0.8 + 0.25 * Math.sin(time * 3.1 + off);
  */
 function buildSpitter() {
   const P = humanP({ hipY: 1.0, thighLen: 0.47, shinLen: 0.46, spineLen: 0.14, chestLen: 0.2, neckOff: 0.17, neckLen: 0.24, headR: 0.1, shoulderW: 0.165, uarmLen: 0.34, farmLen: 0.31, handLen: 0.19, neckZ: 0.0, headZ: -0.02 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const scald = (p, n, c) => {
     // acid burns: yellowed, blistered patches, worst down the front
     const m = fbm3(p.x * 12, p.y * 12, p.z * 12, 2, 3);

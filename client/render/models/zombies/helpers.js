@@ -3,7 +3,7 @@
 
 import { fbm3, clamp, lerp, color } from '../skinning.js';
 import { CR } from '../charTextures.js';
-import { buildPerson, deadHead } from '../people.js';
+import { buildPerson, deadHead, stump } from '../people.js';
 import { oldLook } from '../deadlooks.js';
 import { ringLoft, blister, onSurf, angleOn } from '../monsters.js';
 import { surfPoint, torsoSurf, bodyBuild } from '../humans.js';
@@ -17,19 +17,15 @@ export let buildDetail = 1;
 export function setBuildDetail(d) {
   buildDetail = d;
 }
+// under this detail a rig is the far copy, and the small things on it are left off (people.js draws the line there too)
+const FAR_DETAIL = 0.7;
+export const buildingFar = () => buildDetail < FAR_DETAIL;
+
+/** A skin tint (p, n, c) worn on the head (people.js headTint: head-bone coordinates), scaled by k, the normal n. */
+export const onHead = (tint, k = 1, n = null) => (lx, ly, lz, c) => tint({ x: lx * k, y: ly * k, z: lz * k }, n, c);
 
 export function mulColor(hex, k) {
   return color(hex).multiplyScalar(k);
-}
-
-/** Ragged, bloody limb stump with the bone poking out, at the joint of `bone` (hangs along -Y). */
-function stump(mb, bone, r, y) {
-  mb.ellip(bone, [0, y, 0], [r * 1.05, r * 0.9, r * 1.0], {
-    ws: 7, hs: 5, color: 0x5a1210, region: CR.FLESH, mottle: 0.3, noise: r * 0.12, nf: 60, blood: false,
-  });
-  mb.spike(bone, [0, y - r * 0.3, 0.003], [r * 0.12, y - r * 2.1, -0.004], r * 0.34, { rs: 5, color: 0xd8ccb0, region: CR.BONE, blood: false });
-  // dangling sinew
-  mb.tube(bone, [[-r * 0.4, y - r * 0.5, -r * 0.2], [-r * 0.5, y - r * 1.3, -r * 0.1], [-r * 0.3, y - r * 2.0, 0]], r * 0.13, r * 0.05, { rs: 4, ts: 3, color: 0x6a1a18, region: CR.FLESH, blood: false });
 }
 
 /**
@@ -55,7 +51,7 @@ export function standardHumanoid(mb, P, L, detail = buildDetail, prep = null) {
   const NL = L.dead ? L : oldLook(L);
   mb.dirt = NL.dirt || { y0: 0.4, k: 0.5 };
   // (prep: what must be made on the trunk before its skin is - a wound, whose hole the skin and the clothes are cut by)
-  if (prep && detail >= 0.7) prep(torsoSurf(mb, P, bodyBuild(NL)));
+  if (prep && detail >= FAR_DETAIL) prep(torsoSurf(mb, P, bodyBuild(NL)));
   const built = buildPerson(mb, P, NL, detail);
   built.L = NL;
   legStumps(mb, P, NL);

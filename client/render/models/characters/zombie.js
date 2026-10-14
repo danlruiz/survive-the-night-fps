@@ -5,6 +5,7 @@ import { ZTYPE, ZOMBIE_DEFS, ZANIM } from '../../../../shared/defs.js';
 import { instantiateRig, setFx, getCharacterMaterial, mulberry32, clamp, smooth } from '../skinning.js';
 import { createZombieDog } from '../dog.js';
 import { SHIN_L, SHIN_R } from './skeleton.js';
+import { blendPose } from './posekit.js';
 import { poseHumanoid, gaitLen, legCycleLen, updateGaze, viewer, COVER_T } from './pose.js';
 import { BUILDERS, STYLES, VARIANTS, GLOWS, POSES, CALIBRATE_RUN, LOD_TYPES } from '../zombies/index.js';
 import { DOG_RIGS } from '../zombies/dogs.js';
@@ -144,17 +145,7 @@ class ZombieInstance {
     this.fxDirty = true;
     const skeleton = this.skeleton;
     skeleton.update = () => {
-      let changed = false;
-      if (this.poseDirty) {
-        this._solve();
-        changed = true;
-      }
-      if (this.fxDirty) {
-        skeleton.boneMatrices.set(this.fx.matrixWorld.elements, 0);
-        this.fxDirty = false;
-        changed = true;
-      }
-      if (changed && skeleton.boneTexture) skeleton.boneTexture.needsUpdate = true;
+      if (this._refreshBones() && skeleton.boneTexture) skeleton.boneTexture.needsUpdate = true;
     };
     this.object = new THREE.Group();
     this.object.name = 'zombie';
@@ -206,16 +197,7 @@ class ZombieInstance {
       row: 0,
       fresh: false,
       solve: (out, at, force) => {
-        let changed = force;
-        if (this.poseDirty) {
-          this._solve();
-          changed = true;
-        }
-        if (this.fxDirty) {
-          skeleton.boneMatrices.set(this.fx.matrixWorld.elements, 0);
-          this.fxDirty = false;
-          changed = true;
-        }
+        const changed = this._refreshBones() || force;
         if (changed) out.set(skeleton.boneMatrices, at);
         return changed;
       },
@@ -336,6 +318,29 @@ class ZombieInstance {
     }
   }
 
+  /** Brings the bone matrices up to date with a new pose or fx value. Returns whether they changed. */
+  _refreshBones() {
+    let changed = false;
+    if (this.poseDirty) {
+      this._solve();
+      changed = true;
+    }
+    if (this.fxDirty) {
+      this.skeleton.boneMatrices.set(this.fx.matrixWorld.elements, 0);
+      this.fxDirty = false;
+      changed = true;
+    }
+    return changed;
+  }
+
+  // where the entity view has put it in the world (it sets the object before update): for pinning planted feet and
+  // the gaze
+  _readPlacement() {
+    this.wx = this.object.position.x;
+    this.wz = this.object.position.z;
+    this.wyaw = this.object.rotation.y;
+  }
+
   /** World position of an anchor object parented to one of the bones (headCenter, mouth). */
   anchorWorld(anchor, out) {
     if (this.poseDirty) this._solve();
@@ -409,10 +414,7 @@ class ZombieInstance {
     const seen = this._seen;
     this._seen = false;
     if (!seen && !inView && this.fadeT > this.fadeDur) return;
-    // world placement (the entity view sets it before update) for pinning planted feet and the gaze
-    this.wx = this.object.position.x;
-    this.wz = this.object.position.z;
-    this.wyaw = this.object.rotation.y;
+    this._readPlacement();
     if (!this.isBat && this.wScale) updateGaze(this, dt);
     if (this.rigFar && viewer.on) {
       // the far copy past LOD_FAR, the near one again inside LOD_NEAR (the gap keeps one on the line from flickering)
@@ -425,14 +427,9 @@ class ZombieInstance {
     }
     this.posedAt = time;
     this.computePose();
-    const p = this.pose, o = this.out;
-    if (this.fadeT < this.fadeDur) {
-      const w = smooth(this.fadeT / this.fadeDur);
-      const s = this.snap;
-      for (let i = 0, n = o.length; i < n; i++) o[i] = s[i] + (p[i] - s[i]) * w;
-    } else {
-      o.set(p);
-    }
+    const o = this.out;
+    if (this.fadeT < this.fadeDur) blendPose(o, this.snap, this.pose, smooth(this.fadeT / this.fadeDur));
+    else o.set(this.pose);
     this.applyPose(o);
   }
 
@@ -465,15 +462,11 @@ class ZombieInstance {
     this.fadeT += dt;
     if (fading || this.posedAt < 0) {
       // (once the hands are up the pose never changes: nothing to work out until the light lets it go)
-      this.wx = this.object.position.x;
-      this.wz = this.object.position.z;
-      this.wyaw = this.object.rotation.y;
+      this._readPlacement();
       this.posedAt = time;
       this.computePose();
-      const w = smooth(Math.min(1, this.fadeT / this.fadeDur));
-      const p = this.pose, o = this.out, s = this.snap;
-      for (let i = 0, n = o.length; i < n; i++) o[i] = s[i] + (p[i] - s[i]) * w;
-      this.applyPose(o);
+      blendPose(this.out, this.snap, this.pose, smooth(Math.min(1, this.fadeT / this.fadeDur)));
+      this.applyPose(this.out);
     }
     if (this.hit > 0) this.hit = Math.max(0, this.hit - dt * 5);
     if (setFx(this.fx, this.hit, 2.2 + 1.2 * Math.exp(-this.stateT * 5))) this.fxDirty = true;

@@ -5,7 +5,7 @@ import { CR } from '../charTextures.js';
 import { blister, strap, onSurf } from '../monsters.js';
 import { surfPoint } from '../humans.js';
 import { humanP } from '../characters/skeleton.js';
-import { buildDetail, standardHumanoid } from './helpers.js';
+import { buildingFar, onHead, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 
@@ -20,7 +20,7 @@ export const type = ZTYPE.FLAMMER;
  */
 function buildFlammer() {
   const P = humanP({ hipY: 0.95, thighLen: 0.44, shinLen: 0.43, spineLen: 0.14, chestLen: 0.21, neckOff: 0.19, headR: 0.105, shoulderW: 0.19, uarmLen: 0.3, farmLen: 0.27, handLen: 0.18 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const soot = color(0x17120e), char = color(0x0c0807);
   // soot up from the hems and in blotches, as the fire left it
   const sooty = (seed, k = 0.75) => (p, n, c) => {
@@ -44,7 +44,7 @@ function buildFlammer() {
     hat: { kind: 'hardhat', color: 0x1a1816 },
     gear: { gloves: true },
     jawScale: 1.2, fang: true, missingTeeth: 0x35, curl: 0.55,
-    blood: [], dirt: { y0: 0.5, k: 0.8 }, skinTint: charred, headTint: (lx, ly, lz, c) => charred({ x: lx, y: ly, z: lz }, null, c),
+    blood: [], dirt: { y0: 0.5, k: 0.8 }, skinTint: charred, headTint: onHead(charred),
   };
   const mb = new MeshBuilder();
   const built = standardHumanoid(mb, P, L);

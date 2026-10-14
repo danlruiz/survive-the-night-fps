@@ -8,7 +8,7 @@ import { hulk, field, bigHand, bigFoot, blister, bound } from '../monsters.js';
 import { sheet } from '../humans.js';
 import { SPINE, CHEST, NECK, HEAD, JAW, humanP, addHumanoidBones } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { legStumps, swollen, marbled, pox, split, bossHead } from './helpers.js';
+import { onHead, legStumps, swollen, marbled, pox, split, bossHead } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -24,7 +24,7 @@ export const glow = (time, off) => 0.75 + 0.35 * Math.sin(time * 1.9 + off);
  */
 function buildBloater() {
   const P = humanP({ hipY: 0.86, hipW: 0.15, thighLen: 0.4, shinLen: 0.4, spineLen: 0.16, chestLen: 0.22, neckOff: 0.2, neckLen: 0.05, headR: 0.115, shoulderW: 0.33, uarmLen: 0.3, farmLen: 0.28, handLen: 0.17, headZ: -0.04 });
-  const skinC = 0xa4a664;
+  const skinC = 0xa4a664, skinT = swollen(23, 5);
   const mb = new MeshBuilder();
   addHumanoidBones(mb, P);
   mb.addBone('belly', 'spine', 0, P.spineY - 0.02, -0.1); // the gut, on its own bone so it heaves (poseExtras)
@@ -45,7 +45,7 @@ function buildBloater() {
   ]);
   const vein = marbled(61, 0.03);
   const B = hulk(mb, P, {
-    skin: { color: skinC, region: CR.SKIN, mottle: 0.18, tint: swollen(23, 5) }, shade: 9,
+    skin: { color: skinC, region: CR.SKIN, mottle: 0.18, tint: skinT }, shade: 9,
     torso: [
       [0.35, 0.14, 0.11, 0.1, 2, 0, -0.42],
       [0.43, 0.36, 0.26, 0.2, 2.2, 0, -0.42],
@@ -90,7 +90,7 @@ function buildBloater() {
   const L = oldLook({
     face: { w: 1.28, cheek: 1.8, jaw: 1.45, chin: 0.85, nose: 1.2, gaunt: 0, sockets: 1.6, rot: 0.2, lips: 1.3 },
     skin: skinC, gaunt: 0, eye: 0xe8e070, eyeGlow: 0.5, jawScale: 1.15, missingTeeth: 0x52,
-    headTint: (lx, ly, lz, c) => swollen(23, 5)({ x: lx * 3, y: ly * 3, z: lz * 3 }, { y: 0 }, c),
+    headTint: onHead(skinT, 3, { y: 0 }),
   });
   L.blood = null;
   bossHead(mb, P, L, 1.25);
@@ -103,8 +103,8 @@ function buildBloater() {
   sheet(mb, T, 0, TAU, yC + 0.06, ySh + 0.05, 24, 5, 0.012, { color: 0x7e7a66, region: CR.COTTON, mottle: 0.16, tint: bloodied(7, 0.6), tear: { amt: 0.3, f: 8, seed: 31, fn: (x, y, z) => z < 0.05 && Math.abs(x) < 0.16 + (ySh - y) * 0.6 } });
   for (const s of [-1, 1]) {
     const n = s < 0 ? 'L' : 'R';
-    bigHand(mb, 'hand' + n, s, { scale: 1.55, curl: 0.45, thick: 1.5, skin: skinC, region: CR.SKIN, tint: swollen(23, 5) });
-    bigFoot(mb, 'foot' + n, s, { w: 1.9, l: 1.4, h: 1.6, skin: skinC, region: CR.SKIN, tint: swollen(23, 5) });
+    bigHand(mb, 'hand' + n, s, { scale: 1.55, curl: 0.45, thick: 1.5, skin: skinC, region: CR.SKIN, tint: skinT });
+    bigFoot(mb, 'foot' + n, s, { w: 1.9, l: 1.4, h: 1.6, skin: skinC, region: CR.SKIN, tint: skinT });
   }
   // sacs of bile standing out of the gut, the biggest low on its front; splits between them; boils everywhere else
   const rnd = mulberry32(4817);

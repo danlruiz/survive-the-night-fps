@@ -4,7 +4,7 @@ import { MeshBuilder, mulberry32, fbm3, clamp, color } from '../skinning.js';
 import { CR } from '../charTextures.js';
 import { bloodied } from '../deadlooks.js';
 import { humanP } from '../characters/skeleton.js';
-import { buildDetail, standardHumanoid } from './helpers.js';
+import { buildingFar, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -19,7 +19,7 @@ export const type = ZTYPE.MOTHER;
  */
 function buildMother() {
   const P = humanP({ hipY: 0.92, hipW: 0.1, thighLen: 0.43, shinLen: 0.42, spineLen: 0.13, chestLen: 0.19, neckOff: 0.18, neckLen: 0.1, headR: 0.1, shoulderW: 0.17, uarmLen: 0.29, farmLen: 0.26, handLen: 0.17 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const gown = 0xc4b0b4;
   const L = {
     dead: true, sex: 'f', skin: 0xb0a89e, eye: 0xd8d2c4, eyeGlow: 0.35, noBrows: true,

@@ -101,5 +101,10 @@ export function posture(z, p) {
   A(p, CLAV_R, 0, r, -u);
 }
 
+/** Writes into out the pose a crossfade from `from` to `to` has reached, w (0..1) of the way. */
+export function blendPose(out, from, to, w) {
+  for (let i = 0, n = out.length; i < n; i++) out[i] = from[i] + (to[i] - from[i]) * w;
+}
+
 // deterministic per-instance noise helpers
 export const n1 = (t, seed) => noise3(t, seed * 1.7, 0.5, 11) * 2 - 1;

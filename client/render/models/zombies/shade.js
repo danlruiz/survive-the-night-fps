@@ -6,7 +6,7 @@ import { CR } from '../charTextures.js';
 import { bigHand, tornOpen, rag, shard, surfTube } from '../monsters.js';
 import { surfPoint, headPoint } from '../humans.js';
 import { humanP } from '../characters/skeleton.js';
-import { buildDetail, standardHumanoid, ripTint } from './helpers.js';
+import { buildDetail, buildingFar, onHead, standardHumanoid, ripTint } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -23,7 +23,7 @@ export const glow = (time, off) => 0.5 + 0.15 * Math.sin(time * 2.3 + off);
  */
 function buildShade() {
   const P = humanP({ hipY: 1.06, hipW: 0.09, thighLen: 0.5, shinLen: 0.49, spineLen: 0.15, chestLen: 0.2, neckOff: 0.18, neckLen: 0.14, headR: 0.098, shoulderW: 0.16, uarmLen: 0.4, farmLen: 0.41, handLen: 0.23, headZ: -0.015 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const ash = color(0x5c5a68);
   const ashen = (p, n, c) => {
     if (fbm3(p.x * 16, p.y * 16, p.z * 16, 2, 9) > 0.6) c.lerp(ash, 0.55);
@@ -35,7 +35,7 @@ function buildShade() {
     gaunt: 1, build: { w: 0.87, arm: 0.7, leg: 0.72, neck: 0.7 },
     top: null, pants: { color: 0x131317, region: CR.CLOTH, tear: 0.2, tearY: 0.55, belt: false }, shoes: null, hair: null,
     fingerMul: 1.7, claws: 0.06, curl: 0.8, jawScale: 1.15, fang: true, missingTeeth: 0x24, noHands: !far,
-    blood: [], dirt: { y0: 0, k: 0 }, skinTint: ashen, headTint: (lx, ly, lz, c) => ashen({ x: lx, y: ly, z: lz }, null, c),
+    blood: [], dirt: { y0: 0, k: 0 }, skinTint: ashen, headTint: onHead(ashen),
   };
   const mb = new MeshBuilder();
   const yC = P.chestY;

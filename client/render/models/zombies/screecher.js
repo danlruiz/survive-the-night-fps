@@ -6,7 +6,7 @@ import { bloodied } from '../deadlooks.js';
 import { blister } from '../monsters.js';
 import { SPINE, CHEST, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { buildDetail, standardHumanoid } from './helpers.js';
+import { buildingFar, standardHumanoid } from './helpers.js';
 
 export const type = ZTYPE.SCREECHER;
 
@@ -17,7 +17,7 @@ export const type = ZTYPE.SCREECHER;
  */
 function buildScreecher() {
   const P = humanP({ hipY: 0.95, hipW: 0.1, thighLen: 0.44, shinLen: 0.43, spineLen: 0.13, chestLen: 0.19, neckOff: 0.17, neckLen: 0.13, headR: 0.098, shoulderW: 0.165, uarmLen: 0.3, farmLen: 0.27, handLen: 0.18 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const L = {
     dead: true, sex: 'f', skin: 0xa8a49a, eye: 0xf4f0e0, eyeGlow: 0.8, noBrows: true,
     face: { sockets: 1.9, gaunt: 0.9, rot: 0.5, w: 0.95, h: 1.1, jaw: 1.25, chin: 1.1, lips: 0.3, fem: 1 },

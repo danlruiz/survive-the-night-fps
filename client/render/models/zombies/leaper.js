@@ -8,7 +8,7 @@ import { bigHand, bigFoot, shard } from '../monsters.js';
 import { surfPoint, headPoint, headSurface } from '../humans.js';
 import { SPINE, CHEST, JAW, humanP } from '../characters/skeleton.js';
 import { clearPose, R, arm, headLook, legsStatic } from '../characters/posekit.js';
-import { buildDetail, mulColor, standardHumanoid } from './helpers.js';
+import { buildingFar, mulColor, standardHumanoid } from './helpers.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -23,7 +23,7 @@ export const calibrateRun = true;
  */
 function buildLeaper() {
   const P = humanP({ hipY: 0.98, hipW: 0.1, thighLen: 0.46, shinLen: 0.46, spineLen: 0.13, chestLen: 0.19, neckOff: 0.18, neckLen: 0.1, headR: 0.1, shoulderW: 0.17, uarmLen: 0.36, farmLen: 0.35, handLen: 0.2 });
-  const far = buildDetail < 0.7;
+  const far = buildingFar();
   const hoodC = 0x2c3a2e, skinC = 0x8e8e84;
   const L = {
     dead: true, skin: skinC, eye: 0xffe070, eyeGlow: 0.9, noBrows: true,
