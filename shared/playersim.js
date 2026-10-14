@@ -20,10 +20,8 @@ import {
   FRICTION,
   STAMINA_MAX,
   STAMINA_DRAIN,
-  STAMINA_REGEN,
   STAMINA_REGEN_DELAY,
   STAMINA_JUMP_COST,
-  STAMINA_UNLOCK,
   SHOVE_PRESS,
   SHOVE_HOLD,
   SHOVE_SLIP,
@@ -54,6 +52,7 @@ import { swimming, waterFloor, wadeDepth, riverCurrent, SWIM_HANDS, SWIM_SPEED, 
 import { perkMods } from './progress.js';
 import { DRAG } from './roles.js';
 import { simNunchaku } from './nunchaku.js';
+import { spendStamina, recoverStamina } from './stamina.js';
 
 // the state itself, and copying, comparing, rounding and fingerprinting it (shared/playerstate.js)
 export { createPlayerState, copyPlayerState, samePlayerState, snapPlayerState, hashPlayerState } from './playerstate.js';
@@ -344,19 +343,8 @@ function stepStamina(s, b, fwd, moving, swim, aiming, face, pm, events, dt) {
     }
   } else {
     sprint = b & BTN.SPRINT && fwd > 0 && !s.crouch && !s.exhausted && s.stamina > 0 && !aiming && !s.downed && !face ? 1 : 0;
-    if (sprint && moving) {
-      s.stamina -= STAMINA_DRAIN * pm.staminaDrain * dt;
-      s.staminaDelay = STAMINA_REGEN_DELAY;
-      if (s.stamina <= 0) {
-        s.stamina = 0;
-        s.exhausted = 1;
-        if (events) events.push({ type: 'exhausted' });
-      }
-    } else {
-      if (s.staminaDelay > 0) s.staminaDelay -= dt;
-      else s.stamina = Math.min(STAMINA_MAX, s.stamina + STAMINA_REGEN * dt);
-      if (s.exhausted && s.stamina >= STAMINA_UNLOCK) s.exhausted = 0;
-    }
+    if (sprint && moving) spendStamina(s, STAMINA_DRAIN * pm.staminaDrain * dt, events);
+    else recoverStamina(s, dt);
   }
   return sprint;
 }

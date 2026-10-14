@@ -17,11 +17,12 @@
 //   Shift        (bicycle) stand on the pedals, on stamina
 // Passengers are carried: `pass` (the entity id) and `passN` (the seat) in their state stop their feet, and the
 // server puts them in the seat every tick. Their hands are free.
-import { BTN, WATER_LEVEL, STAMINA_DRAIN, STAMINA_REGEN, STAMINA_REGEN_DELAY, STAMINA_MAX, STAMINA_UNLOCK, EYE_HEIGHT, GRID_STEP } from './constants.js';
+import { BTN, WATER_LEVEL, STAMINA_DRAIN, EYE_HEIGHT, GRID_STEP } from './constants.js';
 import { ITEM } from './defs.js';
 import { ColliderGrid, makeBox, pushCircle, footprintContains, COL } from './collision.js';
 import { ROAD } from './layout.js';
 import { mulberry32, wrapAngle } from './rng.js';
+import { spendStamina, recoverStamina } from './stamina.js';
 
 export const VEH = { MOPED: 1, CAR: 2, BIKE: 3 };
 // what state one is in (two bits on the wire)
@@ -454,20 +455,10 @@ export function driveStep(s, b, world, events, dt) {
     // standing on the pedals costs what sprinting does; easing along, the breath comes back
     if (thr > 0 && b & BTN.SPRINT && !s.exhausted && s.stamina > 0) {
       hard = true;
-      s.stamina -= STAMINA_DRAIN * PEDAL_COST * dt;
-      s.staminaDelay = STAMINA_REGEN_DELAY;
-      if (s.stamina <= 0) {
-        s.stamina = 0;
-        s.exhausted = 1;
-        if (events) events.push({ type: 'exhausted' });
-      }
+      spendStamina(s, STAMINA_DRAIN * PEDAL_COST * dt, events);
     }
   }
-  if (!hard) {
-    if (s.staminaDelay > 0) s.staminaDelay -= dt;
-    else s.stamina = Math.min(STAMINA_MAX, s.stamina + STAMINA_REGEN * dt);
-    if (s.exhausted && s.stamina >= STAMINA_UNLOCK) s.exhausted = 0;
-  }
+  if (!hard) recoverStamina(s, dt);
   const impact = stepVehicle(_v, thr, turn, !!(b & BTN.JUMP), hard, world, dt, events);
   // a crowd of the dead against its nose holds it (s.dhold: how many, by the server's count - Vehicles.strike): going
   // slowly it loses this share of its speed each command, in the driver's own prediction as on the server

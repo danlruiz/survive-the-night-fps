@@ -14,7 +14,8 @@
 //   Shift        work it hard: faster, and it costs stamina as sprinting does
 //   E / Space    off over the side the rider looks to, with the speed the car had
 // While the lever is worked both hands are on it: the weapon in them does nothing (playersim.js).
-import { BTN, STAMINA_DRAIN, STAMINA_REGEN_DELAY } from './constants.js';
+import { BTN, STAMINA_DRAIN } from './constants.js';
+import { spendStamina } from './stamina.js';
 import { RAIL } from './rail.js';
 import { ROAD, DEPOT_TRACK } from './layout.js';
 
@@ -202,13 +203,7 @@ export function cartStep(s, b, pressed, world, events, dt) {
   let hard = false;
   if (pump && b & BTN.SPRINT && !s.exhausted && s.stamina > 0) {
     hard = true;
-    s.stamina -= STAMINA_DRAIN * dt;
-    s.staminaDelay = STAMINA_REGEN_DELAY;
-    if (s.stamina <= 0) {
-      s.stamina = 0;
-      s.exhausted = 1;
-      if (events) events.push({ type: 'exhausted' });
-    }
+    spendStamina(s, STAMINA_DRAIN * dt, events);
   }
   _cart.s = s.cartS;
   _cart.v = s.cartV;

@@ -16,7 +16,8 @@
 //   s.reloadT   the heavy attack's wind-up clock: it counts UP while the secondary button is held, and is 0 again the
 //               moment the strike is let go. (So PFLAG.RELOADING, which the snapshot sets from reloadT > 0, says
 //               "winding up" of a survivor holding nunchucks: that is how others see the spin.)
-import { BTN, STAMINA_REGEN_DELAY } from './constants.js';
+import { BTN } from './constants.js';
+import { spendStamina } from './stamina.js';
 
 // The moves. damage: of each hit; hits: when they land (s after the move starts); rate: until the next move can
 // start; stamina: what starting it costs; knock: the shove (3 and up staggers); targets: how many it can strike;
@@ -117,14 +118,7 @@ export function simNunchaku(s, b, cd0, weapon, events, dt) {
 }
 
 function spend(s, n, events) {
-  if (s.exhausted) return;
-  s.stamina -= n;
-  s.staminaDelay = STAMINA_REGEN_DELAY;
-  if (s.stamina <= 0) {
-    s.stamina = 0;
-    s.exhausted = 1;
-    if (events) events.push({ type: 'exhausted' });
-  }
+  if (!s.exhausted) spendStamina(s, n, events);
 }
 
 // the chain (shared/nunchaku-chain.js)
