@@ -10,6 +10,7 @@
 // Styles: ux-endscreens.css, every rule under one of these roots, sized to hold together at 854 x 480 (150% zoom).
 import './ux-endscreens.css';
 import { el, svgEl, fmtTime, button } from './dom.js';
+import { num } from './format.js';
 import { glyph } from './icons.js';
 import { bindLabel } from '../game/binds.js';
 import { accountState } from '../net/account.js';
@@ -21,7 +22,6 @@ import { ZOMBIE_DEFS } from '../../shared/defs.js';
 import { BESTIARY } from '../../shared/bestiary.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const num = (n) => (n | 0).toLocaleString('en-US');
 
 // a key cap, as the binds have it now ('6', 'Z'); nothing when it is unbound
 function keyCap(parent, action) {

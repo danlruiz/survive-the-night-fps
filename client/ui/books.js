@@ -13,6 +13,7 @@ import { BESTIARY, bit, seenCount } from '../../shared/bestiary.js';
 import { ACHIEVEMENTS, ACH_BY_ID, ACH_STATS, achProgress } from '../../shared/achievements.js';
 import { BOSS_POOL, FIRST_BOSS, STARTERS, nightBoss, nightTheme, hasJoined, kindsJoining } from '../../shared/nights.js';
 import { el, svgEl, button, iconButton } from './dom.js';
+import { num } from './format.js';
 import { glyph, achIcon } from './icons.js';
 import { achievementsView, onAchievements, refreshAchievements } from '../net/achievements.js';
 import { bestiaryView, onBestiary } from '../net/bestiary.js';
@@ -22,7 +23,6 @@ import { bindLabel } from '../game/binds.js';
 export const TIER_NAME = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum' };
 export const TIER_RANK = { bronze: 0, silver: 1, gold: 2, platinum: 3 };
 export const GROUP_TAG = { horde: 'Horde', special: 'Special', boss: 'Boss' };
-export const num = (n) => (n | 0).toLocaleString('en-US');
 export const km = (m) => `${(m >= 10000 ? Math.floor(m / 1000) : Math.floor(m / 100) / 10).toLocaleString('en-US')} km`;
 export const amount = (a, n) => (a.unit === 'm' ? km(n) : num(n));
 

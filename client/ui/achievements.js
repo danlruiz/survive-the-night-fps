@@ -14,13 +14,13 @@ import { el, svgEl, button } from './dom.js';
 import { glyph, achIcon } from './icons.js';
 import { Panel } from './panel.js';
 import { tabbed } from './screentabs.js';
-import { ago } from './account.js';
+import { ago, num } from './format.js';
 import { ACHIEVEMENTS, ACH_GROUPS, ACH_TIERS, ACH_STATS, achProgress } from '../../shared/achievements.js';
 import { ZOMBIE_DEFS } from '../../shared/defs.js';
 import { achievementsView, onAchievements, refreshAchievements, friendAchievements } from '../net/achievements.js';
 import { accountState } from '../net/account.js';
 import { bindLabel } from '../game/binds.js';
-import { TIER_NAME, TIER_RANK, GROUP_TAG, num, amount, toGo, nextSteps, nextOnCount, statLabel, COUNTERS, trackButton, trackable, onTracked, kindFacts, chips, dangerPips } from './books.js';
+import { TIER_NAME, TIER_RANK, GROUP_TAG, amount, toGo, nextSteps, nextOnCount, statLabel, COUNTERS, trackButton, trackable, onTracked, kindFacts, chips, dangerPips } from './books.js';
 
 const SHOW_S = 4.2; // seconds a banner is up...
 const SHOW_BUSY_S = 2.6; // ...while others wait behind it

@@ -40,7 +40,7 @@ export function screenCame(root) {
   root.classList.toggle('scr-still', swapping);
 }
 
-// A Panel (games.js) as one of the screens: its card in a frame under the row, which has the close (the card's own
+// A Panel (panel.js) as one of the screens: its card in a frame under the row, which has the close (the card's own
 // cross goes, and so does its title: the tab says it). A press on the frame between them is a press outside, as on
 // the inventory. The panel calls shown() and hidden() from its show() and hide().
 export function tabbed(panel, own) {

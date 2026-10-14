@@ -3,7 +3,7 @@
 // to add; your friends - those you can go and join first, then those online, then the rest - each with a Chat, a
 // Join (or "Leave & join" from inside a game) while they play; adding someone by their name; and the requests you
 // sent. Chat opens the conversation in the panel itself. The friends, the requests and the messages are
-// client/net/friends.js. It borrows the lobby's card (games.js) and closes the same ways: the cross, Esc, or a click
+// client/net/friends.js. It is a panel (panel.js) and closes the same ways: the cross, Esc, or a click
 // outside the card.
 //
 // In a game, a message from a friend or a friend request is said in the chat as a line of its own, and nothing else:
@@ -12,7 +12,7 @@ import { el, svgEl, button, iconButton } from './dom.js';
 import { glyph } from './icons.js';
 import { phaseText, seatsText, difficultyText } from './games.js';
 import { Panel } from './panel.js';
-import { ago } from './account.js';
+import { ago } from './format.js';
 import { bindLabel } from '../game/binds.js';
 import { accountState, onAccountChange } from '../net/account.js';
 import {

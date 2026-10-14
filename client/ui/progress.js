@@ -6,6 +6,7 @@
 //
 // Also the small pieces the rest of the UI shows it with: the level badge and the XP bar (xpBar).
 import { el, button } from './dom.js';
+import { num } from './format.js';
 import { Panel } from './panel.js';
 import { PerkTree } from './perktree.js';
 import { PerkPick } from './perkpick.js';
@@ -14,8 +15,6 @@ import { PERK_BY_ID, LEVEL_CAP, levelInfo } from '../../shared/progress.js';
 import './ux-perks.css';
 import { fetchProgress, pickPerk, unpickPerk, respecPerks, onProgress, lastProgress } from '../net/progress.js';
 import { accountState } from '../net/account.js';
-
-const num = (n) => (n | 0).toLocaleString('en-US');
 
 // A level badge and a bar to the next level, kept up to date with set(xp)
 export function xpBar(parent, cls = '') {

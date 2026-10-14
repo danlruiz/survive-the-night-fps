@@ -1,12 +1,13 @@
 // A player's profile, opened by clicking them on the pinned player list [Tab] (roster.js): their level, what they
 // have done in this game and over all their games (an account's, from the server: GET /api/players/:name), the perks
 // they have in force, and a friend request to send them - or theirs to accept or turn down. A guest has no record
-// beyond this game and cannot be asked: they are told apart and said to be one. It borrows the lobby's card
-// (games.js) and closes the same ways: the cross, Esc, or a click outside the card.
+// beyond this game and cannot be asked: they are told apart and said to be one. It is a panel
+// (panel.js) and closes the same ways: the cross, Esc, or a click outside the card.
 import { el, svgEl, button } from './dom.js';
 import { glyph } from './icons.js';
 import { Panel } from './panel.js';
-import { duration } from './account.js';
+import { STAT_TILES, statTile } from './account.js';
+import { num, duration } from './format.js';
 import { BRANCH_ICON } from './perktree.js';
 import { PERKS, PERK_GROUPS, perkIds } from '../../shared/progress.js';
 import { accountState } from '../net/account.js';
@@ -17,15 +18,8 @@ import { lastProgress } from '../net/progress.js';
 import { achievementTally, bestiaryTally, cardTally, loadoutTally, perkTally, tallyPct, tallyText } from '../../shared/collections.js';
 import { fetchProfile, onSocialChange, isFriendName, requestedName, askedByName, requestFriend, acceptFriend, declineFriend } from '../net/friends.js';
 
-const num = (n) => (n | 0).toLocaleString('en-US');
 const lower = (s) => String(s || '').toLowerCase();
 const STATUS = { alive: 'On their feet', downed: 'Down', dead: 'Dead', zombie: 'Turned' };
-const TILES = [
-  ['kills', 'Kills', 'skull'],
-  ['nights', 'Nights', 'moon'],
-  ['wins', 'Wins', 'car'],
-  ['revives', 'Revives', 'cross'],
-];
 const SAID = {
   sent: (n) => `Request sent. ${n} becomes your friend once they say yes.`,
   accepted: (n) => `${n} had asked you already: you are friends now.`,
@@ -193,13 +187,7 @@ export class ProfilePanel extends Panel {
     if (!p.account) el('p', 'ac-note', this.more, 'Guests keep no record anyone else can see: they can sign in to have one.');
     else if (!this.rec) el('div', 'gb-empty fr-empty ac-wait', this.tiles, this.recErr || 'Looking up their record…');
     else {
-      for (const [k, label, icon] of TILES) {
-        const t = el('div', 'ac-tile', this.tiles);
-        const h = el('span', 'ac-tile-l', t);
-        svgEl('i', 'ac-tile-ico', h, glyph(icon));
-        el('span', '', h, label);
-        el('b', '', t, num(s[k]));
-      }
+      for (const tile of STAT_TILES) statTile(this.tiles, tile, num(s[tile[0]]));
       for (const [label, value] of [
         ['Games', num(s.games)],
         ['Deaths', num(s.deaths)],
