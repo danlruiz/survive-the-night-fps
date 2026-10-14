@@ -54,6 +54,14 @@ export function sameOrigin(origin, host) {
   }
 }
 
+// Watches a response for its client going away (it must not be written to then, uWS): -> () => whether it has. For a
+// route that answers later, after something it waits for
+export function abortWatch(res) {
+  let gone = false;
+  res.onAborted(() => (gone = true));
+  return () => gone;
+}
+
 // Writes a reply, unless the client went away
 export function reply(res, { status = 200, body = null, cookies = [], headers = {} } = {}, metrics = null) {
   if (res.aborted) return;
@@ -71,7 +79,7 @@ export function reply(res, { status = 200, body = null, cookies = [], headers = 
 }
 
 // The body, up to `max` bytes, as one Buffer. Must be called before the handler returns (uWS)
-function readBody(res, max, metrics = null) {
+export function readBody(res, max, metrics = null) {
   return new Promise((resolve, reject) => {
     const parts = [];
     let size = 0;
@@ -93,6 +101,12 @@ function readBody(res, max, metrics = null) {
       }
     });
   });
+}
+
+// A save that a client may send as a PUT or a POST: the same handler for both (route: index.js's, which calls api)
+export function putOrPost(route, path, fn, opts) {
+  route('put', path, fn, opts);
+  route('post', path, fn, opts);
 }
 
 // (a bad %-escape is left as it came: throwing here would be in uWS's callback, before anything can answer)

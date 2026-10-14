@@ -44,8 +44,12 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   bestiary.js    the bestiary: every kind of the dead, its vague line and its tip, and what seeing one is (see The
                  bestiary below)
 server/      authoritative game server (uWebSockets.js)
-  index.js       the network thread: sockets, the lobby's HTTP API, static files, /status (see Many games below)
-  rooms.js       the lobby: the games running, routing sockets to them, codes, allowances, the leaderboard's side
+  index.js       the network thread: makes the services and wires them together (see Many games below)
+  sockets.js     its WebSockets: /ws (a game's: seat, the map 1 gate), /cards, /social
+  http/          its HTTP routes: lobby.js (the lobby's API, /api/version, /status), static.js (the client's files),
+                 and the JSON API by resource (accounts, friends, loadout, feedback, progress, stats) over http.js api
+  rooms.js       the lobby: the games running, routing sockets to them, codes, allowances, deploys' restores
+  room.js        one game as the network thread sees it (Room): its worker, its sockets, its records, its handoff
   room-worker.js one game server: a worker thread running one Game and its tick loop
   wire.js        the packed frames the two threads pass sockets' messages in
   game.js        the simulation of one game (Game), and everything it sends
@@ -183,7 +187,7 @@ more than its bytes**, so put things into the packets that already flow.
 
 ## Many games on one server: the lobby
 
-One process runs every game. The **network thread** (`server/index.js`) owns the sockets, the HTTP routes and the
+One process runs every game. The **network thread** (`server/index.js`, `sockets.js`, `http/`) owns the sockets, the HTTP routes and the
 leaderboard; **each game is a worker thread of its own** (`server/room-worker.js`: one `Game`, its own 20 Hz tick
 loop, its own valley). So the games share the box's cores, generating a valley (a few hundred ms) in one game holds
 up nobody else, and a game that crashes or runs out of its 512 MB heap ends alone: the network thread closes its
@@ -266,7 +270,7 @@ JSON file (`server/stats.js`).
   site cannot post with the player's cookie. The same Origin rule decides whether a WebSocket handshake's cookie is
   believed (`sessionToken` in index.js).
 - **Playing signed in.** `/ws`'s upgrade starts looking the cookie up and answers the handshake at once; the socket
-  gets its seat when the lookup is back (`open`, `seat` in index.js), and what it sent meanwhile - its JOIN - is kept
+  gets its seat when the lookup is back (`open`, `seat` in sockets.js), and what it sent meanwhile - its JOIN - is kept
   for then. (Never `res.upgrade` later from `res.cork`: uWebSockets.js v20.52 closes most sockets upgraded that way
   as they open, close code 1006 at 0 ms, uNetworking/uWebSockets#1929; `scripts/test-session-socket.js`.) The socket's
   user data carries `{ id, name, isAdmin }`; `Room.attach` passes it to the worker (`{ t: 'open', user }`), `conn.user`, and
@@ -581,7 +585,7 @@ server spawned with an IPC channel stops the same way on the message `'shutdown'
   game (`Lobby.restore`: claim, then a `Room` under the same code, given that worker or a new one with the save in its
   `workerData`) as soon as the store says one is there (`listen`), for any already waiting when it starts, and for a
   socket, an invite card, a page or `/api/version` asking for a code it does not have yet (they wait for it, as a socket
-  waits for a session: index.js `open`, `Lobby.settle`). The worker makes its `Game` from the save; a save it cannot use
+  waits for a session: sockets.js `open`, `Lobby.settle`). The worker makes its `Game` from the save; a save it cannot use
   is reported (`restoreFailed`) and the room closes. Then, if the save names a build and this server may start it, the
   game is started again by that build (`Lobby.afterFailed`, below); failing that, the lobby remembers that code for half an
   hour with why (`Lobby.ended`, `wasLost`), and whoever comes for it is turned away with `REJECT_REASON.ENDED_MAP` (the
@@ -875,7 +879,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   the gun crates (`Game.startCrates`, at `world.startCrates`; [E] drops a gun, its magazines and the stock). Each of its
   wipes starts a new run there, on a new mainland (`startGame`), never on the island. Only a player who has
   beaten map 1 (`crossings` in the stats, `map1_at` in the database) may create one or take a seat in one
-  (`map1Gate` in server/index.js, `REJECT_REASON.MAP1_FIRST`); admins may always. Quick join never picks one. A late joiner joins the act being played:
+  (`map1Gate` in server/sockets.js, `REJECT_REASON.MAP1_FIRST`); admins may always. Quick join never picks one. A late joiner joins the act being played:
   beside the team, or at the act's start, with `starterKit(day)`.
 - **Difficulty** (shared/difficulty.js) is the game's, so it holds on both maps: the mainland's days (`dayLen`: the
   arrival day and the longer days after it, times `diff.day`), its hordes and the runway stand (`hordeSize`), the dead
@@ -1979,7 +1983,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   not drops. A survivor who dies drops all they carry (`dropAll`); one who leaves the game takes along what they
   were handed at the start (`p.kit`, recorded by `spawnHuman`) and drops only the rest (`parkKit`, see Joining a
   run in progress below), so a reconnect neither litters nor doubles the kit.
-- **Coming and going.** `Game.admitJoin` gives each address (`conn.ip`, from `clientAddress` in `index.js`:
+- **Coming and going.** `Game.admitJoin` gives each address (`conn.ip`, from `clientAddress` in `netaddr.js`:
   behind a proxy it is the forwarded one) two lobbies' worth of joins at once and one more every `JOIN_EVERY`
   seconds; past that a join is refused as "server full". The "joined" / "left" chat lines have one allowance for
   everybody (`GREET_EVERY`): once it is used up players come and go unannounced, the player list still shows them.

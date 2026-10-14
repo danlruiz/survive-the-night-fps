@@ -10,21 +10,21 @@
 //
 // A deploy does not end the games (handoff.js): on SIGTERM each is saved into the store and its players are sent
 // HANDOFF_CLOSE, and the new server - up by then - restores it under the same code for them to reconnect to.
+//
+// This file makes the services and wires them together; what each endpoint does is elsewhere: the WebSockets in
+// sockets.js, the lobby's routes and /status in http/lobby.js, the JSON API by resource in http/*.js (over http.js
+// api), the client's files in http/static.js, the admin panel's API in adminpanel.js.
 import { createHash } from 'node:crypto';
-import { gzipSync, brotliCompressSync, constants as zlibConstants } from 'node:zlib';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join, extname, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import uWS from 'uWebSockets.js';
-import { Lobby, rejectBytes, defaultMaxGames } from './rooms.js';
-import { chosenDifficulty } from '../shared/difficulty.js';
+import { Lobby, defaultMaxGames } from './rooms.js';
 import { PlayerStats } from './stats.js';
 import { openDb, describeUrl } from './db/index.js';
 import { migrate } from './db/migrate.js';
 import { DbStats } from './dbstats.js';
 import { MatchStore } from './matchstore.js';
-import { Auth, COOKIE, publicUser } from './auth.js';
+import { Auth, COOKIE } from './auth.js';
 import { Social } from './social.js';
 import { Feedback } from './feedback.js';
 import { UserSettings } from './usersettings.js';
@@ -33,23 +33,28 @@ import { Progress } from './progress.js';
 import { AchievementStore } from './userachievements.js';
 import { BestiaryStore } from './userbestiary.js';
 import { CardService, PgCardStore, MemoryCardStore } from './usercards.js';
-import { LoadoutService, PgLoadoutStore, MemoryLoadoutStore, ownerKey as loadoutOwnerKey } from './userloadout.js';
+import { LoadoutService, PgLoadoutStore, MemoryLoadoutStore } from './userloadout.js';
 import { LobbyCards } from './lobbycards.js';
-import { PublicStats, RANGES } from './publicstats.js';
-import { idKey } from './stats.js';
 import { devAdminAllowed } from './devadmin.js';
-import { api, HttpError, parseCookies, sameOrigin } from './http.js';
+import { api, parseCookies, sameOrigin } from './http.js';
+import { loadDir, stampPage, clientRoutes } from './http/static.js';
+import { lobbyRoutes, statusRoute } from './http/lobby.js';
+import { accountRoutes } from './http/accounts.js';
+import { loadoutRoutes } from './http/loadout.js';
+import { feedbackRoutes } from './http/feedback.js';
+import { progressRoutes } from './http/progress.js';
+import { friendRoutes } from './http/friends.js';
+import { statsRoutes } from './http/stats.js';
+import { gameSockets, cardSockets, socialSockets } from './sockets.js';
 import { FileStore, PgStore, BUILD } from './handoff.js';
 import { Builds } from './builds.js';
 import { compatOf } from './compat.js';
 import { Cluster } from './cluster.js';
 import { AdminPanel } from './adminpanel.js';
-import { clientOf } from './netaddr.js';
-import { NetworkMetrics, gameInChannel, payloadBytes } from './netmetrics.js';
-import { REJECT_REASON, PROTOCOL_VERSION } from '../shared/protocol.js';
+import { clientAddress } from './netaddr.js';
+import { NetworkMetrics } from './netmetrics.js';
+import { PROTOCOL_VERSION } from '../shared/protocol.js';
 import { DEFAULT_PORT, MAX_PLAYERS } from '../shared/constants.js';
-import { LOADOUT_CATALOG, LOADOUT_SLOTS, cleanLoadoutSlots } from '../shared/loadout.js';
-import { AUCTION, SKULLS, SKULL_EARN } from '../shared/economy.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = +(process.env.PORT || DEFAULT_PORT);
@@ -58,8 +63,6 @@ const MAX = +(process.env.MAX_PLAYERS || MAX_PLAYERS); // seats in a game unless
 // a core), but the game is balanced for 8 and the night's 120 zombies spread thin past about 16
 const ROOM_MAX = +(process.env.ROOM_MAX_PLAYERS || Math.max(MAX, 16));
 const MAX_GAMES = +(process.env.MAX_GAMES || defaultMaxGames()); // games at once on this box
-// sockets one address may have open over all the games (a household, a LAN party). 0: no limit (load tests)
-const CONN_PER_IP = +(process.env.CONN_PER_IP ?? 24);
 const SEED = process.env.SEED ? +process.env.SEED : undefined;
 const DIST = resolve(__dirname, '../dist');
 const log = (...a) => console.log('[server]', ...a);
@@ -137,7 +140,7 @@ const lobby = new Lobby({
   roomMaxPlayers: ROOM_MAX,
   limits: process.env.LOBBY_LIMITS !== '0', // 0: no per-address allowance on making games or asking for codes (load tests)
   idleMs: process.env.GAME_IDLE_SECONDS ? +process.env.GAME_IDLE_SECONDS * 1000 : undefined, // an empty game lasts this long (tests)
-  log: (...a) => console.log('[server]', ...a),
+  log,
   // every game is made with these (all but the seed are for testing)
   gameOpts: {
     seed: SEED,
@@ -185,38 +188,8 @@ const progress = new Progress({
 cluster?.on('progress', (m) => lobby.progressChanged(m.key, m.perks));
 
 // ---------------------------------------------------------------- static files (prod build)
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.ogg': 'audio/ogg',
-};
-const files = new Map();
-// A file the build also wrote compressed (vite.config.js precompress: name.gz, name.br beside it) is sent that way to a
-// browser that takes it: those are not read now, only noted (gzFile, brFile), and read the first time one is asked for
-// (sendStatic). Nothing is compressed here.
-function loadDir(dir, prefix = '') {
-  if (!existsSync(dir)) return;
-  const entries = readdirSync(dir, { withFileTypes: true });
-  const names = new Set(entries.map((e) => e.name));
-  for (const e of entries) {
-    const full = join(dir, e.name);
-    if (e.isDirectory()) loadDir(full, `${prefix}/${e.name}`);
-    else if (/\.(gz|br)$/.test(e.name) && names.has(e.name.slice(0, -3))) continue; // (noted with the file it is of)
-    else {
-      const f = { body: readFileSync(full), type: MIME[extname(e.name)] || 'application/octet-stream' };
-      if (names.has(`${e.name}.gz`)) f.gzFile = `${full}.gz`;
-      if (names.has(`${e.name}.br`)) f.brFile = `${full}.br`;
-      files.set(`${prefix}/${e.name}`, f);
-    }
-  }
-}
-loadDir(DIST);
+const files = new Map(); // the client's files (http/static.js loadDir)
+loadDir(files, DIST);
 if (files.size) console.log(`[server] serving ${files.size} static files from dist/`);
 else console.log('[server] no dist/ build found - run `npm run build` (or use `npm run dev` for the Vite dev server)');
 
@@ -229,23 +202,7 @@ else console.log('[server] no dist/ build found - run `npm run build` (or use `n
 const CLIENT_BUILD = process.env.CLIENT_BUILD || (files.get('/index.html') ? createHash('sha256').update(files.get('/index.html').body).digest('hex').slice(0, 12) : BUILD);
 //           (compat.js: shared/, the protocol, and the wire codec outside shared/)
 const COMPAT = process.env.CLIENT_COMPAT || compatOf(resolve(__dirname, '..'), PROTOCOL_VERSION);
-// The page carries what it was built as (client/net/moveback.js pageBuild): read from the page, not asked of the server
-// later, when a deploy may already have put another build behind the same address.
-const stamp = (html, { build, compat, protocol }) => {
-  const meta = `<meta name="stn-build" content="${build} ${compat} ${protocol}">`;
-  const s = html.toString('utf8');
-  const at = s.search(/<head[^>]*>/i);
-  return Buffer.from(at < 0 ? meta + s : s.replace(/<head[^>]*>/i, (h) => h + meta));
-};
-if (files.get('/index.html')) {
-  const f = files.get('/index.html');
-  f.raw = f.body; // (as built: what is kept for a server after this one to serve, builds.js)
-  f.body = stamp(f.body, { build: CLIENT_BUILD, compat: COMPAT, protocol: PROTOCOL_VERSION });
-  // (the page built compressed is the page before its stamp: this one is compressed here, the first time it is asked
-  // for - 3 KB, a few ms)
-  f.gzFile = f.brFile = '';
-  f.stamped = f.body.length >= 1024;
-}
+stampPage(files, { build: CLIENT_BUILD, compat: COMPAT, protocol: PROTOCOL_VERSION });
 
 // A game whose save this build cannot read is carried on by the build that saved it (builds.js, docs/deploys.md): this
 // build's code goes into the store for the servers after it, and a save names the build its game runs on. Only signed
@@ -272,715 +229,47 @@ if (store) {
   setInterval(() => store.sweep(HANDOFF_MAX_AGE).catch(() => {}), 60_000).unref();
 }
 
-
 // ---------------------------------------------------------------- who is connecting
-// The game counts joins per address (Game.admitJoin): the client's, not a proxy's in front (netaddr.js)
-function clientAddress(res, req) {
-  // uWS spells the peer out as eight hex groups, an IPv4 one as 0000:0000:0000:0000:0000:ffff:hhhh:hhhh
-  let peer = Buffer.from(res.getRemoteAddressAsText()).toString();
-  const v4 = /^(?:0000:){5}ffff:(..)(..):(..)(..)$/i.exec(peer);
-  if (v4) peer = v4.slice(1).map((h) => parseInt(h, 16)).join('.');
-  return clientOf(peer, req.getHeader('x-forwarded-for'), req.getHeader('x-real-ip'));
-}
-
-// The session token a socket's handshake carries (auth.js), '' for none - or for one sent by a page on another site,
-// which could otherwise have a signed-in player's browser play, or listen to their messages, as them
+// The session token a request or socket's handshake carries (auth.js), '' for none - or for one sent by a page on
+// another site, which could otherwise have a signed-in player's browser play, or listen to their messages, as them
 function sessionToken(req) {
   if (!auth || !sameOrigin(req.getHeader('origin'), req.getHeader('host'))) return '';
   return parseCookies(req.getHeader('cookie'))[COOKIE] || '';
 }
+const isStopping = () => stopping;
 
 const app = uWS.App();
-const perIp = new Map(); // address -> sockets it has open
-const EARLY_MAX = 8; // messages kept for a socket that is still waiting for its seat (/ws open)
+// ---------------------------------------------------------------- the sockets (sockets.js)
+const gameSocks = gameSockets(app, { lobby, store, builds, auth, stats, netMetrics, log, stopping: isStopping, sessionToken, address: clientAddress });
+cardSockets(app, { lobbyCards, auth, netMetrics, log, sessionToken, address: clientAddress });
 
-const KNOCK_MS = 1000; // how long a socket at a full game has to send its JOIN (seat): a page sends it as the socket opens
-// A game socket's seat in its game (d.code), or in whichever a quick join picks - or it is told why not, and closed.
-// join: its JOIN, once it has sent it. At a full game the seat waits for that (d.knocked): it may be one of the game's
-// own players coming back while their old socket is still open here, who is let in (Room.mayComeBack)
-// early: everything the socket sent before it had a seat, its JOIN first (open), for a game it may have to wait on (map1Gate)
-function seat(ws, join = null, early = null) {
-  const d = ws.getUserData();
-  let reason = 0;
-  let room = null;
-  if (stopping) reason = REJECT_REASON.FULL; // (going down: new sockets belong on the next server)
-  else if (CONN_PER_IP && (perIp.get(d.ip) || 0) >= CONN_PER_IP) reason = REJECT_REASON.FULL;
-  else {
-    room = d.code ? lobby.find(d.code, d.ip) : lobby.quick();
-    // a game that starts on the mainland: only for whoever has beaten map 1, which takes their JOIN to know (a guest is
-    // their browser's id) and a look at their record first
-    if (room && room.startAct === 2 && !d.map1 && !mayPlayMap2(d.user)) {
-      if (join) return map1Gate(ws, room, join, early);
-      if (!d.knocked) knock(ws);
-      return;
-    }
-    if (room?.full && d.code && !join && !d.knocked) {
-      knock(ws);
-      return;
-    }
-    const slot = room ? room.attach(ws, join) : -1;
-    if (slot >= 0) {
-      d.room = room;
-      d.slot = slot;
-    } else reason = room || !d.code ? REJECT_REASON.FULL : lobby.wasLost(d.code) || REJECT_REASON.NO_GAME; // (wasLost: a deploy ended it, and why)
-  }
-  if (reason) return turnAway(ws, reason, room);
-  perIp.set(d.ip, (perIp.get(d.ip) || 0) + 1);
-  d.counted = true;
-  d.at = Date.now();
-}
-// told why, the way the game tells a join it turns away (the client closes on it; this closes it anyway) - in the
-// codec of the game's own client, for one an older build carries on (or carried on, when a deploy ended it)
-function turnAway(ws, reason, room) {
-  const d = ws.getUserData();
-  const bytes = rejectBytes(reason, room?.proto || (d.code ? lobby.lostProto(d.code) : undefined));
-  netMetrics.wsOut('game_rejects', bytes);
-  ws.send(bytes, true, false);
-  ws.end(1000, 'rejected');
-}
-// A socket with no seat yet waits for its JOIN (a page sends it as the socket opens): what it sends is kept, and the
-// first of it is taken for the JOIN (message). One that never sends it is seated, or turned away, without
-function knock(ws) {
-  const d = ws.getUserData();
-  d.knocked = true;
-  d.early = [];
-  setTimeout(() => {
-    if (d.early && !d.room && d.knocked) seat(ws, new Uint8Array(0)); // (never said who it is: turned away, or seated if there is room now)
-  }, KNOCK_MS);
-}
-// An admin plays any game: a signed-in one, or everybody on a development server (DEV_ADMIN, devadmin.js)
-const mayPlayMap2 = (user) => !!user?.isAdmin || devAdminAllowed();
-// Whether the player whose JOIN this is has beaten map 1 (stats map1Cleared), before they are seated in a game that
-// starts on the mainland. What the socket sends meanwhile is kept, and goes to the game after the JOIN once they are
-// in. One who has not is told so (REJECT_REASON.MAP1_FIRST). The record that cannot be read lets them in: the gate is
-// the game's design, not anybody's safety.
-function map1Gate(ws, room, join, early) {
-  const d = ws.getUserData();
-  const sent = early?.length ? early : [join];
-  d.knocked = false;
-  d.early = []; // (message: kept here meanwhile)
-  const key = room.keyOf(join, d.user);
-  const who = d.user ? { userId: d.user.id } : key.startsWith('g:') ? { guestKey: key.slice(2) } : null;
-  const ask = room.keys.includes(key) ? Promise.resolve(true) : who ? Promise.resolve(stats.map1Cleared(who)) : Promise.resolve(false);
-  ask
-    .catch((err) => {
-      log(`game ${room.code}: whether a player has beaten map 1 could not be read (${err.message}): let in`);
-      return true;
-    })
-    .then((ok) => {
-      const later = d.early;
-      d.early = null;
-      if (!later) return; // (closed while it waited)
-      if (!ok) return turnAway(ws, REJECT_REASON.MAP1_FIRST, room);
-      d.map1 = true;
-      seat(ws, join);
-      for (const bytes of [...sent, ...later]) if (d.room) hear(ws, bytes);
-    });
-}
-// a message from a game socket, for its game
-function hear(ws, bytes) {
-  const d = ws.getUserData();
-  if (!d.room) return;
-  d.room.deliver(d.slot, bytes, !d.heard);
-  d.heard = true;
-}
+// ---------------------------------------------------------------- the lobby (http/lobby.js)
+lobbyRoutes(app, { lobby, store, builds, auth, stats, netMetrics, log, stopping: isStopping, version: { protocol: PROTOCOL_VERSION, build: CLIENT_BUILD, compat: COMPAT }, sessionToken, address: clientAddress });
 
-app.ws('/ws', {
-  compression: uWS.DISABLED, // payloads are already tightly packed binary (measured: deflate only takes ~10% more off)
-  maxPayloadLength: 64 * 1024,
-  maxBackpressure: 512 * 1024,
-  idleTimeout: 60,
-  sendPingsAutomatically: true,
-  upgrade: (res, req, context) => {
-    const ip = clientAddress(res, req);
-    const code = String(req.getQuery('game') || '').trim().toUpperCase(); // none: a quick join
-    const back = !!code && req.getQuery('back') === '1'; // the page coming back into the game it was playing (Game.handleJoin)
-    // signed in (the session cookie, from a page of ours): they play as their account (Game.handleJoin)
-    const token = sessionToken(req);
-    const key = req.getHeader('sec-websocket-key');
-    const proto = req.getHeader('sec-websocket-protocol');
-    const ext = req.getHeader('sec-websocket-extensions');
-    // (a game the last server handed over that is still in the store: brought back first, so the socket finds it. A
-    // quick join with no game to go to, in a cluster: one is made first, as the other servers have to be asked)
-    // (one whose save this build could not read, being carried on by an older build instead: waited for too - settle)
-    const pending = code && store && (!lobby.rooms.has(code) || (lobby.rooms.get(code).from && !lobby.rooms.get(code).ready));
-    const restoring = pending ? (builds ? lobby.settle(code) : lobby.restore(code)).catch((err) => log(`game ${code} not restored (${err.message})`)) : !code && lobby.cluster && !lobby.quickPick() ? lobby.make({ quick: true }) : null;
-    // Always re-read a game connection: admin role changes and revoked sessions must not come from the minute cache.
-    const user = token
-      ? auth.userForToken(token, true).catch((err) => {
-          log(`session lookup failed (${err.message}): joining as a guest`);
-          return null;
-        })
-      : null;
-    // The handshake is answered here and now, whatever has to be waited for: the socket gets its seat once that is
-    // known (open). Upgrading later, from res.cork() once the promise settles, is what uWebSockets documents, and in
-    // v20.52 it drops sockets (seen on Linux: most of them): after the callback, cork() still takes the socket for the
-    // HTTP response it was, and reads that response's flags from where they used to be, which the upgrade has given
-    // up; when what is there reads as "Connection: close, all sent" it closes the socket, straight after open (close
-    // code 1006, 0 ms). Fixed upstream in uNetworking/uWebSockets#1929. (scripts/test-session-socket.js)
-    const wait = user || restoring ? Promise.all([user, restoring]).then(([u]) => u, () => null) : null;
-    res.upgrade({ ip, code, back, user: null, wait, early: null, knocked: false, map1: false, room: null, slot: -1, counted: false, heard: false, at: 0 }, key, proto, ext, context);
-  },
-  open: (ws) => {
-    const d = ws.getUserData();
-    if (!d.wait) return seat(ws);
-    // who they are, or the game being brought back, is not known yet: what they send meanwhile (their JOIN) is kept
-    d.early = [];
-    d.wait.then((user) => {
-      const early = d.early;
-      d.wait = d.early = null;
-      if (!early) return; // (closed while it waited)
-      d.user = user;
-      seat(ws, early[0] || null, early);
-      for (const bytes of early) if (d.room) hear(ws, bytes); // (no room: turned away, and closed by now; knocking, or waiting on map1Gate: seat)
-    });
-  },
-  message: (ws, message, isBinary) => {
-    if (!isBinary) {
-      netMetrics.wsIn('game_other', payloadBytes(message));
-      return;
-    }
-    const bytes = new Uint8Array(message); // (copied by the room if it crosses an async boundary)
-    netMetrics.wsIn(gameInChannel(bytes), bytes.byteLength);
-    const d = ws.getUserData();
-    if (!d.early) return hear(ws, bytes);
-    if (d.knocked && !d.wait) {
-      // its JOIN, at a full game: one of its own players coming back gets a seat (seat), anyone else is turned away
-      const join = new Uint8Array(message.slice(0));
-      d.early = null;
-      seat(ws, join);
-      if (d.room) hear(ws, join);
-      return;
-    }
-    // (a client sends its JOIN and then waits for the answer: more than a few messages before it is not one of ours)
-    if (d.early.length >= EARLY_MAX) return ws.end(1008, 'Too much before joining');
-    d.early.push(new Uint8Array(message.slice(0)));
-  },
-  drain: (ws) => {
-    const d = ws.getUserData();
-    d.room?.drained(d.slot);
-  },
-  close: (ws, closeCode) => {
-    const d = ws.getUserData();
-    d.early = null;
-    // a seat taken by a socket that went before its JOIN came: how, and how soon (a browser that gave up on the
-    // handshake shows as 1006 a round trip in; the client tries again, connection.js)
-    if (d.room && !d.heard) log(`socket in game ${d.room.code} closed before it joined (code ${closeCode}, ${Date.now() - d.at} ms)`);
-    if (d.counted) {
-      const n = (perIp.get(d.ip) || 1) - 1;
-      if (n > 0) perIp.set(d.ip, n);
-      else perIp.delete(d.ip);
-      d.counted = false;
-    }
-    const room = d.room;
-    d.room = null;
-    room?.detach(d.slot, closeCode);
-  },
-});
-
-app.ws('/cards', {
-  compression: uWS.DISABLED,
-  maxPayloadLength: 16 * 1024,
-  maxBackpressure: 256 * 1024,
-  idleTimeout: 120,
-  sendPingsAutomatically: true,
-  upgrade: (res, req, context) => {
-    const token = sessionToken(req);
-    const key = req.getHeader('sec-websocket-key');
-    const proto = req.getHeader('sec-websocket-protocol');
-    const ext = req.getHeader('sec-websocket-extensions');
-    const wait = token
-      ? auth.userForToken(token, true).catch((err) => {
-          log(`session lookup failed (${err.message}): playing lobby cards as a guest`);
-          return null;
-        })
-      : null;
-    res.upgrade({ ip: clientAddress(res, req), user: null, wait, early: null, cardsJoined: false }, key, proto, ext, context);
-  },
-  open: (ws) => {
-    const d = ws.getUserData();
-    if (!d.wait) return lobbyCards.open(ws);
-    d.early = [];
-    d.wait.then((user) => {
-      const early = d.early;
-      d.wait = d.early = null;
-      if (!early) return;
-      d.user = user;
-      lobbyCards.open(ws);
-      for (const bytes of early) lobbyCards.message(ws, bytes);
-    });
-  },
-  message: (ws, message, isBinary) => {
-    netMetrics.wsIn('lobby_cards', payloadBytes(message));
-    if (!isBinary) return;
-    const d = ws.getUserData();
-    const bytes = new Uint8Array(message.slice(0));
-    if (!d.early) return lobbyCards.message(ws, bytes);
-    if (d.early.length >= EARLY_MAX) return ws.end(1008, 'Too much before joining');
-    d.early.push(bytes);
-  },
-  close: (ws) => {
-    ws.getUserData().early = null;
-    lobbyCards.close(ws);
-  },
-});
-
-// ---------------------------------------------------------------- the lobby
-const STATUS_TEXT = { 200: '200 OK', 201: '201 Created', 400: '400 Bad Request', 404: '404 Not Found', 409: '409 Conflict', 413: '413 Payload Too Large', 415: '415 Unsupported Media Type', 429: '429 Too Many Requests', 503: '503 Service Unavailable' };
-function json(res, status, obj) {
-  const body = JSON.stringify(obj);
-  netMetrics.httpOut(body);
-  res.cork(() => {
-    res.writeStatus(STATUS_TEXT[status] || String(status)).writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').end(body);
-  });
-}
-// what a player who has not beaten map 1 is told when they ask for a game on map 2 (the client says the same: rejectText)
-const MAP1_FIRST = 'Map 2 opens once you have beaten map 1: fix the car and drive off the island with your team.';
-const lobbyInfo = () => ({ games: lobby.rooms.size, maxGames: lobby.cluster || lobby.maxTotal === null ? lobby.maxGames : Math.min(lobby.maxGames, lobby.maxTotal), canCreate: lobby.canCreate, players: lobby.players(), defaultPlayers: lobby.maxPlayers, maxPlayers: lobby.roomMaxPlayers });
-
-// the public games, and what a new one can be
-app.get('/api/games', (res) => json(res, 200, { ...lobbyInfo(), list: lobby.list() }));
-
-// one game by its code (an invite link asks before joining: who is in it, is there a seat)
-app.get('/api/games/:code', (res, req) => {
-  const code = req.getParameter(0);
-  const ip = clientAddress(res, req);
-  const answer = () => {
-    const room = lobby.find(code, ip);
-    if (room) json(res, 200, room.info());
-    else json(res, 404, { error: 'No game goes by that code. It may have ended.' });
-  };
-  if (!store || lobby.rooms.has(String(code).toUpperCase())) return answer();
-  // (one the last server handed over and nobody has asked for yet)
-  let aborted = false;
-  res.onAborted(() => {
-    aborted = true;
-  });
-  lobby
-    .restore(code)
-    .catch(() => null)
-    .then(() => aborted || answer());
-});
-
-// What runs here: { protocol, build, compat } (see CLIENT_BUILD above). A client moved by a deploy (handoff.js) asks
-// before going back in, with its game's code (?game=CODE): whether it can go back in as it is, or has to be loaded
-// again first, is client/net/moveback.js's to decide. (A page from before compat compares the build alone.)
-// A server going down answers 503: its answer is not what the page will be playing on (the edge may send the page's
-// next request to the new server, or this one, until this one is gone), so the page asks again. (The body is the same,
-// for a page from before this, which reads it whatever the status and joins, and is turned away here as before.)
-// With ?game=CODE it is what runs that game: an older build's client for a game that build carries on here (builds.js),
-// once it is known what became of the game's restore.
-const ownVersion = { protocol: PROTOCOL_VERSION, build: CLIENT_BUILD, compat: COMPAT };
-const versionOf = (room) => (room?.pin ? { protocol: room.pin.client.protocol, build: room.pin.client.build, compat: room.pin.client.compat, pinned: true } : ownVersion);
-app.get('/api/version', (res, req) => {
-  if (stopping) return json(res, 503, { ...ownVersion, stopping: true });
-  const code = String(req.getQuery('game') || '')
-    .trim()
-    .toUpperCase();
-  const room = code ? lobby.rooms.get(code) : null;
-  if (!code || !builds || (room && room.ready && !room.closed)) return json(res, 200, versionOf(room));
-  let aborted = false;
-  res.onAborted(() => (aborted = true));
-  lobby
-    .settle(code)
-    .catch(() => null)
-    .then((r) => aborted || json(res, stopping ? 503 : 200, versionOf(r)));
-});
-
-// makes a game: { name, host, inviteOnly, maxPlayers, difficulty, map, guestId } -> its info, code included.
-// difficulty is ember, nightfall or blackout (shared/difficulty.js). Left off, it is Nightfall, which plays as the valley always has.
-// map: 1 (the island, and left off) or 2: every run begins on the mainland (acts.js MAINLAND_START), for whoever has
-// beaten map 1 - signed in, their account; a guest, their browser's id (guestId, posted as a JOIN carries it).
-app.post('/api/games', (res, req) => {
-  const ip = clientAddress(res, req);
-  const token = sessionToken(req);
-  // (JSON only: a form on another site cannot post that without the browser asking this server first)
-  if (!/^application\/json\b/i.test(req.getHeader('content-type'))) return json(res, 415, { error: 'Send JSON' });
-  let body = Buffer.alloc(0);
-  let done = false;
-  let aborted = false;
-  res.onAborted(() => {
-    done = aborted = true;
-  });
-  res.onData((chunk, last) => {
-    if (done) return;
-    netMetrics.httpIn(chunk.byteLength);
-    body = Buffer.concat([body, Buffer.from(chunk)]); // (copies it: chunk is only valid during this callback)
-    if (body.length > 2048) {
-      done = true;
-      return json(res, 413, { error: 'Too much' });
-    }
-    if (!last) return;
-    done = true;
-    let o;
-    try {
-      o = JSON.parse(body.toString('utf8') || '{}');
-    } catch {
-      return json(res, 400, { error: 'Bad request' });
-    }
-    if (!o || typeof o !== 'object') return json(res, 400, { error: 'Bad request' });
-    const difficulty = chosenDifficulty(o.difficulty);
-    if (!difficulty) return json(res, 400, { error: 'Pick easy, standard, or hard.' });
-    if (o.map !== undefined && o.map !== 1 && o.map !== 2) return json(res, 400, { error: 'Pick map 1 or map 2.' });
-    const startAct = o.map === 2 ? 2 : 1;
-    // who it is made by, for their one game at a time: the account signed in, else the address
-    const user = token ? auth.userForToken(token).catch(() => null) : null;
-    Promise.resolve(user)
-      .then(async (u) => {
-        if (startAct === 2 && !mayPlayMap2(u) && !(await stats.map1Cleared(u ? { userId: u.id } : { guestKey: idKey(o.guestId) }))) return { error: MAP1_FIRST, status: 403 };
-        return lobby.make({ name: o.name, host: o.host, inviteOnly: o.inviteOnly === true, maxPlayers: o.maxPlayers, difficulty, startAct }, { ip, maker: u ? `u:${u.id}` : `ip:${ip}` });
-      })
-      .then(async (made) => {
-        if (made.error) return aborted || json(res, made.status, made.code ? { error: made.error, code: made.code } : { error: made.error });
-        // (behind the proxy: listed before its maker hears the code, so the proxy can send them to it)
-        await made.room.up;
-        aborted || json(res, 201, made.room.info());
-      })
-      .catch((err) => {
-        log(`game not made (${err.message})`);
-        aborted || json(res, 503, { error: 'The game could not be made. Try again in a moment.' });
-      });
-  });
-});
-
-// ---------------------------------------------------------------- accounts, friends, messages
-// All JSON; an error is { error } with its status (and a `field` it is about, for a form). Signed in is the
-// stn_session cookie. Without a database: /api/auth/me says { accounts: false } and the rest are 503s.
+// ---------------------------------------------------------------- accounts, friends, messages, the records
+// All JSON (http.js api); an error is { error } with its status. Signed in is the stn_session cookie.
 const route = (method, path, fn, opts = {}) => api(app, method, path, fn, { address: clientAddress, metrics: netMetrics, ...opts });
-const noAccounts = () => {
-  throw new HttpError(503, 'Accounts are not set up on this server.');
-};
-const signedIn = (ctx) => (auth ? auth.need(ctx) : noAccounts());
-const S = () => social || noAccounts(); // (before anything else in a handler is looked at)
+statsRoutes(route, { db, auth, stats, lobby, cluster, log });
+accountRoutes(route, { auth, stats, matches, achievements, social, userSettings });
+loadoutRoutes(route, { auth, loadouts });
+feedbackRoutes(route, { auth, feedback });
+progressRoutes(route, { auth, progress });
+friendRoutes(route, { auth, social });
+socialSockets(app, { social, auth, netMetrics, sessionToken });
 
-// The splash has no game socket yet, so it reads the public, all-time board here. Once in a game the binary board
-// message is still used: that version also includes the requesting player and everyone currently in their game.
-route('get', '/api/leaderboard', async () => {
-  const { total, rows } = await stats.board(null, new Set());
-  return {
-    body: {
-      total,
-      rows: rows.map((r) => ({
-        name: r.name,
-        me: false,
-        here: false,
-        kills: r.kills,
-        nights: r.nights,
-        wins: r.wins,
-        revives: r.revives,
-        ranks: null,
-      })),
-    },
-  };
-});
-
-// who this browser is signed in as: { accounts, user: { id, username, email, createdAt } | null }
-route('get', '/api/auth/me', async (ctx) => {
-  if (!auth) return { body: { accounts: false, user: null } };
-  const u = await auth.me(ctx);
-  return { body: { accounts: true, user: u ? publicUser(u) : null } };
-});
-// { email, username, password, guestId? } -> 201 { user }, signed in. guestId: the browser's leaderboard id, whose
-// stats move onto the account
-route(
-  'post',
-  '/api/auth/register',
-  async (ctx, b) => {
-    if (!auth) noAccounts();
-    const { user, cookie } = await auth.register(b, ctx);
-    return { status: 201, body: { user: publicUser(user) }, cookies: [cookie] };
-  },
-  { body: true }
-);
-// { login (email or name), password, guestId? } -> { user }, signed in
-route(
-  'post',
-  '/api/auth/login',
-  async (ctx, b) => {
-    if (!auth) noAccounts();
-    const { user, cookie } = await auth.login(b, ctx);
-    return { body: { user: publicUser(user) }, cookies: [cookie] };
-  },
-  { body: true }
-);
-route(
-  'post',
-  '/api/auth/logout',
-  async (ctx) => {
-    if (auth) await auth.logout(ctx);
-    return { body: { ok: true }, cookies: auth ? [auth.clearCookie(Auth.secure(ctx))] : [] };
-  },
-  { body: true }
-);
-
-// a guest's id comes in the body, or for a GET in the X-STN-Guest header: never from the query string, which proxies,
-// the CDN and browser history keep (it is the only key to that guest's items and Zombie Skulls)
-const loadoutOwner = async (ctx, body = null) => {
-  const u = auth ? await auth.me(ctx) : null;
-  if (u) return `a:${u.id}`;
-  const key = loadoutOwnerKey('', body?.guestId || ctx.guest || '');
-  if (!key) throw new HttpError(400, 'This browser has no player id yet.');
-  return key;
-};
-route('get', '/api/loadout', async (ctx) => {
-  const owner = await loadoutOwner(ctx);
-  return { body: { catalog: LOADOUT_CATALOG, slotCount: LOADOUT_SLOTS, currency: SKULLS, ...(await loadouts.profile(owner)) } };
-});
-const saveLoadout = async (ctx, b) => {
-  const owner = await loadoutOwner(ctx, b);
-  const got = await loadouts.equip(owner, cleanLoadoutSlots(b.slots));
-  return { body: { catalog: LOADOUT_CATALOG, slotCount: LOADOUT_SLOTS, currency: SKULLS, balance: await loadouts.balance(owner), ...got } };
-};
-route('put', '/api/loadout', saveLoadout, { body: true, max: 4096 });
-route('post', '/api/loadout', saveLoadout, { body: true, max: 4096 });
-
-const marketError = (err) => {
-  if (err instanceof HttpError) throw err;
-  const msg = err?.message || 'That auction action did not work.';
-  const code = err?.code || '';
-  if (code === 'guest_market') throw new HttpError(401, msg);
-  if (code === 'bad_listing' || code === 'bad_price') throw new HttpError(400, msg);
-  if (code === 'insufficient_skulls' || code === 'not_owned' || code === 'listed' || code === 'not_listing_owner' || code === 'sold' || code === 'expired' || code === 'own_listing') throw new HttpError(409, msg);
-  throw err;
-};
-const loadoutAccountOwner = async (ctx) => {
-  const u = auth ? await auth.need(ctx) : noAccounts();
-  return `a:${u.id}`;
-};
-route('get', '/api/loadout/auction', async (ctx) => {
-  const owner = await loadoutOwner(ctx);
-  return { body: { catalog: LOADOUT_CATALOG, currency: SKULLS, auction: AUCTION, earn: SKULL_EARN, ...(await loadouts.auction(owner)) } };
-});
-route(
-  'post',
-  '/api/loadout/auction/list',
-  async (ctx, b) => {
-    try {
-      const owner = await loadoutAccountOwner(ctx);
-      return { status: 201, body: { listing: await loadouts.listItem(owner, b.itemId, b.price), ...(await loadouts.auction(owner)) } };
-    } catch (err) {
-      marketError(err);
-    }
-  },
-  { body: true, max: 2048 }
-);
-route(
-  'post',
-  '/api/loadout/auction/buy',
-  async (ctx, b) => {
-    try {
-      const owner = await loadoutAccountOwner(ctx);
-      return { body: { result: await loadouts.buyListing(owner, b.listingId), ...(await loadouts.auction(owner)) } };
-    } catch (err) {
-      marketError(err);
-    }
-  },
-  { body: true, max: 2048 }
-);
-route(
-  'post',
-  '/api/loadout/auction/cancel',
-  async (ctx, b) => {
-    try {
-      const owner = await loadoutAccountOwner(ctx);
-      return { body: { listing: await loadouts.cancelListing(owner, b.listingId), ...(await loadouts.auction(owner)) } };
-    } catch (err) {
-      marketError(err);
-    }
-  },
-  { body: true, max: 2048 }
-);
-
-// The stats page (/stats, publicstats.js): the whole game's numbers for anyone, ?range=7d|30d|90d|all. Without a
-// database: { enabled: false, live } - only what is being played now.
-const liveNow = async () => {
-  if (cluster) {
-    const list = await db
-      .query(`SELECT info FROM cluster_games WHERE NOT invite_only AND server_id IN (SELECT id FROM cluster_servers WHERE seen_at > now() - interval '30 seconds')`)
-      .then((r) => r.rows.map((x) => x.info))
-      .catch(() => []);
-    return { games: cluster.servers.reduce((n, s) => n + s.games, 0), players: cluster.servers.reduce((n, s) => n + s.players, 0), list: liveList(list) };
-  }
-  return { games: lobby.rooms.size, players: lobby.players(), list: liveList(lobby.list()) };
-};
-const liveList = (list) => list.slice(0, 20).map((g) => ({ code: g.code, name: g.name, players: g.players, max: g.max, day: g.day, phase: g.phase, difficulty: g.difficulty }));
-const publicStats = db ? new PublicStats({ db, live: liveNow, log }) : null;
-const statsRange = (ctx) => (ctx.query.get('range') in RANGES ? ctx.query.get('range') : '30d');
-route('get', '/api/stats', async (ctx) => ({ body: publicStats ? await publicStats.publicView(statsRange(ctx)) : { enabled: false, live: await liveNow() } }));
-// ...and what only an admin sees: who comes back, how long they stay, the server's health, each deploy's matches
-route('get', '/api/stats/admin', async (ctx) => {
-  const me = await signedIn(ctx);
-  if (!me.isAdmin) throw new HttpError(403, 'Only an admin can see this.');
-  return { body: await publicStats.adminView(statsRange(ctx)) };
-});
-
-// your lifetime stats and your last matches: { stats: { kills, ..., ranks } | null, recent: [match] }
-route('get', '/api/me/stats', async (ctx) => {
-  const me = await signedIn(ctx);
-  const [mine, recent] = await Promise.all([stats.forUser(me.id), matches.recentFor(me.id)]);
-  return { body: { stats: mine, recent } };
-});
-
-// your achievements (shared/achievements.js): { stats: { kills, nights, ... }, unlocked: [{ id, at (ms), source }] }.
-// Without accounts on this server: { accounts: false } - the browser keeps its own
-route('get', '/api/achievements', async (ctx) => {
-  if (!auth) return { body: { accounts: false, stats: null, unlocked: [] } };
-  return { body: await achievements.forUser((await signedIn(ctx)).id) };
-});
-// a friend's, the same shape (anyone else's is a 403)
-route('get', '/api/achievements/:id', async (ctx) => {
-  const me = await signedIn(ctx);
-  const id = ctx.params[0].toLowerCase();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) throw new HttpError(404, 'No such player.');
-  if (id !== me.id && !(await S().areFriends(me.id, id))) throw new HttpError(403, "Only your friends' achievements can be seen.");
-  return { body: await achievements.forUser(id) };
-});
-// What this browser earned as a guest, { stats, unlocked: { id: ms } }, merged into your account (the greater of each
-// count, every unlock of either) -> your achievements, as GET. Taken on trust: it never touches the leaderboard
-route('post', '/api/achievements/merge', async (ctx, b) => ({ body: await achievements.merge((await signedIn(ctx)).id, b) }), { body: true, max: 16384 });
-
-// your keybinds, as your account keeps them: { binds: { action: [primary, secondary] } | null, updatedAt: ms (0: never
-// saved) }. Only what differs from the defaults (shared/binds.js). Without accounts on this server: { accounts: false }
-// and no binds - the browser keeps its own.
-route('get', '/api/me/binds', async (ctx) => {
-  if (!auth) return { body: { accounts: false, binds: null, updatedAt: 0 } };
-  return { body: await userSettings.binds((await signedIn(ctx)).id) };
-});
-// { binds, updatedAt } -> what the account keeps afterwards, the same shape: yours, unless it already had newer ones
-// (usersettings.js). Junk - an action that isn't one, a key that isn't one - is a 400.
-const saveBinds = async (ctx, b) => {
-  const me = await signedIn(ctx);
-  return { body: await userSettings.saveBinds(me.id, b) };
-};
-route('put', '/api/me/binds', saveBinds, { body: true });
-route('post', '/api/me/binds', saveBinds, { body: true });
-
-// your own survivors (the character creator), as your account keeps them: { customs: { v: 2, list, gone } | null }
-// (shared/customs.js). Without accounts on this server: { accounts: false } and none - the browser keeps its own.
-route('get', '/api/me/customs', async (ctx) => {
-  if (!auth) return { body: { accounts: false, customs: null } };
-  return { body: await userSettings.customs((await signedIn(ctx)).id) };
-});
-// { customs } -> what the account keeps afterwards: yours merged with what it had, survivor by survivor
-// (usersettings.js). Junk - not a list, too many, a survivor without a good id - is a 400; at most 32 KB.
-const saveCustoms = async (ctx, b) => {
-  const me = await signedIn(ctx);
-  return { body: await userSettings.saveCustoms(me.id, b) };
-};
-route('put', '/api/me/customs', saveCustoms, { body: true, max: 32768 });
-route('post', '/api/me/customs', saveCustoms, { body: true, max: 32768 });
-
-// How hard the run that just ended was, from its end screen: { rating: 1 too easy .. 5 too hard, guestId? } ->
-// { mine, counts: [votes for 1..5], total }. Signed in, the vote is the account's; else guestId, the browser's
-// leaderboard id, says whose it is (as it does in a JOIN). A 404 when they have no run that just ended.
-route(
-  'post',
-  '/api/feedback/difficulty',
-  async (ctx, b) => {
-    if (!feedback) throw new HttpError(503, 'Votes are not kept on this server.');
-    const user = await auth.userForToken(ctx.cookies[COOKIE]);
-    return { body: await feedback.voteDifficulty(user ? { userId: user.id } : { guestKey: idKey(b.guestId) }, b.rating) };
-  },
-  { body: true }
-);
-
-// The run that just ended's best or worst moment, from its end screen: { which: 'best' | 'worst', moment: one of
-// feedback.js MOMENTS or null to take it back, guestId? } -> { which, moment }. Filed as the difficulty vote is.
-route(
-  'post',
-  '/api/feedback/moment',
-  async (ctx, b) => {
-    if (!feedback) throw new HttpError(503, 'Votes are not kept on this server.');
-    const user = await auth.userForToken(ctx.cookies[COOKIE]);
-    return { body: await feedback.pickMoment(user ? { userId: user.id } : { guestKey: idKey(b.guestId) }, b.which, b.moment) };
-  },
-  { body: true }
-);
-
-// "Do you play survival / FPS games?", asked once per account or guest: { plays?: true | false, guestId? } ->
-// { plays: true | false | null }. Without plays it only says what the answer is (null: never asked); the first answer stays.
-route(
-  'post',
-  '/api/feedback/genre',
-  async (ctx, b) => {
-    if (!feedback) throw new HttpError(503, 'Votes are not kept on this server.');
-    const user = await auth.userForToken(ctx.cookies[COOKIE]);
-    return { body: await feedback.genre(user ? { userId: user.id } : { guestKey: idKey(b.guestId) }, b.plays) };
-  },
-  { body: true }
-);
-
-// Your level and perks (server/progress.js). Signed in, they are the account's; else guestId, the browser's leaderboard
-// id, says whose (posted, never in a URL: it is what proves who a guest is).
-// { guestId? } -> { xp, level, into, need, frac, perks, picks, points, pending, nextPick, respecs }
-const progressWho = async (ctx, b) => {
-  const user = auth ? await auth.userForToken(ctx.cookies[COOKIE]) : null;
-  return user ? { userId: user.id } : { guestId: typeof b?.guestId === 'string' ? b.guestId : '' };
-};
-route('post', '/api/progress', async (ctx, b) => ({ body: await progress.view(await progressWho(ctx, b)) }), { body: true });
-// { perk, guestId? }: a point on a perk of the tree that is open to you -> the same as /api/progress afterwards
-route('post', '/api/progress/pick', async (ctx, b) => ({ body: await progress.pick(await progressWho(ctx, b), b.perk) }), { body: true });
-// { perk, guestId? }: the point on a perk back, when nothing else you have needs it -> the same afterwards
-route('post', '/api/progress/unpick', async (ctx, b) => ({ body: await progress.unpick(await progressWho(ctx, b), b.perk) }), { body: true });
-// { guestId? }: every point back, to be spent again -> the same as /api/progress afterwards
-route('post', '/api/progress/respec', async (ctx, b) => ({ body: await progress.respec(await progressWho(ctx, b)) }), { body: true });
-
-// An account's profile by the name it plays under, for the player list's profile card: { username, since, xp, level,
-// perks, stats: { kills, nights, wins, revives, games, deaths, downs, headshots, bossKills, bestDay, playSeconds } }.
-// What the leaderboard shows anyway, and their perks; nothing that says who they are beyond the name.
-route('get', '/api/players/:name', async (ctx) => {
-  if (!auth) noAccounts();
-  const p = await stats.profile(ctx.params[0]);
-  if (!p) throw new HttpError(404, 'Nobody plays under that name.');
-  return { body: p };
-});
-
-// { friends: [{ id, username, status: offline|online|playing, game, unread, lastSeen, since }], incoming, outgoing }
-route('get', '/api/friends', async (ctx) => ({ body: await S().list(await signedIn(ctx)) }));
-// { username } -> { result: sent|accepted|pending|already, friend }
-route('post', '/api/friends/request', async (ctx, b) => ({ body: await S().request(await signedIn(ctx), b.username) }), { body: true });
-// { id }: their request
-route('post', '/api/friends/accept', async (ctx, b) => ({ body: await S().accept(await signedIn(ctx), b.id) }), { body: true });
-// { id }: turns their request down, or takes yours back
-route('post', '/api/friends/decline', async (ctx, b) => ({ body: await S().decline(await signedIn(ctx), b.id) }), { body: true });
-route('post', '/api/friends/remove', async (ctx, b) => ({ body: await S().remove(await signedIn(ctx), b.id) }), { body: true });
-// the game a friend is in, to join them: its info, code included
-route('get', '/api/friends/:id/game', async (ctx) => ({ body: await S().findFriend(await signedIn(ctx), ctx.params[0]) }));
-// the conversation with a friend: ?before=<message id> for older -> { messages: [{ id, from, to, body, at, read }], more }
-route('get', '/api/messages/:id', async (ctx) => ({ body: await S().history(await signedIn(ctx), ctx.params[0], ctx.query.get('before')) }));
-// { to, body } -> 201 { message }
-route('post', '/api/messages', async (ctx, b) => ({ status: 201, body: await S().send(await signedIn(ctx), b.to, b.body) }), { body: true });
-// { friendId }: everything they sent you is read
-route('post', '/api/messages/read', async (ctx, b) => ({ body: await S().markRead(await signedIn(ctx), b.friendId) }), { body: true });
-
-// A signed-in page's line for what happens while it is open (social.js): text frames of JSON, server to page
-app.ws('/social', {
-  compression: uWS.DISABLED,
-  maxPayloadLength: 1024, // (it says nothing that matters: everything it does goes by the HTTP API)
-  idleTimeout: 120,
-  sendPingsAutomatically: true,
-  upgrade: (res, req, context) => {
-    const token = sessionToken(req);
-    const key = req.getHeader('sec-websocket-key');
-    const proto = req.getHeader('sec-websocket-protocol');
-    const ext = req.getHeader('sec-websocket-extensions');
-    const refuse = () => res.cork(() => res.writeStatus('401 Unauthorized').end('Sign in first'));
-    if (!token) return refuse();
-    let aborted = false;
-    res.onAborted(() => {
-      aborted = true;
-    });
-    auth.userForToken(token).then(
-      (user) => aborted || (user ? res.cork(() => res.upgrade({ user }, key, proto, ext, context)) : refuse()),
-      () => aborted || res.cork(() => res.writeStatus('503 Service Unavailable').end())
-    );
-  },
-  open: (ws) => social.socketOpened(ws),
-  message: (ws, message) => {
-    netMetrics.wsIn('social', payloadBytes(message));
-  },
-  close: (ws) => social.socketClosed(ws),
-});
+// ---------------------------------------------------------------- how the box is doing
+let mainCpuAt = process.threadCpuUsage();
+let mainElu = performance.eventLoopUtilization();
+let mainLoad = { cpuMs: 0, elu: 0 }; // this thread over the last second: CPU ms per second, share of time busy
+setInterval(() => {
+  const cpu = process.threadCpuUsage(mainCpuAt);
+  mainCpuAt = process.threadCpuUsage();
+  const e = performance.eventLoopUtilization(mainElu);
+  mainElu = performance.eventLoopUtilization();
+  mainLoad = { cpuMs: Math.round((cpu.user + cpu.system) / 10) / 100, elu: Math.round(e.utilization * 1000) / 1000 };
+}, 1000).unref();
+// the network thread's load and its game sockets, for /status and the admin panel
+const networkLoad = () => ({ ...mainLoad, sockets: gameSocks.sockets() });
 
 // ---------------------------------------------------------------- the admin panel
 // /admin (client/admin.html) and its API, /api/admin/* (adminpanel.js): an admin account only, checked on every request.
@@ -994,138 +283,16 @@ new AdminPanel({
   social,
   store,
   info: { build: BUILD, clientBuild: CLIENT_BUILD, port: PORT },
-  net: () => ({ ...mainLoad, sockets: [...perIp.values()].reduce((a, b) => a + b, 0) }),
+  net: networkLoad,
   bandwidth: (ctx) => netMetrics.snapshot(ctx),
-  stopping: () => stopping,
+  stopping: isStopping,
   restart: (code) => shutdown('admin restart', code),
   log,
 }).routes(route);
 
-// ---------------------------------------------------------------- how the box is doing
-let mainCpuAt = process.threadCpuUsage();
-let mainElu = performance.eventLoopUtilization();
-let mainLoad = { cpuMs: 0, elu: 0 }; // this thread over the last second: CPU ms per second, share of time busy
-setInterval(() => {
-  const cpu = process.threadCpuUsage(mainCpuAt);
-  mainCpuAt = process.threadCpuUsage();
-  const e = performance.eventLoopUtilization(mainElu);
-  mainElu = performance.eventLoopUtilization();
-  mainLoad = { cpuMs: Math.round((cpu.user + cpu.system) / 10) / 100, elu: Math.round(e.utilization * 1000) / 1000 };
-}, 1000).unref();
-
-app.get('/status', (res) => {
-  // timings and counts only, no codes (this endpoint is public, and an invite-only game's code is its key).
-  // tick: per game, the last 10 s window, the totals since it started and its last slow tick
-  const mem = process.memoryUsage();
-  const games = [...lobby.rooms.values()].map((r) => ({ players: r.st.players, max: r.maxPlayers, public: !r.inviteOnly, phase: r.st.phase, day: r.st.day, load: r.st.load, heapMb: r.st.heapMb, tick: r.st.tick }));
-  const body = JSON.stringify({ ...lobbyInfo(), db: db ? db.kind : null, server: cluster ? { id: cluster.id, deployment: cluster.deployment, draining: cluster.draining } : undefined, net: { ...mainLoad, sockets: [...perIp.values()].reduce((a, b) => a + b, 0) }, rssMb: Math.round(mem.rss / 1e6), list: games });
-  netMetrics.httpOut(body);
-  res.writeHeader('Content-Type', 'application/json').writeHeader('Cache-Control', 'no-store').writeHeader('Access-Control-Allow-Origin', '*').end(body);
-});
-
-const ADMIN_PAGE_HEADERS = [
-  ['X-Frame-Options', 'DENY'],
-  ['Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"],
-  ['Referrer-Policy', 'same-origin'],
-  ['X-Content-Type-Options', 'nosniff'],
-];
-// copy: which of the file goes ('br', 'gz' - in memory by now - or '' for the file as it is)
-function sendFile(res, url, f, copy = '') {
-  res.cork(() => {
-    res.writeHeader('Content-Type', f.type);
-    // (the admin panel is never shown inside another site's page, where a click could be steered onto its buttons, and
-    // runs no script and sends nothing anywhere but here)
-    if (url === '/admin.html') for (const [k, v] of ADMIN_PAGE_HEADERS) res.writeHeader(k, v);
-    // (the page itself is asked for again every time: after a deploy a reload has to get the new build's)
-    res.writeHeader('Cache-Control', url.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
-    const body = (copy && f[copy]) || f.body;
-    if (f.gzFile || f.brFile || f.gz || f.br || f.stamped) res.writeHeader('Vary', 'Accept-Encoding');
-    if (body !== f.body) res.writeHeader('Content-Encoding', copy === 'br' ? 'br' : 'gzip');
-    res.end(body);
-  });
-}
-// The copy of a file for a browser that takes `accepts` (its Accept-Encoding): 'br' or 'gz' when there is one (written
-// by the build; the stamped page's made here, once), else ''
-function encodingFor(f, accepts) {
-  const br = /\bbr\b/.test(accepts);
-  const gz = /\bgzip\b/.test(accepts);
-  if (f.stamped && (br || gz) && !f.gz) {
-    f.gz = gzipSync(f.body, { level: 9 });
-    f.br = brotliCompressSync(f.body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: f.body.length } });
-  }
-  return br && (f.br || f.brFile) ? 'br' : gz && (f.gz || f.gzFile) ? 'gz' : '';
-}
-// (a copy the build wrote is read from disk the first time it is wanted, and kept: only the encodings browsers ask for
-// are held. One that cannot be read is not tried again - the file goes as it is)
-const readCopy = (f, k) =>
-  (f[`${k}Read`] ||= readFile(f[`${k}File`]).then(
-    (body) => (f[k] = body),
-    (err) => {
-      log(`${f[`${k}File`]} could not be read (${err.message}): sent as it is`);
-      f[`${k}File`] = '';
-    }
-  ));
-// A client file, as the browser takes it. aborted: () => whether the request is gone, for one already waited on (else
-// it is watched here, if the copy has to be read first)
-function sendStatic(res, url, f, accepts, aborted = null) {
-  const k = encodingFor(f, accepts);
-  if (!k || f[k]) return sendFile(res, url, f, k);
-  if (!aborted) {
-    let gone = false;
-    res.onAborted(() => (gone = true));
-    aborted = () => gone;
-  }
-  readCopy(f, k).then(() => aborted() || sendFile(res, url, f, f[k] ? k : ''));
-}
-// The page, and the client's files. A game an older build carries on here (builds.js) is played with that build's
-// client: the page asked for with its code (/?game=CODE: where its players' pages are, and its invite link) is that
-// build's, once it is known what became of the game's restore; and that build's files are served under their own names,
-// which no file of this build has (they are named by their content) - for those players, and for any page of an older
-// client still playing after a deploy that only changed the client.
-const NOT_FOUND = (res) => res.cork(() => res.writeStatus('404 Not Found').end('Not found'));
-// A page that cannot be served just now - this server is going down (the next one has it), or the page of the older
-// build that runs this game could not be had from the store: 503, and a page that asks again by itself a few times
-// (client/main.js forgets the count once a page is up), then says so. Never the page of another build in its place: a
-// page of this build for a game an older build runs would be sent to that game's page again, and again.
-const retryPage = (why) =>
-  `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Survive the Night</title></head><body style="background:#0b0d12;color:#ddd;font:16px system-ui,sans-serif;padding:2em"><p id="why">${why}</p><script>(function(){var k='stn.retry.'+location.pathname+location.search,n=0;try{n=+sessionStorage.getItem(k)||0;sessionStorage.setItem(k,n+1)}catch(e){}if(n<5)setTimeout(function(){location.reload()},1000*(n+1));else{try{sessionStorage.removeItem(k)}catch(e){}document.getElementById('why').innerHTML='${why} It still is: try again in a minute, or <a href="/" style="color:#9cf">start or join another game</a>.'}})()</script></body></html>`;
-const UNAVAILABLE = (res, why) =>
-  res.cork(() => res.writeStatus('503 Service Unavailable').writeHeader('Retry-After', '2').writeHeader('Cache-Control', 'no-store').writeHeader('Content-Type', MIME['.html']).end(retryPage(why)));
-app.get('/*', (res, req) => {
-  let url = req.getUrl();
-  if (url === '/stats' || url === '/stats/') url = '/stats.html';
-  if (url === '/admin' || url === '/admin/') url = '/admin.html';
-  const accepts = req.getHeader('accept-encoding');
-  if (!files.has(url) && url.startsWith('/assets/')) {
-    if (!builds?.has(url)) return NOT_FOUND(res);
-    let aborted = false;
-    res.onAborted(() => (aborted = true));
-    builds.asset(url).then((body) => aborted || (body ? sendFile(res, url, { body, type: MIME[extname(url)] || 'application/octet-stream' }) : NOT_FOUND(res)));
-    return;
-  }
-  if (url === '/' || !files.has(url)) url = files.has(url) ? url : '/index.html';
-  const f = files.get(url);
-  if (!f) {
-    res.writeStatus('404 Not Found').end('Not found - build the client with `npm run build`');
-    return;
-  }
-  // (a server going down: its pages are the next server's to give - as /api/version, it answers 503 for them)
-  if (stopping && f.type === MIME['.html']) return UNAVAILABLE(res, 'The game is being updated. One moment...');
-  const code = url === '/index.html' && builds ? String(req.getQuery('game') || '').trim().toUpperCase() : '';
-  if (!code) return sendStatic(res, url, f, accepts);
-  let aborted = false;
-  res.onAborted(() => (aborted = true));
-  lobby
-    .settle(code)
-    .catch(() => null)
-    .then(async (room) => {
-      if (!room?.pin) return aborted || sendStatic(res, url, f, accepts, () => aborted);
-      const page = await builds.asset('/index.html', room.pin.id);
-      if (aborted) return;
-      if (page) sendFile(res, url, { body: stamp(page, room.pin.client), type: MIME['.html'] });
-      else UNAVAILABLE(res, "This game is played on an older version of the game, whose page could not be loaded just now. Trying again...");
-    });
-});
+statusRoute(app, { lobby, db, cluster, net: networkLoad, netMetrics });
+// the page and the client's files: every GET the routes above do not answer
+clientRoutes(app, { files, builds, lobby, stopping: isStopping, log });
 
 app.listen(PORT, (token) => {
   if (!token) {

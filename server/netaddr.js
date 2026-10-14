@@ -23,3 +23,13 @@ export function clientOf(peer, xff, realIp) {
   if (TRUST_PROXY === '0' || !(isPrivate(peer) || TRUST_PROXY === '1')) return peer;
   return cleanAddress(String(xff || '').split(',')[0]) || cleanAddress(realIp) || peer;
 }
+
+// The client of a uWS request (index.js: the per-address allowances, and the game's count of joins per address,
+// Game.admitJoin): the client's, not a proxy's in front
+export function clientAddress(res, req) {
+  // uWS spells the peer out as eight hex groups, an IPv4 one as 0000:0000:0000:0000:0000:ffff:hhhh:hhhh
+  let peer = Buffer.from(res.getRemoteAddressAsText()).toString();
+  const v4 = /^(?:0000:){5}ffff:(..)(..):(..)(..)$/i.exec(peer);
+  if (v4) peer = v4.slice(1).map((h) => parseInt(h, 16)).join('.');
+  return clientOf(peer, req.getHeader('x-forwarded-for'), req.getHeader('x-real-ip'));
+}

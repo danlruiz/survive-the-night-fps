@@ -110,7 +110,7 @@ export class Room {
     this.quick = quick;
     this.difficulty = difficultyOf(difficulty).id; // Ember, Nightfall or Blackout (a quick join, and a save from before this, is Nightfall)
     // the map every run of it begins on: 1 the island, 2 the mainland (acts.js MAINLAND_START). A game that starts on
-    // the mainland is only for whoever has beaten map 1: making one (index.js POST /api/games) and joining (map1First)
+    // the mainland is only for whoever has beaten map 1: making one (http/lobby.js POST /api/games) and joining (sockets.js map1Gate)
     this.startAct = startAct === 2 ? 2 : 1;
     this.maxPlayers = maxPlayers;
     this.created = created;
@@ -122,7 +122,7 @@ export class Room {
     // still on its way out for the old socket can reach a new one): hence twice as many as the game has seats
     this.socks = new Array(maxPlayers * 2 + 2).fill(null);
     this.draining = new Uint8Array(this.socks.length);
-    // per slot: the account its socket is signed in to ({ id, name, isAdmin }, null for a guest: index.js found it by the
+    // per slot: the account its socket is signed in to ({ id, name, isAdmin }, null for a guest: sockets.js found it by the
     // session cookie), and the name its player joined under ('' before the JOIN)
     this.users = new Array(this.socks.length).fill(null);
     this.names = new Array(this.socks.length).fill('');
@@ -204,7 +204,7 @@ export class Room {
 
   // ---------------------------------------------------------------- sockets
   // A seat for this socket: its slot, or -1 when the game is full.
-  // join: its JOIN, when the socket has sent it already (index.js seat waits for it at a full game: mayComeBack)
+  // join: its JOIN, when the socket has sent it already (sockets.js seat waits for it at a full game: mayComeBack)
   attach(ws, join = null) {
     if (this.closed || (this.full && !this.mayComeBack(join && this.keyOf(join, ws.getUserData().user)))) return -1;
     const slot = this.socks.findIndex((s, i) => !s && !this.draining[i]);
@@ -341,7 +341,7 @@ export class Room {
       // the game already wrote for it. A snapshot is the delta from what the game takes the client to have, so one
       // that went missing left entities created in it unknown to the client, and every later update of them threw
       // there ("update for unknown entity") until they left its view. What a socket may hold is still bounded:
-      // uWS's maxBackpressure (index.js), a tick or two past SEND_LIMIT.
+      // uWS's maxBackpressure (sockets.js), a tick or two past SEND_LIMIT.
       sock.cork(() => {
         for (const bytes of msgs) {
           this.lobby.netMetrics?.wsOut(gameOutChannel(bytes), bytes);
@@ -799,7 +799,7 @@ export class Lobby {
 
   // Where a quick join goes: the public game with the most people in it that still has a seat (a game that is
   // just ending comes last), or a new one. (In a cluster the new one is made before the socket opens, as it has to ask
-  // the others: index.js, make)
+  // the others: sockets.js, make)
   quick() {
     return this.quickPick() || (this.cluster ? null : this.create({ quick: true }).room) || null;
   }
@@ -1015,7 +1015,7 @@ export class Lobby {
   // A game the last server handed over could not be carried on here (its room's worker said so: 'restoreFailed'), so
   // it is over. Its code is remembered for a while with why (a REJECT_REASON: ENDED_MAP, ENDED_UPDATE), and whoever
   // comes for it - its players, sent back here by the deploy, or anyone with its link - is told that instead of
-  // "no such game" (wasLost; index.js seat). Those already on a socket waiting for it are told now.
+  // "no such game" (wasLost; sockets.js seat). Those already on a socket waiting for it are told now.
   // tell: false: whoever is on a socket in it is told otherwise (Room.pinClose)
   // proto: the codec of its players' client when it is known (an older build's: the one that ran it, or was to) - what
   // whoever comes for it later is told in (lostProto)
