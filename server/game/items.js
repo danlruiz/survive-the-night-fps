@@ -12,6 +12,7 @@ import { isLoadoutArmor, isLoadoutBackpack, isLoadoutStack, isLoadoutWeapon } fr
 // A stack a survivor put down on purpose (ACT.DROP_SLOT) is theirs to leave lying: walking over it does not put it
 // back in their backpack until they have been this far from it. A teammate's feet, and their own [E], take it as usual.
 const DROP_LEAVE_DIST = 3;
+const DROP_AHEAD = 1.1; // m in front of a survivor that what they put down lands (dropInFront)
 // seconds between two "no room for that" notices to a survivor whose full backpack keeps leaving things on the ground
 const FULL_NOTICE_EVERY = 6;
 const AUTO_PICKUP = { res: 1, ammo: 1, cons: 1, throw: 1, part: 1, schem: 1, card: 1 }; // (a card pack is opened as it is picked up: Cards.openPack)
@@ -161,6 +162,13 @@ export const methods = {
     return this.spawnItem(item, count, dx, gy + 0.02, dz, { life: opts.life ?? 240, mag: opts.mag, permanent: cat === 'part' || cat === 'schem', noAuto: opts.noAuto, drop: true });
   },
 
+  // Something a survivor puts down (ACT.DROP_*, a worn piece dropped) lands DROP_AHEAD in front of them, and never
+  // where they could not get at it again (dropItem, back towards their feet)
+  dropInFront(p, item, count, opts) {
+    const s = p.state;
+    return this.dropItem(item, count, s.x - Math.sin(s.yaw) * DROP_AHEAD, s.y, s.z - Math.cos(s.yaw) * DROP_AHEAD, { ...opts, from: s });
+  },
+
   // everything a survivor carries goes on the ground around them (one who leaves the game has had what is left of
   // their starting kit taken out first: parkKit)
   dropAll(p) {
@@ -266,25 +274,16 @@ export const methods = {
     const s = p.state;
     if (s.weapons[SLOT_THROW]) {
       s.throwCount = countItem(p.inv, s.weapons[SLOT_THROW]);
-      if (s.throwCount === 0) {
-        s.weapons[SLOT_THROW] = 0;
-        for (const it of THROW_ITEMS) {
-          const n = countItem(p.inv, it);
-          if (n > 0) {
-            s.weapons[SLOT_THROW] = it;
-            s.throwCount = n;
-            break;
-          }
-        }
-      }
-    } else {
-      for (const it of THROW_ITEMS) {
-        const n = countItem(p.inv, it);
-        if (n > 0) {
-          s.weapons[SLOT_THROW] = it;
-          s.throwCount = n;
-          break;
-        }
+      if (s.throwCount > 0) return;
+      s.weapons[SLOT_THROW] = 0;
+    }
+    // (none in the slot, or the last of it gone: the first throwable in the pack takes its place)
+    for (const it of THROW_ITEMS) {
+      const n = countItem(p.inv, it);
+      if (n > 0) {
+        s.weapons[SLOT_THROW] = it;
+        s.throwCount = n;
+        break;
       }
     }
   },

@@ -121,10 +121,8 @@ export const methods = {
       p.inv[i] = pack ? { item, count: 1, ...(marker ? { loadout: marker } : {}) } : { item, count: 1, mag, ...(marker ? { loadout: marker } : {}) };
     } else if (what === WORN_DO.DROP) {
       if (marker) return;
-      const ex = s.x - Math.sin(s.yaw) * 1.1;
-      const ez = s.z - Math.cos(s.yaw) * 1.1;
       // (no entity id left for it on the ground: it stays on)
-      const dropped = this.dropItem(item, 1, ex, s.y, ez, { spread: 0.2, mag: mag || undefined, from: s });
+      const dropped = this.dropInFront(p, item, 1, { spread: 0.2, mag: mag || undefined });
       if (!dropped) return;
       p.lastDrop = { e: dropped, t: this.time };
     } else if (what !== WORN_DO.SALVAGE || marker || !salvageOf(item)) return;

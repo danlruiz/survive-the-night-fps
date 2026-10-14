@@ -224,9 +224,7 @@ export const methods = {
         if (!it || isLoadoutStack(it)) return;
         this.dropper = p.id; // the stack remembers who put it down, so it does not hop back into their backpack
         const n = cnt === 0 ? it.count : Math.min(cnt, it.count);
-        const ex = s.x - Math.sin(s.yaw) * 1.1;
-        const ez = s.z - Math.cos(s.yaw) * 1.1;
-        const dropped = this.dropItem(it.item, n, ex, s.y, ez, { spread: 0.3, mag: it.mag, noAuto: 4, from: s });
+        const dropped = this.dropInFront(p, it.item, n, { spread: 0.3, mag: it.mag, noAuto: 4 });
         this.dropper = 0;
         // (no entity id left for it on the ground: it stays in the pack)
         if (!dropped) return;
@@ -241,9 +239,7 @@ export const methods = {
         if (slot > 4 || slot === SLOT_THROW) return;
         const wpn = s.weapons[slot];
         if (!wpn || isLoadoutWeapon(p, slot)) return;
-        const ex = s.x - Math.sin(s.yaw) * 1.1;
-        const ez = s.z - Math.cos(s.yaw) * 1.1;
-        const dropped = this.dropItem(wpn, 1, ex, s.y, ez, { spread: 0.2, mag: slotMag(s, slot), from: s });
+        const dropped = this.dropInFront(p, wpn, 1, { spread: 0.2, mag: slotMag(s, slot) });
         if (!dropped) return;
         p.lastDrop = { e: dropped, t: this.time };
         s.weapons[slot] = 0;
@@ -259,9 +255,7 @@ export const methods = {
         if (have <= 0) return;
         const n = cnt === 0 ? have : Math.min(cnt, have);
         this.dropper = p.id; // (as a dropped stack: it does not hop straight back into the reserve)
-        const ex = s.x - Math.sin(s.yaw) * 1.1;
-        const ez = s.z - Math.cos(s.yaw) * 1.1;
-        const dropped = this.dropItem(AMMO_ITEMS[cal], n, ex, s.y, ez, { spread: 0.3, noAuto: 4, from: s });
+        const dropped = this.dropInFront(p, AMMO_ITEMS[cal], n, { spread: 0.3, noAuto: 4 });
         this.dropper = 0;
         if (!dropped) return;
         s.ammo[cal] -= n;
