@@ -364,7 +364,7 @@ JSON file (`server/stats.js`).
   /api/achievements/merge`: the greater of each count, every unlock of either, `source = 'guest'`). It is taken on
   trust - a browser can say anything - so it only reaches the two achievement tables, never `player_stats`.
   `GET /api/achievements` is your own record, `GET /api/achievements/:id` a friend's.
-- **On screen** (`client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
+- **On screen** (`client/ui/achtoasts.js`, `client/ui/achievements.js`): the unlock banner (top right, where the killfeed steps down for it;
   the tier's colour, a shine, confetti for gold, platinum and secrets; queued, ~4 s each; Settings turn banners and
   the chime off; reduced motion takes the movement out; a lifetime count's banner names the next step on it), and the
   profile page from the splash, the pause menu, the account panel and a friend's row: the three counters closest to

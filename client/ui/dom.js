@@ -31,6 +31,9 @@ export function iconButton(cls, parent, trustedMarkup) {
 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
+// has the player asked for less motion? (then no slides, shines or confetti; a scroll jumps)
+export const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export function fmtTime(sec) {
   const s = Math.max(0, Math.ceil(sec || 0));
   const m = (s / 60) | 0;

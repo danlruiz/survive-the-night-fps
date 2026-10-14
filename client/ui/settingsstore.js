@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   tutorial: true, // the onboarding coach on a player's first playthrough, and the first-time tips after it (game/onboarding.js)
   holdToDrop: true, // the drop key has to be held a moment (game/drophold.js), so a stray press keeps the gun
   showFps: true,
-  achBanners: true, // a banner when an achievement unlocks (ui/achievements.js)...
+  achBanners: true, // a banner when an achievement unlocks (ui/achtoasts.js)...
   achSound: true, // ...and its chime
   heardRings: true, // a ring on the minimap, and the dead it woke lit, every time your noise wakes the dead (ui/heard.js); off: once for each kind of noise
   hudScale: 1, // the HUD's size (ui/hud.js, ux-hud.css): a short window at this size gets the compact layout
