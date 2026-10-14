@@ -801,7 +801,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
     middle), `zone.minor` (a lesser place: smaller letters), `landmark.city` (named inside the city: written only
     zoomed in), and `world.marks` (the picture's marks: the town, the church, the industry, the gas station, the
     airport, the camps, the mouths of the tunnels and the mines, the quarry and its pit, the lighthouse, the radio tower,
-    the water tower). `client/ui/mapmainland.js` draws the mainland's field map from them: paper, the water in blue with
+    the water tower). `client/ui/mapmainland.js` (its layers in `client/ui/mainland/`) draws the mainland's field map from them: paper, the water in blue with
     its shallows and a light rim round every islet, the mountains in lit and shaded faces with their crests inked and no
     outline, a stamp for every tree as the picture draws them, the roads by its legend, the city's ring road, its marks
     and its legend in the corner of the sea.
