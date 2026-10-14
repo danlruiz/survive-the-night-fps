@@ -6,13 +6,12 @@
 // ([E] or [G]: ACT.CAT_PUT, or a weapon key: the simulation's 'cat_drop') and leaps clear on its own when they go
 // down, die, turn, are grabbed, get on a ride or a handcar, swim, or drop off the game. Whoever has it in their arms
 // when the car leaves the island takes it over the bridge with them (Game.cross, buildMainland: spawnBeside).
-import { PLAYER_RADIUS, BTN, SLOT_BUILD, SLOT_THROW, SLOT_RADIO, SLOT_PRIMARY, SLOT_PISTOL, SLOT_MELEE } from '../shared/constants.js';
+import { PLAYER_RADIUS, BTN } from '../shared/constants.js';
 import { CANIM } from '../shared/defs.js';
 import { ENT } from '../shared/protocol.js';
 import { resolveBody, groundAt } from '../shared/collision.js';
-import { swimming } from '../shared/swim.js';
+import { canCarry, freeHands, turnToward, easeVelocity, keepOffSurvivors, sidestep, settleOnGround } from './entkit.js';
 
-const GRAV = 16;
 const RADIUS = 0.16;
 const HEIGHT = 0.3;
 const WALK_SPEED = 0.8;
@@ -27,17 +26,11 @@ const HELD_Y = 1.05; // a cat in somebody's arms is this high over their feet (f
 const SET_OUT = 0.65; // set down this far in front of them (clear of their feet: the cat steps round anyone closer)
 const TAU = Math.PI * 2;
 const _pos = { x: 0, y: 0, z: 0 };
+const _want = { dx: 0, dz: 0, speed: 0, face: null }; // (updateOne: what it wants to do this tick)
 
 // mode: what it is doing; anim (CANIM) is what clients see
 export const CAT_MODE = { IDLE: 0, SIT: 1, WANDER: 2, VISIT: 3, FLEE: 4, HELD: 5 };
 const MODE = CAT_MODE;
-
-function turn(a, b, max) {
-  let d = (b - a) % TAU;
-  if (d > Math.PI) d -= TAU;
-  if (d < -Math.PI) d += TAU;
-  return a + Math.max(-max, Math.min(max, d));
-}
 
 export class Cats {
   constructor(game) {
@@ -79,6 +72,11 @@ export class Cats {
     return e;
   }
 
+  // ground a cat can stand on: dry, and nothing the nav grid knows of stands there
+  open(x, z) {
+    return !this.g.world.isDeepWater(x, z) && !this.g.nav.isBlocked(x, z);
+  }
+
   // one cat, lounging a few steps from the car where everyone starts
   spawnInitial() {
     const g = this.g;
@@ -89,7 +87,7 @@ export class Cats {
       const d = 4 + g.rng() * 5;
       const x = car.x + Math.sin(a) * d;
       const z = car.z + Math.cos(a) * d;
-      if (w.isDeepWater(x, z) || g.nav.isBlocked(x, z)) continue;
+      if (!this.open(x, z)) continue;
       return this.spawn(x, z, car.x, car.z);
     }
     return this.spawn(car.x + 3, car.z + 3, car.x, car.z);
@@ -119,7 +117,7 @@ export class Cats {
   canLift(p, c) {
     const s = p.state;
     if (c.removed || c.mode === MODE.HELD) return false;
-    return p.alive && !p.zombie && !p.downed && !p.away && !p.useItem && !p.hold && !s.pet && !s.hmg && !s.ride && !s.cart && !s.pinned && !s.pulled && !swimming(this.g.world, s);
+    return !p.away && !p.useItem && !p.hold && !s.pet && !s.hmg && canCarry(p, this.g.world);
   }
 
   // [E] on it: it is in their arms, and whatever was in their hands is put away
@@ -132,10 +130,7 @@ export class Cats {
     c.vx = c.vy = c.vz = 0;
     c.stuckT = 0;
     s.pet = 1;
-    s.reloadT = 0;
-    s.recoil = 0;
-    // (a hammer, a throwable or the walkie-talkie in the hand would still have the mouse: the hand goes back to a weapon)
-    if (s.slot === SLOT_BUILD || s.slot === SLOT_THROW || s.slot === SLOT_RADIO) s.slot = s.weapons[SLOT_PRIMARY] ? SLOT_PRIMARY : s.weapons[SLOT_PISTOL] ? SLOT_PISTOL : SLOT_MELEE;
+    freeHands(s);
     this.follow(c, p);
     this.g.ach.catLift(p);
     return true;
@@ -201,7 +196,7 @@ export class Cats {
       if (s) s.pet = 0;
       return this.release(c, s, false);
     }
-    if (!p.alive || p.zombie || p.downed || s.pinned || s.pulled || s.ride || s.cart || swimming(g.world, s)) {
+    if (!canCarry(p, g.world)) {
       s.pet = 0;
       return this.release(c, s, true);
     }
@@ -220,13 +215,11 @@ export class Cats {
   // The cat that crossed the bridge in somebody's arms (Game.buildMainland): set down beside them at the bridgehead,
   // where it makes its home from then on. variant: its coat, as it was on the island
   spawnBeside(s, variant) {
-    const g = this.g;
-    const w = g.world;
     for (let k = 0; k < 8; k++) {
       const a = s.yaw + Math.PI / 2 + k * (Math.PI / 4);
       const x = s.x - Math.sin(a) * 1.2;
       const z = s.z - Math.cos(a) * 1.2;
-      if (w.isDeepWater(x, z) || g.nav.isBlocked(x, z)) continue;
+      if (!this.open(x, z)) continue;
       return this.spawn(x, z, x, z, variant);
     }
     return this.spawn(s.x, s.z, s.x, s.z, variant);
@@ -258,11 +251,30 @@ export class Cats {
   }
 
   updateOne(c, dt, humans) {
-    const g = this.g;
     c.modeT -= dt;
     c.visitCd -= dt;
     c.detourT -= dt;
+    this.watchThreat(c);
+    if (c.modeT <= 0) this.decide(c, humans);
 
+    // desired velocity
+    const w = this.want(c);
+    let dx = w.dx;
+    let dz = w.dz;
+    let speed = w.speed;
+    const len = Math.hypot(dx, dz);
+    if (len > 1e-4) {
+      dx /= len;
+      dz /= len;
+    } else speed = 0;
+    this.integrate(c, dt, dx * speed, dz * speed, humans);
+    if (speed > 0) this.unstick(c, dt, speed, dx, dz);
+    this.turnAndPose(c, dt, w.face);
+  }
+
+  // the nearest of the dead (or a survivor turned) close enough to send it running, and from where
+  watchThreat(c) {
+    const g = this.g;
     const threat = this.nearestThreat(c);
     if (threat) {
       c.threatX = threat.x;
@@ -272,34 +284,38 @@ export class Cats {
         c.modeT = 1.8 + g.rng() * 1.2;
       } else c.modeT = Math.max(c.modeT, 0.8);
     }
-    if (c.modeT <= 0) this.decide(c, humans);
+  }
 
-    // desired velocity
-    let dx = 0;
-    let dz = 0;
-    let speed = 0;
-    let face = null; // yaw to turn toward while standing
+  // what it wants to do this tick in its mode: a heading (dx, dz, not yet of length 1) at a speed, or standing, facing
+  // `face` (a yaw; null: wherever)
+  want(c) {
+    const g = this.g;
+    const w = _want;
+    w.dx = 0;
+    w.dz = 0;
+    w.speed = 0;
+    w.face = null;
     switch (c.mode) {
       case MODE.FLEE: {
-        dx = c.x - c.threatX;
-        dz = c.z - c.threatZ;
+        w.dx = c.x - c.threatX;
+        w.dz = c.z - c.threatZ;
         // veer back toward home when it would run off into the wilds
         const hx = c.homeX - c.x;
         const hz = c.homeZ - c.z;
         const hd = Math.hypot(hx, hz);
         if (hd > HOME_RADIUS * 1.5) {
-          const l = Math.hypot(dx, dz) || 1;
-          dx = dx / l + (hx / hd) * 0.6;
-          dz = dz / l + (hz / hd) * 0.6;
+          const l = Math.hypot(w.dx, w.dz) || 1;
+          w.dx = w.dx / l + (hx / hd) * 0.6;
+          w.dz = w.dz / l + (hz / hd) * 0.6;
         }
-        speed = RUN_SPEED;
+        w.speed = RUN_SPEED;
         break;
       }
       case MODE.WANDER:
-        dx = c.tx - c.x;
-        dz = c.tz - c.z;
-        speed = WALK_SPEED;
-        if (Math.hypot(dx, dz) < 0.4) c.modeT = 0;
+        w.dx = c.tx - c.x;
+        w.dz = c.tz - c.z;
+        w.speed = WALK_SPEED;
+        if (Math.hypot(w.dx, w.dz) < 0.4) c.modeT = 0;
         break;
       case MODE.VISIT: {
         const p = g.players.get(c.visit);
@@ -307,20 +323,20 @@ export class Cats {
           c.modeT = 0;
           break;
         }
-        dx = p.state.x - c.x;
-        dz = p.state.z - c.z;
-        const d = Math.hypot(dx, dz);
+        w.dx = p.state.x - c.x;
+        w.dz = p.state.z - c.z;
+        const d = Math.hypot(w.dx, w.dz);
         c.visitD = d;
         if (d > NOTICE_RADIUS * 1.6) c.modeT = 0; // they wandered off
         else if (d < 1.1) {
           this.arrive(c);
-          face = Math.atan2(-dx, -dz);
-          dx = dz = 0;
+          w.face = Math.atan2(-w.dx, -w.dz);
+          w.dx = w.dz = 0;
         } else {
-          speed = d > 4 ? APPROACH_SPEED * 1.3 : APPROACH_SPEED;
+          w.speed = d > 4 ? APPROACH_SPEED * 1.3 : APPROACH_SPEED;
           if (c.detourT > 0) {
-            dx = c.detourX;
-            dz = c.detourZ;
+            w.dx = c.detourX;
+            w.dz = c.detourZ;
           }
         }
         break;
@@ -329,46 +345,41 @@ export class Cats {
       case MODE.IDLE: {
         // keep an eye on a survivor it came to see
         const p = c.visit ? g.players.get(c.visit) : null;
-        if (p && p.alive && !p.zombie && Math.hypot(p.state.x - c.x, p.state.z - c.z) < 4) face = Math.atan2(-(p.state.x - c.x), -(p.state.z - c.z));
+        if (p && p.alive && !p.zombie && Math.hypot(p.state.x - c.x, p.state.z - c.z) < 4) w.face = Math.atan2(-(p.state.x - c.x), -(p.state.z - c.z));
         break;
       }
     }
-    const len = Math.hypot(dx, dz);
-    if (len > 1e-4) {
-      dx /= len;
-      dz /= len;
-    } else speed = 0;
-    this.integrate(c, dt, dx * speed, dz * speed, humans);
+    return w;
+  }
 
-    // stuck on a wall, fence or the car
-    if (speed > 0) {
-      const sp = Math.hypot(c.vx, c.vz);
-      if (sp < speed * 0.25) c.stuckT += dt;
-      else c.stuckT = Math.max(0, c.stuckT - dt);
-      if (c.stuckT > 1.2) {
-        c.stuckT = 0;
-        if (c.mode === MODE.FLEE) {
-          // cornered: dart sideways
-          const a = Math.atan2(c.x - c.threatX, c.z - c.threatZ) + (g.rng() < 0.5 ? 1.3 : -1.3);
-          c.threatX = c.x - Math.sin(a) * 3;
-          c.threatZ = c.z - Math.cos(a) * 3;
-        } else if (c.mode === MODE.VISIT && c.visitD < 2.6) {
-          // they're up against a wall or the car: close enough, sit here
-          this.arrive(c);
-        } else if (c.mode === MODE.VISIT) {
-          // something in the way: step around it for a moment
-          const side = g.rng() < 0.5 ? 1 : -1;
-          c.detourT = 0.8 + g.rng() * 0.8;
-          c.detourX = -dz * side + dx * 0.25;
-          c.detourZ = dx * side + dz * 0.25;
-        } else c.modeT = 0;
-      }
-    }
-
-    // facing + animation
+  // stuck on a wall, fence or the car while it heads along (dx, dz) at `speed`
+  unstick(c, dt, speed, dx, dz) {
+    const g = this.g;
     const sp = Math.hypot(c.vx, c.vz);
-    if (sp > 0.15) c.yaw = turn(c.yaw, Math.atan2(-c.vx, -c.vz), dt * (c.mode === MODE.FLEE ? 10 : 5));
-    else if (face !== null) c.yaw = turn(c.yaw, face, dt * 2.5);
+    if (sp < speed * 0.25) c.stuckT += dt;
+    else c.stuckT = Math.max(0, c.stuckT - dt);
+    if (c.stuckT > 1.2) {
+      c.stuckT = 0;
+      if (c.mode === MODE.FLEE) {
+        // cornered: dart sideways
+        const a = Math.atan2(c.x - c.threatX, c.z - c.threatZ) + (g.rng() < 0.5 ? 1.3 : -1.3);
+        c.threatX = c.x - Math.sin(a) * 3;
+        c.threatZ = c.z - Math.cos(a) * 3;
+      } else if (c.mode === MODE.VISIT && c.visitD < 2.6) {
+        // they're up against a wall or the car: close enough, sit here
+        this.arrive(c);
+      } else if (c.mode === MODE.VISIT) {
+        // something in the way: step around it for a moment
+        sidestep(c, g.rng, dx, dz, 0.8, 0.25);
+      } else c.modeT = 0;
+    }
+  }
+
+  // facing + animation, from how fast it is going (face: where to turn standing, or null)
+  turnAndPose(c, dt, face) {
+    const sp = Math.hypot(c.vx, c.vz);
+    if (sp > 0.15) c.yaw = turnToward(c.yaw, Math.atan2(-c.vx, -c.vz), dt * (c.mode === MODE.FLEE ? 10 : 5));
+    else if (face !== null) c.yaw = turnToward(c.yaw, face, dt * 2.5);
     c.anim = sp > 2.4 ? CANIM.RUN : sp > 0.12 ? CANIM.WALK : c.mode === MODE.SIT ? CANIM.SIT : CANIM.IDLE;
   }
 
@@ -426,7 +437,6 @@ export class Cats {
   // a spot a few meters away, pulled back toward home when it has strayed
   pickWanderTarget(c) {
     const g = this.g;
-    const w = g.world;
     const lim = g.world.half - 6;
     const hd = Math.hypot(c.homeX - c.x, c.homeZ - c.z);
     for (let tries = 0; tries < 8; tries++) {
@@ -436,7 +446,7 @@ export class Cats {
       const x = c.x + Math.sin(a) * d;
       const z = c.z + Math.cos(a) * d;
       if (Math.abs(x) > lim || Math.abs(z) > lim) continue;
-      if (w.isDeepWater(x, z) || g.nav.isBlocked(x, z)) continue;
+      if (!this.open(x, z)) continue;
       c.tx = x;
       c.tz = z;
       return true;
@@ -446,27 +456,14 @@ export class Cats {
 
   integrate(c, dt, dvx, dvz, humans) {
     const g = this.g;
-    const accel = Math.min(1, dt * (Math.hypot(dvx, dvz) > 3 ? 9 : 6));
-    c.vx += (dvx - c.vx) * accel;
-    c.vz += (dvz - c.vz) * accel;
-    if (Math.abs(c.vx) < 1e-3 && Math.abs(c.vz) < 1e-3) c.vx = c.vz = 0;
+    easeVelocity(c, dvx, dvz, dt, 9, 6);
     const ox = c.x;
     const oz = c.z;
     _pos.x = c.x + c.vx * dt;
     _pos.y = c.y;
     _pos.z = c.z + c.vz * dt;
     // step around survivors (players are never pushed - keeps client prediction exact)
-    for (const h of humans) {
-      const ddx = _pos.x - h.state.x;
-      const ddz = _pos.z - h.state.z;
-      const min = RADIUS + PLAYER_RADIUS + 0.1;
-      const d2 = ddx * ddx + ddz * ddz;
-      if (d2 < min * min && Math.abs(h.state.y - c.y) < 1.8) {
-        const d = Math.sqrt(d2) || 0.01;
-        _pos.x = h.state.x + (ddx / d) * min;
-        _pos.z = h.state.z + (ddz / d) * min;
-      }
-    }
+    keepOffSurvivors(_pos, c.y, RADIUS + PLAYER_RADIUS + 0.1, humans);
     resolveBody(g.world, _pos, RADIUS, HEIGHT);
     if (g.world.isDeepWater(_pos.x, _pos.z)) {
       _pos.x = ox;
@@ -478,14 +475,6 @@ export class Cats {
     // actual velocity (after collisions) drives the animation and stuck detection
     c.vx = (c.x - ox) / dt;
     c.vz = (c.z - oz) / dt;
-    const gy = groundAt(g.world, c.x, c.z, c.y, RADIUS);
-    if (c.y > gy + 0.05) {
-      c.vy -= GRAV * dt;
-      c.y = Math.max(gy, c.y + c.vy * dt);
-      if (c.y <= gy) c.vy = 0;
-    } else {
-      c.y = gy;
-      c.vy = 0;
-    }
+    settleOnGround(c, groundAt(g.world, c.x, c.z, c.y, RADIUS), dt);
   }
 }
