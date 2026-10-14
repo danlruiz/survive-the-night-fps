@@ -43,7 +43,7 @@ const stats = (bank) => {
   return { peak, rms: Math.sqrt(sum / n), bad, secs: chans[0].length / sr };
 };
 {
-  const src = readFileSync(new URL('../client/audio/audio.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../client/audio/sound-defs.js', import.meta.url), 'utf8');
   const local = src.match(/^\s*mate_down:\s*\{([^}]*)\}/m);
   check('alarm: listed for playLocal on the ui bus (heard over the dead-muffle)', !!local && /bank:\s*'mate_down'/.test(local[1]) && /bus:\s*'ui'/.test(local[1]), local?.[0]?.trim());
   check('alarm: the synth has a bank for it', DEF_BY_BANK.has('mate_down'));

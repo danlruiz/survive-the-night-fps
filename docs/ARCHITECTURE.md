@@ -1054,17 +1054,17 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 
 ## Audio
 
-- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up) and most
+- **Two layers.** Every sound has a procedural bank (`audio/synth*.js`, rendered in workers at start-up by `banks.js`) and most
   now have a CC0 recording over it (`audio/samples/*.ogg`, table `REC` in `samples.js`: decode rate, `lazy`, and
   the `[start, dur, ...]` slice table of a multi-take sprite). A recording is used once it has decoded; until then,
-  or for good if it fails to load, the procedural bank plays. `R_*` defs in `audio.js` bind a recording to a sound
+  or for good if it fails to load, the procedural bank plays. `R_*` defs in `sound-defs.js` bind a recording to a sound
   (`vol` is relative to the sound's own, calibrated against the procedural bank it replaces; `layer` keeps the bank
   underneath; `far` crossfades to a distant-perspective recording). To add one: drop the Ogg in `samples/`, add
   its `REC` entry and CREDITS.md row (CC0 only), point an `R_*` def at it.
 - **Score** (`audio/music.js`): recorded stems crossfaded by game state over the generative score - menu theme,
   sparse daytime tones, night drone, a "dread" layer that follows the nearest zombie, the horde's taiko (muffled
   until something is close) and the boss theme, all in or around D minor. Each generative layer gives way to its
-  stem once loaded. Stingers (`STINGERS` in `audio.js`) are recorded cues too, with the procedural ones behind them.
+  stem once loaded. Stingers (`STINGERS` in `sound-defs.js`) are recorded cues too, with the procedural ones behind them.
 - **Zombie voices** are chosen on the client (`game/entities/zombies.js`, a kind's own cadence, pitch and steps in
   `zombiekinds.js`): shambling zombies moan (`SOUND.ZOMBIE_MOAN`),
   hunting ones growl, each at its own stable pitch (`e.voice`, passed as `rate`); each carries a breathing loop
@@ -1551,7 +1551,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   off 45% of the time. A knife never does either. Ringing, it calls the dead every 3 s with the noise any sound
   makes (`Zombies.noise`, 85 m; it spawns nothing, unlike a trunk's alarm) for 18 s, or until a blow on the bonnet
   end kills it. One alarm a wreck a day. The salvage a hit gives is untouched by any of this.
-- **Sounds** (`client/audio/synth-strike.js`, `STRIKE_MAP` in `audio.js`, `Audio.strike(name)`): a struck thing is
+- **Sounds** (`client/audio/synth-strike.js`, `STRIKE_MAP` in `sound-defs.js`, `Audio.strike(name)`): a struck thing is
   an exciter into a bank of modes, with the recorded impact laid over it where there is one, pitched by weapon.
 
 ## Gameplay systems (iteration 2)
@@ -1862,7 +1862,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   its view ray passes within `FIXTURE_PICK` of the spot inside `INTERACT_REACH` with nothing in the way
   (`canReach`), the server allows `FIXTURE_REACH`. A pull (`Fixtures.ringBell`) sends `NOTIFY.BELL` and the
   tolls follow from `Fixtures.update`: each is a `SOUND.BELL_TOLL` with no radius (everyone hears it; the `bell`
-  category in audio.js carries it across the map) and a `Zombies.noise` of `NOISE.BELL`. A call
+  category in sound-defs.js carries it across the map) and a `Zombies.noise` of `NOISE.BELL`. A call
   (`Fixtures.callPlane`) spends `RADIO_BATTERIES`, aims `flySupplyDrop` at the caller (pushed a crate's width
   clear of whatever stands beside them, the heading off a stream of its own: the game's is not drawn from) and
   makes a `NOISE.RADIO`; `calledDay` keeps it to one a day, and `phase` to the day. The client keeps what it knows
@@ -1972,7 +1972,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   `checkOnAir` puts the change in the player list the same tick (`PLF.ON_AIR`), and `game/radio.js` on each
   client routes that peer through the radio (`Voice.setRadio`, held open 400 ms past the key coming up), plays
   the squelch and keeps the static loop up (`AudioEngine.radioStatic`) while anybody is on the air. Keying it
-  opens the microphone as push-to-talk does. Each `VoiceSource` in `audio.js` mixes a positional path with a
+  opens the microphone as push-to-talk does. Each `VoiceSource` in `voice-chat.js` mixes a positional path with a
   band-limited radio path that takes over as the speaker leaves earshot (or the area of interest).
 - **Death lasts until dawn** (`DAWN_RETURN` in constants.js). A survivor who dies becomes a player-zombie
   (`killPlayer`, then `spawnPlayerZombie`). `startDay` calls `returnFallen`: every player who is dead or a zombie

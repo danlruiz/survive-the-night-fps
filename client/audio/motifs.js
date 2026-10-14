@@ -10,7 +10,7 @@ export const MOTIF_NEAR = 30; // m from a survivor: the second, closer cue
 export const MOTIF_EVERY = 8; // s: no kind heard twice inside this
 export const MOTIF_GAP = 1.2; // s between any two motifs, so a crowd coming into view does not play over itself
 export const MOTIF_STALE = 4; // s: a far cue held back by the gap for longer than this is dropped
-export const MOTIF_GROUP = 20; // m: the others of its kind this close to the one heard count as heard with it (a pack)
+const MOTIF_GROUP = 20; // m: the others of its kind this close to the one heard count as heard with it (a pack)
 export const MOTIF_PROBE = 0.25; // s between looks at the entities
 export const MOTIF_BEAT = 0.2; // s per beat on the piano (the strings take MOTIF_FAR_SLOW x as long)
 export const MOTIF_FAR_SLOW = 1.35;
@@ -54,6 +54,13 @@ export class MotifWatch {
     return now >= this.probeT;
   }
 
+  // the seen record of entity e, made afresh when it is new or has turned into another kind
+  _record(e, now) {
+    let s = this.seen.get(e.id);
+    if (!s || s.ztype !== e.ztype) this.seen.set(e.id, (s = { t: now, far: false, near: false, ztype: e.ztype }));
+    return s;
+  }
+
   // now: s (any steady clock). Returns the cues played this probe as [{ ztype, near }] (for the test).
   update(now, ents, survivors, cue) {
     if (now < this.probeT) return null;
@@ -63,8 +70,7 @@ export class MotifWatch {
     for (const e of ents) {
       if (e.dead || !MOTIFS[e.ztype]) continue;
       live.add(e.id);
-      let s = this.seen.get(e.id);
-      if (!s || s.ztype !== e.ztype) this.seen.set(e.id, (s = { t: now, far: false, near: false, ztype: e.ztype }));
+      const s = this._record(e, now);
       if (s.near) continue;
       let d2 = Infinity;
       for (const p of survivors) d2 = Math.min(d2, (p.x - e.rx) ** 2 + (p.z - e.rz) ** 2);
@@ -85,8 +91,7 @@ export class MotifWatch {
       // the rest of its pack, or a pair coming in together, were announced by that one
       for (const o of ents) {
         if (o === e || o.dead || o.ztype !== e.ztype || (o.rx - e.rx) ** 2 + (o.rz - e.rz) ** 2 > MOTIF_GROUP * MOTIF_GROUP) continue;
-        let so = this.seen.get(o.id);
-        if (!so || so.ztype !== o.ztype) this.seen.set(o.id, (so = { t: now, far: false, near: false, ztype: o.ztype }));
+        const so = this._record(o, now);
         so.far = true;
         if (near) so.near = true;
       }

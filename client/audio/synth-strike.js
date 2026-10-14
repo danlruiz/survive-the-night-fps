@@ -6,7 +6,7 @@
 // long, stone hardly rings at all and leaves grit, earth and cloth and rubber only thud. The recorded impacts
 // (audio.js R_*) are laid over these where there is one; these give each weapon its own voice under it.
 import { TAU, ModeBank, Biquad, Pink, alloc, finish, softclip } from './dsp.js';
-import { HI, MID } from './synth.js';
+import { HI, MID } from './synth-blocks.js';
 
 // an exciter: `ms` of noise falling away, lowpassed at `lp` Hz (a soft thing strikes dull)
 function knock(sr, rng, n, ms, lp, gain = 1, at = 0) {
