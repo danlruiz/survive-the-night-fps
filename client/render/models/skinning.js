@@ -12,7 +12,8 @@
 // uniform uploads (MeshLambertMaterial does not honor uniformsNeedUpdate).
 import * as THREE from 'three';
 import { patchCrowdShader } from '../crowd.js';
-import { WR, regionUV, getCharAtlas, getWeaponAtlas, fbm3, noise3, mulberry32 } from './charTextures.js';
+import { mulberry32 } from '../../../shared/rng.js';
+import { WR, regionUV, getCharAtlas, getWeaponAtlas, fbm3, noise3 } from './charTextures.js';
 
 export { fbm3, noise3, mulberry32 };
 

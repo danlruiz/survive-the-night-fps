@@ -7,7 +7,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getTexture, TEXTURE_NAMES, setMaxAnisotropy } from '../render/textures.js';
-import { MAT, vegetationTime } from '../render/materials.js';
 
 const Q = new URLSearchParams(location.search);
 const CAT = Q.get('cat') || 'props';
@@ -107,7 +106,6 @@ function sizeBox(size, x, z) {
   scene.add(e);
 }
 
-let t0 = performance.now();
 const errors = [];
 addEventListener('error', (e) => errors.push(e.message));
 
@@ -486,7 +484,6 @@ function updateLabels() {
   }
 }
 function loop() {
-  vegetationTime.value = (performance.now() - t0) / 1000;
   if (sheetCells) renderSheet();
   else {
     renderer.render(scene, camera);

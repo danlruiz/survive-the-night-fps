@@ -15,9 +15,6 @@ import { vegMaterial, vegDef } from './vegshading.js';
 import { glassPatch, surface } from './surfaceshading.js';
 // (the vegetation's shading lives in vegshading.js, the surfaces' in surfaceshading.js)
 
-/** Legacy wind clock (vegetation now sways with the global uWind uniform, see globals.js). */
-export const vegetationTime = { value: 0 };
-
 export const VERTEX_COLOR_MATERIALS = new Set(['wood', 'paint', 'carpaint', 'aircraft', 'cloth', 'pine', 'leaves', 'bush', 'fern', 'grass', 'weeds', 'plaster', 'lino', 'ceiling', 'floorboards', 'carglass', 'canopy', 'cabin', 'cabin_fine']);
 
 function lambert(o) {
