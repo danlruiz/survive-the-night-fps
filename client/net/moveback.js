@@ -20,7 +20,7 @@
 import { REJECT_REASON } from '../../shared/protocol.js';
 import { NO_GAME_TRIES, NO_GAME_MS, endedByUpdate } from './comeback.js';
 
-export const MOVE_MS = 45_000;
+const MOVE_MS = 45_000;
 export { NO_GAME_MS };
 const FAST_MS = 5000; // tries this close together for this long, then once a second
 const FAST_EVERY = 150;
