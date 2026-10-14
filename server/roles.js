@@ -15,6 +15,12 @@ import { NOTIFY } from '../shared/defs.js';
 import { ROLE, hasRole, GUARD, MEDIC, MARK, SCOUT, DRAG } from '../shared/roles.js';
 
 const up = (p) => p.alive && !p.zombie && !p.downed && !p.away;
+// e is dragged by nobody now: no longer pulled along (and their client told)
+function released(e) {
+  e.draggedBy = 0;
+  e.state.pulled = 0;
+  e.selfSync = true;
+}
 
 export class Roles {
   constructor(game) {
@@ -101,11 +107,7 @@ export class Roles {
     p.dragging = 0;
     p.state.drag = 0;
     p.selfSync = true;
-    if (e && e.draggedBy === p.id) {
-      e.draggedBy = 0;
-      e.state.pulled = 0;
-      e.selfSync = true;
-    }
+    if (e && e.draggedBy === p.id) released(e);
   }
 
   // the one dragged is pulled to where the Runner is (playersim: at 4.4 m/s, stopping 1.3 m short)
@@ -138,11 +140,7 @@ export class Roles {
     for (const e of g.players.values()) {
       if (!e.draggedBy) continue;
       const p = g.players.get(e.draggedBy);
-      if (!p || p.dragging !== e.id) {
-        e.draggedBy = 0;
-        e.state.pulled = 0;
-        e.selfSync = true;
-      }
+      if (!p || p.dragging !== e.id) released(e);
     }
     // scouts look about them
     this.scoutT -= dt;

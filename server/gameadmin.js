@@ -61,8 +61,6 @@ export const COMMANDS = {
   parts: { about: 'Install every car part', args: () => ['parts'] },
 };
 
-const round1 = (v) => Math.round(v * 10) / 10;
-
 function detail(game) {
   let zombies = 0;
   for (const z of game.zombies) if (!z.dead) zombies++;

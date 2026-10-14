@@ -151,9 +151,13 @@ draw after it, and seeded tests that have nothing to do with the change start fa
 
 ### 8. Very large files
 
-`server/game.js` (5,800 lines), `client/game/game.js` (4,600; since split into `client/game/game/`), `client/render/models/weapons.js` (1,900 since its held items moved out),
-`client/render/models/characters.js` (5,500) and `client/ui/menus.js` (now split into `splash.js` and `pause.js`) are where unrelated features meet. A conflict
-in one of them is often two features that only share a file.
+`server/game.js` (5,800 lines), `client/game/game.js` (4,600), `client/render/models/weapons.js` (4,800),
+`client/render/models/characters.js` (5,500) and `client/ui/menus.js` were where unrelated features met. A conflict
+in one of them was often two features that only shared a file. Since the October cleanup each is split by
+responsibility: `Game` into parts under `server/game/`, the client's `Game` into `client/game/game/`, the held items
+into `client/render/models/weapons/`, the zombie kinds into `client/render/models/zombies/` (and `characters/`), and
+the menus into `splash.js`, `pause.js` and `invite.js`. The parts are laid onto their class by an index that throws
+on a name defined twice, so two branches that add the same method collide loudly instead of silently.
 
 - **Resolve:** read both sides whole. These are the conflicts where logic really can clash: two HUD meters drawn in the
   same frame, two handlers for the same message.

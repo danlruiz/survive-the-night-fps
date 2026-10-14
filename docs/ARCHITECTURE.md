@@ -58,7 +58,9 @@ server/      authoritative game server (uWebSockets.js)
   room.js        one game as the network thread sees it (Room): its worker, its sockets, its records, its handoff
   room-worker.js one game server: a worker thread running one Game and its tick loop
   wire.js        the packed frames the two threads pass sockets' messages in
-  game.js        the simulation of one game (Game), and everything it sends
+  game.js        the simulation of one game (Game): its state, entities, events and tick, with its parts laid on
+  game/          Game's parts, each a `methods` object game.js lays onto Game.prototype (run, phases, escape,
+                 crossing, sessions, input, survivors, harm, items, building, net, ...: game.js's header lists them)
   zombies.js     the dead's AI: targeting, flow fields, melee, and what every special shares (the windup, the flight)
   specials/      each special kind's own module: its numbers, when it starts its special, what it does, and what is
                  its own when it is shot or dies (the Mother's belly, a boomer's blast; index.js says how zombies.js
@@ -371,7 +373,7 @@ JSON file (`server/stats.js`).
   count of that stat (`ACH_STATS`: kills, nights, escapes, headshots, revives, crafted, salvaged, trees, distance,
   days) reaches it; a **feat** has none and unlocks when the server sees it happen. The pure rules are there too:
   `applyAchievements` (counts and feats in, what newly unlocked out), `sanitizeProgress`, `mergeProgress`.
-- **In a game** (`server/achievements.js`, `Game.ach`) hooks sit beside the match tracker's (game.js, combat.js,
+- **In a game** (`server/achievements.js`, `Game.ach`) hooks sit beside the match tracker's (Game, combat.js,
   zombies.js, fixtures.js): they only add to the player's counts (`p.ach`) or note a feat. Once a second each
   survivor's position is looked at (distance, the mine, every place in the valley, a swim, a handcar's whole line,
   the Ferris wheel); nothing else is scanned. What a player earned goes out every 3 s, at once for a feat or at
@@ -1212,8 +1214,8 @@ wing of Mercy Clinic (`shared/clinic.js`, a place of the random pool) is the onl
   Loot and the casket (`CONT.CASKET`, table `crypt`) are `ZONE.CEMETERY`; the crypt's supply spot is the chapel's.
   `world.cemetery` holds the graves (`{ x, y, z, yaw }`: where one of the dead stands up, and which way it faces),
   `inside(x, z)` for the fenced ground, and what the field map draws.
-- **The rule** (`server/cemetery.js`, `Game.cemetery`) is called from five places in `server/game.js` (a new run,
-  sunrise, the start of each wave, the tick, `/cemetery`) and one in `Zombies.updateOne`. A wave that starts with a
+- **The rule** (`server/cemetery.js`, `Game.cemetery`) is called from five places in `Game` (a new run, sunrise, the
+  start of each wave, the tick, `/cemetery`) and one in `Zombies.updateOne`. A wave that starts with a
   survivor within `CEMETERY.NEAR` takes `CEMETERY.SHARE` of its walkers and runners out of its queue into
   `Cemetery.pending`; until they are up they wait in a wave of their own that never starts by the clock
   (`Cemetery.share`, pushed onto `Game.waves`), so the horde the HUD counts does not change. Each is given a grave
@@ -1651,7 +1653,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   from the bridgehead, and one the team has is rumoured nowhere - 255.) Installing all
   of them enables the engine hold-interaction, which starts the final stand (`game.escape`). The stand is
   sized from the night of the same number (`hordeSize()` × `FINAL_STAND_SIZE`, the `FINAL_STAND_*` constants
-  in `server/game.js`) and re-read from the survivors still alive whenever a group is due; wanderers near a
+  in `server/game/escape.js`) and re-read from the survivors still alive whenever a group is due; wanderers near a
   survivor join it and count, the rest are removed as at nightfall, and the day's upkeep stops for its length.
   The warm-up (`Game.updateEscape`) only counts down while a survivor on their feet is within `ESCAPE_RADIUS`
   of the car; otherwise it stalls where it is, and the stand keeps coming on its own clock. A warm engine ends
@@ -1707,8 +1709,8 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
 - **Power: the generator and its floodlights** (`STRUCT.GENERATOR` 11, `STRUCT.FLOODLIGHT` 12; numbers and the cone in
   `shared/power.js`, the rule in `server/power.js`, the client in `client/game/power.js`). Both are ordinary structures
   (they block, the dead break them, they count to `MAX_STRUCTURES`); everything else hangs off three hooks in
-  `server/game.js`: `Power.update` at the top of `updateStructures`, `Power.interact` in `interact` and
-  `ACT.GEN_SWITCH` (u16 entity id) in `handleAction`. A generator's tank is `e.burnLeft` (seconds) and its switch
+  `server/game/`: `Power.update` at the top of `updateStructures` (building.js), `Power.interact` in `interact`
+  (interact.js) and `ACT.GEN_SWITCH` (u16 entity id) in `handleAction` (input.js). A generator's tank is `e.burnLeft` (seconds) and its switch
   `e.off`; it runs while the switch is on and there is fuel. Each tick `Power.update` burns the fuel of the running ones,
   raises their hum through `Zombies.noise` every `GEN_HUM_EVERY` (with `game.rng` swapped for the module's own stream
   for the call: the noise scatters where each zombie heads, and a generator must not shift what the rest of a seeded

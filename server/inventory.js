@@ -2,11 +2,9 @@
 // first `cap` slots are open (invCap: INVENTORY_SIZE, more with a backpack worn); what puts something into a slot
 // takes the cap, and the rest stay empty. (It defaults to the slots every survivor has, so a call that forgets it
 // can never fill a locked one.)
-import { INVENTORY_SIZE, INVENTORY_MAX, inventoryCap } from '../shared/constants.js';
+import { INVENTORY_SIZE, INVENTORY_MAX, SLOT_PRIMARY, SLOT_PISTOL, inventoryCap } from '../shared/constants.js';
 import { ITEM_DEFS, BAG_TIER } from '../shared/defs.js';
 import { consolidate, smallestStack } from '../shared/stacks.js';
-
-export { consolidate };
 
 export function createInventory() {
   return new Array(INVENTORY_MAX).fill(null);
@@ -14,6 +12,14 @@ export function createInventory() {
 
 // the slots open to player p: the worn backpack's pockets on top of everyone's
 export const invCap = (p) => inventoryCap(p.backpackItem);
+
+// The rounds in the gun in weapon slot `slot` of a player's state: the primary's are mags[0], the pistol's mags[1], and
+// the other slots hold nothing with a magazine
+export const slotMag = (s, slot) => (slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0);
+export function setSlotMag(s, slot, n) {
+  if (slot === SLOT_PRIMARY) s.mags[0] = n;
+  else if (slot === SLOT_PISTOL) s.mags[1] = n;
+}
 
 export function countItem(inv, item) {
   let n = 0;
@@ -116,11 +122,6 @@ export function tidyStacks(inv, keep) {
   return changed;
 }
 
-export function hasCost(inv, cost) {
-  for (const k in cost) if (countItem(inv, +k) < cost[k]) return false;
-  return true;
-}
-
 export function payCost(inv, cost) {
   for (const k in cost) removeItem(inv, +k, cost[k]);
 }
@@ -148,13 +149,6 @@ export function sortInventory(inv, cap = INVENTORY_SIZE, keep) {
   const tier = (s) => BAG_TIER[ITEM_DEFS[s.item]?.cat] ?? 99;
   kept.sort((a, b) => tier(a) - tier(b) || a.item - b.item || b.count - a.count || (b.mag || 0) - (a.mag || 0));
   for (let i = 0; i < cap; i++) inv[i] = kept[i] || null;
-}
-
-export function freeSlots(inv, cap = INVENTORY_SIZE) {
-  cap = Math.min(cap, inv.length);
-  let n = 0;
-  for (let i = 0; i < cap; i++) if (!inv[i]) n++;
-  return n;
 }
 
 // the first free slot of the open ones, or -1
