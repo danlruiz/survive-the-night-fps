@@ -168,7 +168,6 @@ export function dressQuarryPit({ seed, nE, zoneById, ground, kit, fits }) {
       const target = PIT.r - PIT.bw * (j - 0.085) - 0.6; // (in over the riser's foot: the heightfield's riser is two metres wide)
       const n = Math.round((2 * PI * target) / 3.1);
       const y0 = PIT.top - j * PIT.drop - 0.5 - fy;
-      const y1 = PIT.top - (j - 1) * PIT.drop + 0.12 - fy;
       for (let q = 0; q < n; q++) {
         const a = ((q + 0.5) / n) * PI * 2;
         const [sa, ca] = [Math.sin(a), Math.cos(a)];

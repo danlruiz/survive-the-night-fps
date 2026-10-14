@@ -740,11 +740,12 @@ screen). `scripts/test-airfield-hints.js` holds them.
   Passage Mines under the river). `world.car` is the plane there (`plane: true`), so everything that asks for "the
   car" - the reach, the supplies, the final stand - asks for it. What the island has and it lacks (railway, fair,
   clinic, cemetery) is `null`; its `mine` is the passage.
-  - *The code*: `createMainland` plans the map, its ground, its roads and its woods, and calls the stages in
-    `shared/mainland/` for the rest in a fixed order (they draw from its random stream): `citykit.js`, `buildings.js`
+  - *The code*: `createMainland` makes the kit and the places' hiding spots and calls the stages in `shared/mainland/`
+    in a fixed order (they draw from its random stream): `plan.js` (where everything is, from the picture),
+    `terrain.js` (the heightfield), `roads.js` (the roads, graded into it), `citykit.js`, `buildings.js`
     and `city.js` (Town Center), `docks.js`, `homes.js`, `places.js`, `mountains.js` (the tunnels' galleries, the
     cliffs' walls), `airfield.js`, `sites.js` (the land a body walks to, the roadside sites, the farm, the road signs,
-    hoardings and poles), `passage.js` (the mines, the quarry's pit), `spawns.js` and `fieldmap.js`; `consts.js` holds
+    hoardings and poles), `passage.js` (the mines, the quarry's pit), `vegetation.js`, `spawns.js` and `fieldmap.js`; `consts.js` holds
     the measures.
   - *The layout* (`shared/mainland-layout.js`) is the picture, traced: the sea and its islands and Pine Lake as
     outlines (even-odd), the river's middle line with its width, the creek, the mountains' outlines, the tunnels, every

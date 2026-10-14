@@ -85,7 +85,6 @@ export function buildDocks({ seed, zoneById, kit, place, hole, smoke, afloat, ck
       s.prop('shipping_container', -3, 2.4, PI / 2 + 0.05, { ly: FLOOR_Y, seed: k });
       s.loot(2, -4, FLOOR_Y + 0.02);
       s.loot(-9, 1, FLOOR_Y + 0.02);
-      if (k === 2) s.prop('pallet', 4, -5, 0.6, { ly: FLOOR_Y, seed: 1 });
     }
     // containers stacked on the quay between them, two high in places
     for (const [lx, lz, r, two] of [[-62, -24, 0.02, true], [-62, -16, -0.03, false], [-62, 58, 0.01, true], [-30, 60, PI / 2, false], [-30, 70, PI / 2 + 0.04, true]]) {
@@ -284,7 +283,7 @@ export function buildDocks({ seed, zoneById, kit, place, hole, smoke, afloat, ck
     // the warehouses along the back of the apron (two more, the length of the quay), their doors on it
     for (const [lz, k] of [[82, 3]]) {
       const w = q.sub(-58, lz, PI / 2);
-      w.room(0, 0, 34, 16, 7, k === 2 ? 'tin' : 'tin_rust', { n: [gap(17, 8, 5.5)], s: [door(8, 1.4), door(26, 1.4)] }, { roof: 'gable', roofH: 3, roofMat: 'tin', floorMat: 'concrete' }); // (no glass: a shed's)
+      w.room(0, 0, 34, 16, 7, 'tin_rust', { n: [gap(17, 8, 5.5)], s: [door(8, 1.4), door(26, 1.4)] }, { roof: 'gable', roofH: 3, roofMat: 'tin', floorMat: 'concrete' }); // (no glass: a shed's)
       w.cont(CONT.FREIGHT, -12, 5, { prop: 'crate', ry: 0.2, ly: FLOOR_Y, seed: k });
       w.loot(4, -3, FLOOR_Y + 0.02);
     }

@@ -777,7 +777,7 @@ export const OUTLYING = {
   },
 
   // ---- the third pass: more of what lies about. Each of these is built with the city's kit as well (K.block,
-  // K.groundRoom, K.signAt, K.extra, K.heap, K.weed: shared/mainland.js, "What the city is drawn from").
+  // K.groundRoom, K.signAt, K.extra, K.heap, K.weed: shared/mainland/citykit.js, "What the city is drawn from").
 
   // CALDER BOAT WORKS: on the river's far bank, across from the city (its +Z is the water): a boathouse, a slip
   // down into the river, hulls on the hard, one still afloat.

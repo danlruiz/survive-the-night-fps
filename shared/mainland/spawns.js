@@ -5,7 +5,7 @@ import { RIVER_HW } from './consts.js';
 
 const PI = Math.PI;
 
-// reachAt: the land a body walks to (mainland/sites.js); occupied, zoneClear, LIM: the vegetation's (mainland.js)
+// reachAt: the land a body walks to (mainland/sites.js); occupied, zoneClear, LIM: the vegetation's (mainland/vegetation.js)
 export function scatterSpawns({ rng, plan, ground, staticGrid, reachAt, occupied, zoneClear, LIM }) {
   const { city, field, inCity, riverAt, cliffAt } = plan;
   const { heightAt, inWater } = ground;
