@@ -159,7 +159,9 @@ in one of them is often two features that only share a file.
   1. The client half of a weapon (builder, `VM` entry, icon) into `client/render/models/weapons/<name>.js`, finishing
      what #354 started. Today a new gun still edits `BUILDERS`, `VM` and `ITEM_ICONS`.
   2. A zombie kind's model, pose and sounds into `client/render/models/zombies/<kind>.js`, the client twin of
-     `server/specials/`.
+     `server/specials/`. The models and poses are there (`zombies/index.js` builds the tables `characters/` reads),
+     and the client's per-kind view facts are one table (`client/game/entities/zombiekinds.js`); the sounds are still
+     to move.
   3. HUD meters (shove, fire, pin) out of `client/game/game.js` into one module, one meter each. **Done**:
      `client/game/hudmeters.js`; the rest of `client/game/game.js` is split into `client/game/game/`, one file per
      responsibility.

@@ -9,7 +9,7 @@
 // `/sandbox/models-test.html?deer=grid&hit=1` draws the two over each other and prints where the skull ends up.
 import * as THREE from 'three';
 import { DANIM, DEER_UNDEAD } from '../../../shared/deer.js';
-import { MeshBuilder, instantiateRig, setFx, getCharacterMaterial, fbm3, noise3, clamp, lerp, smooth } from './skinning.js';
+import { MeshBuilder, rigCache, instantiateRig, setFx, getCharacterMaterial, fbm3, noise3, clamp, lerp, smooth } from './skinning.js';
 import { CR } from './charTextures.js';
 
 const TAU = Math.PI * 2;
@@ -253,15 +253,7 @@ function buildDeer(coatIdx) {
   return mb.build();
 }
 
-const rigs = new Map();
-function getRig(coat) {
-  let r = rigs.get(coat);
-  if (!r) {
-    r = buildDeer(coat);
-    rigs.set(coat, r);
-  }
-  return r;
-}
+const getRig = rigCache(buildDeer);
 
 // ------------------------------------------------------------------ animation
 const n1 = (t, seed) => noise3(t, seed * 1.7, 0.5, 17) * 2 - 1;
@@ -541,11 +533,6 @@ class DeerInstance {
     this.skeleton.dispose();
     if (this.object.parent) this.object.parent.remove(this.object);
   }
-}
-
-/** Triangle counts per coat (models sandbox stats). */
-export function deerStats() {
-  return COATS.map((c, i) => ({ type: 'deer', variant: i, tris: getRig(i).tris, bones: getRig(i).bones.length }));
 }
 
 /**

@@ -435,6 +435,20 @@ export class MeshBuilder {
 }
 
 // ------------------------------------------------------------------ instances
+/** A rig cache: build(key) the first time a key is asked for, the same rig every time after (geometry shared by
+ * every instance of that coat or variant). */
+export function rigCache(build) {
+  const rigs = new Map();
+  return (key) => {
+    let r = rigs.get(key);
+    if (!r) {
+      r = build(key);
+      rigs.set(key, r);
+    }
+    return r;
+  };
+}
+
 /**
  * Create a SkinnedMesh + per-instance skeleton for a built rig.
  * Returns { mesh, bones, skeleton, fx, root } where bones[i] matches rig.bones[i]; fx = bones[0].
@@ -658,3 +672,11 @@ export function ikTwoBone(S, T, L1, L2, pole, qUpper, qLower, elbowOut) {
 export const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const smooth = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+/** smooth from 0 at a to 1 at b. */
+export const sstep = (a, b, x) => smooth((x - a) / (b - a));
+/** A bell: 1 at 0, falling off as exp(-x^2). */
+export const gauss = (x) => Math.exp(-x * x);
+/** The angle from b to a, wrapped into -PI..PI. */
+export const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+/** A colour (anything color() takes) scaled by k. */
+export const mulColor = (c, k) => color(c).multiplyScalar(k);

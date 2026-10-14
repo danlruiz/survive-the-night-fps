@@ -5,7 +5,7 @@
 // Faces -Z, meters, feet at y = 0.
 import * as THREE from 'three';
 import { CANIM } from '../../../shared/defs.js';
-import { MeshBuilder, instantiateRig, setFx, getCharacterMaterial, getViewCharMaterial, fbm3, noise3, clamp, lerp } from './skinning.js';
+import { MeshBuilder, rigCache, instantiateRig, setFx, getCharacterMaterial, getViewCharMaterial, fbm3, noise3, clamp, lerp } from './skinning.js';
 import { CR } from './charTextures.js';
 
 const TAU = Math.PI * 2;
@@ -172,15 +172,7 @@ function buildCat(coatIdx) {
   return mb.build();
 }
 
-const rigs = new Map();
-function getRig(coat) {
-  let r = rigs.get(coat);
-  if (!r) {
-    r = buildCat(coat);
-    rigs.set(coat, r);
-  }
-  return r;
-}
+const getRig = rigCache(buildCat);
 
 // ------------------------------------------------------------------ animation
 const n1 = (t, seed) => noise3(t, seed * 1.7, 0.5, 11) * 2 - 1;
