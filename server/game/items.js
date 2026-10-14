@@ -2,11 +2,11 @@
 // removeItemEnt: the drops' ceiling, a car supply out of its hiding place), putting something in a survivor's hands
 // (giveItem, giveOrDrop) and the pickups they walk over (updateItems). The pack's own rules - stacks, slots, capacity
 // - are server/inventory.js's.
-import { SLOT_PRIMARY, SLOT_PISTOL, SLOT_THROW, PLAYER_RADIUS, STEP_HEIGHT } from '../../shared/constants.js';
+import { SLOT_THROW, PLAYER_RADIUS, STEP_HEIGHT } from '../../shared/constants.js';
 import { ITEM_DEFS, WEAPONS, SCHEM_BIT, AMMO_MAX, AMMO_ITEMS, SOUND, EVT, NOTIFY, ZONE, THROW_ITEMS, isFirearm } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
 import { COL, footprintContains, groundAt } from '../../shared/collision.js';
-import { invCap, addItem, countItem, freeSlot } from '../inventory.js';
+import { invCap, addItem, countItem, freeSlot, slotMag, setSlotMag } from '../inventory.js';
 import { isLoadoutArmor, isLoadoutBackpack, isLoadoutStack, isLoadoutWeapon } from '../loadouts.js';
 
 // A stack a survivor put down on purpose (ACT.DROP_SLOT) is theirs to leave lying: walking over it does not put it
@@ -178,7 +178,7 @@ export const methods = {
         const wpn = s.weapons[slot];
         if (!wpn || slot === SLOT_THROW) continue;
         if (isLoadoutWeapon(p, slot)) continue;
-        this.dropItem(wpn, 1, x, y, z, { spread: 1.2, mag: slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0 });
+        this.dropItem(wpn, 1, x, y, z, { spread: 1.2, mag: slotMag(s, slot) });
       }
       for (let i = 0; i < AMMO_ITEMS.length; i++) if (s.ammo[i] > 0) this.dropItem(AMMO_ITEMS[i], s.ammo[i], x, y, z, { spread: 1.5, noAuto: 2 });
       if (p.armorItem && !isLoadoutArmor(p) && p.armor > p.armorMax * 0.3) this.dropItem(p.armorItem, 1, x, y, z);
@@ -212,8 +212,7 @@ export const methods = {
       const slot = WEAPONS[item].slot;
       if (!s.weapons[slot]) {
         s.weapons[slot] = item;
-        if (slot === SLOT_PRIMARY) s.mags[0] = mag ?? WEAPONS[item].mag;
-        if (slot === SLOT_PISTOL) s.mags[1] = mag ?? WEAPONS[item].mag;
+        setSlotMag(s, slot, mag ?? WEAPONS[item].mag);
         return 1;
       }
       // store in inventory (keeps its mag)

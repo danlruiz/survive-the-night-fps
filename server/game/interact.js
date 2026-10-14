@@ -2,14 +2,14 @@
 // feeding a fire, lifting the cat) and a hold (holdBegin, updateHold: searching a container, reviving a teammate,
 // starting the engine and driving off, and the holds the fixtures, the fair, the mounted gun and the vehicles own).
 // What is in reach is what a client is offered the prompt on (pickY, reachOf, canReachEnt), with some slack.
-import { ESCAPE_DRIVE_TIME, SLOT_PRIMARY, SLOT_PISTOL, REVIVE_TIME, SEARCH_TIME, ENGINE_START_TIME, INTERACT_REACH, PICK_RADIUS, MATE_PICK_Y, INTERACT_SLACK, HOLD_SLACK, EYE_HEIGHT } from '../../shared/constants.js';
+import { ESCAPE_DRIVE_TIME, REVIVE_TIME, SEARCH_TIME, ENGINE_START_TIME, INTERACT_REACH, PICK_RADIUS, MATE_PICK_Y, INTERACT_SLACK, HOLD_SLACK, EYE_HEIGHT } from '../../shared/constants.js';
 import { ITEM, ITEM_DEFS, WEAPONS, STRUCT, STRUCT_DEFS, structPickRadius, CAMPFIRE_FUEL, CAMPFIRE_MAX_FUEL, LOOT_TABLES, SCHEMATICS, SCHEM_BIT, CONT, CONT_DEFS, CONT_TABLES, loadedAmmo, SOUND, NOTIFY, ZONE } from '../../shared/defs.js';
 import { ENT, HOLD, CAR_ID, FAIR_GEN_ID, FAIR_TANK_ID, SIPHON_ID } from '../../shared/protocol.js';
 import { PLANE_REACH } from '../../shared/acts.js';
 import { PRY, pryTime } from '../../shared/trunk.js';
 import { eyeHeight } from '../../shared/playersim.js';
 import { canReach } from '../../shared/collision.js';
-import { removeItem, countItem } from '../inventory.js';
+import { removeItem, countItem, slotMag, setSlotMag } from '../inventory.js';
 import { GUN, GUN_LYING } from '../../shared/mountedgun.js';
 import { playerMods } from '../loadouts.js';
 import { CRATE_TABLE } from './supplydrops.js';
@@ -71,13 +71,12 @@ export const methods = {
         if (def && def.cat === 'weapon') {
           const slot = WEAPONS[e.item].slot;
           const old = s.weapons[slot];
-          const oldMag = slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0;
+          const oldMag = slotMag(s, slot);
           // (the weapon in hand goes down first: with no entity id left for it there is no swap, and it is kept)
           if (old && !this.dropItem(old, 1, s.x, s.y, s.z, { mag: oldMag, spread: 0.5 })) return this.notify(NOTIFY.INVENTORY_FULL, 0, p.id);
           s.weapons[slot] = e.item;
           if (s.slot === slot) s.reloadT = 0; // a reload of the weapon swapped out must not finish on this one
-          if (slot === SLOT_PRIMARY) s.mags[0] = e.mag;
-          if (slot === SLOT_PISTOL) s.mags[1] = e.mag;
+          setSlotMag(s, slot, e.mag);
           this.removeItemEnt(e);
           this.pickupEvent(p, e.item, 1);
         } else {

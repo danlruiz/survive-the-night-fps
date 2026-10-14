@@ -1,11 +1,11 @@
 // What a survivor does with what they carry: wearing and swapping (useItem on armour, a backpack or a weapon in the
 // grid, unequip, wornGear), using a consumable over its time (useItem, finishUse, endUse) and taking back the last
 // thing they put down (undoDrop).
-import { FLASHLIGHT_MAX, SLOT_PRIMARY, SLOT_PISTOL, SLOT_THROW, SLOT_BUILD, INVENTORY_SIZE } from '../../shared/constants.js';
+import { FLASHLIGHT_MAX, SLOT_THROW, SLOT_BUILD, INVENTORY_SIZE } from '../../shared/constants.js';
 import { ITEM_DEFS, WEAPONS, CONSUMABLES, useWasted, SOUND, NOTIFY, salvageOf } from '../../shared/defs.js';
 import { WORN, WORN_DO, UNDO_NO } from '../../shared/protocol.js';
 import { DRAW_TIME } from '../../shared/playersim.js';
-import { invCap, removeItem, takeFrom, countItem, freeSlot } from '../inventory.js';
+import { invCap, removeItem, takeFrom, countItem, freeSlot, slotMag, setSlotMag } from '../inventory.js';
 import { playerMods } from '../loadouts.js';
 
 // ACT.UNDO_DROP: how long after a drop (s) it can be taken back, and how far from it (m) its dropper may have moved.
@@ -28,11 +28,10 @@ export const methods = {
     const i = to < cap && !there ? to : freeSlot(p.inv, cap);
     if (i < 0) return this.notify(NOTIFY.INVENTORY_FULL, 0, p.id);
     // (it keeps its magazine, as a weapon stored in the backpack does)
-    p.inv[i] = { item: wpn, count: 1, mag: slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0, ...(p.loadoutWeapons[slot] ? { loadout: p.loadoutWeapons[slot] } : {}) };
+    p.inv[i] = { item: wpn, count: 1, mag: slotMag(s, slot), ...(p.loadoutWeapons[slot] ? { loadout: p.loadoutWeapons[slot] } : {}) };
     p.loadoutWeapons[slot] = null;
     s.weapons[slot] = 0;
-    if (slot === SLOT_PRIMARY) s.mags[0] = 0;
-    if (slot === SLOT_PISTOL) s.mags[1] = 0;
+    setSlotMag(s, slot, 0);
     if (s.slot === slot) s.reloadT = 0; // (a reload under way must not finish on an empty hand)
     p.invDirty = true;
   },
@@ -84,12 +83,11 @@ export const methods = {
     if (def.cat === 'weapon') {
       const slot = WEAPONS[it.item].slot;
       const cur = s.weapons[slot];
-      const curMag = slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0;
+      const curMag = slotMag(s, slot);
       const curLoadout = p.loadoutWeapons[slot] || null;
       s.weapons[slot] = it.item;
       p.loadoutWeapons[slot] = it.loadout || null;
-      if (slot === SLOT_PRIMARY) s.mags[0] = it.mag || 0;
-      if (slot === SLOT_PISTOL) s.mags[1] = it.mag || 0;
+      setSlotMag(s, slot, it.mag || 0);
       p.inv[idx] = cur ? { item: cur, count: 1, mag: curMag, ...(curLoadout ? { loadout: curLoadout } : {}) } : null;
       s.slot = slot;
       s.switchT = 0.42;

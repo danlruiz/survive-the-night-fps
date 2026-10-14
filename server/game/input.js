@@ -1,11 +1,11 @@
 // What a client sends to play: its commands (handleInput queues them, processInputs runs them through the shared
 // simulation and checks its prediction, handleSimEvent acts on what the simulation says happened) and its actions
 // (handleAction: one ACT each - [E], drops, crafting, building, the inventory's moves, pings, waypoints...).
-import { SERVER_TICK_RATE, CMD_RATE, PHASE, SLOT_PRIMARY, SLOT_PISTOL, SLOT_THROW, BTN } from '../../shared/constants.js';
+import { SERVER_TICK_RATE, CMD_RATE, PHASE, SLOT_THROW, BTN } from '../../shared/constants.js';
 import { ITEM, ITEM_DEFS, ZTYPE, AMMO_ITEMS, SOUND, EVT, NOTIFY, KILLER, THROW_ITEMS } from '../../shared/defs.js';
 import { ACT, CAR_ID, readInput, qpos, dqpos, dqangle16, dqpitch, PING_KIND } from '../../shared/protocol.js';
 import { copyPlayerState, samePlayerState, hashPlayerState, simulatePlayer, eyeHeight, currentWeapon } from '../../shared/playersim.js';
-import { invCap, removeItem, takeFrom, countItem, freeSlot } from '../inventory.js';
+import { invCap, removeItem, takeFrom, countItem, freeSlot, slotMag, setSlotMag } from '../inventory.js';
 import { isLoadoutStack, isLoadoutWeapon } from '../loadouts.js';
 
 const NO_HASH = -2; // a command packet that came without a state fingerprint
@@ -243,12 +243,11 @@ export const methods = {
         if (!wpn || isLoadoutWeapon(p, slot)) return;
         const ex = s.x - Math.sin(s.yaw) * 1.1;
         const ez = s.z - Math.cos(s.yaw) * 1.1;
-        const dropped = this.dropItem(wpn, 1, ex, s.y, ez, { spread: 0.2, mag: slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0, from: s });
+        const dropped = this.dropItem(wpn, 1, ex, s.y, ez, { spread: 0.2, mag: slotMag(s, slot), from: s });
         if (!dropped) return;
         p.lastDrop = { e: dropped, t: this.time };
         s.weapons[slot] = 0;
-        if (slot === SLOT_PRIMARY) s.mags[0] = 0;
-        if (slot === SLOT_PISTOL) s.mags[1] = 0;
+        setSlotMag(s, slot, 0);
         return;
       }
       case ACT.DROP_AMMO: {

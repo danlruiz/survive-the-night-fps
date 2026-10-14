@@ -2,7 +2,7 @@
 // first `cap` slots are open (invCap: INVENTORY_SIZE, more with a backpack worn); what puts something into a slot
 // takes the cap, and the rest stay empty. (It defaults to the slots every survivor has, so a call that forgets it
 // can never fill a locked one.)
-import { INVENTORY_SIZE, INVENTORY_MAX, inventoryCap } from '../shared/constants.js';
+import { INVENTORY_SIZE, INVENTORY_MAX, SLOT_PRIMARY, SLOT_PISTOL, inventoryCap } from '../shared/constants.js';
 import { ITEM_DEFS, BAG_TIER } from '../shared/defs.js';
 import { consolidate, smallestStack } from '../shared/stacks.js';
 
@@ -14,6 +14,14 @@ export function createInventory() {
 
 // the slots open to player p: the worn backpack's pockets on top of everyone's
 export const invCap = (p) => inventoryCap(p.backpackItem);
+
+// The rounds in the gun in weapon slot `slot` of a player's state: the primary's are mags[0], the pistol's mags[1], and
+// the other slots hold nothing with a magazine
+export const slotMag = (s, slot) => (slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0);
+export function setSlotMag(s, slot, n) {
+  if (slot === SLOT_PRIMARY) s.mags[0] = n;
+  else if (slot === SLOT_PISTOL) s.mags[1] = n;
+}
 
 export function countItem(inv, item) {
   let n = 0;

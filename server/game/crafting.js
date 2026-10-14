@@ -1,10 +1,10 @@
 // Crafting: what a survivor can make where they stand (a lit fire, a workbench, the schematics found: craftCtx), how a
 // cost is paid with the materials short of it made on the way (planFor: shared/autocraft.js; client/game/bulkcraft.js
 // repeats these rules for its own model of the pack), and tearing things down for parts (salvage).
-import { CRAFT_STATION_RADIUS, SLOT_PRIMARY, SLOT_PISTOL, SLOT_THROW, SLOT_BUILD, INVENTORY_MAX } from '../../shared/constants.js';
+import { CRAFT_STATION_RADIUS, SLOT_THROW, SLOT_BUILD, INVENTORY_MAX } from '../../shared/constants.js';
 import { ITEM_DEFS, WEAPONS, RECIPE_BY_ID, SALVAGE, STRUCT_DEFS, SCHEM_BIT, AMMO_MAX, AMMO_ITEMS, SOUND, NOTIFY, isFirearm } from '../../shared/defs.js';
 import { SALVAGE_FROM } from '../../shared/protocol.js';
-import { invCap, addItem, takeFrom, countsMap, payCost, canFit, freeSlot } from '../inventory.js';
+import { invCap, addItem, takeFrom, countsMap, payCost, canFit, freeSlot, slotMag, setSlotMag } from '../inventory.js';
 import { planCost } from '../../shared/autocraft.js';
 import { isLoadoutArmor, isLoadoutStack, isLoadoutWeapon } from '../loadouts.js';
 
@@ -119,10 +119,9 @@ export const methods = {
       if (slot < 0 || slot > SLOT_BUILD || slot === SLOT_THROW || isLoadoutWeapon(p, slot) || !SALVAGE[s.weapons[slot]]) return;
       item = s.weapons[slot];
       n = 1;
-      mag = slot === SLOT_PRIMARY ? s.mags[0] : slot === SLOT_PISTOL ? s.mags[1] : 0;
+      mag = slotMag(s, slot);
       s.weapons[slot] = 0;
-      if (slot === SLOT_PRIMARY) s.mags[0] = 0;
-      if (slot === SLOT_PISTOL) s.mags[1] = 0;
+      setSlotMag(s, slot, 0);
     }
     p.invDirty = true;
     this.ach.salvaged(p, n);
