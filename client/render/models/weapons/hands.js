@@ -36,8 +36,6 @@ export const HAND_POSES = {
   },
   support: { curl: [[0.95, 1.1, 0.7], [1.0, 1.15, 0.7], [1.05, 1.15, 0.7], [1.1, 1.1, 0.7]], spread: 0.02, thumb: [[-0.7, -0.45, -0.55], [-0.4, -0.9, 0.1]], center: [-0.042, -0.088, 0] },
   pinch: { curl: [[0.9, 1.2, 0.8], [1.1, 1.4, 0.9], [1.25, 1.45, 0.9], [1.35, 1.4, 0.9]], spread: 0.0, thumb: [[-0.55, -0.6, -0.55], [-0.2, -0.85, 0.45]], center: [-0.03, -0.1, -0.02] },
-  // the walkie-talkie: the grip, its thumb up the near edge on the push-to-talk key instead of over the face
-  radio: { curl: [[1.25, 1.45, 0.9], [1.3, 1.5, 0.9], [1.35, 1.5, 0.9], [1.4, 1.45, 0.9]], spread: 0.0, thumb: [[-0.3, -0.55, -0.78], [0, -0.75, -0.66]], center: [-0.034, -0.083, 0] },
   open: { curl: [[0.25, 0.3, 0.2], [0.2, 0.3, 0.2], [0.25, 0.3, 0.2], [0.3, 0.35, 0.25]], spread: 0.08, thumb: [[-0.4, -0.55, -0.73], [-0.1, -0.8, -0.6]], center: [-0.035, -0.095, 0] },
   // flat against a leaper that has them pinned, shoving it off (ViewModel._push): fingers splayed and nearly straight
   shove: { curl: [[0.14, 0.22, 0.16], [0.1, 0.2, 0.14], [0.12, 0.22, 0.16], [0.18, 0.26, 0.18]], spread: 0.1, thumb: [[-0.45, -0.5, -0.74], [-0.15, -0.8, -0.58]], center: [-0.035, -0.095, 0] },

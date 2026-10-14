@@ -61,7 +61,7 @@ import shotgun from './shotgun.js';
 import spikedBat from './spiked-bat.js';
 import walkie from './walkie.js';
 
-export const HELD_ITEMS = [
+const HELD_ITEMS = [
   ak47,
   atRifle,
   bat,

@@ -225,7 +225,7 @@ BUILD[ITEM.HERB] = (b, r) => {
   // bundle of leafy stems tied with string
   for (let k = 0; k < 5; k++) {
     const z = (k - 2) * 0.02, ang = (k - 2) * 0.14;
-    const L = 0.24 + r() * 0.06;
+    r(); // (a stem length no longer used, still drawn so that what follows keeps its draws)
     const tip = [0.12 * Math.cos(ang) + 0.02, 0.02 + r() * 0.02, z + Math.sin(ang) * 0.15];
     b.cylBetween('wood', [-0.14, 0.012, z * 0.4], tip, 0.003, 0.004, 3, { c: [0.3, 0.42, 0.18] });
     for (let q = 0; q < 3; q++) {

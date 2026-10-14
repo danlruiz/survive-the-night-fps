@@ -206,7 +206,7 @@ export class PartSet {
     this.hi = hi;
     this.map = new Map();
     this.pivots = {};
-    this.meta = { muzzle: null, leftHand: null, frames: {} };
+    this.meta = { muzzle: null, leftHand: null };
   }
   get(name) {
     const key = this.split ? name : 'body';
