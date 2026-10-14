@@ -1,6 +1,6 @@
 // Game: the other players - the player list, their looks, chat, our XP, and what the HUD says about the team.
-import { ZONE_NAMES, PLAYER_FIRE } from '../../../shared/defs.js';
-import { ENT, PFLAG, PSTAT, CHATF, PLF, PROGF, dqpos } from '../../../shared/protocol.js';
+import { ZONE_NAMES } from '../../../shared/defs.js';
+import { ENT, PFLAG, CHATF, PLF, PROGF, dqpos } from '../../../shared/protocol.js';
 import { characterFor, defaultCharacter } from '../../../shared/characters.js';
 import { decode, lookKey } from '../../../shared/appearance.js';
 import { levelOf, picksEarned, XP_SRC } from '../../../shared/progress.js';
@@ -164,21 +164,6 @@ export const methods = {
 
   name(id) {
     return this.players.get(id)?.name || 'Someone';
-  },
-
-  // the teammate on fire within reach of our [Space] (PLAYER_FIRE: the server puts out the nearest), or null
-  burningMate(s) {
-    let best = null;
-    let bd = PLAYER_FIRE.reach;
-    for (const e of this.entities.ents.values()) {
-      if (e.kind !== ENT.PLAYER || e.id === this.myId || !(e.q[9] & PSTAT.BURNING) || e.q[5] & (PFLAG.DEAD | PFLAG.ZOMBIE)) continue;
-      const d = Math.hypot(e.rx - s.x, e.rz - s.z);
-      if (d < bd && Math.abs(e.ry - s.y) < 1.5) {
-        bd = d;
-        best = e;
-      }
-    }
-    return best;
   },
 
   // the closest teammate on their feet that we can see (in the entity list): { name, d (m) }, or null. The downed card

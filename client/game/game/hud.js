@@ -1,5 +1,5 @@
 // Game: the HUD's state, gathered once a frame for ui/hud.js.
-import { SLOT_PRIMARY, SLOT_THROW, SLOT_RADIO, PIN_FACE } from '../../../shared/constants.js';
+import { SLOT_PRIMARY, SLOT_THROW, SLOT_RADIO } from '../../../shared/constants.js';
 import { ITEM, ITEM_DEFS, WEAPONS, STRUCT_DEFS, ZOMBIE_DEFS, CONSUMABLES } from '../../../shared/defs.js';
 import { ENT } from '../../../shared/protocol.js';
 import { trackedRecipe } from '../tracked.js';
@@ -8,9 +8,8 @@ import { shotSpread, currentWeapon } from '../../../shared/playersim.js';
 import { crosshairGap } from '../aimview.js';
 import { perkMods } from '../../../shared/progress.js';
 import { ROLE, GUARD, DRAG } from '../../../shared/roles.js';
-import { touchMode } from '../touchmode.js';
-import { bindLabel } from '../binds.js';
 import { HEAL_ITEMS } from './inventory.js';
+import { updateMeters } from '../hudmeters.js';
 
 export const methods = {
   updateHud(dt, s, aiming, wdef) {
@@ -35,31 +34,8 @@ export const methods = {
     h.radioKeyed = this.radio.keyed;
     h.throwItem = s.weapons[SLOT_THROW];
     h.throwCount = s.throwCount;
-    // pinned by a leaper: the shove meter (-1: not pinned), the key to mash, and the presses so far (each jolts it)
-    h.shove = self.alive && s.pinned && !s.zombie ? s.shove : -1;
-    const face = s.pinned === PIN_FACE; // (a crawler on the face: shaken off with the mouse)
-    h.shoveText = face ? 'Thrash your head about to tear it off' : 'Mash to shove it off';
-    // ...or the same meter for a fire (a flammer's doing: PLAYER_FIRE): each press of [Space] beats it down - ours, or
-    // that of the teammate beside us we are beating the flames out on
-    const burning = !!self.burning && !!self.alive && !s.zombie && !s.downed;
-    if (this.frame % 6 === 1) this.fireMate = burning || !self.alive || s.zombie || s.downed ? null : this.burningMate(s);
-    const mate = !burning && this.fireMate && this.entities.ents.get(this.fireMate.id) === this.fireMate ? this.fireMate : null;
-    if (h.shove < 0 && (burning || mate)) {
-      h.shove = self.douse || 0;
-      h.shoveText = burning ? 'Mash to put the fire out' : `Mash to beat out the fire on ${this.name(mate.id)}`;
-    }
-    h.onFire = burning;
-    this.inputBuffer.passJump = burning || !!mate;
-    if (burning !== !!this.burnLoop) {
-      if (burning) this.burnLoop = this.audio.createLoop?.('burning', s.x, s.y + 1, s.z) || null;
-      else {
-        this.burnLoop?.stop();
-        this.burnLoop = null;
-      }
-    }
-    this.burnLoop?.setPosition(s.x, s.y + 1, s.z);
-    h.shoveKey = h.shove >= 0 ? (face ? (touchMode() ? 'Swipe' : 'Mouse') : bindLabel('jump')) : '';
-    h.shoves = (this.shoves | 0) + this.inputBuffer.firePresses;
+    // the mash meter: pinned by a leaper or a crawler, or a fire to beat out (hudmeters.js)
+    updateMeters(this, s, h);
     const w = currentWeapon(s);
     const def = WEAPONS[w];
     if (def && !def.melee) {

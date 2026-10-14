@@ -14,7 +14,7 @@ shared/      code used by BOTH server and client (pure JS, no DOM, no three.js)
   items.js       the ids of every item that is not a weapon (defs.js adds the weapons' to make ITEM)
   weapons/       one file per weapon: its id, item def, WEAPONS row, recipe, salvage, kill feat, bullet hole,
                  shot sound and kick. index.js lists them; defs.js, achievements.js, surfaces.js and the
-                 client's game.js build their tables from it (scripts/test-weapons.js holds every one to it)
+                 client's game/game/shots.js build their tables from it (scripts/test-weapons.js holds every one to it)
   protocol.js    Writer/Reader, message ids, quantization, snapshot / command packet / entity update layouts
   layout.js      plans the valley for a seed: the course of Route 9, the lake and ponds, which named places
                  there are (PLACES: the core ones + a random draw) and where, and which the roads join
@@ -58,7 +58,11 @@ server/      authoritative game server (uWebSockets.js)
 client/      three.js client (Vite root)
   index.html, main.js
   net/        connection, snapshot decode, interpolation, prediction
-  game/       client game state, entity views, input, weather schedule (weather.js)
+  game/       client game state, entity views, input, weather schedule (weather.js). game.js is the Game: it builds
+              every subsystem and runs the frame; its methods are in game/game/, one file per responsibility (the
+              world's build, the session, the server's events and notices, shots, the screens, the keys, the
+              inventory, building, [E] and holds, the look target, the HUD, markers, the view...), laid onto it by
+              game/game/index.js. The HUD's mash meter (pinned, on fire): hudmeters.js
   render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
               (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
   audio/      WebAudio engine: procedural synthesis + CC0 recordings in audio/samples/ (samples.js loads
@@ -162,7 +166,7 @@ more than its bytes**, so put things into the packets that already flow.
   jump adds `SHOVE_PRESS` to the meter and pushes a `shove` event (which is what lets the input buffer pass a quick
   tap straight through), holding it down adds `SHOVE_HOLD` a second, and letting go takes `SHOVE_SLIP` a second off.
   The meter is predicted like any other field, so mashing needs no rebase; the server throws the leaper off on the
-  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud.js`) and both hands shoving
+  command that fills it (`Zombies.throwOff`). The client draws the meter (`ui/hud.js`, filled in by `game/hudmeters.js`) and both hands shoving
   (`ViewModel._push`).
 - **Entities** (`server/snapshot.js` / `client/net/decode.js`, tables `FIELD_COUNT` + `BIT_SLOTS` in both):
   area of interest per kind, creates in full, updates only for changed fields, sorted by id behind a one-byte
