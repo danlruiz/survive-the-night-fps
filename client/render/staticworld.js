@@ -10,7 +10,7 @@ import { PROPS } from '../../shared/props.js';
 import { LIGHT_PROPS } from '../../shared/surfaces.js';
 import { buildCity, buildSigns, TIER } from './citykit.js';
 import { airportSigns } from './airportsigns.js';
-import { MultiMesh } from './multimesh.js';
+import { MultiMesh, dropArray } from './multimesh.js';
 
 const CHUNK = 80;
 const CHUNK_CITY = 128; // (the mainland's: its city is a great many materials, and every chunk draws each of them once)
@@ -52,10 +52,6 @@ const CASTER_MAT = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide].map((side
 
 // A page of positions holds the materials put in it until it has this many vertices (48 MB of them)
 const PAGE_VERTS = 4_000_000;
-// once a vertex buffer is on the graphics card its copy in memory is let go of (the mainland's are 600 MB of them)
-function dropArray() {
-  this.array = null;
-}
 
 // the bounding sphere a geometry made of just these positions would compute for itself
 function boundsOf(pos) {

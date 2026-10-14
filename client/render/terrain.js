@@ -10,7 +10,7 @@ import { smoothstep } from '../../shared/rng.js';
 import { ROAD } from '../../shared/world.js';
 import { MINE_R, PORTAL } from '../../shared/mine.js';
 import { getTexture } from './textures.js';
-import { MultiMesh, ALWAYS } from './multimesh.js';
+import { MultiMesh, ALWAYS, dropArray } from './multimesh.js';
 import { GROUND_MACRO_GLSL, groundNoiseTexture, VEG } from './vegshading.js';
 
 
@@ -859,10 +859,6 @@ export function* terrainSteps(world) {
   geo.index.onUpload(dropArray);
   F.nrm = F.base = null;
   return group;
-}
-
-function dropArray() {
-  this.array = null;
 }
 
 // Water surface (lake + ponds): dark murky water with animated ripples, fresnel sky reflection and
