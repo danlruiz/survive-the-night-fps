@@ -27,8 +27,15 @@ import { CITY_GEN } from './textures/city.js';
 export { ATLAS, atlasUV } from './textures/atlas.js';
 export { CITY_ATLAS, cityUV } from './textures/city.js';
 
-// name -> generator: () => { canvas } | raw pixels { w, h, d }, with what `finish` and getNormalMap read off it
-const GEN = { ...SURFACE_GEN, ...PROP_GEN, ...VEGETATION_GEN, ...GROUND_GEN, ...FX_GEN, atlas: atlasTexture, ...CITY_GEN };
+// name -> generator: () => { canvas } | raw pixels { w, h, d }, with what `finish` and getNormalMap read off it. In the
+// order the textures have always been made and listed in (textureSteps, TEXTURE_NAMES): family by family, but with
+// chainlink, scareface and gravel, which came later, after the effects.
+const LATER = ['scareface', 'gravel', 'chainlink'];
+const FAMILIES = { ...SURFACE_GEN, ...PROP_GEN, ...VEGETATION_GEN, ...GROUND_GEN, ...FX_GEN };
+const GEN = {};
+for (const name in FAMILIES) if (!LATER.includes(name)) GEN[name] = FAMILIES[name];
+for (const name of LATER) GEN[name] = FAMILIES[name];
+Object.assign(GEN, { atlas: atlasTexture }, CITY_GEN);
 
 // ------------------------------------------------------------------ registry
 const cache = new Map();
