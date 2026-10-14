@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBuilder, partsToGroup, makeRng } from '../materials.js';
+import { label, weeds } from './propkit.js';
 
 const PI = Math.PI;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -405,17 +406,6 @@ function acWheel(b, r, w, sink = 0.012, seg = 14) {
   const hub = seg < 12 ? [[0.001, hw * 0.55], [ri * 1.03, hw * 0.7], [ri * 1.03, -hw * 0.7], [0.001, -hw * 0.55]] : [[0.001, hw * 0.5], [ri * 0.45, hw * 0.62], [ri * 1.03, hw * 0.7], [ri * 1.03, -hw * 0.7], [ri * 0.45, -hw * 0.62], [0.001, -hw * 0.5]];
   turn(b, 'aircraft', hub, Math.min(10, seg), { axis: 'x', c: [0.5, 0.5, 0.47], crease: 40 });
 }
-// stencil / label quad on a face. dir: 'x-' | 'x+'
-function label(b, atlas, w, h, p, dir) {
-  b.plane('stencil', w, h, { atlas, p, r: [0, dir === 'x-' ? -PI / 2 : PI / 2, 0], order: 'YXZ' });
-}
-// weeds: crossed alpha cards around points
-function weeds(b, r, pts, h = 0.5) {
-  for (const [x, z] of pts) {
-    const s = 0.6 + 0.6 * r();
-    for (let k = 0; k < 2; k++) b.plane('weeds', 0.55 * s, h * s, { raw: true, p: [x, (h * s) / 2, z], r: [0, r() * PI + (k * PI) / 2, 0], c: [0.8, 0.8, 0.75] });
-  }
-}
 // a drum of fuel stood on the ground at the origin: its rolling hoops, its rim, a bung in its head
 function drum(b, c) {
   turn(b, 'paint', [[0.001, 0], [0.272, 0], [0.285, 0.012], [0.285, 0.27], [0.293, 0.285], [0.285, 0.3], [0.285, 0.57], [0.293, 0.585], [0.285, 0.6], [0.285, 0.868], [0.276, 0.88], [0.268, 0.868], [0.268, 0.855], [0.001, 0.855]], 12, { c, crease: 35 });
@@ -598,7 +588,7 @@ function twinTail(b) {
   for (const sx of [-1, 1]) {
     panel(b, 'aircraft', TAILS, [0.1, TAIL.SPAN, 2.69, 2.72].map((x) => sx * x), 0, TAIL.BOX, o);
     for (const side of [-1, 1]) surfPatch(b, 'rubber', TAILS, [sx * 0.42, sx * 2.6], [0, 0.06], side, { le: true, nu: 3 });
-    label(b, 'numbers', 0.52, 0.2, [sx * 0.092, 3.0, 4.32], sx < 0 ? 'x-' : 'x+');
+    label(b, 'stencil', 'numbers', 0.52, 0.2, [sx * 0.092, 3.0, 4.32], sx < 0 ? 'x-' : 'x+');
     surfPatch(b, 'rubber', FINS, [3.1, 4.3], [0, 0.06], sx, { le: true, nu: 3 });
   }
   panel(b, 'aircraft', FINS, [FIN.Y0, FIN.Y1, 4.4, 4.43], 0, FIN.BOX, o);
@@ -1076,7 +1066,7 @@ function lightPlane(b, r, v) {
   panel(b, 'aircraft', LFINS, [1.47, 2.7], 0.62, 1, wo, { u: 0.62, d: v ? -0.2 : 0.25 });
   for (const sx of [-1, 1]) {
     surfPatch(b, 'aircraft', LFINS, [2.42, 2.7], [0.03, 0.58], sx, { c: stripe, nu: 4, out: 0.004 });
-    label(b, 'numbers', 0.4, 0.15, [sx * 0.058, 1.86, 3.5], sx < 0 ? 'x-' : 'x+');
+    label(b, 'stencil', 'numbers', 0.4, 0.15, [sx * 0.058, 1.86, 3.5], sx < 0 ? 'x-' : 'x+');
     panel(b, 'aircraft', LTAILS, [0.05, 1.72, 1.75, 1.77].map((x) => sx * x), 0, 0.56, wo);
     panel(b, 'aircraft', LTAILS, [sx * 0.12, sx * 1.7], 0.58, 1, wo, { u: 0.58, d: v ? -0.22 : 0.3 });
   }

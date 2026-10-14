@@ -12,7 +12,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBuilder, partsToGroup, getMaterial, makeRng } from '../materials.js';
 import { VEH, VSTATE, VEHICLES } from '../../../shared/vehicles.js';
-import { sedan, wheel, CAR_COLORS } from './props.js';
+import { sedan, CAR_COLORS } from './props-vehicles.js';
+import { wheel } from './propkit.js';
 
 const PI = Math.PI;
 const X = [0, 0, PI / 2]; // a cylinder laid across

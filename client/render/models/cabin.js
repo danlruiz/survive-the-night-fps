@@ -12,13 +12,13 @@
 // Everything is in the builder's current frame (front to -Z), and nothing here draws a random number that the
 // builder did not hand it: what a vehicle carries is its variant's (createProp: the seed picks the variant).
 import * as THREE from 'three';
+import { mul } from './propkit.js';
 
 const PI = Math.PI;
 export const LINING = [0.2, 0.19, 0.17]; // a headliner gone grey
 export const CHAR = [0.06, 0.055, 0.05]; // the same after a fire
 export const SEATS = [[0.3, 0.27, 0.23], [0.34, 0.2, 0.13], [0.2, 0.25, 0.32], [0.27, 0.29, 0.24], [0.4, 0.36, 0.28], [0.3, 0.12, 0.1]];
 const DASH = [0.11, 0.11, 0.11], FLOOR = [0.13, 0.12, 0.11], BONE = [0.7, 0.66, 0.54], BLOOD = [0.2, 0.03, 0.025];
-const mul = (c, k) => c.map((q) => q * k);
 
 // ------------------------------------------------------------------ a soup of faces, each wound to face a way
 class Soup {
@@ -424,4 +424,4 @@ export function busRows(b, xs, y, z0, pitch, rows, w, o = {}) {
     }
 }
 
-export { FLOOR, DASH, BONE, BLOOD, mul };
+export { FLOOR, DASH, BONE, BLOOD };

@@ -1429,7 +1429,7 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
   own are on the controls, from its shoulders), so looking down or round shows a trunk and legs, and the eye is our
   own head's. The team's vehicles are on the field map and the minimap (`marks`). The models are
   `client/render/models/vehicles.js` (as found, running, broken down - bonnet up, a corner down, hazards blinking -
-  and burnt out), the driven car's cabin is `props.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
+  and burnt out), the driven car's cabin is `props-vehicles.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
   legs fit), the sounds `client/audio/synth-vehicle.js`.
 - **Saved** with the game (`Vehicles.save` / `load` in `server/gamestate.js`): every vehicle with its state, fuel,
   body and who sat where; the players' own fields ride in their saved state.
