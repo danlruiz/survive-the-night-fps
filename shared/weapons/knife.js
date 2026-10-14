@@ -10,4 +10,5 @@ export default {
   salvage: { [ITEM.SCRAP]: 1, [ITEM.LEATHER]: 1 },
   feat: 'kill_knife',
   blow: 'SLASH',
+  pry: 1.8,
 };

@@ -18,6 +18,7 @@
 //   feat       the achievement a kill with it counts for (achievements.js KILL_FEATS), or null
 //   (melee only)
 //   blow       the key in BLOW of how it strikes (surfaces.js blowOf: the marks it leaves)
+//   pry        s it takes to force a car's boot open with it (trunk.js PRY.time)
 //   (guns only, not melee)
 //   hole       its bullet hole's size next to a rifle's (surfaces.js shotScale), or null for 1
 //   shotSound  the key in SOUND of the shot the others hear (client game.js), or null for none

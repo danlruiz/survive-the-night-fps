@@ -9,4 +9,5 @@ export default {
   salvage: { [ITEM.WOOD]: 1 },
   feat: null,
   blow: 'BLUNT',
+  pry: 1.5,
 };
