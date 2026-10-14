@@ -1,7 +1,8 @@
-// Voice chat in the mix: each remote microphone as a VoiceSource (AudioEngine.createVoiceSource), and the levels the
-// engine's voice bus and ducking work to.
+// Voice chat in the mix: each remote microphone as a VoiceSource, the engine's voice chat methods
+// (createVoiceSource, setVoiceDucking and the ducking of the rest of the mix, _duckTick) and the levels they work to.
 import { TALK_CLEAR, TALK_RANGE } from '../../shared/constants.js';
 import { setPannerPos, biquad } from './nodes.js';
+import { clamp01 } from './curves.js';
 
 // ------------------------------------------------------------------ proximity voice chat source
 // Two paths out of one stream: the voice placed in the world (heard out to TALK_RANGE), and the same voice squeezed
@@ -14,12 +15,12 @@ const VOICE_ROLLOFF = 0.5; // ...and thins out gently past it: -3.5 dB at 8 m, -
 const voiceDistance = (d) => VOICE_REF / (VOICE_REF + VOICE_ROLLOFF * Math.max(0, d - VOICE_REF)); // (what the panner applies)
 const VOICE_LEVEL = Object.freeze({ threshold: -30, knee: 10, ratio: 4, attack: 0.004, release: 0.2 });
 export const VOICE_BUS = 1.6; // voice bus gain at "Voice chat" 100%: a voice beside you lands near -12 LUFS, level with a pistol shot
-export const DUCK_MUSIC = 0.4; // score while somebody talks (-8 dB)...
-export const DUCK_WORLD = 0.56; // ...and effects + ambience (-5 dB)
-export const DUCK_FLOOR = -38; // voice bus level (dBFS) where the ducking starts...
-export const DUCK_FULL = -16; // ...and where it is all the way down: a faint voice at the edge of earshot moves the mix less
-export const DUCK_HOLD = 0.7; // s the mix stays down after the last word (the gaps inside a sentence)
-export const DUCK_MS = 50;
+const DUCK_MUSIC = 0.4; // score while somebody talks (-8 dB)...
+const DUCK_WORLD = 0.56; // ...and effects + ambience (-5 dB)
+const DUCK_FLOOR = -38; // voice bus level (dBFS) where the ducking starts...
+const DUCK_FULL = -16; // ...and where it is all the way down: a faint voice at the edge of earshot moves the mix less
+const DUCK_HOLD = 0.7; // s the mix stays down after the last word (the gaps inside a sentence)
+const DUCK_MS = 50;
 let radioCurve = null; // handset overdrive
 function radioShape() {
   if (!radioCurve) {
@@ -29,7 +30,7 @@ function radioShape() {
   return radioCurve;
 }
 
-export class VoiceSource {
+class VoiceSource {
   constructor(e, stream) {
     const c = e._ctx;
     this.e = e;
@@ -171,4 +172,54 @@ export class VoiceSource {
 }
 
 // what createVoiceSource hands back when there is no voice to play
-export const NULL_VOICE = Object.freeze({ setPosition() {}, setAbsent() {}, setRadio() {}, mode: () => 0, setVolume() {}, setMuffled() {}, disconnect() {} });
+const NULL_VOICE = Object.freeze({ setPosition() {}, setAbsent() {}, setRadio() {}, mode: () => 0, setVolume() {}, setMuffled() {}, disconnect() {} });
+
+// AudioEngine's voice chat methods (mixed onto its prototype by audio.js)
+export const voiceChatMethods = {
+  createVoiceSource(mediaStream) {
+    if (!this._ctx || !mediaStream) return NULL_VOICE;
+    try {
+      const v = new VoiceSource(this, mediaStream);
+      this._voices.add(v);
+      if (!this._duck.timer) this._duck.timer = setInterval(() => this._duckTick(), DUCK_MS);
+      return v.handle;
+    } catch (err) {
+      console.warn('[audio] voice source failed', err);
+      return NULL_VOICE;
+    }
+  },
+
+  // false: the game's sound stays where it is while people talk
+  setVoiceDucking(on) {
+    this._duck.on = !!on;
+  },
+
+  // Runs while there are voice sources. The level on the voice bus is read after distance, the panner and the "Voice
+  // chat" slider, so the mix moves by how well you can actually hear the speaker: down at once, back up slowly.
+  _duckTick() {
+    const d = this._duck;
+    const now = this._ctx.currentTime;
+    let k = 0;
+    if (d.on && this._voices.size) {
+      this._voiceAn.getFloatTimeDomainData(d.buf);
+      let sum = 0;
+      for (let i = 0; i < d.buf.length; i++) sum += d.buf[i] * d.buf[i];
+      const db = 10 * Math.log10(sum / d.buf.length + 1e-12);
+      k = clamp01((db - DUCK_FLOOR) / (DUCK_FULL - DUCK_FLOOR));
+    }
+    if (k >= d.k) {
+      d.k = k;
+      d.at = now;
+    } else if (now - d.at > DUCK_HOLD || !d.on) d.k = Math.max(k, d.k - 0.06);
+    if (Math.abs(d.k - d.set) > 0.02 || (d.k === 0) !== (d.set === 0)) {
+      const tc = d.k > d.set ? 0.04 : 0.18;
+      d.set = d.k;
+      this._musicDuck.gain.setTargetAtTime(Math.pow(DUCK_MUSIC, d.k), now, tc);
+      this._worldDuck.gain.setTargetAtTime(Math.pow(DUCK_WORLD, d.k), now, tc);
+    }
+    if (!this._voices.size && d.k === 0) {
+      clearInterval(d.timer);
+      d.timer = null;
+    }
+  },
+};

@@ -238,6 +238,13 @@ export const bankMethods = {
     }
   },
 
+  // a buffer of the bank (_pick), or null once the bank has been asked for (_need)
+  _pickOrNeed(bank, variant) {
+    const buf = this._pick(bank, variant);
+    if (!buf) this._need(bank);
+    return buf;
+  },
+
   _pick(bank, variant) {
     const arr = this._banks.get(bank);
     if (!arr) return null;

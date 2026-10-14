@@ -353,11 +353,8 @@ export class Ambience {
   // procedural one-shot at a random position around the listener (or at `pos`). Returns the position or null.
   emit(ev, now, when = 0, pos = null, steal = false) {
     const e = this.e;
-    const buf = e._pick(ev.bank);
-    if (!buf) {
-      e._need(ev.bank);
-      return null;
-    }
+    const buf = e._pickOrNeed(ev.bank);
+    if (!buf) return null;
     const p = pos || this._ring(ev.dist, ev.elev, false);
     const rj = ev.rateJit ?? 0.05;
     const rate = (1 + (Math.random() - 0.5) * 2 * rj) * e._rateMul;

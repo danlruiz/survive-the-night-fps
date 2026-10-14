@@ -11,7 +11,7 @@ import { Recordings } from './samples.js';
 import { CATS, SOUND_MAP, STRIKE_MAP, LOCAL, STINGERS, LOOPS, LOOP_CAP_TOTAL, STEP_BANKS, STEP_REC, STEP_TONE, FAR_NEAR, FAR_FULL } from './sound-defs.js';
 import { VoicePool } from './voice-pool.js';
 import { LoopEmitter } from './loop-emitter.js';
-import { VoiceSource, NULL_VOICE, VOICE_BUS, DUCK_MUSIC, DUCK_WORLD, DUCK_FLOOR, DUCK_FULL, DUCK_HOLD, DUCK_MS } from './voice-chat.js';
+import { VOICE_BUS, voiceChatMethods } from './voice-chat.js';
 import { setPannerPos, gainNode, biquad } from './nodes.js';
 import { clamp01 } from './curves.js';
 
@@ -145,7 +145,7 @@ export class AudioEngine {
     const t0 = performance.now();
     this._buildGraph();
     this._applyVolumes(0);
-    this._applyListener(true);
+    this._applyListener();
     this._rec = new Recordings(c, this._opts.recordings !== false);
 
     // --- asynchronous rendering (web workers, main-thread fallback)
@@ -286,7 +286,7 @@ export class AudioEngine {
     this._lz = +z || 0;
     this._lyaw = +yaw || 0;
     this._lpitch = +pitch || 0;
-    if (this._ctx) this._applyListener(false);
+    if (this._ctx) this._applyListener();
   }
 
   _applyListener() {
@@ -341,11 +341,8 @@ export class AudioEngine {
       if (d.rec.layer !== true) bank = d.rec.layer;
       lv = d.rec.layerVol ?? 1;
     }
-    const buf = this._pick(bank, o.variant);
-    if (!buf) {
-      this._need(bank);
-      return;
-    }
+    const buf = this._pickOrNeed(bank, o.variant);
+    if (!buf) return;
     this._resume();
     const vol = (o.volume ?? 1) * d.vol * lv * (0.92 + Math.random() * 0.16);
     const rate = (o.rate ?? 1) * (d.rate ?? 1) * (1 + (Math.random() - 0.5) * 2 * d.jit) * this._rateMul;
@@ -364,11 +361,8 @@ export class AudioEngine {
   playBank(bank, opts = EMPTY) {
     if (!this._ready) return;
     const o = opts || EMPTY;
-    const buf = this._pick(bank, o.variant);
-    if (!buf) {
-      this._need(bank);
-      return;
-    }
+    const buf = this._pickOrNeed(bank, o.variant);
+    if (!buf) return;
     this._resume();
     const vol = (o.volume ?? 1) * (0.94 + Math.random() * 0.12);
     const rate = (o.rate ?? 1) * this._rateMul;
@@ -405,11 +399,8 @@ export class AudioEngine {
       if (d.rec.layer !== true) bank = d.rec.layer;
       lv = d.rec.layerVol ?? 1;
     }
-    const buf = this._pick(bank, o.variant);
-    if (!buf) {
-      this._need(bank);
-      return;
-    }
+    const buf = this._pickOrNeed(bank, o.variant);
+    if (!buf) return;
     this._resume();
     const jit = d.jit ?? 0.04;
     const vol = (o.volume ?? 1) * d.vol * lv * (ui ? 1 : 0.94 + Math.random() * 0.12);
@@ -425,8 +416,8 @@ export class AudioEngine {
     if (level === this._staticLvl) return;
     if (!this._static) {
       if (level <= 0) return;
-      const buf = this._pick('radio_static');
-      if (!buf) return this._need('radio_static');
+      const buf = this._pickOrNeed('radio_static');
+      if (!buf) return;
       const c = this._ctx;
       const src = c.createBufferSource();
       src.buffer = buf;
@@ -950,60 +941,15 @@ export class AudioEngine {
     if (!this._hallIR) missing.push('ir_hall');
     return missing;
   }
-
-  // ---------------------------------------------------------------- voice chat
-  createVoiceSource(mediaStream) {
-    if (!this._ctx || !mediaStream) return NULL_VOICE;
-    try {
-      const v = new VoiceSource(this, mediaStream);
-      this._voices.add(v);
-      if (!this._duck.timer) this._duck.timer = setInterval(() => this._duckTick(), DUCK_MS);
-      return v.handle;
-    } catch (err) {
-      console.warn('[audio] voice source failed', err);
-      return NULL_VOICE;
-    }
-  }
-
-  // false: the game's sound stays where it is while people talk
-  setVoiceDucking(on) {
-    this._duck.on = !!on;
-  }
-
-  // Runs while there are voice sources. The level on the voice bus is read after distance, the panner and the "Voice
-  // chat" slider, so the mix moves by how well you can actually hear the speaker: down at once, back up slowly.
-  _duckTick() {
-    const d = this._duck;
-    const now = this._ctx.currentTime;
-    let k = 0;
-    if (d.on && this._voices.size) {
-      this._voiceAn.getFloatTimeDomainData(d.buf);
-      let sum = 0;
-      for (let i = 0; i < d.buf.length; i++) sum += d.buf[i] * d.buf[i];
-      const db = 10 * Math.log10(sum / d.buf.length + 1e-12);
-      k = clamp01((db - DUCK_FLOOR) / (DUCK_FULL - DUCK_FLOOR));
-    }
-    if (k >= d.k) {
-      d.k = k;
-      d.at = now;
-    } else if (now - d.at > DUCK_HOLD || !d.on) d.k = Math.max(k, d.k - 0.06);
-    if (Math.abs(d.k - d.set) > 0.02 || (d.k === 0) !== (d.set === 0)) {
-      const tc = d.k > d.set ? 0.04 : 0.18;
-      d.set = d.k;
-      this._musicDuck.gain.setTargetAtTime(Math.pow(DUCK_MUSIC, d.k), now, tc);
-      this._worldDuck.gain.setTargetAtTime(Math.pow(DUCK_WORLD, d.k), now, tc);
-    }
-    if (!this._voices.size && d.k === 0) {
-      clearInterval(d.timer);
-      d.timer = null;
-    }
-  }
 }
 
 export default AudioEngine;
 
-// the bank rendering and store (banks.js), defined on the prototype exactly as class methods are
-for (const [name, fn] of Object.entries(bankMethods)) {
-  if (name in AudioEngine.prototype) throw new Error(`AudioEngine.${name} is defined twice`);
-  Object.defineProperty(AudioEngine.prototype, name, { value: fn, writable: true, configurable: true });
+// the methods kept with their subsystem (banks.js: rendering and the bank store; voice-chat.js: voice sources and
+// the ducking), defined on the prototype exactly as class methods are
+for (const methods of [bankMethods, voiceChatMethods]) {
+  for (const [name, fn] of Object.entries(methods)) {
+    if (name in AudioEngine.prototype) throw new Error(`AudioEngine.${name} is defined twice`);
+    Object.defineProperty(AudioEngine.prototype, name, { value: fn, writable: true, configurable: true });
+  }
 }
