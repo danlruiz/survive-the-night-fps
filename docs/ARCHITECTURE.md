@@ -1479,7 +1479,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   draws, and `Chips`, one instanced mesh of small solid bits (splinters, grit, flakes, clods, shards, the scrap a
   wreck gives up, which flies to the hand of whoever earned it). Nothing is updated or drawn while nothing is in
   the air.
-- **Props that react** (`client/render/wrecks.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
+- **Props that react** (`client/render/wrecks.js`, `wreck.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
   its vertices live on the card, so a prop that is to change is *lifted*: `StaticWorld.lift` cuts its stretch out
   of every material's runs (and the shadow casters'; `MultiMesh.cut`), `StaticWorld.pieces` builds its triangles
   again, and the `LiftBatch` draws them - one mesh per material for every lifted prop there is, culled prop by
