@@ -232,3 +232,16 @@ export function pulseTrain(sr, rng, n, len, ph, rate, amp) {
 export function finishLoop(x, sr, xf, peak = 0.85) {
   return normalize(loopify(sanitize(x, sr), sr, xf), peak);
 }
+
+// far-away treatment: low-pass + a couple of smeared echoes, returned in place
+export function distant(c, sr, lpHz = 2000, echoes = [[0.38, 0.3], [0.85, 0.15]]) {
+  const lp = new Biquad().lp(sr, lpHz, 0.6);
+  for (let i = 0; i < c.length; i++) c[i] = lp.run(c[i]);
+  const dry = Float32Array.from(c);
+  for (const [t, g] of echoes) {
+    const d = Math.floor(t * sr);
+    const e = new OnePole().lp(sr, lpHz * 0.6);
+    for (let i = 0; i + d < c.length; i++) c[i + d] += e.run(dry[i]) * g;
+  }
+  return c;
+}

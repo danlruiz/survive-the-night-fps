@@ -1,7 +1,8 @@
 // Central list of every pre-rendered sound bank + a pure render entry point shared by the
 // synthesis worker and the main-thread fallback.
 import { SFX_DEFS } from './synth.js';
-import { AMB_DEFS, MUSIC_DEFS, STINGER_DEFS } from './synth-amb.js';
+import { AMB_DEFS } from './synth-amb.js';
+import { MUSIC_DEFS, STINGER_DEFS } from './synth-music.js';
 import { FIXTURE_DEFS } from './synth-fixtures.js';
 import { POWER_DEFS } from './synth-power.js';
 import { HANDCAR_DEFS } from './synth-handcar.js';

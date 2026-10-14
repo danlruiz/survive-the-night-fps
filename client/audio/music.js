@@ -9,7 +9,7 @@
 //    once that has loaded, and stands in for it until then (or for good, when the recordings are unavailable).
 
 import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
-import { PIANO_NOTES, BOX_NOTES } from './synth-amb.js';
+import { PIANO_NOTES, BOX_NOTES } from './synth-music.js';
 import { gainNode, biquad } from './nodes.js';
 import { LoopLayer } from './loop-layer.js';
 import { mtof, semis } from './dsp.js';
