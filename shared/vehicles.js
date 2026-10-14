@@ -221,6 +221,9 @@ function inSolid(v, P, world, grid) {
   return false;
 }
 const STEER_EASE = 11; // 1/s: the share of the way to where the keys want the wheel that it goes in a second's worth of commands
+// A yaw in [-PI, PI] that has just turned by less than a whole turn, brought back once. Not wrapAngle (rng.js): its %
+// gives -0 for exactly -2PI and wraps again past 3PI, and the driver's prediction must turn as the server always has.
+const turnedYaw = (a) => (a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a);
 export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   const P = VEHICLES[v.vk];
   const grid = vehicleGrid(world);
@@ -250,7 +253,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   // (by all of its speed, not only what is still along it: sliding sideways it keeps coming round)
   const vAll = hb && P.hbSpin ? Math.hypot(v.vx, v.vz) : 0;
   const spin = vAll > 3 ? (vf >= -0.5 ? 1 : -1) * vAll * P.hbSpin : vf;
-  v.yaw = wrapAngle(v.yaw - (spin / P.wb) * Math.tan(v.steer) * dt);
+  v.yaw = turnedYaw(v.yaw - (spin / P.wb) * Math.tan(v.steer) * dt);
   sy = Math.sin(v.yaw);
   cy = Math.cos(v.yaw);
   const fx = -sy;
@@ -401,7 +404,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   } else if (turned !== 0) {
     // pushed at one end, it comes round - unless coming round would put the other end into something
     const y1 = v.yaw;
-    v.yaw = wrapAngle(v.yaw + (turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned));
+    v.yaw = turnedYaw(v.yaw + (turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned));
     if (inSolid(v, P, world, grid)) v.yaw = y1;
   }
   // water too deep for it, and the mouth of the mine: it does not go in
