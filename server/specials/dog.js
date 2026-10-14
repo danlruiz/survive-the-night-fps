@@ -3,7 +3,7 @@
 import { ZTYPE, ZANIM, SOUND, KILLER, IMPACT, STRUCT_DEFS } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, rayCollider, COL } from '../../shared/collision.js';
-import { GRAV, turn } from './util.js';
+import { GRAV, turn, humanWithin } from './util.js';
 
 // The zombie dog's hunt (def.hitRun). It runs in, bites once (a snap or a lunge), and breaks off (special state 7,
 // breakOff) to DOG_RUN_MIN-MAX m from its prey, circles there at DOG_CIRCLE of its pace, and comes back in DOG_CD_MIN-MAX s
@@ -70,11 +70,8 @@ export const methods = {
     for (let tries = 0; tries < 12; tries++) {
       const d = dens[Math.floor(g.rng() * dens.length)];
       if (Math.hypot(d.x - car.x, d.z - car.z) < 80 || this.nearStart(d.x, d.z, 20)) continue;
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - d.x, h.state.z - d.z) < 80) ok = false;
-      if (!ok) continue;
-      for (const o of g.zombies) if (o.pack && !o.dead && Math.hypot(o.homeX - d.x, o.homeZ - d.z) < 40) ok = false;
-      if (!ok) continue;
+      if (humanWithin(humans, d.x, d.z, 80)) continue;
+      if (g.zombies.some((o) => o.pack && !o.dead && Math.hypot(o.homeX - d.x, o.homeZ - d.z) < 40)) continue;
       const n = 2 + Math.floor(g.rng() * (g.day >= 3 ? 3 : g.day >= 2 ? 2 : 1));
       return this.spawnPack(d.x, d.z, n, { hpMul: 1 + 0.05 * g.day });
     }

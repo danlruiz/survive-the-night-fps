@@ -1,8 +1,8 @@
 // Combat: lag-compensated hitscan, melee, thrown/lobbed projectiles, explosions, damage areas.
-import { SERVER_TICK_RATE, MAX_REWIND, HISTORY_TICKS, PLAYER_RADIUS, PLAYER_HEIGHT, PLAYER_CROUCH_HEIGHT, EYE_HEIGHT, PHASE, NOISE } from '../shared/constants.js';
+import { SERVER_TICK_RATE, MAX_REWIND, HISTORY_TICKS, PLAYER_HEIGHT, PLAYER_CROUCH_HEIGHT, EYE_HEIGHT, PHASE, NOISE } from '../shared/constants.js';
 import { LEG_ZONE, LEG_BODY_DAMAGE, STUMBLE_TIME, INTERP_DELAY } from '../shared/constants.js';
-import { SOUND as _SOUND, HEARD } from '../shared/defs.js';
 import {
+  HEARD,
   ITEM,
   WEAPONS,
   CLAWS,
@@ -36,6 +36,7 @@ import { rocketStrikesWorld } from '../shared/rocket.js';
 import { SKYFLARE, launchFlare, flareStep } from '../shared/skyflare.js';
 import { blowOf } from '../shared/surfaces.js';
 import { WRECK_SALVAGE, wreckUnit } from '../shared/wrecks.js';
+import { strikeHeight, strikeOpen } from './specials/util.js';
 
 // the projectile each throwable flies as
 const THROW_PROJ = Object.fromEntries(Object.entries(PROJ_ITEM).map(([ptype, item]) => [item, +ptype]));
@@ -441,8 +442,6 @@ export class Combat {
     const fz = -Math.cos(s.yaw) * cp;
     const t = this.rewindTime(p);
     const tmp = { x: 0, y: 0, z: 0 };
-    let best = null;
-    let bestScore = Infinity;
     const heavy = ev.heavy;
     const le = loadoutCombatEffect(p, ev.weapon);
     const maxTargets = mv ? mv.targets : ev.weapon === ITEM.BAT || ev.weapon === ITEM.SPIKED_BAT || ev.weapon === ITEM.MACHETE ? 2 : 1;
@@ -534,18 +533,8 @@ export class Combat {
     // (the line stops at the body's near side, but never more than 0.6 m short of its centre: the big ones are held
     // 0.65 m off a wall and are wider than that, so a tank or a boss leaning on the far side would be in reach)
     if (!p.zombie) return canReach(g.world, ox, oy, oz, c.x, c.y, c.z, Math.min(s.y, c.feet) + EYE_HEIGHT, Math.min(c.r, 0.6));
-    const vs = c.e.state;
     const cy = s.y + (s.crouch ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.55;
-    let dx = c.x - ox;
-    let dy = c.feet + (vs.downed ? 0.3 : vs.crouch ? 0.6 : 0.9) - cy;
-    let dz = c.z - oz;
-    const l = Math.hypot(dx, dy, dz) || 1;
-    dx /= l;
-    dy /= l;
-    dz /= l;
-    raycastWorld(g.world, ox, cy, oz, dx, dy, dz, l, _ray);
-    const col = _ray.col;
-    return !col || !!(col.flags & COL.HUMANPASS && footprintContains(col, c.x, c.z));
+    return strikeOpen(g.world, ox, cy, oz, c.x, c.feet + strikeHeight(c.e.state), c.z);
   }
 
   // ---------------------------------------------------------------- damage
@@ -1020,7 +1009,7 @@ export class Combat {
           // a noisemaker only starts its clock once it has landed and rings (its fuse is then the ringing left)
           const live = e.ptype !== PROJ.DECOY || e.landed;
           if (live) e.fuse -= dt;
-          if (flare && g.tick % 60 === 0) g.sound(_SOUND.FLARE_BURN, e.x, e.y, e.z, 40);
+          if (flare && g.tick % 60 === 0) g.sound(SOUND.FLARE_BURN, e.x, e.y, e.z, 40);
           // a pipe bomb lures zombies all through its fuse, a noisemaker while it rings (a flare only gives light, and a
           // frag grenade gives itself away to nothing)
           if (def.lure && live && g.tick % 5 === 0) this.lure(e, def.lure);
@@ -1192,4 +1181,3 @@ export class Combat {
   }
 }
 
-export { PHASE, PLAYER_RADIUS };

@@ -3,9 +3,9 @@
 // smoker, screecher, boomer, Tank, dog packs, bats, the shade, the flammer and the bosses), with its own numbers;
 // what the dead are made of, by day and by night, is in spawns.js.
 // The herd that wanders the roads by day is in herd.js.
-import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, EYE_HEIGHT, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
+import { MAP_SIZE, STEP_HEIGHT, PHASE, PLAYER_RADIUS, MAX_ENTITIES, HORDE_SPAWN_MIN, HORDE_SPAWN_MAX, NOISE_RUSH, NOISE_SPEED_MIN, NOISE_MEMORY, NOISE_MEMORY_MAX } from '../shared/constants.js';
 import { HISTORY_TICKS, LEG_HP, STUMBLE_SPEED, HOBBLE_SPEED, CRAWL_SPEED, CRAWL_SPEED_MIN, CRAWL_SPEED_MAX, CRAWL_SLOW, CRAWL_HEAD_Y } from '../shared/constants.js';
-import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, EVT, IMPACT, STRUCT_DEFS, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
+import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, EVT, IMPACT, ZONE, BURN, HEARD_MIN, HEARD_IDS } from '../shared/defs.js';
 import { ENT } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
@@ -13,7 +13,7 @@ import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
 import { TRIGGERS, ACTS, STATES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
-import { GRAV, turn, bodyHeight } from './specials/util.js';
+import { GRAV, turn, bodyHeight, nearestHuman, humanWithin, strikeHeight, strikeOpen, passesTo } from './specials/util.js';
 import { leapG, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
 import { DOG_CIRCLE } from './specials/dog.js';
 import { _shDir } from './specials/shade.js';
@@ -41,6 +41,8 @@ const HAZE_HIDES = 0.88;
 // go by how far across it is, and a city is a place a few hundred metres across, so they alone leave it near empty
 const CITY_STREET_DEAD = 64;
 const CITY_STREET_SHARE = 0.2; // of the roaming dead that turn up by day, the share that comes back into the city
+const ROAM_CLEAR = 75; // none of the roaming dead turns up within this many m of a survivor (spawnRoamer, spawnStreet)
+const GUARDS_CLEAR = 60; // ...nor fills a place back up with a survivor within this many m past its edge
 // Where a run on the map begins (world.start: the car on the island, the bridgehead on the mainland) is left clear: none
 // of the dead the day puts about - a place's guards, the roaming dead, the city's, a dog pack, a herd - turn up within
 // START_CLEAR m of it, so a team that has just come off the bridge is not in a fight before it has found its feet
@@ -438,7 +440,7 @@ export class Zombies {
       const northSouth = g.rng() < 0.5;
       const x = c.x + (northSouth ? o + side : t);
       const z = c.z + (northSouth ? t : o + side);
-      if (this.nearStart(x, z) || humans.some((h) => Math.hypot(h.state.x - x, h.state.z - z) < 75)) continue;
+      if (this.nearStart(x, z) || humanWithin(humans, x, z, ROAM_CLEAR)) continue;
       const sp = daySpecial(g, x, z);
       return this.spawn(sp >= 0 ? sp : g.rng() < 0.25 ? ZTYPE.RUNNER : ZTYPE.WALKER, x, z, { hpMul: 1 + 0.05 * g.day });
     }
@@ -455,9 +457,7 @@ export class Zombies {
     if (g.rng() < 0.35) {
       const zones = g.world.zones.filter((z) => z.id !== 0);
       const zn = zones[Math.floor(g.rng() * zones.length)];
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - zn.x, h.state.z - zn.z) < zn.flat + 60) ok = false;
-      if (ok) {
+      if (!humanWithin(humans, zn.x, zn.z, zn.flat + GUARDS_CLEAR)) {
         const a = g.rng() * Math.PI * 2;
         const r = 4 + g.rng() * zn.flat * 0.8;
         const x = zn.x + Math.sin(a) * r;
@@ -474,9 +474,7 @@ export class Zombies {
     for (let tries = 0; tries < 10; tries++) {
       const p = pts[Math.floor(g.rng() * pts.length)];
       if (!p || Math.hypot(p.x - car.x, p.z - car.z) < 55 || this.nearStart(p.x, p.z, 2)) continue;
-      let ok = true;
-      for (const h of humans) if (Math.hypot(h.state.x - p.x, h.state.z - p.z) < 75) ok = false;
-      if (!ok) continue;
+      if (humanWithin(humans, p.x, p.z, ROAM_CLEAR)) continue;
       const x = p.x + (g.rng() - 0.5) * 4;
       const z = p.z + (g.rng() - 0.5) * 4;
       const sp = daySpecial(g, x, z);
@@ -490,10 +488,7 @@ export class Zombies {
   spawnOpener(humans) {
     const g = this.g;
     this.opener = true;
-    for (const z of g.zombies) {
-      if (z.dead) continue;
-      for (const h of humans) if (Math.hypot(h.state.x - z.x, h.state.z - z.z) < OPENER_NEAR) return null;
-    }
+    for (const z of g.zombies) if (!z.dead && humanWithin(humans, z.x, z.z, OPENER_NEAR)) return null;
     const s = humans[Math.floor(g.rng() * humans.length)].state;
     const lim = g.world.half - 14;
     for (let tries = 0; tries < 12; tries++) {
@@ -521,8 +516,7 @@ export class Zombies {
     let bestD = -1;
     for (let i = 0; i < 24; i++) {
       const p = pts[Math.floor(g.rng() * pts.length)];
-      let md = Infinity;
-      for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - p.x, h.state.z - p.z));
+      const md = nearestHuman(humans, p.x, p.z);
       if (md >= minDist) return p;
       if (md > bestD) {
         bestD = md;
@@ -707,8 +701,7 @@ export class Zombies {
     let calls = 0;
     for (const e of g.zombies) {
       if (e.dead || e.target || e.def.flying) continue;
-      let d = Math.hypot(e.x - x, e.z - z);
-      if (mn && (su || e.under)) d = su && e.under ? Math.max(d, mn.dist(e.x, e.z, x, z)) : su ? mn.between(x, z, e.x, e.z).d : mn.between(e.x, e.z, x, z).d;
+      const d = walkDist(mn, e, x, z, su, Math.hypot(e.x - x, e.z - z));
       const lvl = loud - d; // how much further the noise would have carried past this zombie
       if (lvl <= 0) continue;
       const fresh = e.alertT <= 0;
@@ -818,9 +811,7 @@ export class Zombies {
     if ((g.phase === PHASE.NIGHT || g.escape.active) && g.tick % 40 === 0 && humans.length) {
       for (const z of g.zombies) {
         if (z.dead || !z.horde || z.boss) continue;
-        let md = Infinity;
-        for (const h of humans) md = Math.min(md, Math.hypot(h.state.x - z.x, h.state.z - z.z));
-        if (md > 125) z.farT += 2;
+        if (nearestHuman(humans, z.x, z.z) > 125) z.farT += 2;
         else z.farT = 0;
         if (z.farT > 14) {
           const sp = this.pickHordeSpawn(humans);
@@ -1283,15 +1274,11 @@ export class Zombies {
     const night = g.phase === PHASE.NIGHT;
     let best = null;
     let bd = Infinity;
-    const mn = g.mineNav;
     const lone = z.ztype === ZTYPE.LEAPER && humans.length > 1;
     for (const h of humans) {
       if (g.safe(h)) continue; // (dropped and held, or back and not playing yet: game.js hold, resume)
       const s = h.state;
-      let d = Math.hypot(s.x - z.x, s.z - z.z);
-      // a survivor on the other level is as far off as the walk round by a portal; one down the same drifts as far
-      // as the drifts make it (not the few metres of rock between two galleries)
-      if (mn && (z.under || h.under)) d = z.under && h.under ? Math.max(d, mn.dist(z.x, z.z, s.x, s.z)) : z.under ? mn.between(z.x, z.z, s.x, s.z).d : mn.between(s.x, s.z, z.x, z.z).d;
+      const d = walkDist(g.mineNav, z, s.x, s.z, h.under, Math.hypot(s.x - z.x, s.z - z.z));
       let range = z.horde ? 600 : night ? 55 : 26;
       if (h.downed) range *= 0.5;
       else if (s.crouch) range *= 0.6;
@@ -1370,23 +1357,10 @@ export class Zombies {
   }
 
   // melee reach: a clear torso-to-torso line, so the dead can't swipe through walls, boarded doors
-  // or waist-high barricades. Terrain is ignored so a bump in the ground never shields a downed survivor.
+  // or waist-high barricades (strikeOpen)
   canReach(z, p) {
     const s = p.state;
-    const ox = z.x;
-    const oy = z.y + bodyHeight(z) * 0.55;
-    const oz = z.z;
-    let dx = s.x - ox;
-    let dy = s.y + (s.downed ? 0.3 : s.crouch ? 0.6 : 0.9) - oy;
-    let dz = s.z - oz;
-    const l = Math.hypot(dx, dy, dz) || 1;
-    dx /= l;
-    dy /= l;
-    dz /= l;
-    raycastWorld(this.g.world, ox, oy, oz, dx, dy, dz, l, _ray);
-    const c = _ray.col;
-    // a survivor standing inside a gate / door boards they're squeezing through is still in reach
-    return !c || (c.flags & COL.HUMANPASS && footprintContains(c, s.x, s.z));
+    return strikeOpen(this.g.world, z.x, z.y + bodyHeight(z) * 0.55, z.z, s.x, s.y + strikeHeight(s), s.z);
   }
 
   // melee reach at a survivor standing on something (a car roof, a dumpster), where the torso line above runs
@@ -1408,8 +1382,7 @@ export class Zombies {
     if (_ray.col) return false;
     const l = Math.hypot(s.x - z.x, s.z - z.z) || 1;
     raycastWorld(w, z.x, ty, z.z, (s.x - z.x) / l, 0, (s.z - z.z) / l, l, _ray);
-    const c = _ray.col;
-    return !c || (c.flags & COL.HUMANPASS && footprintContains(c, s.x, s.z));
+    return passesTo(_ray.col, s.x, s.z);
   }
 
   integrate(z, dt, dvx, dvz, humans) {
@@ -1715,10 +1688,18 @@ export class Zombies {
 }
 installSpecials(Zombies); // (each special kind's own methods, from server/specials/)
 
+// How far z has to go to (x, zz), d m off in a straight line, when either is down in the mine (mn: the game's
+// MineNav, or null; under: the spot is down there): down the same drifts as far as the drifts make it (not the few
+// metres of rock between two galleries), and between the two levels the walk round by a portal. d as it is when both
+// are up in the valley.
+function walkDist(mn, z, x, zz, under, d) {
+  if (!mn || !(under || z.under)) return d;
+  return under && z.under ? Math.max(d, mn.dist(z.x, z.z, x, zz)) : under ? mn.between(x, zz, z.x, z.z).d : mn.between(z.x, z.z, x, zz).d;
+}
+
 // how fast a zombie of this kind drags itself along once both legs are gone (m/s)
 export function crawlSpeed(def) {
   return Math.max(CRAWL_SPEED_MIN, Math.min(CRAWL_SPEED_MAX, def.speed * CRAWL_SPEED));
 }
 
-export { STRUCT_DEFS, EYE_HEIGHT };
 export { LONE_NEAR, LONE_WEIGHT, leapAim } from './specials/leaper.js';
