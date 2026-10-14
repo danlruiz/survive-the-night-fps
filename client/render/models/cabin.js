@@ -142,11 +142,20 @@ export function hullShell(b, mat, C, o = {}) {
   return np;
 }
 
+/** A hull's eight corners in hullShell's order (bit 0 of the index the +X one, bit 1 the top one, bit 2 the +Z one),
+ *  each at(X, top, Z) with X and Z -1 or 1. */
+export function hullCorners(at) {
+  const C = [];
+  for (let k = 0; k < 8; k++) C.push(at(k & 1 ? 1 : -1, (k & 2) !== 0, k & 4 ? 1 : -1));
+  return C;
+}
+/** p moved d along n: a pillar or a rail laid just proud of a shell's face */
+export const along = (p, n, d) => [p[0] + n[0] * d, p[1] + n[1] * d, p[2] + n[2] * d];
+
 /** hullShell for a box: sx by sy by sz about p. o.holes in metres about the box's middle: [a0, a1, b0, b1, pane]. */
 export function boxShell(b, mat, sx, sy, sz, o = {}) {
   const [px, py, pz] = o.p || [0, 0, 0];
-  const C = [];
-  for (let k = 0; k < 8; k++) C.push([px + ((k & 1 ? 1 : -1) * sx) / 2, py + ((k & 2 ? 1 : -1) * sy) / 2, pz + ((k & 4 ? 1 : -1) * sz) / 2]);
+  const C = hullCorners((X, top, Z) => [px + (X * sx) / 2, py + ((top ? 1 : -1) * sy) / 2, pz + (Z * sz) / 2]);
   const dims = { xn: [sz, sy], xp: [sz, sy], zn: [sx, sy], zp: [sx, sy], yn: [sx, sz], yp: [sx, sz] };
   const holes = {};
   for (const [f, list] of Object.entries(o.holes || {})) holes[f] = list.map(([a0, a1, b0, b1, g]) => [a0 / dims[f][0] + 0.5, a1 / dims[f][0] + 0.5, b0 / dims[f][1] + 0.5, b1 / dims[f][1] + 0.5, g]);

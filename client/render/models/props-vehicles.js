@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { MeshBuilder, partsToGroup, makeRng } from '../materials.js';
 import { typeHash, rr, WOODS, wheel, label, weeds, plank, mul } from './propkit.js';
-import { hullShell, boxShell, profShell, leaf, seat, dash, steering, mirror, sitter, luggage, childSeat, rubbish, bloodPatch, burntSeat, deck, busRows, paneLook, LINING, CHAR, SEATS } from './cabin.js';
+import { hullCorners, along, hullShell, boxShell, profShell, leaf, seat, dash, steering, mirror, sitter, luggage, childSeat, rubbish, bloodPatch, burntSeat, deck, busRows, paneLook, LINING, CHAR, SEATS } from './cabin.js';
 
 const PI = Math.PI;
 
@@ -112,16 +112,13 @@ export function sedan(b, r, o) {
   // greenhouse (dark interior hull) + glass panes + pillars + roof
   const gb = 0.92, gt = 1.42;
   const B = { zf: -0.86, zr: 1.24, x: hw - 0.07 }, T = { zf: -0.12, zr: 0.94, x: hw - 0.2 };
-  const C = [];
-  for (let k = 0; k < 8; k++) {
-    const X = k & 1 ? 1 : -1, top = k & 2, Z = k & 4;
+  const C = hullCorners((X, top, Z) => {
     const q = top ? T : B;
-    C.push([X * q.x, top ? gt : gb, Z ? q.zr : q.zf]);
-  }
+    return [X * q.x, top ? gt : gb, Z > 0 ? q.zr : q.zf];
+  });
   // (a shell: the pillars and the rails are what is left of its faces round the openings; open underneath into the
   // well, and its roof is the lid laid on it below)
   const lerp3 = (a, c, t) => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2] + (c[2] - a[2]) * t];
-  const out = (p, n, d = 0.006) => [p[0] + n[0] * d, p[1] + n[1] * d, p[2] + n[2] * d];
   const glass = o.glass || ['ok', 'ok', 'ok', 'ok', 'ok', 'ok'];
   const dirt = o.dirt ?? 0.45;
   // (a pane: 'ok', 'gone', 'shard' (a tooth of it left in a corner), 'blood' (smeared from inside), or its own look)
@@ -139,9 +136,9 @@ export function sedan(b, r, o) {
     const n = [sx, 0.22, 0];
     const bottomAt = (t) => lerp3(bf, br, t), topAt = (t) => lerp3(tf, tr, t);
     // pillars
-    b.beam('carpaint', out(bf, n, 0.01), out(tf, n, 0.01), sl ? 0.04 : 0.07, sl ? 0.035 : 0.05, { c: col, side: [0, 0, 1] });
-    b.beam('carpaint', out(br, n, 0.01), out(tr, n, 0.01), 0.1, 0.05, { c: col, side: [0, 0, 1] });
-    b.beam('carpaint', out(bottomAt(0.5), n, 0.01), out(topAt(0.5), n, 0.01), sl ? 0.05 : 0.07, 0.05, { c: col, side: [0, 0, 1] });
+    b.beam('carpaint', along(bf, n, 0.01), along(tf, n, 0.01), sl ? 0.04 : 0.07, sl ? 0.035 : 0.05, { c: col, side: [0, 0, 1] });
+    b.beam('carpaint', along(br, n, 0.01), along(tr, n, 0.01), 0.1, 0.05, { c: col, side: [0, 0, 1] });
+    b.beam('carpaint', along(bottomAt(0.5), n, 0.01), along(topAt(0.5), n, 0.01), sl ? 0.05 : 0.07, 0.05, { c: col, side: [0, 0, 1] });
     // door seams + handles on lower body
     for (const z of [-0.86, 0.46, 1.22]) b.box('dark', 0.01, 0.56, 0.012, { p: [sx * (hw + 0.002), 0.6, z] });
     for (const z of [0.3, 1.05]) b.box('chrome', 0.03, 0.03, 0.12, { p: [sx * (hw + 0.012), 0.8, z] });
@@ -331,11 +328,7 @@ VEHICLE_PROPS.pickup_truck = (b, r, v0) => {
   // cab lower: a tub, open at the top into the greenhouse
   boxShell(b, 'carpaint', W, 0.76, 1.42, { p: [0, 0.78, -0.2], c: col, t: 0.1, skip: ['yp'], lining: [0.15, 0.14, 0.13] });
   // cab greenhouse: a shell on it - the screen, a window each side (one gone on the second truck), one in the back
-  const C = [];
-  for (let k = 0; k < 8; k++) {
-    const X = k & 1 ? 1 : -1, top = k & 2, Z = k & 4;
-    C.push([X * (top ? hw - 0.16 : hw - 0.05), top ? 1.86 : 1.16, Z ? (top ? 0.42 : 0.48) : top ? -0.5 : -0.88]);
-  }
+  const C = hullCorners((X, top, Z) => [X * (top ? hw - 0.16 : hw - 0.05), top ? 1.86 : 1.16, Z > 0 ? (top ? 0.42 : 0.48) : top ? -0.5 : -0.88]);
   hullShell(b, 'carpaint', C, {
     c: col, t: 0.03, skip: ['yn'], bare: ['yp'], look: (k) => paneLook(v ? 0.72 : 0.38, k + w),
     holes: { zn: [[0.04, 0.96, 0.07, 0.93]], zp: [[0.14, 0.86, 0.22, 0.86, w ? 'shard' : undefined]], xn: [[0.07, 0.93, 0.08, 0.93, v === 1 ? 'gone' : undefined]], xp: [[0.07, 0.93, 0.08, 0.93]] },
@@ -355,12 +348,11 @@ VEHICLE_PROPS.pickup_truck = (b, r, v0) => {
     sitter(b, [-0.45, 0.9, -0.12], { wheel: true, lean: 0.2, side: -1, shirt: [0.34, 0.2, 0.16] });
     b.cyl('cabin_fine', 0.04, 0.045, 0.24, 6, { p: [0.3, 1.02, -0.1], c: [0.2, 0.3, 0.24] }); // a flask on the bench
   }
-  const n = (p, v2, d = 0.008) => [p[0] + v2[0] * d, p[1] + v2[1] * d, p[2] + v2[2] * d];
   for (const sx of [-1, 1]) {
     const q = sx > 0 ? [C[1], C[5], C[7], C[3]] : [C[0], C[4], C[6], C[2]];
     const nn = [sx, 0.15, 0];
-    b.beam('carpaint', n(q[0], nn, 0.012), n(q[3], nn, 0.012), 0.08, 0.05, { c: col });
-    b.beam('carpaint', n(q[1], nn, 0.012), n(q[2], nn, 0.012), 0.1, 0.05, { c: col });
+    b.beam('carpaint', along(q[0], nn, 0.012), along(q[3], nn, 0.012), 0.08, 0.05, { c: col });
+    b.beam('carpaint', along(q[1], nn, 0.012), along(q[2], nn, 0.012), 0.1, 0.05, { c: col });
     b.box('dark', 0.01, 0.66, 0.012, { p: [sx * (hw + 0.002), 0.8, -0.88] });
     b.box('dark', 0.01, 0.66, 0.012, { p: [sx * (hw + 0.002), 0.8, 0.46] });
     b.box('chrome', 0.03, 0.03, 0.12, { p: [sx * (hw + 0.012), 1.05, 0.3] });
@@ -489,11 +481,7 @@ VEHICLE_PROPS.camper = (b, r, v) => {
   b.extrude('carpaint', c, CW, { r: [0, -PI / 2, 0], p: [chw, 0, 0], c: cab });
   b.box('dark', CW - 0.03, 0.5, 0.92, { p: [0, 0.64, fa] });
   // cab greenhouse
-  const C = [];
-  for (let k = 0; k < 8; k++) {
-    const X = k & 1 ? 1 : -1, top = k & 2, Z = k & 4;
-    C.push([X * (top ? chw - 0.1 : chw - 0.03), top ? 1.94 : 1.2, Z ? -1.5 : top ? -1.98 : -2.32]);
-  }
+  const C = hullCorners((X, top, Z) => [X * (top ? chw - 0.1 : chw - 0.03), top ? 1.94 : 1.2, Z > 0 ? -1.5 : top ? -1.98 : -2.32]);
   // (a shell, standing on the cab's floor and open behind onto the coach's front wall)
   const dirty = v ? 0.75 : 0.45;
   hullShell(b, 'carpaint', C, {
@@ -505,9 +493,8 @@ VEHICLE_PROPS.camper = (b, r, v) => {
   dash(b, 1.34, -2.29, CW - 0.14, { d: 0.22, h: 0.14, wheelX: -0.52 });
   steering(b, [-0.52, 1.52, -2.0], { R: 0.18, tilt: 0.6 });
   mirror(b, [0, 1.82, -1.99]);
-  const nn = (p, d, k = 0.008) => [p[0] + d[0] * k, p[1] + d[1] * k, p[2] + d[2] * k];
-  b.beam('carpaint', nn(C[0], [-1, 0.2, 0], 0.012), nn(C[2], [-1, 0.2, 0], 0.012), 0.07, 0.05, { c: cab });
-  b.beam('carpaint', nn(C[1], [1, 0.2, 0], 0.012), nn(C[3], [1, 0.2, 0], 0.012), 0.07, 0.05, { c: cab });
+  b.beam('carpaint', along(C[0], [-1, 0.2, 0], 0.012), along(C[2], [-1, 0.2, 0], 0.012), 0.07, 0.05, { c: cab });
+  b.beam('carpaint', along(C[1], [1, 0.2, 0], 0.012), along(C[3], [1, 0.2, 0], 0.012), 0.07, 0.05, { c: cab });
   for (const sx of [-1, 1]) {
     b.box('dark', 0.01, 0.74, 0.012, { p: [sx * (chw + 0.002), 0.8, -2.0] });
     b.box('chrome', 0.03, 0.03, 0.12, { p: [sx * (chw + 0.012), 1.05, -1.7] });
@@ -642,11 +629,7 @@ VEHICLE_PROPS.ambulance = (b, r) => {
   b.box('carpaint', CW, 0.62, 1.05, { p: [0, 0.83, -2.32], c: white });
   b.box('dark', CW - 0.04, 0.5, 0.9, { p: [0, 0.62, fa] }); // front wheel well
   // (the cab: a shell - the screen and a window each side; two seats, the dash, a clipboard left on it)
-  const cabC = [];
-  for (let k = 0; k < 8; k++) {
-    const X = k & 1 ? 1 : -1, top = k & 2, Z = k & 4 ? 1 : -1;
-    cabC.push(top ? [(X * (CW - 0.16)) / 2, 1.9, -1.15 + Z * 0.5] : [(X * CW) / 2, 1.14, -1.3 + Z * 0.65]);
-  }
+  const cabC = hullCorners((X, top, Z) => (top ? [(X * (CW - 0.16)) / 2, 1.9, -1.15 + Z * 0.5] : [(X * CW) / 2, 1.14, -1.3 + Z * 0.65]));
   hullShell(b, 'carpaint', cabC, { c: white, t: 0.04, look: (k) => paneLook(0.5, k), holes: { zn: [[0.077, 0.923, 0.157, 0.843]], xn: [[0.2, 0.74, 0.2, 0.8]], xp: [[0.2, 0.74, 0.2, 0.8, 'blood']] } });
   for (const sx of [-1, 1]) seat(b, sx * 0.48, 1.18, -1.05, { w: 0.5, h: 0.1, bh: 0.36, d: 0.4, c: SEATS[2] });
   dash(b, 1.36, -1.84, CW - 0.2, { d: 0.22, h: 0.16, wheelX: -0.48 });
