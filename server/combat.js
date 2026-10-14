@@ -8,7 +8,6 @@ import {
   CLAWS,
   THROWABLES,
   ZTYPE,
-  ZOMBIE_DEFS,
   ZANIM,
   SOUND,
   EVT,
@@ -183,8 +182,9 @@ export class Combat {
         // below the hip it is in a leg: the left or the right by which side of the body it struck
         let leg = 0;
         if (!isPlayer && !headHit && this.legZone(e, pos.y, oy + dy * tt)) leg = (ox + dx * tt - pos.x) * Math.cos(e.yaw) - (oz + dz * tt - pos.z) * Math.sin(e.yaw) < 0 ? 1 : 2;
-        const belly = !isPlayer && !headHit && !leg && this.bellyHit(e, pos, ox + dx * tt, oy + dy * tt, oz + dz * tt);
-        _hits.push({ e, isPlayer, t: tt, head: headHit, leg, belly });
+        // (or into a spot of the kind's own: the Mother's belly)
+        const spot = !isPlayer && !headHit && !leg && g.zm.spotHit(e, pos, ox + dx * tt, oy + dy * tt, oz + dz * tt);
+        _hits.push({ e, isPlayer, t: tt, head: headHit, leg, spot });
       });
       _hits.sort((a, b) => a.t - b.t);
       const maxPierce = Math.max(1, (def.pierce || 1) + (le.pierce || 0));
@@ -220,7 +220,7 @@ export class Combat {
           const blow = lethal ? this.blastDamage(h.e, t, def, 0, n, ox, oy, oz) : d;
           const rest = lethal ? this.blastDamage(h.e, t, def, i + 1, n, ox, oy, oz) : 0;
           killed = this.damageZombie(h.e, d, p, { weapon: ev.weapon, headshot: h.head, leg: !!h.leg, dirX: dx, dirZ: dz, blow, rest });
-          if (h.belly) this.burstBelly(h.e, p, dx, dz);
+          if (h.spot) g.zm.spotStruck(h.e, p, dx, dz);
           if (!killed && le.ignite && this.g.rng() < le.ignite) this.ignite(h.e, p, ev.weapon);
         }
         hitFlags |= 8 | (h.head ? 1 : 0) | (killed ? 2 : 0);
@@ -324,46 +324,9 @@ export class Combat {
     return off;
   }
 
-  // ---------------------------------------------------------------- a Mother's belly
-  // Does a bullet that struck this zombie at (x, y, z) (its feet at pos) go into a Mother's belly? Her front, above the
-  // legs (LEG_ZONE) and under bellyTop of her height, and only while it is still whole.
-  bellyHit(z, pos, x, y, zz) {
-    if (z.kind !== ENT.ZOMBIE || z.ztype !== ZTYPE.MOTHER || z.burst || z.legs === 3) return false;
-    const h = (y - pos.y) / z.def.height;
-    if (h < LEG_ZONE || h > z.def.bellyTop) return false;
-    // (her front: the side she faces, -sin / -cos of her yaw)
-    return -(x - pos.x) * Math.sin(z.yaw) - (zz - pos.z) * Math.cos(z.yaw) > 0;
-  }
-
-  // A shot (or anything else, by) tears a Mother's belly open: it shows torn (ZSTATUS.BURST) for as long as her body
-  // lies there, and her brood crawls out of it in front of her and comes for whoever did it. Once only.
+  // (the admin's /burst, server/game.js: the Mother's own is in server/specials/mother.js)
   burstBelly(z, by, dirX = 0, dirZ = 0) {
-    const g = this.g;
-    if (z.burst || z.ztype !== ZTYPE.MOTHER) return [];
-    z.burst = true;
-    g.impact(IMPACT.BLOOD, z.x, z.y + z.def.height * 0.55, z.z, -dirX, 0.3, -dirZ);
-    const babies = [];
-    const def = z.def;
-    for (let i = 0; i < def.brood; i++) {
-      // out of the front of her, each flung off to its own side (broodSpread rad off the way she faces) and tumbling on
-      // out that way (broodKick m/s, gone in a few ticks) before it turns on whoever shot her: they come at you apart
-      const a = z.yaw + (def.brood > 1 ? (i / (def.brood - 1) - 0.5) * 2 * def.broodSpread : 0);
-      const fx = -Math.sin(a), fz = -Math.cos(a);
-      const b = g.zm.spawn(ZTYPE.BABY, z.x + fx * 0.8, z.z + fz * 0.8, { horde: z.horde, y: z.under ? z.y : undefined, den: z.den, hpMul: z.horde ? g.hordeHpMul || 1 : 1 });
-      if (!b) continue;
-      b.yaw = a;
-      b.kx = fx * def.broodKick;
-      b.kz = fz * def.broodKick;
-      b.under = z.under;
-      if (by && by.kind === ENT.PLAYER) {
-        b.target = by.id;
-        b.aggroId = by.id;
-        b.aggroT = 30;
-      }
-      babies.push(b);
-    }
-    if (babies.length) g.globalDirty = true;
-    return babies;
+    return this.g.zm.burstBelly(z, by, dirX, dirZ);
   }
 
   // ---------------------------------------------------------------- RPG
@@ -663,7 +626,7 @@ export class Combat {
     z.vx = z.vz = 0;
     g.zm.releaseLink(z);
     z.link = 0;
-    const flags = (opts.headshot ? 1 : 0) | (opts.fire ? 2 : 0) | (opts.explode || z.ztype === ZTYPE.BOOMER ? 4 : 0) | (opts.gib ? 8 : 0);
+    const flags = (opts.headshot ? 1 : 0) | (opts.fire ? 2 : 0) | (opts.explode || g.zm.bursts(z) ? 4 : 0) | (opts.gib ? 8 : 0);
     const yaw = Math.atan2(-(opts.dirX || 0), -(opts.dirZ || 0));
     g.emit(
       (w) => {
@@ -711,14 +674,9 @@ export class Combat {
       // a dog's hide: its own chance, on top of the ordinary drop
       if (z.def.leather && g.rng() < z.def.leather) g.dropItem(ITEM.LEATHER, 1, z.x, z.y, z.z, { spread: 0.5, life: 150 });
     }
-    if (z.ztype === ZTYPE.SMOKER) {
-      // its last breath: one more cloud, and among what the survivors built, one that fills the base
-      const d = this.inBase(z.x, z.z) ? z.def.baseSmoke : z.def.deathSmoke;
-      this.spawnArea(AREA.SMOKE, z.x, z.y, z.z, d.radius, d.life);
-    }
-    if (z.ztype === ZTYPE.BOOMER || opts.explode) {
-      this.explode(z.x, z.y + 1, z.z, ZOMBIE_DEFS[ZTYPE.BOOMER].blastRadius, { humans: ZOMBIE_DEFS[ZTYPE.BOOMER].blastDmg, zombies: 80, structures: 260, kind: 2, source: z });
-    } else if (z.def.blastStruct && !sunKill) {
+    // what its kind does as it dies (server/specials/: a smoker's last breath, a boomer's blast)
+    g.zm.dies(z, attacker, opts, sunKill);
+    if (z.def.blastStruct && !sunKill) {
       // The Bloater bursts, and takes what stands near it along: the dead too. (Burnt out by the dawn sun, it only falls)
       this.explode(z.x, z.y + 1.2, z.z, z.def.blastRadius, { humans: z.def.blastDmg, zombies: 160, structures: z.def.blastStruct, kind: 2, source: z });
     }
@@ -1164,19 +1122,6 @@ export class Combat {
     e.x = nx;
     e.y = fl + 0.08;
     e.z = nz;
-  }
-
-  // Is (x, z) in the survivors' base: baseCount or more of the pieces they built within baseRange m (ZOMBIE_DEFS
-  // SMOKER)? (Traps count: they are built where the dead come at the base)
-  inBase(x, z) {
-    const g = this.g;
-    const def = ZOMBIE_DEFS[ZTYPE.SMOKER];
-    let n = 0;
-    for (const s of g.structures) {
-      if (!s || s.removed || (s.x - x) ** 2 + (s.z - z) ** 2 > def.baseRange * def.baseRange) continue;
-      if (++n >= def.baseCount) return true;
-    }
-    return false;
   }
 
   spawnArea(atype, x, y, z, radius, life, owner, dps) {

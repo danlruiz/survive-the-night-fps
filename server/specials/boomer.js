@@ -2,6 +2,10 @@
 import { ZTYPE, SOUND, ZANIM } from '../../shared/defs.js';
 import { ENT } from '../../shared/protocol.js';
 
+// what its blast does to the dead near it and to what the survivors built (its blastDmg is what it does to them)
+const BLAST_ZOMBIES = 80;
+const BLAST_STRUCTURES = 260;
+
 export const methods = {
   // it detonates near a survivor
   boomerNear(z, target, dist) {
@@ -49,5 +53,16 @@ export const acts = {
     const s = z.breachId ? g.ents[z.breachId] : null;
     if (s && s.kind === ENT.STRUCTURE && Math.hypot(s.x - z.x, s.z - z.z) < def.blastRadius) g.damageStructure(s, def.breachDmg * g.diff.hurt);
     g.combat.killZombie(z, null, { explode: true });
+  },
+};
+
+// it bursts as it dies, however it dies: shot, or swollen up beside a survivor or against what they built (act 99)
+export const bursts = [ZTYPE.BOOMER];
+
+export const deaths = {
+  // ...and the blast takes the survivors near it, the dead and what was built
+  [ZTYPE.BOOMER](z) {
+    const def = z.def;
+    this.g.combat.explode(z.x, z.y + 1, z.z, def.blastRadius, { humans: def.blastDmg, zombies: BLAST_ZOMBIES, structures: BLAST_STRUCTURES, kind: 2, source: z });
   },
 };

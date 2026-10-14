@@ -9,15 +9,15 @@ import { ZTYPE, ZOMBIE_DEFS, ZANIM, SOUND, KILLER, EVT, IMPACT, STRUCT_DEFS, ZON
 import { ENT } from '../shared/protocol.js';
 import { resolveBody, groundAt, deepWaterAt, raycastWorld, footprintContains, COL } from '../shared/collision.js';
 import { eyeHeight } from '../shared/playersim.js';
-import { mulberry32 } from '../shared/rng.js';
 import { playerMods } from './loadouts.js';
 import { Herds, HERD_RUSH } from './herd.js';
 import { Wards, WARD_DARK } from './clinic.js';
-import { TRIGGERS, ACTS, STATES, installSpecials } from './specials/index.js';
+import { TRIGGERS, ACTS, STATES, SPOTS, DEATHS, BURSTS, installSpecials } from './specials/index.js';
 import { GRAV, turn, bodyHeight } from './specials/util.js';
 import { leapG, LEAP_PIN, LEAP_LAND, LEAP_MISS_CD, LONE_WEIGHT } from './specials/leaper.js';
 import { DOG_CIRCLE } from './specials/dog.js';
 import { _shDir } from './specials/shade.js';
+import { motherStream } from './specials/mother.js';
 import { daySpecial, SPAWN_SPREAD } from './spawns.js';
 
 const MAP_SPREAD_MAX = 4; // (spread(): the most a map's dead come over, against the island's)
@@ -30,7 +30,6 @@ const _dir = { x: 0, z: 0, cost: 0 };
 const _ray = { t: -1, col: null, terrain: false };
 const _wq = []; // (wedgedOn)
 const _lq = []; // (nearStruct)
-const MOTHER_ODDS = 0.05; // one walker in twenty spawns as a Mother (spawn)
 const WEDGE_MOVE = 1.5; // m a zombie after a survivor has to get from where it was to count as getting anywhere (z.wedgeT)
 // the client's distance haze: fog density by sun height (KEYS s / fogD in client/render/environment.js), see sightRange()
 const HAZE_SUN = [-1, -0.12, 0.02, 0.18, 0.55, 1];
@@ -107,8 +106,7 @@ export class Zombies {
   // ---------------------------------------------------------------- spawning
   spawn(type, x, z, opts = {}) {
     const g = this.g;
-    // one walker in twenty is a Mother. An admin's /spawn (force) is exactly what it asked for
-    if (type === ZTYPE.WALKER && !opts.force && this.motherRng() < MOTHER_ODDS) type = ZTYPE.MOTHER;
+    type = this.rollMother(type, opts); // (one walker in twenty is a Mother: specials/mother.js)
     const def = ZOMBIE_DEFS[type];
     if (!def) return null;
     const w = g.world;
@@ -383,8 +381,8 @@ export class Zombies {
     this.fn = Math.ceil(size / FCELL);
     this.head = new Int32Array(this.hn * this.hn).fill(-1);
     this.treeGrid = this.dens = null; // (per-world caches)
-    // the Mother's roll (spawn) has its own stream: nothing else the game draws moves for it
-    this.motherRng = mulberry32((this.g.seed ^ 0x307e4) >>> 0);
+    // the Mother's roll (rollMother) has its own stream: nothing else the game draws moves for it
+    this.motherRng = motherStream(this.g.seed);
   }
 
   // ---------------------------------------------------------------- forest
@@ -1693,6 +1691,26 @@ export class Zombies {
   // what z does once its windup is over (z.stateAct: ACTS)
   fireSpecial(z, target, tx, ty, tz, dist) {
     ACTS[z.stateAct]?.call(this, z, target, tx, ty, tz, dist);
+  }
+
+  // Did a bullet that struck z's body (not its head nor a leg) at (x, y, zz), its feet at pos, go into a spot of its
+  // kind's own (SPOTS: the Mother's belly)? Combat.fire asks, for one of the dead or a deer
+  spotHit(z, pos, x, y, zz) {
+    const spot = z.kind === ENT.ZOMBIE ? SPOTS[z.ztype] : null;
+    return !!spot && spot.at.call(this, z, pos, x, y, zz);
+  }
+  // ...and what that does once the bullet's damage is dealt (by: who shot it, along dirX, dirZ)
+  spotStruck(z, by, dirX, dirZ) {
+    SPOTS[z.ztype].struck.call(this, z, by, dirX, dirZ);
+  }
+
+  // what z's kind does as it dies, once its loot is down (DEATHS: a smoker's last breath, a boomer's blast)
+  dies(z, attacker, opts, sunKill) {
+    DEATHS[z.ztype]?.call(this, z, attacker, opts, sunKill);
+  }
+  // does z's kind burst as it dies, however it is killed (BURSTS: the boomer)?
+  bursts(z) {
+    return BURSTS.has(z.ztype);
   }
 }
 installSpecials(Zombies); // (each special kind's own methods, from server/specials/)
