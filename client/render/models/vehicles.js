@@ -19,7 +19,7 @@ const PI = Math.PI;
 const X = [0, 0, PI / 2]; // a cylinder laid across
 
 // paints (linear), by tint. 7: the car the team crossed in (the quest car's own blue-grey)
-export const PAINTS = [[0.5, 0.1, 0.07], [0.12, 0.2, 0.3], [0.42, 0.38, 0.2], [0.16, 0.26, 0.16], [0.5, 0.48, 0.44], [0.07, 0.07, 0.08], [0.45, 0.25, 0.08], [0.34, 0.42, 0.52]];
+const PAINTS = [[0.5, 0.1, 0.07], [0.12, 0.2, 0.3], [0.42, 0.38, 0.2], [0.16, 0.26, 0.16], [0.5, 0.48, 0.44], [0.07, 0.07, 0.08], [0.45, 0.25, 0.08], [0.34, 0.42, 0.52]];
 const BLACK = [0.035, 0.035, 0.038];
 const SEAT = [0.07, 0.055, 0.045];
 const RUBBER = [0.03, 0.03, 0.03];

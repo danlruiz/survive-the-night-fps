@@ -1,7 +1,6 @@
 // Procedural world props. createProp(type, seed) -> THREE.Group of plain Meshes (shared geometry + shared
 // materials from materials.js), origin at ground centre of the footprint, FRONT facing -Z.
 // Footprints / sizes follow shared/props.js.
-import { PROPS } from '../../../shared/props.js';
 import { MeshBuilder, partsToGroup, makeRng } from '../materials.js';
 import { FIXTURE_PROPS } from './fixtures.js';
 import { buildNestLitter } from './mountedgun.js';
@@ -29,8 +28,6 @@ const VARIANTS = {
   // streets and rooms (props-vehicles.js, props-mainland.js, props-street.js, props-interior.js)
   ...OUTDOOR_VARIANTS, ...CONTAINER_VARIANTS, ...ROADSIDE_VARIANTS, ...VEHICLE_VARIANTS, ...MAINLAND_VARIANTS, ...STREET_VARIANTS, ...INTERIOR_VARIANTS,
 };
-
-export const PROP_TYPES = Object.keys(PROPS);
 
 /** @returns {THREE.Group} */
 export function createProp(type, seed = 0) {

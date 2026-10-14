@@ -2,8 +2,8 @@
 //
 // UV CONVENTION: surface materials expect UVs in METERS (1 uv unit = 1 m). Each material's texture
 // repeat is set so the texture covers its intended world size (see TEXTURE_WORLD_SIZE in textures.js).
-// So a building box of 4 x 3 m should get UVs 0..4 / 0..3 on that face. Use `meterBoxGeometry()` below
-// for boxes (v axis = world up on side faces).
+// So a building box of 4 x 3 m should get UVs 0..4 / 0..3 on that face: MeshBuilder's box() lays them out so
+// (meterUVBox below: v axis = world up on side faces).
 //
 // VERTEX COLOURS: materials listed in VERTEX_COLOR_MATERIALS use vertexColors:true. Every geometry
 // rendered with them MUST have a 'color' attribute (all geometry produced here does).
@@ -285,11 +285,6 @@ function meterUVBox(g, sx, sy, sz, grain = false) {
     }
   }
   return g;
-}
-
-/** Box geometry with meter UVs (side faces: u horizontal, v = up). Indexed; attributes position/normal/uv. */
-export function meterBoxGeometry(sx, sy, sz) {
-  return meterUVBox(new THREE.BoxGeometry(sx, sy, sz), sx, sy, sz);
 }
 
 function meterUVCyl(g, rt, rb, h, seg, grain) {
