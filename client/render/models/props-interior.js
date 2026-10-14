@@ -2,7 +2,7 @@
 // hospital, the police station and the picture house, as it was left. Builders as in props.js: (b, r, v) with b a
 // MeshBuilder, r a seeded rng, v the variant; origin at floor centre of the footprint, front to -Z.
 import * as THREE from 'three';
-import { rr, pick, WOODS, wheel, label, weeds, plank } from './props.js';
+import { rr, pick, WOODS, plank, mul } from './propkit.js';
 
 const PI = Math.PI;
 
@@ -16,7 +16,6 @@ export const INTERIOR_VARIANTS = {
 export const INTERIOR_PROPS = {};
 
 // ------------------------------------------------------------------ shared parts
-const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
 const _eu = new THREE.Euler(), _pt = new THREE.Vector3();
 
 /** a closed solid of stacked rectangles, bottom to top: rings [[w, d, y, cx = 0, cz = 0], ...] */

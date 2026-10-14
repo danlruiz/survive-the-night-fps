@@ -78,8 +78,9 @@ client/      three.js client (Vite root)
               game/game/index.js. The HUD's mash meter (pinned, on fire): hudmeters.js
     entities.js   the entity store; each kind's view in entities/ (zombies.js + zombiekinds.js, survivors.js,
                   structures.js, projectiles.js, ropes.js, glints.js) and the interpolation (entities/samples.js)
-  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures, materials, models/
-              (models, the viewmodel, held / worn items, pickups: read docs/object-clipping.md before changing them)
+  render/     renderer, sky, terrain, vegetation, water, post, particles, weather fx, textures (the generators: textures/),
+              materials (their shading: vegshading.js, surfaceshading.js), models/ (models, the viewmodel, held / worn
+              items, pickups: read docs/object-clipping.md before changing them)
               models/weapons/: one file per held item (the client half of shared/weapons/, the throwables, the
               walkie-talkie): its model, how it is held in first person, its own hand poses, how its pickup lies;
               index.js lists them (its icon: client/ui/icons/<name>.js). parts.js: the shapes, materials and parts
@@ -944,7 +945,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   building, and frame times, through `launchChrome`). act2-shots builds the same mainland in node and checks every
   camera against it before the shot is taken (`pickCam`: in nothing solid, in no tree's crown, nothing between it
   and its subject); a run of it is one section or two (`--only`), well inside a browser's life.
-- **The city's kit** (`client/render/citykit.js`, called by `StaticWorld` for a world with `world.city`). It
+- **The city's kit** (`client/render/citykit.js` + `city/`, called by `StaticWorld` for a world with `world.city`). It
   writes triangles straight into the static world's merged buffers, in a building's own frame: a face is cut into
   bays (`STYLE`), every window an opening with reveals and something in it (glass, shards, the dark, boards -
   `windowState`, by a hash of the building's seed, so it is the same on every client), and from near its frame,
@@ -952,7 +953,7 @@ screen). `scripts/test-airfield-hints.js` holds them.
   courses, a fire escape, balconies, a drainpipe, ivy, damp, cracks, a ghost sign), the roof (`roofOf`: parapet,
   tank, plant, stair head, hoarding), a storey broken open (`openStorey`: slab edges with their steel, columns,
   rooms papered each its own way) and a slab under the sky (`terrace`). Marks come from one atlas (`GEN.city`,
-  `CITY_ATLAS` in textures.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
+  `CITY_ATLAS` in textures/city.js) through two materials: `citysign` (cut out: boards, lettering, ivy, graffiti) and
   `citygrime` (blended: soot, rust, stains). A glass tower is a curtain wall (`curtainWall`): a band of steel at
   each slab, glass from mullion to mullion over it - whole, hanging broken, or gone, and through the gone ones the
   storey behind (its floor, the slab over it, columns, a desk); a burnt-out place is its own brick or concrete
@@ -1059,7 +1060,7 @@ the keyboard. Nothing changes on the server or the wire: a touch button presses 
 - **Time of day** is one palette table (`KEYS` in `render/environment.js`): colours, light levels, fog, mist,
   haze scatter, shaft strength and base exposure per sun height. Eye adaptation only compensates relative to
   `Environment.adaptRef` (the log-average luminance an open scene has at that light level), clamped 0.7-1.6x.
-- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/materials.js`): building surfaces and painted /
+- **Weathered surfaces** (`SURF` + `surfacePatch` in `render/surfaceshading.js`): building surfaces and painted /
   galvanised props are a Lambert tile plus a normal map baked from the generator's height field
   (`getNormalMap`), and the weathering is NOT in the tile. The tile holds the bare material in RGB and a
   tileable wear field in alpha; the shader lays the coat (paint, rust or moss) over it where that field plus
@@ -1457,7 +1458,7 @@ world, the island's generation and its quest car are untouched, and `scripts/tes
   own are on the controls, from its shoulders), so looking down or round shows a trunk and legs, and the eye is our
   own head's. The team's vehicles are on the field map and the minimap (`marks`). The models are
   `client/render/models/vehicles.js` (as found, running, broken down - bonnet up, a corner down, hazards blinking -
-  and burnt out), the driven car's cabin is `props.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
+  and burnt out), the driven car's cabin is `props-vehicles.js`'s sedan with `slim` (thin pillars, a deeper well, lower seats:
   legs fit), the sounds `client/audio/synth-vehicle.js`.
 - **Saved** with the game (`Vehicles.save` / `load` in `server/gamestate.js`): every vehicle with its state, fuel,
   body and who sat where; the players' own fields ride in their saved state.
@@ -1493,7 +1494,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
     their `EVT.SHOT`, the mounted gun's too) - every pellet of a shotgun leaves its hole, nothing new is on the wire,
     and the server's own `EVT.IMPACT` for the same round is dropped (`sameAsOwn`);
   - a blast is `EVT.EXPLOSION`: rays out from it scorch and pit what stands round it.
-- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code, a cell per kind) in one
+- **Marks** (`client/render/marks.js`). Every mark is a quad of one atlas (painted in code: `textures/marks.js`, a cell per kind) in one
   mesh: one draw call, lit like the wall it lies on, no draw call at all while there are none. `MarkPool` (no
   three.js in it) is a ring of `MARK_RING` (400) that the newest overwrite - a hundred rounds into one wall cost
   what one does - each fading out after `MARK_LIFE`, plus `MARK_KEPT` slots that stay until given back (a wreck's
@@ -1507,7 +1508,7 @@ nobody's state; the one thing the server keeps is each wreck's short record of t
   draws, and `Chips`, one instanced mesh of small solid bits (splinters, grit, flakes, clods, shards, the scrap a
   wreck gives up, which flies to the hand of whoever earned it). Nothing is updated or drawn while nothing is in
   the air.
-- **Props that react** (`client/render/wrecks.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
+- **Props that react** (`client/render/wrecks.js`, `wreck.js`, `liftbatch.js`, `wreckgeo.js`). The static world is merged and
   its vertices live on the card, so a prop that is to change is *lifted*: `StaticWorld.lift` cuts its stretch out
   of every material's runs (and the shadow casters'; `MultiMesh.cut`), `StaticWorld.pieces` builds its triangles
   again, and the `LiftBatch` draws them - one mesh per material for every lifted prop there is, culled prop by

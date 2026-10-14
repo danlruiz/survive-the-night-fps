@@ -7,6 +7,7 @@
 // Every system is a single draw call with fixed-size buffers; nothing is allocated per frame.
 import * as THREE from 'three';
 import { pulseEnvelope } from '../game/weather.js';
+import { mulberry32 } from '../../shared/rng.js';
 
 const ROOFS = 8;
 const ROOF_GLSL = /* glsl */ `
@@ -176,22 +177,12 @@ const BOLT_POOL = 3;
 const BOLT_HEIGHT = 170; // cloud base above the strike point (m)
 const BOLT_REACH = 400; // bolts farther than this are drawn at this distance, scaled to keep their size
 
-function rngFrom(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), a | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // a jagged channel from the cloud base (y = 1) to the ground (y = 0) with a few forks, as flat ribbons
 // in the XY plane (the mesh is turned to face the camera). Each ribbon vertex carries its centre point and
 // its offset direction, so the shader can keep the channel a couple of pixels wide at any distance; a wide
 // dim ribbon under each stroke is the glow.
 function boltGeometry(seed) {
-  const rng = rngFrom(seed);
+  const rng = mulberry32(seed);
   const pos = [];
   const off = [];
   const col = [];

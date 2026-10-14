@@ -2,7 +2,8 @@
 // never left, what the army put up and abandoned, what people dropped. Builders as in props.js: (b, r, v) with b a
 // MeshBuilder, r a seeded rng, v the variant; origin at ground centre of the footprint, front to -Z.
 import * as THREE from 'three';
-import { rr, pick, WOODS, wheel, label, weeds, plank, CAR_COLORS, sedan } from './props.js';
+import { rr, pick, WOODS, wheel, label, weeds, plank, mul, PAPER } from './propkit.js';
+import { CAR_COLORS, sedan } from './props-vehicles.js';
 import { boxShell, profShell, leaf, seat, dash, steering, mirror, sitter, luggage, rubbish, bloodPatch, burntSeat, deck, busRows, paneLook, LINING, CHAR, SEATS } from './cabin.js';
 
 const PI = Math.PI;
@@ -12,8 +13,6 @@ export const STREET_PROPS = {};
 
 // ------------------------------------------------------------------ shared parts
 const RUSTC = [0.3, 0.17, 0.1];
-const PAPERS = [[0.74, 0.72, 0.64], [0.6, 0.56, 0.46], [0.5, 0.52, 0.5], [0.66, 0.5, 0.4]];
-const mul = (c, k) => c.map((q) => q * k);
 
 /** a vertex-colour function: paint gone to rust in blotches (amt), and the more the nearer the ground (below `low`) */
 const worn = (amt = 0.4, low = 0, to = RUSTC) => (x, y, z, c) => {
@@ -234,7 +233,7 @@ STREET_PROPS.trash_bin = (b, r, v) => {
   b.sphere('plastic', 0.11, 5, 3, { p: [-0.12, 0.07, -0.2], s: [1, 0.65, 0.8] });
   for (let k = 0; k < 2; k++) {
     const a = rr(r, 0, PI * 2);
-    b.box('cloth', 0.16, 0.006, 0.12, { p: [Math.sin(a) * 0.2, 0.006 + k * 0.004, Math.cos(a) * 0.2], r: [0, a, 0], c: pick(r, PAPERS) });
+    b.box('cloth', 0.16, 0.006, 0.12, { p: [Math.sin(a) * 0.2, 0.006 + k * 0.004, Math.cos(a) * 0.2], r: [0, a, 0], c: pick(r, PAPER) });
   }
 };
 
@@ -248,7 +247,7 @@ STREET_PROPS.newspaper_box = (b, r, v) => {
   b.box('paint', 0.1, 0.44, 0.1, { p: [0, 0.245, 0.02], c: mul(col, 0.8), cfn: w });
   sideProf(b, 'paint', [[zf, 0.46], [0.22, 0.46], [0.22, 1.08], [-0.04, 1.08], [zf, 0.94]], 0.46, { c: col, cfn: w });
   b.box('dark', 0.36, 0.33, 0.012, { p: [0, 0.735, zf - 0.002] }); // the window, and the last papers in it
-  b.box('cloth', 0.3, 0.1, 0.008, { p: [0.01, 0.63, zf - 0.008], r: [0, 0, -0.06], c: PAPERS[0] });
+  b.box('cloth', 0.3, 0.1, 0.008, { p: [0.01, 0.63, zf - 0.008], r: [0, 0, -0.06], c: PAPER[0] });
   sheet(b, 'glass', [[-0.18, 0.57, zf - 0.014], [-0.03, 0.57, zf - 0.014], [-0.18, 0.74, zf - 0.014]], [0, 0, -1]);
   sheet(b, 'glass', [[0.18, 0.9, zf - 0.014], [0.18, 0.78, zf - 0.014], [0.07, 0.9, zf - 0.014]], [0, 0, -1]);
   b.box('paint', 0.34, 0.07, 0.006, { p: [0, 0.515, zf - 0.002], c: [0.66, 0.64, 0.56] });
@@ -602,7 +601,7 @@ STREET_PROPS.car_open = (b, r, v0) => {
     b.box('plastic', 0.52, 0.2, 0.36, { p: [-0.35, 0.1, 2.56], r: [0, 0.4, 0] });
     b.box('cloth', 0.56, 0.18, 0.38, { p: [0.4, 0.09, 2.52], r: [0, -0.3, 0], c: [0.4, 0.2, 0.16] });
     b.box('cloth', 0.56, 0.02, 0.38, { p: [0.45, 0.2, 2.34], r: [-1.1, -0.3, 0], order: 'YXZ', c: [0.4, 0.2, 0.16] }); // its lid, thrown back
-    for (let k = 0; k < 3; k++) b.box('cloth', rr(r, 0.2, 0.3), 0.016, rr(r, 0.16, 0.24), { p: [rr(r, -0.1, 0.5), 0.01 + k * 0.004, rr(r, 2.45, 2.7)], r: [0, r() * PI, 0], c: pick(r, PAPERS) });
+    for (let k = 0; k < 3; k++) b.box('cloth', rr(r, 0.2, 0.3), 0.016, rr(r, 0.16, 0.24), { p: [rr(r, -0.1, 0.5), 0.01 + k * 0.004, rr(r, 2.45, 2.7)], r: [0, r() * PI, 0], c: pick(r, PAPER) });
   }
   weeds(b, r, [[0.5, -1.7], [-0.5, 1.3], [0.45, 1.85], [-0.4, -0.5]], 0.5);
 };
