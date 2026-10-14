@@ -1,7 +1,7 @@
 // Voice chat in the mix: each remote microphone as a VoiceSource (AudioEngine.createVoiceSource), and the levels the
 // engine's voice bus and ducking work to.
 import { TALK_CLEAR, TALK_RANGE } from '../../shared/constants.js';
-import { setPannerPos } from './nodes.js';
+import { setPannerPos, biquad } from './nodes.js';
 
 // ------------------------------------------------------------------ proximity voice chat source
 // Two paths out of one stream: the voice placed in the world (heard out to TALK_RANGE), and the same voice squeezed
@@ -51,17 +51,10 @@ export class VoiceSource {
       this.el = null;
     }
     this.src = c.createMediaStreamSource(stream);
-    this.hp = c.createBiquadFilter();
-    this.hp.type = 'highpass';
-    this.hp.frequency.value = 110;
-    this.lp = c.createBiquadFilter();
-    this.lp.type = 'lowpass';
-    this.lp.frequency.value = 16000;
+    this.hp = biquad(c, 'highpass', 110);
+    this.lp = biquad(c, 'lowpass', 16000);
     // a little presence: consonants are what gunfire and the score bury first
-    this.pres = c.createBiquadFilter();
-    this.pres.type = 'peaking';
-    this.pres.frequency.value = 2800;
-    this.pres.Q.value = 0.9;
+    this.pres = biquad(c, 'peaking', 2800, 0.9);
     this.pres.gain.value = 3;
     this.gain = c.createGain();
     // leveller: a quiet microphone and a loud one come out within a few dB of each other
@@ -74,14 +67,8 @@ export class VoiceSource {
     this.panner.refDistance = VOICE_REF;
     this.panner.rolloffFactor = VOICE_ROLLOFF;
     this.panner.maxDistance = TALK_RANGE;
-    this.rhp = c.createBiquadFilter();
-    this.rhp.type = 'highpass';
-    this.rhp.frequency.value = 480;
-    this.rhp.Q.value = 1.1;
-    this.rlp = c.createBiquadFilter();
-    this.rlp.type = 'lowpass';
-    this.rlp.frequency.value = 2700;
-    this.rlp.Q.value = 1.4;
+    this.rhp = biquad(c, 'highpass', 480, 1.1);
+    this.rlp = biquad(c, 'lowpass', 2700, 1.4);
     this.rdrive = c.createWaveShaper();
     this.rdrive.curve = radioShape();
     this.rfade = c.createGain();

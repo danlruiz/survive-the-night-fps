@@ -1,22 +1,19 @@
 // The pool of positional one-shot voices (filter -> gain -> panner, with a reverb send) that AudioEngine._playPos
 // plays every placed sound on: a fixed set of channels, each category capped, the weakest voice stolen when full.
+import { gainNode, biquad } from './nodes.js';
 
 // ------------------------------------------------------------------ pooled positional voice
 class Chan {
   constructor(e, dest, send) {
     const c = e._ctx;
     this.e = e;
-    this.filter = c.createBiquadFilter();
-    this.filter.type = 'lowpass';
-    this.filter.frequency.value = 20000;
-    this.filter.Q.value = 0.5;
+    this.filter = biquad(c, 'lowpass', 20000, 0.5);
     this.gain = c.createGain();
     this.panner = c.createPanner();
     this.panner.panningModel = 'equalpower';
     this.panner.distanceModel = 'inverse';
     this.panner.maxDistance = 10000;
-    this.send = c.createGain();
-    this.send.gain.value = 0;
+    this.send = gainNode(c, 0);
     this.filter.connect(this.gain);
     this.gain.connect(this.panner);
     this.panner.connect(dest);

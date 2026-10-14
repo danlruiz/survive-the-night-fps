@@ -8,3 +8,19 @@ export function setPannerPos(p, x, y, z) {
     p.positionZ.value = z;
   } else p.setPosition(x, y, z);
 }
+
+// a GainNode at a starting gain
+export function gainNode(c, v) {
+  const n = c.createGain();
+  n.gain.value = v;
+  return n;
+}
+
+// a BiquadFilterNode of the given type, cutoff (Hz) and Q (left at the browser's default when not given)
+export function biquad(c, type, hz, q) {
+  const f = c.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = hz;
+  if (q !== undefined) f.Q.value = q;
+  return f;
+}

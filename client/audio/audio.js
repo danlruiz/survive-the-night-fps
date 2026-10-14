@@ -12,7 +12,7 @@ import { CATS, SOUND_MAP, STRIKE_MAP, LOCAL, STINGERS, LOOPS, LOOP_CAP_TOTAL, ST
 import { VoicePool } from './voice-pool.js';
 import { LoopEmitter } from './loop-emitter.js';
 import { VoiceSource, NULL_VOICE, VOICE_BUS, DUCK_MUSIC, DUCK_WORLD, DUCK_FLOOR, DUCK_FULL, DUCK_HOLD, DUCK_MS } from './voice-chat.js';
-import { setPannerPos } from './nodes.js';
+import { setPannerPos, gainNode, biquad } from './nodes.js';
 import { clamp01 } from './curves.js';
 
 export { STRIKE_NAMES } from './sound-defs.js';
@@ -172,11 +172,7 @@ export class AudioEngine {
 
   _buildGraph() {
     const c = this._ctx;
-    const g = (v = 1) => {
-      const n = c.createGain();
-      n.gain.value = v;
-      return n;
-    };
+    const g = (v = 1) => gainNode(c, v);
     // Master dynamics. A gentle 2:1 "glue" compressor, a fast limiter for whatever still gets through, then a soft
     // clipper so nothing leaves above full scale. Deliberately light: a quiet forest stays some 12 dB under automatic
     // fire (measured on the bus) - squeezing harder makes the night as loud as the gunfight and both of them tiring.
@@ -210,10 +206,7 @@ export class AudioEngine {
 
     // world bus: sfx + ambience + reverb, muffled when dead
     this._worldIn = g(1);
-    this._worldLP = c.createBiquadFilter();
-    this._worldLP.type = 'lowpass';
-    this._worldLP.frequency.value = 20000;
-    this._worldLP.Q.value = 0.6;
+    this._worldLP = biquad(c, 'lowpass', 20000, 0.6);
     this._worldIn.connect(this._worldLP);
     this._worldDuck = g(1); // (voice chat ducking)
     this._worldLP.connect(this._worldDuck);
@@ -222,10 +215,7 @@ export class AudioEngine {
     this._worldDuck.connect(this._ringDuck);
 
     this._sfxIn = g(1); // user sfx volume
-    this._sfxLP = c.createBiquadFilter(); // low-health muffle
-    this._sfxLP.type = 'lowpass';
-    this._sfxLP.frequency.value = 20000;
-    this._sfxLP.Q.value = 0.5;
+    this._sfxLP = biquad(c, 'lowpass', 20000, 0.5); // low-health muffle
     this._sfxIn.connect(this._sfxLP);
     this._sfxLP.connect(this._worldIn);
     this._ambIn = g(1);
@@ -441,8 +431,7 @@ export class AudioEngine {
       const src = c.createBufferSource();
       src.buffer = buf;
       src.loop = true;
-      const g = c.createGain();
-      g.gain.value = 0;
+      const g = gainNode(c, 0);
       src.connect(g);
       g.connect(this._uiIn);
       src.start(c.currentTime, Math.random() * buf.duration);
@@ -461,13 +450,11 @@ export class AudioEngine {
     const c = this._ctx;
     const now = c.currentTime;
     if (!this._ring) {
-      const g = c.createGain();
-      g.gain.value = 0;
+      const g = gainNode(c, 0);
       const osc = [3870, 3911, 7790].map((f, i) => {
         const o = c.createOscillator();
         o.frequency.value = f;
-        const k = c.createGain();
-        k.gain.value = i === 2 ? 0.12 : 0.5;
+        const k = gainNode(c, i === 2 ? 0.12 : 0.5);
         o.connect(k);
         k.connect(g);
         o.start(now);
@@ -612,15 +599,11 @@ export class AudioEngine {
     let head = src;
     let f = null;
     if (lp && lp < 18000) {
-      f = c.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = lp;
-      f.Q.value = 0.5;
+      f = biquad(c, 'lowpass', lp, 0.5);
       src.connect(f);
       head = f;
     }
-    const g = c.createGain();
-    g.gain.value = vol;
+    const g = gainNode(c, vol);
     head.connect(g);
     let p = null;
     if (pan && c.createStereoPanner) {
@@ -631,8 +614,7 @@ export class AudioEngine {
     } else g.connect(dest);
     let sg = null;
     if (send > 0 && dest !== this._uiIn) {
-      sg = c.createGain();
-      sg.gain.value = send;
+      sg = gainNode(c, send);
       g.connect(sg);
       sg.connect(dest === this._ambIn ? this._ambSend : this._sfxSend);
     }

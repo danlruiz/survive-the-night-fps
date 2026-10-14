@@ -10,6 +10,7 @@
 
 import { MOTIFS, MOTIF_BEAT, MOTIF_FAR_SLOW } from './motifs.js';
 import { PIANO_NOTES, BOX_NOTES } from './synth-amb.js';
+import { gainNode, biquad } from './nodes.js';
 import { mtof } from './dsp.js';
 import { clamp01, rand } from './curves.js';
 
@@ -63,16 +64,12 @@ class Stem {
   constructor(music, def) {
     this.m = music;
     this.def = def;
-    this.gain = music.ctx.createGain();
-    this.gain.gain.value = 0;
+    this.gain = gainNode(music.ctx, 0);
     this.gain.connect(music.out);
     this.head = this.gain; // what the source plays into
     this.lp = null;
     if (def.tone) {
-      this.lp = music.ctx.createBiquadFilter();
-      this.lp.type = 'lowpass';
-      this.lp.Q.value = 0.6;
-      this.lp.frequency.value = TONE_SHUT;
+      this.lp = biquad(music.ctx, 'lowpass', TONE_SHUT, 0.6);
       this.lp.connect(this.gain);
       this.head = this.lp;
     }
@@ -145,16 +142,9 @@ export class Music {
   constructor(engine) {
     this.e = engine;
     const c = (this.ctx = engine._ctx);
-    const g = (v) => {
-      const n = c.createGain();
-      n.gain.value = v;
-      return n;
-    };
+    const g = (v) => gainNode(c, v);
     this.out = g(1);
-    this.filter = c.createBiquadFilter();
-    this.filter.type = 'lowpass';
-    this.filter.frequency.value = 18000;
-    this.filter.Q.value = 0.5;
+    this.filter = biquad(c, 'lowpass', 18000, 0.5);
     this.duckG = g(1);
     this.out.connect(this.filter);
     this.filter.connect(this.duckG);
@@ -248,15 +238,11 @@ export class Music {
   _buildDrone() {
     const c = this.ctx;
     const now = c.currentTime;
-    this.dFilter = c.createBiquadFilter();
-    this.dFilter.type = 'lowpass';
-    this.dFilter.frequency.value = 300;
-    this.dFilter.Q.value = 1.4;
+    this.dFilter = biquad(c, 'lowpass', 300, 1.4);
     this.dFilter.connect(this.droneG);
     this.dLfo = c.createOscillator();
     this.dLfo.frequency.value = 0.045;
-    const lg = c.createGain();
-    lg.gain.value = 110;
+    const lg = gainNode(c, 110);
     this.dLfo.connect(lg);
     lg.connect(this.dFilter.frequency);
     this.dLfo.start(now);
@@ -266,8 +252,7 @@ export class Music {
       o.type = type;
       o.frequency.value = f;
       o.detune.value = det;
-      const gg = c.createGain();
-      gg.gain.value = gain;
+      const gg = gainNode(c, gain);
       o.connect(gg);
       gg.connect(dest);
       o.start(now);
@@ -279,16 +264,9 @@ export class Music {
     this.dB = osc('sawtooth', root, 6, 0.16, this.dFilter);
     this.dC = osc('sawtooth', root * Math.pow(2, 7 / 12), 3, 0.1, this.dFilter);
     // ghost choir: saws through two vowel formants with slow vibrato
-    this.cF1 = c.createBiquadFilter();
-    this.cF1.type = 'bandpass';
-    this.cF1.frequency.value = 480;
-    this.cF1.Q.value = 5;
-    this.cF2 = c.createBiquadFilter();
-    this.cF2.type = 'bandpass';
-    this.cF2.frequency.value = 820;
-    this.cF2.Q.value = 6;
-    const cm = c.createGain();
-    cm.gain.value = 0.5;
+    this.cF1 = biquad(c, 'bandpass', 480, 5);
+    this.cF2 = biquad(c, 'bandpass', 820, 6);
+    const cm = gainNode(c, 0.5);
     cm.connect(this.cF1);
     cm.connect(this.cF2);
     this.cF1.connect(this.choirG);
@@ -297,8 +275,7 @@ export class Music {
     this.cB = osc('sawtooth', root * 2 * Math.pow(2, 3 / 12), 0, 0.4, cm);
     this.vib = c.createOscillator();
     this.vib.frequency.value = 4.8;
-    const vg = c.createGain();
-    vg.gain.value = 9;
+    const vg = gainNode(c, 9);
     this.vib.connect(vg);
     vg.connect(this.cA.detune);
     vg.connect(this.cB.detune);
@@ -324,16 +301,11 @@ export class Music {
     if (this.tens) return;
     const c = this.ctx;
     const now = c.currentTime;
-    const lp = c.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 1200;
-    lp.Q.value = 0.8;
-    const trem = c.createGain();
-    trem.gain.value = 0.55;
+    const lp = biquad(c, 'lowpass', 1200, 0.8);
+    const trem = gainNode(c, 0.55);
     const lfo = c.createOscillator();
     lfo.frequency.value = 8;
-    const lfoG = c.createGain();
-    lfoG.gain.value = 0.45;
+    const lfoG = gainNode(c, 0.45);
     lfo.connect(lfoG);
     lfoG.connect(trem.gain);
     lp.connect(trem);
@@ -344,8 +316,7 @@ export class Music {
       o.type = 'sawtooth';
       o.frequency.value = mtof(m);
       o.detune.value = rand(-9, 9);
-      const og = c.createGain();
-      og.gain.value = 0.12;
+      const og = gainNode(c, 0.12);
       o.connect(og);
       og.connect(lp);
       o.start(now);
@@ -357,12 +328,10 @@ export class Music {
     hi.frequency.value = mtof(86);
     const hv = c.createOscillator();
     hv.frequency.value = 5.5;
-    const hvg = c.createGain();
-    hvg.gain.value = 9;
+    const hvg = gainNode(c, 9);
     hv.connect(hvg);
     hvg.connect(hi.frequency);
-    const hg = c.createGain();
-    hg.gain.value = 0.05;
+    const hg = gainNode(c, 0.05);
     hi.connect(hg);
     hg.connect(this.tensionG);
     hi.start(now);
@@ -411,8 +380,7 @@ export class Music {
       src.playbackRate.setValueAtTime(rate, t + 0.25);
       src.playbackRate.linearRampToValueAtTime(rate * Math.pow(2, bend / 12), t + 2.2);
     }
-    const g = c.createGain();
-    g.gain.value = vel;
+    const g = gainNode(c, vel);
     src.connect(g);
     let p = null;
     if (c.createStereoPanner) {
@@ -434,12 +402,8 @@ export class Music {
   _string(t, midi, vel, dur, pan) {
     const c = this.ctx;
     const f = mtof(midi) * this.detune;
-    const lp = c.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 1500;
-    lp.Q.value = 0.7;
-    const g = c.createGain();
-    g.gain.value = 0;
+    const lp = biquad(c, 'lowpass', 1500, 0.7);
+    const g = gainNode(c, 0);
     lp.connect(g);
     let p = null;
     if (c.createStereoPanner) {
@@ -455,8 +419,7 @@ export class Music {
       o.type = type;
       o.frequency.value = f * mul;
       o.detune.value = det;
-      const og = c.createGain();
-      og.gain.value = lvl;
+      const og = gainNode(c, lvl);
       o.connect(og);
       og.connect(lp);
       o.start(t);
@@ -498,8 +461,7 @@ export class Music {
     const src = c.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate * this.detune;
-    const g = c.createGain();
-    g.gain.value = vel;
+    const g = gainNode(c, vel);
     src.connect(g);
     let p = null;
     if (pan && c.createStereoPanner) {

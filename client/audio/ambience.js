@@ -16,7 +16,7 @@
 //    darken under a warm room tone and fewer calls carry in; stepping back out brings the full night back, a touch
 //    louder for a moment. One night theme (s.homeless) leaves the home bed out: nowhere feels safe.
 import { clamp01, smooth, bell, rand, expWait, gustField, windField } from './curves.js';
-import { setPannerPos } from './nodes.js';
+import { setPannerPos, gainNode, biquad } from './nodes.js';
 
 const TAU = Math.PI * 2;
 const POOL = 10;
@@ -96,8 +96,7 @@ class Bed {
   constructor(amb, bank, dest) {
     this.a = amb;
     this.bank = bank;
-    this.gain = amb.ctx.createGain();
-    this.gain.gain.value = 0;
+    this.gain = gainNode(amb.ctx, 0);
     if (dest) this.gain.connect(dest);
     this.src = null;
     this.target = 0;
@@ -145,21 +144,16 @@ class RecBed {
     this.a = amb;
     this.key = key;
     this.def = def;
-    this.gain = amb.ctx.createGain();
-    this.gain.gain.value = 0;
+    this.gain = gainNode(amb.ctx, 0);
     this.gain.connect(dest);
     this.head = this.gain; // what the source plays into
     if (def.lp) {
-      const f = amb.ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = def.lp;
-      f.Q.value = 0.5;
+      const f = biquad(amb.ctx, 'lowpass', def.lp, 0.5);
       f.connect(this.gain);
       this.head = f;
     }
     if (def.wet) {
-      const send = amb.ctx.createGain();
-      send.gain.value = def.wet;
+      const send = gainNode(amb.ctx, def.wet);
       this.gain.connect(send);
       send.connect(amb.e._ambSend);
     }
@@ -225,17 +219,11 @@ export class Ambience {
     const c = (this.ctx = engine._ctx);
     this.out = engine._ambIn;
     // the outside beds go through the home duck (a gain and a low-pass), the rest straight to the ambience bus
-    this.homeLP = c.createBiquadFilter();
-    this.homeLP.type = 'lowpass';
-    this.homeLP.frequency.value = 20000;
-    this.homeLP.Q.value = 0.5;
+    this.homeLP = biquad(c, 'lowpass', 20000, 0.5);
     this.homeLP.connect(this.out);
     this.outside = c.createGain();
     this.outside.connect(this.homeLP);
-    this.windLP = c.createBiquadFilter();
-    this.windLP.type = 'lowpass';
-    this.windLP.frequency.value = 3000;
-    this.windLP.Q.value = 0.5;
+    this.windLP = biquad(c, 'lowpass', 3000, 0.5);
     this.windLP.connect(this.outside);
     this.beds = {
       wind: new Bed(this, 'bed_wind', this.windLP),
@@ -248,23 +236,16 @@ export class Ambience {
       home: new Bed(this, 'bed_home', this.out),
     };
     // rain: open sky, or a muffled drumming under a roof
-    this.rainLP = c.createBiquadFilter();
-    this.rainLP.type = 'lowpass';
-    this.rainLP.frequency.value = 12000;
-    this.rainLP.Q.value = 0.4;
+    this.rainLP = biquad(c, 'lowpass', 12000, 0.4);
     this.beds.rain.gain.connect(this.rainLP);
     this.rainLP.connect(this.out);
     // horde chorus also feeds the reverb (distance)
-    const hs = c.createGain();
-    hs.gain.value = 0.4;
+    const hs = gainNode(c, 0.4);
     this.beds.horde.gain.connect(hs);
     hs.connect(engine._ambSend);
 
     // recorded beds; outdoor ones share a muffle for being under cover
-    this.coverLP = c.createBiquadFilter();
-    this.coverLP.type = 'lowpass';
-    this.coverLP.frequency.value = 20000;
-    this.coverLP.Q.value = 0.5;
+    this.coverLP = biquad(c, 'lowpass', 20000, 0.5);
     this.coverLP.connect(this.outside);
     this.rbeds = {};
     for (const [k, d] of Object.entries(REC_BEDS)) this.rbeds[k] = new RecBed(this, k, d, d.rain ? this.rainLP : d.dry ? this.out : this.coverLP);

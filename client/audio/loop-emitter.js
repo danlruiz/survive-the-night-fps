@@ -2,7 +2,7 @@
 // activates the nearest few each tick (by distance and the caps in LOOPS) and lets the rest go silent.
 import { LOOPS } from './sound-defs.js';
 import { clamp01 } from './curves.js';
-import { setPannerPos } from './nodes.js';
+import { setPannerPos, gainNode, biquad } from './nodes.js';
 
 // ------------------------------------------------------------------ looping positional emitter
 export class LoopEmitter {
@@ -74,8 +74,7 @@ export class LoopEmitter {
     if (recReady === null) return true; // recording is decoding: stay silent a moment instead of flipping sources
     const pool = recReady ? null : e._pools.get(this.def.bank);
     if (!recReady && (!pool || !pool.length)) return false;
-    this.gain = c.createGain();
-    this.gain.gain.value = this.vol * this.def.vol;
+    this.gain = gainNode(c, this.vol * this.def.vol);
     if (recReady) {
       for (const L of this.def.rec) {
         const buf = e._rec.get(L.key);
@@ -83,14 +82,10 @@ export class LoopEmitter {
         src.buffer = buf;
         src.loop = true;
         src.playbackRate.value = this.rate * (L.rate || 1) * this.pitch;
-        const lg = c.createGain();
-        lg.gain.value = L.vol;
+        const lg = gainNode(c, L.vol);
         let head = lg;
         if (L.lp) {
-          const f = c.createBiquadFilter();
-          f.type = 'lowpass';
-          f.frequency.value = L.lp;
-          f.Q.value = 0.5;
+          const f = biquad(c, 'lowpass', L.lp, 0.5);
           lg.connect(f);
           head = f;
           this.extra.push(f);
@@ -113,8 +108,7 @@ export class LoopEmitter {
       this.srcs.push(src);
       this.proc = true;
     }
-    this.fade = c.createGain();
-    this.fade.gain.value = 0;
+    this.fade = gainNode(c, 0);
     this.panner = c.createPanner();
     this.panner.panningModel = this.name === 'boss_breath' ? 'HRTF' : 'equalpower';
     this.panner.distanceModel = 'inverse';
@@ -122,13 +116,9 @@ export class LoopEmitter {
     this.panner.rolloffFactor = this.def.roll;
     this.panner.maxDistance = 10000;
     setPannerPos(this.panner, this.x, this.y, this.z);
-    this.sendG = c.createGain();
-    this.sendG.gain.value = this.def.wet;
+    this.sendG = gainNode(c, this.def.wet);
     if (this.def.air) {
-      this.air = c.createBiquadFilter();
-      this.air.type = 'lowpass';
-      this.air.Q.value = 0.5;
-      this.air.frequency.value = this._airHz();
+      this.air = biquad(c, 'lowpass', this._airHz(), 0.5);
       this.gain.connect(this.air);
       this.air.connect(this.fade);
     } else this.gain.connect(this.fade);
