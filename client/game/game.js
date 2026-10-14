@@ -20,7 +20,7 @@ import { FairClient } from './fair.js';
 import { HandcarClient } from './handcar.js';
 import { VehicleClient } from './vehicles.js';
 import { Highlight } from './highlight.js';
-import { Input } from './input.js';
+import { Input, LOOK_PER_PX } from './input.js';
 import { TouchPad } from '../ui/touchpad.js';
 import { DropHold } from './drophold.js';
 import { HoldRing } from './holdring.js';
@@ -304,7 +304,7 @@ export class Game {
 
     // viewmodel
     const [ldx, ldy] = inp.consumeLook();
-    const lk = this.settings.weaponSway === false ? 0 : 0.0022 * inp.sensitivity;
+    const lk = this.settings.weaponSway === false ? 0 : LOOK_PER_PX * inp.sensitivity; // (the look of this frame, in radians)
     this.updateViewModel(dt, time, s, buttons, cine, hspeed, swim, aiming, ldx * lk, ldy * lk);
     this.updateSelfBody(dt, s, rp, time, hspeed);
     this.updateFlames(dt);

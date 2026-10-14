@@ -75,7 +75,7 @@ export const methods = {
           this.shakeView(0.05);
           break;
         case 'land':
-          a.playLocal('land'); // the view's dip comes with every landing, see the camera in update()
+          a.playLocal('land'); // the view's dip comes with every landing, see updateCamera (game/view.js)
           break;
         case 'splash': {
           // into the water (shared/swim.js), from a jump or off the end of the pier: the view dips as on a landing

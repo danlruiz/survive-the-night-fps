@@ -34,7 +34,7 @@ export const methods = {
 
   startCine(c) {
     this.cine = c;
-    this.closeScreens();
+    this.hideScreens();
     this.closeBuildMenu();
     this.ui.setRosterOpen(false);
     if (this.ui.inventoryOpen) this.toggleInventory(false);

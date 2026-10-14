@@ -6,6 +6,20 @@ import { screenLeft } from '../../ui/screentabs.js';
 
 const BOARD_EVERY = 4000; // ms between two requests for the leaderboard while it is open
 
+// The screens that take the pointer, by name: whether each is up, and how it is shut for another going up over it
+// (by its own toggle, the pointer left free: relock false)
+const SCREENS = {
+  inventory: { up: (g) => g.ui.inventoryOpen, shut: (g) => g.toggleInventory(false, false) },
+  map: { up: (g) => g.ui.mapOpen, shut: (g) => g.toggleMap(false, false) },
+  board: { up: (g) => g.ui.boardOpen, shut: (g) => g.toggleBoard(false, false) },
+  bestiary: { up: (g) => g.ui.bestiaryOpen, shut: (g) => g.toggleBestiary(false, false) },
+  cards: { up: (g) => g.ui.cardsOpen, shut: (g) => g.toggleCards(false, false) },
+  spawn: { up: (g) => g.ui.spawnOpen, shut: (g) => g.toggleSpawn(false, false) },
+  roster: { up: (g) => g.ui.rosterPinned, shut: (g) => g.pinRoster(false, false) },
+  perks: { up: (g) => g.perksUp, shut: (g) => g.togglePerks(false, false) },
+  achievements: { up: (g) => g.achUp, shut: (g) => g.toggleAchievements(false, false) },
+};
+
 export const methods = {
   // A screen that takes clicks is up (the inventory, the map, the leaderboard, the bestiary, Dead Hand, the spawn menu,
   // the pinned player list): the pointer is free for it, and the game's keys and buttons are off
@@ -40,6 +54,11 @@ export const methods = {
     this.audio.playLocal('ui_click', { volume: 0.5 });
   },
 
+  // the screens named that are up shut, one after the other in that order, for another going up over them
+  shutScreens(...names) {
+    for (const name of names) if (SCREENS[name].up(this)) SCREENS[name].shut(this);
+  },
+
   resumeFromPause() {
     this.ui.showPause(false);
     if (this.screenUp()) return; // (the map or the bestiary opened over the menu keeps the pointer)
@@ -56,12 +75,8 @@ export const methods = {
   toggleInventory(open, relock = true) {
     const ui = this.ui;
     if (open === ui.inventoryOpen) return;
-    if (ui.mapOpen) this.toggleMap(false, false); // the inventory wants the pointer free as well
-    if (ui.boardOpen) this.toggleBoard(false, false);
-    if (ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (ui.cardsOpen) this.toggleCards(false, false);
-    if (open && this.perksUp) this.togglePerks(false, false); // (another tab of the same screen: screenGo)
-    if (open && this.achUp) this.toggleAchievements(false, false);
+    this.shutScreens('map', 'board', 'bestiary', 'cards'); // the inventory wants the pointer free as well
+    if (open) this.shutScreens('perks', 'achievements'); // (the perks, the achievements: other tabs of the same screen, screenGo)
     ui.setCraftContext(this.craftContext());
     ui.setInventoryOpen(open);
     this.input.enabled = !open && !this.screenUp();
@@ -154,12 +169,7 @@ export const methods = {
   toggleMap(open, relock = true) {
     const ui = this.ui;
     if (open === ui.mapOpen) return;
-    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
-    if (open && this.perksUp) this.togglePerks(false, false);
-    if (open && this.achUp) this.toggleAchievements(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open) this.shutScreens('inventory', 'perks', 'achievements', 'board', 'bestiary', 'cards'); // (the inventory: another tab of the same screen, screenGo)
     ui.setMapOpen(open);
     // the map takes clicks (your waypoint), so it frees the pointer the way the inventory does. Clicks made
     // while it is free never reach the weapon: Input only counts a mouse button pressed under the lock.
@@ -171,9 +181,7 @@ export const methods = {
   toggleBoard(open, relock = true) {
     const ui = this.ui;
     if (open === ui.boardOpen) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open) this.shutScreens('map', 'bestiary', 'cards');
     ui.setBoardOpen(open);
     if (open) this.boardT = 0; // ask the server at once (updateBoard)
     this.pointerForScreen(open, relock);
@@ -184,11 +192,7 @@ export const methods = {
   toggleBestiary(open, relock = true) {
     const ui = this.ui;
     if (open === ui.bestiaryOpen || (open && this.state !== 'playing')) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open) this.shutScreens('map', 'board', 'roster', 'spawn', 'cards');
     ui.setBestiaryOpen(open);
     this.pointerForScreen(open, relock);
   },
@@ -201,14 +205,7 @@ export const methods = {
   togglePerks(open, relock = true) {
     const ui = this.ui;
     if (open === !!this.perksUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
-    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
-    if (open && this.achUp) this.toggleAchievements(false, false);
+    if (open) this.shutScreens('map', 'board', 'bestiary', 'roster', 'spawn', 'cards', 'inventory', 'achievements'); // (the inventory: another tab of the same screen, screenGo)
     this.perksUp = open;
     if (open) ui.progress.show();
     else if (ui.progress.visible) ui.progress.hide(); // (calls back here, and finds it shut already)
@@ -238,15 +235,7 @@ export const methods = {
   togglePledge(open, relock = true) {
     const ui = this.ui;
     if (open === ui.pledgeOpen || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
-    if (open && ui.inventoryOpen) this.toggleInventory(false, false);
-    if (open && this.perksUp) this.togglePerks(false, false);
-    if (open && this.achUp) this.toggleAchievements(false, false);
+    if (open) this.shutScreens('map', 'board', 'bestiary', 'roster', 'spawn', 'cards', 'inventory', 'perks', 'achievements');
     ui.pledge.setOpen(open);
     if (!open && ui.pledge.view.open) ui.notify(`Pledge & buy (${bindLabel('pledge')}) stays open until the window closes`, 'sub', 3);
     if (!open && (this.state !== 'playing' || this.overlay || ui.pauseOpen)) return;
@@ -260,14 +249,7 @@ export const methods = {
   toggleAchievements(open, relock = true) {
     const ui = this.ui;
     if (open === !!this.achUp || (open && (this.state !== 'playing' || this.cine || this.overlay || ui.pauseOpen))) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
-    if (open && this.perksUp) this.togglePerks(false, false);
-    if (open && ui.inventoryOpen) this.toggleInventory(false, false); // (another tab of the same screen: screenGo)
+    if (open) this.shutScreens('map', 'board', 'bestiary', 'roster', 'spawn', 'cards', 'perks', 'inventory'); // (the inventory: another tab of the same screen, screenGo)
     this.achUp = open;
     if (open) ui.achPanel.show();
     else if (ui.achPanel.visible) ui.achPanel.hide(); // (calls back here, and finds it shut already)
@@ -284,11 +266,7 @@ export const methods = {
   toggleSpawn(open, relock = true) {
     const ui = this.ui;
     if (open === ui.spawnOpen || (open && !this.admin)) return;
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.cardsOpen) this.toggleCards(false, false);
+    if (open) this.shutScreens('map', 'board', 'roster', 'bestiary', 'cards');
     ui.setSpawnOpen(open);
     this.inputBuffer.clear();
     this.pointerForScreen(open, relock);
@@ -309,11 +287,7 @@ export const methods = {
       if (open && view) ui.cards.show(view);
       return;
     }
-    if (open && ui.mapOpen) this.toggleMap(false, false);
-    if (open && ui.boardOpen) this.toggleBoard(false, false);
-    if (open && ui.bestiaryOpen) this.toggleBestiary(false, false);
-    if (open && ui.rosterPinned) this.pinRoster(false, false);
-    if (open && ui.spawnOpen) this.toggleSpawn(false, false);
+    if (open) this.shutScreens('map', 'board', 'bestiary', 'roster', 'spawn');
     ui.setCardsOpen(open, view);
     this.input.enabled = !open && !ui.inventoryOpen && !ui.pauseOpen;
     this.input.releaseAll();
@@ -339,7 +313,7 @@ export const methods = {
   },
 
   // the screens over the game shut at once, by no key of the player's (the run's end, a cutscene)
-  closeScreens() {
+  hideScreens() {
     this.ui.setMapOpen(false);
     this.ui.setBoardOpen(false);
     this.ui.setBestiaryOpen(false);
@@ -356,7 +330,7 @@ export const methods = {
     const g = this.global;
     if (g.phase === PHASE.GAMEOVER && this.overlay !== 'gameover') {
       this.overlay = 'gameover';
-      this.closeScreens();
+      this.hideScreens();
       const kills = this.runKills();
       // (a run that has got to the mainland starts again at the bridge, never back on the island)
       const reason = !this.world.car.plane ? 'Every survivor has fallen.' : 'Every survivor has fallen on the mainland. The team goes back to the bridgehead.';
@@ -364,7 +338,7 @@ export const methods = {
       this.freePointerForEnd();
     } else if (g.phase === PHASE.VICTORY && this.overlay !== 'victory' && !this.cine) {
       this.overlay = 'victory';
-      this.closeScreens();
+      this.hideScreens();
       const kills = this.runKills();
       // The run is won for everyone, but the car took whoever was at it: a survivor further off than ESCAPE_RADIUS
       // when it left stayed in the valley, and so did the players who had already turned.
