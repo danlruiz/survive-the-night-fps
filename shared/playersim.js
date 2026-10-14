@@ -85,8 +85,6 @@ export function radioKeyed(s) {
   return !s.zombie && !s.hmg && !s.pet && !s.using && s.slot === SLOT_RADIO && (s.lastBtn & BTN.ATTACK) !== 0;
 }
 
-const _pos = { x: 0, y: 0, z: 0 };
-
 // ---------------------------------------------------------------- where a round goes
 // s.recoil is the gun's heat: a round adds one (0.8 with Steady Grip), up to HEAT_MAX, and it cools HEAT_COOL a
 // second from the moment the trigger is let go - so a burst of three is settled a third of a second later, and a
@@ -159,6 +157,9 @@ function putAwayItem(s, events) {
 
 // Simulate one command (fixed CMD_DT). events: array to push {type,...} into (may be null).
 // cmd = { seq, buttons, yaw, pitch, slot (255 = no change) }
+// The command goes through the steps below in this order, each one a function of its own: the weapon asked for,
+// what the body is in (a ride, a handcar, a vehicle, a seat, the water), stamina and pace, the shove meter, the
+// steering, a jump, the move through the world, and last whatever the hands hold.
 export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   let b = cmd.buttons;
   let pressed = b & ~s.lastBtn;
@@ -167,40 +168,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   const turn = Math.hypot(Math.atan2(Math.sin(dyaw), Math.cos(dyaw)), cmd.pitch - s.pitch) / dt;
   s.yaw = cmd.yaw;
   s.pitch = cmd.pitch;
-
-  // ------------------------------------------------ slot switching
-  // (asking for a weapon puts away the item being used)
-  if (s.using && cmd.slot !== 255) putAwayItem(s, events);
-  if (cmd.slot !== 255 && cmd.slot !== s.slot && cmd.slot < NUM_SLOTS && canSelectSlot(s, cmd.slot)) {
-    s.slot = cmd.slot;
-    s.switchT = s.zombie ? 0.1 : DRAW_TIME;
-    s.reloadT = 0;
-    s.recoil = 0;
-    if (events) events.push({ type: 'switch', slot: s.slot });
-  }
-  // carrying the mounted gun: reaching for any weapon lets go of it, and it drops where they stand (the server puts
-  // it there: the event). The switch above goes ahead
-  if (s.hmg && cmd.slot !== 255 && cmd.slot < NUM_SLOTS) {
-    s.hmg = 0;
-    if (events) events.push({ type: 'gun_drop' });
-  }
-  // ...and so does the cat in their arms, which is set down at their feet (the server: 'cat_drop')
-  if (s.pet && cmd.slot !== 255 && cmd.slot < NUM_SLOTS) {
-    s.pet = 0;
-    if (events) events.push({ type: 'cat_drop' });
-  }
-  if (s.zombie) s.slot = SLOT_MELEE;
-  if (s.downed && s.slot !== SLOT_PISTOL && s.slot !== SLOT_RADIO && s.weapons[SLOT_PISTOL]) {
-    s.slot = SLOT_PISTOL;
-    s.switchT = 0.3;
-    s.reloadT = 0;
-  }
-  // lost the item in the active slot (dropped / used up)
-  if (!s.zombie && !s.downed && s.slot !== SLOT_BUILD && !canSelectSlot(s, s.slot)) {
-    s.slot = s.weapons[SLOT_PRIMARY] ? SLOT_PRIMARY : s.weapons[SLOT_PISTOL] ? SLOT_PISTOL : SLOT_MELEE;
-    s.switchT = DRAW_TIME;
-    s.reloadT = 0;
-  }
+  switchSlot(s, cmd.slot, events);
 
   // ------------------------------------------------ movement
   // in a seat of a ride the body goes where the seat does (fair.js): nothing below moves it, and it is put there
@@ -213,21 +181,8 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
     b &= ~LEVER_HANDS;
     pressed &= ~LEVER_HANDS;
   }
-  // at the wheel of a vehicle (vehicles.js): the command drives it, and the body is where it is. Both hands are on
-  // the bars or the wheel
-  if (s.drive !== 0 && driveStep(s, b, world, events, dt)) {
-    if (s.using) putAwayItem(s, events);
-    s.reloadT = 0;
-    s.recoil = 0;
-    if (s.stunT > 0) s.stunT -= dt;
-    if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
-    if (s.leapCd > 0) s.leapCd -= dt;
-    if (s.switchT > 0) s.switchT -= dt;
-    if (s.cooldown > 0) s.cooldown -= dt;
-    s.shove = 0;
-    s.lastBtn = cmd.buttons & ~DRIVE_HANDS;
-    return s;
-  }
+  // at the wheel of a vehicle (vehicles.js): the command drives it, and the body is where it is
+  if (s.drive !== 0 && driveStep(s, b, world, events, dt)) return handsOnWheel(s, cmd, events, dt);
   // carried in one: the seat has them (the server puts them in it, wherever it goes). Their hands are their own
   const seated = s.pass !== 0 && !s.zombie && !s.downed && !s.pulled && !s.pinned;
   if (s.pass !== 0 && !seated) s.pass = s.passN = 0; // (pulled out of it, or down: the server puts the body beside it)
@@ -244,6 +199,7 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   // (a crawler on the face blinds them but leaves them their feet: they stumble on, slowed)
   const face = s.pinned === PIN_FACE && !s.zombie;
   const disabled = (s.pinned && !face) || s.stunT > 0 || riding || carted || seated;
+  // the way the keys ask to go, on the ground (wx, wz: a unit vector, or none)
   let fwd = 0;
   let right = 0;
   if (!disabled) {
@@ -267,6 +223,110 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   const aiming = aimingWith(s, b);
   const moving = wl > 0;
   const pm = perkMods(s.zombie ? 0 : s.perks);
+  const sprint = stepStamina(s, b, fwd, moving, swim, aiming, face, pm, events, dt);
+  s.sprinting = sprint && moving ? 1 : 0;
+  const wishSpeed = paceOf(s, sprint, swim, wade, aiming, face, moving, pm);
+
+  if (s.stunT > 0) s.stunT -= dt;
+  if (s.leapCd > 0) s.leapCd -= dt;
+  // a screecher screamed right by them: both hands are over their ears until it lets up (the server sets it)
+  const ears = s.ears > 0 && !s.zombie;
+  if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
+  const pinned = s.pinned && !s.zombie;
+  stepShove(s, cmd.buttons, face, pinned, turn, events, dt);
+
+  steer(s, wx, wz, wishSpeed, moving, swim, dt);
+  // jumping / zombie leap (not afloat: there is nothing to push off)
+  if (!disabled && !face && s.onGround && !s.pulled && !s.downed && !swim) jumpOrLeap(s, b, pressed, sy, cy, events);
+  moveBody(s, world, swim, riding, carted, events, dt);
+  if (riding) rideCarry(s, world);
+  else if (carted) cartCarry(s, world);
+  else if (seated) {
+    s.x = sx0;
+    s.y = sy0;
+    s.z = sz0;
+    s.vx = s.vy = s.vz = 0;
+    s.onGround = 1;
+  }
+
+  // both hands on the leaper (pinned), or over the ears: an item in them is put away and a reload let go of
+  if (pinned || ears) {
+    if (s.using) putAwayItem(s, events);
+    s.reloadT = 0;
+    s.recoil = 0;
+  }
+  // both arms round the mounted gun or the cat, both hands shoving a leaper off or over the ears: no weapon goes off, reloads, throws
+  // or swings (the clocks run on). The fire button with the cat in their arms strokes it, which is the server's
+  // business (Cats.update), not this
+  if (s.hmg || s.pet || pinned || ears) {
+    if (s.switchT > 0) s.switchT -= dt;
+    if (s.cooldown > 0) s.cooldown -= dt;
+    s.lastBtn = cmd.buttons;
+    return s;
+  }
+
+  stepWeapons(s, cmd, b, pressed, weapon, wdef, aiming, pm, events, dt);
+  s.lastBtn = cmd.buttons; // (as held: hands that come off the lever onto a trigger held down have not clicked it)
+  return s;
+}
+
+// ------------------------------------------------ slot switching
+// The weapon slot the command asks for (255: none). Asking for a weapon puts away the item being used, and lets go
+// of the mounted gun or the cat in their arms; then whatever the state allows in the hands is put there.
+function switchSlot(s, slot, events) {
+  if (s.using && slot !== 255) putAwayItem(s, events);
+  if (slot !== 255 && slot !== s.slot && slot < NUM_SLOTS && canSelectSlot(s, slot)) {
+    s.slot = slot;
+    s.switchT = s.zombie ? 0.1 : DRAW_TIME;
+    s.reloadT = 0;
+    s.recoil = 0;
+    if (events) events.push({ type: 'switch', slot: s.slot });
+  }
+  // carrying the mounted gun: reaching for any weapon lets go of it, and it drops where they stand (the server puts
+  // it there: the event). The switch above goes ahead
+  if (s.hmg && slot !== 255 && slot < NUM_SLOTS) {
+    s.hmg = 0;
+    if (events) events.push({ type: 'gun_drop' });
+  }
+  // ...and so does the cat in their arms, which is set down at their feet (the server: 'cat_drop')
+  if (s.pet && slot !== 255 && slot < NUM_SLOTS) {
+    s.pet = 0;
+    if (events) events.push({ type: 'cat_drop' });
+  }
+  if (s.zombie) s.slot = SLOT_MELEE;
+  if (s.downed && s.slot !== SLOT_PISTOL && s.slot !== SLOT_RADIO && s.weapons[SLOT_PISTOL]) {
+    s.slot = SLOT_PISTOL;
+    s.switchT = 0.3;
+    s.reloadT = 0;
+  }
+  // lost the item in the active slot (dropped / used up)
+  if (!s.zombie && !s.downed && s.slot !== SLOT_BUILD && !canSelectSlot(s, s.slot)) {
+    s.slot = s.weapons[SLOT_PRIMARY] ? SLOT_PRIMARY : s.weapons[SLOT_PISTOL] ? SLOT_PISTOL : SLOT_MELEE;
+    s.switchT = DRAW_TIME;
+    s.reloadT = 0;
+  }
+}
+
+// At the wheel (driveStep has moved the vehicle and them with it): both hands are on the bars or the wheel, so
+// nothing in them works, and only the clocks run on. The rest of the command is over.
+function handsOnWheel(s, cmd, events, dt) {
+  if (s.using) putAwayItem(s, events);
+  s.reloadT = 0;
+  s.recoil = 0;
+  if (s.stunT > 0) s.stunT -= dt;
+  if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
+  if (s.leapCd > 0) s.leapCd -= dt;
+  if (s.switchT > 0) s.switchT -= dt;
+  if (s.cooldown > 0) s.cooldown -= dt;
+  s.shove = 0;
+  s.lastBtn = cmd.buttons & ~DRIVE_HANDS;
+  return s;
+}
+
+// ------------------------------------------------ stamina and pace
+// Stamina for this command: drained by sprinting (and by any swimming), won back after STAMINA_REGEN_DELAY standing
+// easy. -> whether they sprint (1 / 0)
+function stepStamina(s, b, fwd, moving, swim, aiming, face, pm, events, dt) {
   let sprint = 0;
   if (s.zombie) {
     s.stamina = STAMINA_MAX;
@@ -298,7 +358,11 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
       if (s.exhausted && s.stamina >= STAMINA_UNLOCK) s.exhausted = 0;
     }
   }
-  s.sprinting = sprint && moving ? 1 : 0;
+  return sprint;
+}
+
+// the speed (m/s) they are trying to go at: their gait, then everything that slows it
+function paceOf(s, sprint, swim, wade, aiming, face, moving, pm) {
   let wishSpeed = s.zombie ? ZOMBIE_PLAYER_SPEED : s.downed ? DOWN_CRAWL_SPEED : sprint ? SPRINT_SPEED * pm.sprint : s.crouch ? CROUCH_SPEED : WALK_SPEED;
   if (swim) wishSpeed = s.downed ? SWIM_DOWNED : (sprint ? SWIM_FAST : SWIM_SPEED) * pm.swim;
   else if (wade > WADE_FROM) wishSpeed *= 1 - WADE_SLOW * Math.min(1, (wade - WADE_FROM) / (SWIM_DEPTH - WADE_FROM)); // wading in deeper
@@ -307,30 +371,32 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   if (s.drag) wishSpeed *= DRAG.pace;
   if (face) wishSpeed *= BLIND_SPEED;
   if (!moving) wishSpeed = 0;
+  return wishSpeed;
+}
 
-  if (s.stunT > 0) s.stunT -= dt;
-  if (s.leapCd > 0) s.leapCd -= dt;
-  // a screecher screamed right by them: both hands are over their ears until it lets up (the server sets it)
-  const ears = s.ears > 0 && !s.zombie;
-  if (s.ears > 0) s.ears = Math.max(0, s.ears - dt);
-
-  // pinned by a leaper: both hands on it, shoving (SHOVE_*). Every press counts at once (the event: the client's early
-  // presses go into the first command they act in, inputbuffer.js); full, the server throws it off (Zombies.throwOff).
-  // A crawler on the face is shaken off instead (SHAKE_*): each fifth of the meter is a jolt (the 'shove' event)
-  const pinned = s.pinned && !s.zombie;
+// Pinned by a leaper: both hands on it, shoving (SHOVE_*). Every press counts at once (the event: the client's early
+// presses go into the first command they act in, inputbuffer.js); full, the server throws it off (Zombies.throwOff).
+// A crawler on the face is shaken off instead (SHAKE_*): each fifth of the meter is a jolt (the 'shove' event).
+// buttons: the command's, as held (not what the lever or the water leaves the hands)
+function stepShove(s, buttons, face, pinned, turn, events, dt) {
   if (face) {
     const m0 = s.shove;
     if (turn > SHAKE_MIN) s.shove = Math.min(1, s.shove + SHAKE_GAIN * Math.min(turn - SHAKE_MIN, SHAKE_CAP) * dt);
     else s.shove = Math.max(0, s.shove - SHAKE_SLIP * dt);
     if (events && Math.floor(s.shove * 5) > Math.floor(m0 * 5)) events.push({ type: 'shove', v: s.shove });
   } else if (pinned) {
-    if (cmd.buttons & BTN.JUMP & ~s.lastBtn) {
+    if (buttons & BTN.JUMP & ~s.lastBtn) {
       s.shove = Math.min(1, s.shove + SHOVE_PRESS);
       if (events) events.push({ type: 'shove', v: s.shove });
-    } else if (cmd.buttons & BTN.JUMP) s.shove = Math.min(1, s.shove + SHOVE_HOLD * dt);
+    } else if (buttons & BTN.JUMP) s.shove = Math.min(1, s.shove + SHOVE_HOLD * dt);
     else s.shove = Math.max(0, s.shove - SHOVE_SLIP * dt);
   } else s.shove = 0;
+}
 
+// ------------------------------------------------ the body
+// The velocity: dragged by a roper's tongue towards it, or friction and acceleration on the ground (or in the water)
+// towards wishSpeed along (wx, wz), or a little steering in the air
+function steer(s, wx, wz, wishSpeed, moving, swim, dt) {
   if (s.pulled) {
     const dx = s.pullX - s.x;
     const dz = s.pullZ - s.z;
@@ -366,28 +432,35 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
       s.vz += acc * wz;
     }
   }
+}
 
-  // jumping / zombie leap (not afloat: there is nothing to push off)
-  if (!disabled && !face && s.onGround && !s.pulled && !s.downed && !swim) {
-    if (s.zombie && b & BTN.ALT && s.leapCd <= 0) {
-      const cp = Math.cos(Math.max(-0.2, s.pitch));
-      s.vx = -sy * CLAWS.leapSpeed * cp;
-      s.vz = -cy * CLAWS.leapSpeed * cp;
-      s.vy = CLAWS.leapUp;
-      s.onGround = 0;
-      s.leapCd = CLAWS.leapCooldown;
-      if (events) events.push({ type: 'leap' });
-    } else if (pressed & BTN.JUMP && !s.burning && (s.zombie || s.stamina >= STAMINA_JUMP_COST)) {
-      s.vy = JUMP_VELOCITY * (s.zombie ? 1.15 : 1);
-      if (!s.zombie) {
-        s.stamina -= STAMINA_JUMP_COST;
-        s.staminaDelay = STAMINA_REGEN_DELAY;
-      }
-      s.onGround = 0;
-      if (events) events.push({ type: 'jump' });
+// On their feet and free to: a turned player's leap (ALT), or a jump (the press of it) - not while burning, and it
+// costs a survivor stamina. sy, cy: the sine and cosine of their yaw
+function jumpOrLeap(s, b, pressed, sy, cy, events) {
+  if (s.zombie && b & BTN.ALT && s.leapCd <= 0) {
+    const cp = Math.cos(Math.max(-0.2, s.pitch));
+    s.vx = -sy * CLAWS.leapSpeed * cp;
+    s.vz = -cy * CLAWS.leapSpeed * cp;
+    s.vy = CLAWS.leapUp;
+    s.onGround = 0;
+    s.leapCd = CLAWS.leapCooldown;
+    if (events) events.push({ type: 'leap' });
+  } else if (pressed & BTN.JUMP && !s.burning && (s.zombie || s.stamina >= STAMINA_JUMP_COST)) {
+    s.vy = JUMP_VELOCITY * (s.zombie ? 1.15 : 1);
+    if (!s.zombie) {
+      s.stamina -= STAMINA_JUMP_COST;
+      s.staminaDelay = STAMINA_REGEN_DELAY;
     }
+    s.onGround = 0;
+    if (events) events.push({ type: 'jump' });
   }
+}
 
+const _pos = { x: 0, y: 0, z: 0 };
+
+// Gravity, then the move through the world for this command: the river's current, the colliders, the water's edge
+// for whoever may not swim, the map's edge, and the ground (or the water's surface) under the feet
+function moveBody(s, world, swim, riding, carted, events, dt) {
   s.vy -= GRAVITY * dt;
   const ox = s.x;
   const oz = s.z;
@@ -447,33 +520,12 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
   s.x = _pos.x;
   s.y = ny;
   s.z = _pos.z;
-  if (riding) rideCarry(s, world);
-  else if (carted) cartCarry(s, world);
-  else if (seated) {
-    s.x = sx0;
-    s.y = sy0;
-    s.z = sz0;
-    s.vx = s.vy = s.vz = 0;
-    s.onGround = 1;
-  }
+}
 
-  // both hands on the leaper (pinned), or over the ears: an item in them is put away and a reload let go of
-  if (pinned || ears) {
-    if (s.using) putAwayItem(s, events);
-    s.reloadT = 0;
-    s.recoil = 0;
-  }
-  // both arms round the mounted gun or the cat, both hands shoving a leaper off or over the ears: no weapon goes off, reloads, throws
-  // or swings (the clocks run on). The fire button with the cat in their arms strokes it, which is the server's
-  // business (Cats.update), not this
-  if (s.hmg || s.pet || pinned || ears) {
-    if (s.switchT > 0) s.switchT -= dt;
-    if (s.cooldown > 0) s.cooldown -= dt;
-    s.lastBtn = cmd.buttons;
-    return s;
-  }
-
-  // ------------------------------------------------ weapons
+// ------------------------------------------------ weapons
+// Whatever is in the hands for this command: the clocks, then an item being used, the claws, the throw, the
+// nunchucks' moveset, a melee swing or a gun. b / pressed: the buttons the hands are free for (held / just pressed)
+function stepWeapons(s, cmd, b, pressed, weapon, wdef, aiming, pm, events, dt) {
   if (s.switchT > 0) s.switchT -= dt;
   const cd0 = s.cooldown;
   if (s.cooldown > 0) s.cooldown -= dt;
@@ -517,72 +569,86 @@ export function simulatePlayer(s, cmd, world, events, dt = CMD_DT) {
       if (events) events.push({ type: 'melee', weapon, heavy });
     }
   } else if (wdef) {
-    const mi = s.slot === SLOT_PRIMARY ? 0 : 1;
-    // reload progress
-    if (s.reloadT > 0) {
-      if (wdef.reloadEach && attackPressed && s.mags[mi] > 0) {
-        s.reloadT = 0; // interrupt shotgun reload to shoot
-      } else {
-        s.reloadT -= dt;
-        if (s.reloadT <= 0) {
-          s.reloadT = 0;
-          const reserve = s.ammo[wdef.ammo];
-          if (wdef.reloadEach) {
-            if (reserve > 0 && s.mags[mi] < wdef.mag) {
-              s.mags[mi]++;
-              s.ammo[wdef.ammo]--;
-              if (events) events.push({ type: 'shell' });
-            }
-            if (s.mags[mi] < wdef.mag && s.ammo[wdef.ammo] > 0) {
-              s.reloadT = wdef.reload * pm.reload;
-              if (events) events.push({ type: 'reload', each: true, time: s.reloadT });
-            } else if (events) events.push({ type: 'reload_done' });
-          } else {
-            const take = Math.min(wdef.mag - s.mags[mi], reserve);
-            s.mags[mi] += take;
-            s.ammo[wdef.ammo] -= take;
-            if (events) events.push({ type: 'reload_done' });
-          }
-        }
-      }
-    }
-    // an empty magazine reloads on the next trigger pull; autoReload weapons (crossbow) re-cock on their own
-    const wantReload = (pressed & BTN.RELOAD) || (s.mags[mi] === 0 && (attackPressed || (wdef.autoReload && s.cooldown <= 0)));
-    if (wantReload && s.reloadT <= 0 && s.switchT <= 0 && s.mags[mi] < wdef.mag && s.ammo[wdef.ammo] > 0) {
-      s.reloadT = wdef.reload * pm.reload;
-      s.recoil = 0;
-      if (events) events.push({ type: 'reload', each: !!wdef.reloadEach, time: s.reloadT });
-    } else if ((wdef.auto ? attack : attackPressed) && s.cooldown <= 0 && s.switchT <= 0 && s.reloadT <= 0) {
-      if (s.mags[mi] > 0) {
-        s.mags[mi]--;
-        s.cooldown = wdef.rate;
-        const spread = shotSpread(s, wdef, aiming);
-        const recoilPitch = shotClimb(s, wdef, aiming);
-        s.recoil = Math.min(HEAT_MAX, s.recoil + pm.recoil);
-        s.fireCount = (s.fireCount + 1) & 255;
-        if (events) {
-          events.push({
-            type: 'fire',
-            weapon,
-            seed: ((cmd.seq * 7919) ^ (s.fireCount * 131)) & 0xffff,
-            spread,
-            recoilPitch,
-            x: s.x,
-            y: s.y + eyeHeight(s),
-            z: s.z,
-            yaw: s.yaw,
-            pitch: s.pitch,
-            aiming,
-          });
-        }
-      } else if (attackPressed) {
-        s.cooldown = 0.25;
-        if (events) events.push({ type: 'dry' });
-      }
-    }
-    if (!attack && s.recoil > 0) s.recoil = Math.max(0, s.recoil - dt * HEAT_COOL);
+    stepGun(s, cmd, attack, attackPressed, pressed, weapon, wdef, aiming, pm, events, dt);
   }
+}
 
-  s.lastBtn = cmd.buttons; // (as held: hands that come off the lever onto a trigger held down have not clicked it)
-  return s;
+// A gun in the hands: the reload under way, a reload asked for (or an empty magazine's trigger pull), a shot, a dry
+// click; and the heat (s.recoil) cooling while the trigger is let go
+function stepGun(s, cmd, attack, attackPressed, pressed, weapon, wdef, aiming, pm, events, dt) {
+  const mi = s.slot === SLOT_PRIMARY ? 0 : 1;
+  // reload progress
+  if (s.reloadT > 0) {
+    if (wdef.reloadEach && attackPressed && s.mags[mi] > 0) {
+      s.reloadT = 0; // interrupt shotgun reload to shoot
+    } else {
+      s.reloadT -= dt;
+      if (s.reloadT <= 0) {
+        s.reloadT = 0;
+        finishReload(s, wdef, mi, pm, events);
+      }
+    }
+  }
+  // an empty magazine reloads on the next trigger pull; autoReload weapons (crossbow) re-cock on their own
+  const wantReload = (pressed & BTN.RELOAD) || (s.mags[mi] === 0 && (attackPressed || (wdef.autoReload && s.cooldown <= 0)));
+  if (wantReload && s.reloadT <= 0 && s.switchT <= 0 && s.mags[mi] < wdef.mag && s.ammo[wdef.ammo] > 0) {
+    s.reloadT = wdef.reload * pm.reload;
+    s.recoil = 0;
+    if (events) events.push({ type: 'reload', each: !!wdef.reloadEach, time: s.reloadT });
+  } else if ((wdef.auto ? attack : attackPressed) && s.cooldown <= 0 && s.switchT <= 0 && s.reloadT <= 0) {
+    if (s.mags[mi] > 0) fireRound(s, cmd, mi, weapon, wdef, aiming, pm, events);
+    else if (attackPressed) {
+      s.cooldown = 0.25;
+      if (events) events.push({ type: 'dry' });
+    }
+  }
+  if (!attack && s.recoil > 0) s.recoil = Math.max(0, s.recoil - dt * HEAT_COOL);
+}
+
+// The reload's clock has run out: a whole magazine goes in from the reserve, or (reloadEach: shell by shell) one
+// round, and the next one is started while there is room and rounds to fill it
+function finishReload(s, wdef, mi, pm, events) {
+  const reserve = s.ammo[wdef.ammo];
+  if (wdef.reloadEach) {
+    if (reserve > 0 && s.mags[mi] < wdef.mag) {
+      s.mags[mi]++;
+      s.ammo[wdef.ammo]--;
+      if (events) events.push({ type: 'shell' });
+    }
+    if (s.mags[mi] < wdef.mag && s.ammo[wdef.ammo] > 0) {
+      s.reloadT = wdef.reload * pm.reload;
+      if (events) events.push({ type: 'reload', each: true, time: s.reloadT });
+    } else if (events) events.push({ type: 'reload_done' });
+  } else {
+    const take = Math.min(wdef.mag - s.mags[mi], reserve);
+    s.mags[mi] += take;
+    s.ammo[wdef.ammo] -= take;
+    if (events) events.push({ type: 'reload_done' });
+  }
+}
+
+// One round out of magazine mi: its cone and climb as the gun stands now (before this round's heat), and the 'fire'
+// event the server resolves the shot from (its seed draws the pellets: shotDirections)
+function fireRound(s, cmd, mi, weapon, wdef, aiming, pm, events) {
+  s.mags[mi]--;
+  s.cooldown = wdef.rate;
+  const spread = shotSpread(s, wdef, aiming);
+  const recoilPitch = shotClimb(s, wdef, aiming);
+  s.recoil = Math.min(HEAT_MAX, s.recoil + pm.recoil);
+  s.fireCount = (s.fireCount + 1) & 255;
+  if (events) {
+    events.push({
+      type: 'fire',
+      weapon,
+      seed: ((cmd.seq * 7919) ^ (s.fireCount * 131)) & 0xffff,
+      spread,
+      recoilPitch,
+      x: s.x,
+      y: s.y + eyeHeight(s),
+      z: s.z,
+      yaw: s.yaw,
+      pitch: s.pitch,
+      aiming,
+    });
+  }
 }
