@@ -21,7 +21,7 @@ import { BTN, WATER_LEVEL, STAMINA_DRAIN, STAMINA_REGEN, STAMINA_REGEN_DELAY, ST
 import { ITEM } from './defs.js';
 import { ColliderGrid, makeBox, pushCircle, footprintContains, COL } from './collision.js';
 import { ROAD } from './layout.js';
-import { mulberry32 } from './rng.js';
+import { mulberry32, wrapAngle } from './rng.js';
 
 export const VEH = { MOPED: 1, CAR: 2, BIKE: 3 };
 // what state one is in (two bits on the wire)
@@ -251,9 +251,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   // (by all of its speed, not only what is still along it: sliding sideways it keeps coming round)
   const vAll = hb && P.hbSpin ? Math.hypot(v.vx, v.vz) : 0;
   const spin = vAll > 3 ? (vf >= -0.5 ? 1 : -1) * vAll * P.hbSpin : vf;
-  v.yaw -= (spin / P.wb) * Math.tan(v.steer) * dt;
-  if (v.yaw > Math.PI) v.yaw -= Math.PI * 2;
-  else if (v.yaw < -Math.PI) v.yaw += Math.PI * 2;
+  v.yaw = wrapAngle(v.yaw - (spin / P.wb) * Math.tan(v.steer) * dt);
   sy = Math.sin(v.yaw);
   cy = Math.cos(v.yaw);
   const fx = -sy;
@@ -404,9 +402,7 @@ export function stepVehicle(v, thr, turn, hb, hard, world, dt, events) {
   } else if (turned !== 0) {
     // pushed at one end, it comes round - unless coming round would put the other end into something
     const y1 = v.yaw;
-    v.yaw += turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned;
-    if (v.yaw > Math.PI) v.yaw -= Math.PI * 2;
-    else if (v.yaw < -Math.PI) v.yaw += Math.PI * 2;
+    v.yaw = wrapAngle(v.yaw + (turned > 0.2 ? 0.2 : turned < -0.2 ? -0.2 : turned));
     if (inSolid(v, P, world, grid)) v.yaw = y1;
   }
   // water too deep for it, and the mouth of the mine: it does not go in
@@ -660,7 +656,7 @@ function plan(world) {
       if (free(kind, x, z, yaw, 1)) at = { x, z, yaw }; // (room all round it to walk up to it from any side)
     }
     if (!at) continue;
-    const s = { kind, x: at.x, y: world.heightAt(at.x, at.z), z: at.z, yaw: wrap(at.yaw), tint: n % 6, zone: 0, starter: n + 1 };
+    const s = { kind, x: at.x, y: world.heightAt(at.x, at.z), z: at.z, yaw: wrapAngle(at.yaw), tint: n % 6, zone: 0, starter: n + 1 };
     res.starters.push(s);
     out.push(s); // (the rest keep clear of them)
   }
@@ -676,7 +672,7 @@ function plan(world) {
       if (!at) continue;
       used.set(zone, (used.get(zone) || 0) + 1);
       const y = world.heightAt(at.x, at.z);
-      out.push({ kind, x: at.x, y, z: at.z, yaw: wrap(at.yaw), tint: Math.floor(rng() * 6), zone: zone.id });
+      out.push({ kind, x: at.x, y, z: at.z, yaw: wrapAngle(at.yaw), tint: Math.floor(rng() * 6), zone: zone.id });
       return true;
     }
     return false;
@@ -698,10 +694,6 @@ function plan(world) {
   out.splice(0, nStart);
   return res;
 }
-const wrap = (a) => {
-  a %= Math.PI * 2;
-  return a > Math.PI ? a - Math.PI * 2 : a < -Math.PI ? a + Math.PI * 2 : a;
-};
 function inRoof(r, x, z, pad) {
   const dx = x - r.x;
   const dz = z - r.z;
@@ -734,7 +726,7 @@ export function questCar(world) {
   let at = null;
   const prop = world.kind === 2 ? world.props.find((p) => p.type === 'car' && p.live) : null;
   if (prop) {
-    at = { x: prop.x, y: prop.y, z: prop.z, yaw: wrap(prop.ry) };
+    at = { x: prop.x, y: prop.y, z: prop.z, yaw: wrapAngle(prop.ry) };
     const seen = new Set();
     for (const c of world.staticGrid.query(prop.x, prop.z, 4, [])) {
       if (seen.has(c) || !(c.tag === prop || (c.tag && c.tag.type === 'car' && Math.hypot(c.x - prop.x, c.z - prop.z) < 3))) continue;
