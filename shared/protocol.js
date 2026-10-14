@@ -36,8 +36,21 @@
 //   57: co-op roles (shared/roles.js): ZSTATUS.MARKED, s.drag (bit 2 of SELF.RIDE's arms byte), a scouted byte at the end of the global state, NOTIFY.SCOUTED
 export const PROTOCOL_VERSION = 57;
 
+// The message ids, actions, entity kinds and status bits below are numbers picked by hand, and parallel branches pick
+// the same next free one: each table is made through this, so two names on one number stop the game from loading.
+// (shared/ids.js holds the same for defs.js; this file keeps its own copy because it must load importing nothing:
+// server/builds.js loads an older build's copy of it on its own.)
+function uniqueIds(name, table) {
+  const names = new Map();
+  for (const [key, id] of Object.entries(table)) {
+    if (names.has(id)) throw new Error(`${name}.${key} and ${name}.${names.get(id)} are both ${id}`);
+    names.set(id, key);
+  }
+  return table;
+}
+
 // client -> server
-export const C2S = {
+export const C2S = uniqueIds('C2S', {
   JOIN: 1, // u8 version, str name, str player id (the browser's own, see client/net/identity.js; '' or absent: nothing is kept for them),
   //          u8 character (shared/characters.js; absent or out of range: the server picks one from the player's id),
   //          [look] (a custom survivor, the character creator: u8 length, then shared/appearance.js's bytes; absent or
@@ -51,10 +64,10 @@ export const C2S = {
   BOARD: 7, // (nothing): asks for the leaderboard, answered with S2C.BOARD
   CARDS: 8, // Dead Hand: u8 CARDOP, str json (see writeCards)
   PLEDGE: 9, // str json: a pick in the pledge window as a run begins (server/pledge.js, shared/pledge.js)
-};
+});
 
 // server -> client
-export const S2C = {
+export const S2C = uniqueIds('S2C', {
   WELCOME: 1, // u16 your id, u32 seed, u32 tick, u8 tick rate, u8 max players, u8 WELCOMEF (a server before it sends none: 0),
   //             u8 act (which map the seed is to be built as: shared/acts.js; a server before the two acts sends none: 1)
   SNAPSHOT: 2, // u8 flags (SNAP), [u32 tick, u16 ack], [varu ack step], [global], [self], [entities], [events]
@@ -76,7 +89,7 @@ export const S2C = {
   //           again whenever a ping changes; a game of roster survivors sends none. An older client ignores it.
   CARDS: 15, // Dead Hand, to this player alone: u8 CARDMSG, str json (see writeCards)
   PLEDGE: 16, // str json, to this player alone: the pledge window as they see it, or { open: false } once it has shut (server/pledge.js)
-};
+});
 export const ROOMF = { INVITE_ONLY: 1 };
 // S2C.WELCOME flags. ADMIN: this player may run the admin commands (the client offers the spawn menu); the server
 // still checks every command itself
@@ -99,7 +112,7 @@ export const SNAP = { GLOBAL: 1, SELF: 2, REMOVES: 4, CREATES: 8, UPDATES: 16, E
 export const SELF = { SIM: 0x1f, STATUS: 0x20, RIDE: 0x40, SYNC: 0x80 };
 
 // discrete, non-predicted actions
-export const ACT = {
+export const ACT = uniqueIds('ACT', {
   INTERACT: 1, // u16 entityId (0 = look target resolved server-side)
   DROP_SLOT: 2, // u8 inventory index, u16 count (0 = all)
   DROP_WEAPON: 3, // u8 weapon slot
@@ -135,7 +148,7 @@ export const ACT = {
   CAT_PUT: 37, // (nothing): the stray cat in this survivor's arms is set down (picking it up is ACT.INTERACT on it)
   VEHICLE: 38, // u8 what (VACT), u16 entity id: get into a vehicle (shared/vehicles.js), out of the one they are in, or work its lights
   SIPHON: 39, // i16 x, i16 z (1/64 m: the wreck's prop): start drawing the fuel out of that wreck's tank (a hold: HOLD.SIPHON)
-};
+});
 // NOTIFY.UNDO_GONE: why an undo brought nothing back
 export const UNDO_NO = { GONE: 0, LATE: 1, FAR: 2 };
 // ACT.VEHICLE: into the nearest free seat (the wheel first), out of it, the headlamp on or off
@@ -154,7 +167,7 @@ export const FAIR_GEN_ID = 0xffe0; // the fair's generator (HOLD_BEGIN: start it
 export const FAIR_TANK_ID = 0xffe1; // ...and its fuel drum (INTERACT: pour a portion in)
 export const PING_KIND = { GO: 0, DANGER: 1, LOOT: 2 };
 // hold-to-interact kinds (sent back in the self state for the progress ring)
-export const HOLD = { NONE: 0, SEARCH: 1, REVIVE: 2, ENGINE: 3, DRIVE: 4, BELL: 5, RADIO: 6, GUN_LIFT: 7, FAIR_START: 9, FAIR_STOP: 10, VEH_FIX: 11, VEH_FUEL: 12, VEH_REPAIR: 13, SIPHON: 14 };
+export const HOLD = uniqueIds('HOLD', { NONE: 0, SEARCH: 1, REVIVE: 2, ENGINE: 3, DRIVE: 4, BELL: 5, RADIO: 6, GUN_LIFT: 7, FAIR_START: 9, FAIR_STOP: 10, VEH_FIX: 11, VEH_FUEL: 12, VEH_REPAIR: 13, SIPHON: 14 });
 export const SIPHON_ID = 0xffdf; // the target of a HOLD.SIPHON (the wreck is named by ACT.SIPHON)
 
 // FULL: that game (or, for a quick join, every game) has no room; NO_GAME: no game goes by the code asked for.
@@ -162,6 +175,7 @@ export const SIPHON_ID = 0xffdf; // the target of a HOLD.SIPHON (the wreck is na
 // over (server/handoff.js), ENDED_MAP because the update makes another map of its seed. It does not come back: the
 // client says so once and stops asking (client/net/comeback.js). A client from before these shows 'Rejected'.
 export const REJECT_REASON = { FULL: 1, VERSION: 2, BAD_NAME: 3, NO_GAME: 4, ENDED_UPDATE: 5, ENDED_MAP: 6, MAP1_FIRST: 7 }; // MAP1_FIRST: a game that starts on the mainland, for a player who has not beaten map 1 (server/index.js map1Gate)
+uniqueIds('REJECT_REASON', REJECT_REASON); // (a statement of its own: scripts/test-handoff-pin.js edits the line above)
 // The close code a client's socket goes with when the player pressed "Leave game". Any other close is a drop, and the
 // game holds the player's place for REJOIN_GRACE seconds (server/game.js hold).
 export const LEFT_CODE = 4001;
@@ -185,7 +199,7 @@ export const CHATF = {
 // roster sends none), then a u32 per player of the perks in force (progress.js: a mask of ids; older servers send none)
 export const PLF = { ON_AIR: 1, WAYPOINT: 2 }; // keying the walkie-talkie (radioKeyed): heard by everyone; has a waypoint set
 
-export const ENT = {
+export const ENT = uniqueIds('ENT', {
   PLAYER: 1,
   ZOMBIE: 2,
   ITEM: 3,
@@ -200,7 +214,7 @@ export const ENT = {
   FAIR: 11, // the fair's generator: whether it runs, the ride clock, the fuel left (FRF)
   HANDCAR: 13, // a handcar on the railway (shared/handcar.js): where it is on the line, who rides it (HCF)
   VEHICLE: 14, // a moped, a car or a bicycle (shared/vehicles.js): where it is and points, how it moves, its state, who is in it (VF)
-};
+});
 
 // ---------------------------------------------------------------- quantization
 // A position on the wire is an int16 of 1 / scale metres. The scale is the world's (world.posScale): POS_SCALE on the
@@ -596,8 +610,8 @@ export function readBoard(r) {
 //   REVEAL    { item, cards: [id], kept }               a pack I picked up, opened
 //   NOTE      { code, arg }                              a refusal or a word about something (CARDNOTE)
 //   TABLES    { me, tables: [{ id, host, name, slot, ageS }], names: [[id, name]] }  lobby only: open tables
-export const CARDOP = { ASK: 1, ANSWER: 2, WITHDRAW: 3, MOVE: 4, FORFEIT: 5, DECK: 6, OFFER: 7, READY: 8, CONFIRM: 9, CLOSE: 10, SYNC: 11, TABLE_OPEN: 12, TABLE_JOIN: 13, TABLE_LEAVE: 14, STAKE: 15, STAKE_CONFIRM: 16 };
-export const CARDMSG = { COLL: 1, DECKS: 2, ASKS: 3, MATCH: 4, MATCH_END: 5, TRADE: 6, TRADE_END: 7, REVEAL: 8, NOTE: 9, TABLES: 10 };
+export const CARDOP = uniqueIds('CARDOP', { ASK: 1, ANSWER: 2, WITHDRAW: 3, MOVE: 4, FORFEIT: 5, DECK: 6, OFFER: 7, READY: 8, CONFIRM: 9, CLOSE: 10, SYNC: 11, TABLE_OPEN: 12, TABLE_JOIN: 13, TABLE_LEAVE: 14, STAKE: 15, STAKE_CONFIRM: 16 });
+export const CARDMSG = uniqueIds('CARDMSG', { COLL: 1, DECKS: 2, ASKS: 3, MATCH: 4, MATCH_END: 5, TRADE: 6, TRADE_END: 7, REVEAL: 8, NOTE: 9, TABLES: 10 });
 // NOTE's code: what was refused and why (arg: a detail - a player's id, a card, an item, the rules' word)
 export const CARDNOTE = {
   CANT: 'cant', // not now: down, dead, one of the dead, away, or the run is not on
@@ -657,7 +671,7 @@ export const UEXT_ABS = 0x40;
 // PLAYER fields
 export const PF = { POS: 0, ANG: 1, FLAGS: 2, WEAPON: 3, HP: 4, ACTION: 5, STATUS: 6 };
 // player flag bits (u16 on the wire)
-export const PFLAG = {
+export const PFLAG = uniqueIds('PFLAG', {
   FLASHLIGHT: 1,
   CROUCH: 2,
   ZOMBIE: 4,
@@ -669,10 +683,10 @@ export const PFLAG = {
   DOWNED: 256,
   REVIVING: 512, // being revived by a teammate
   BACKPACK: 1024, // wearing a backpack (ITEM.BACKPACK): the third-person model carries it
-};
+});
 // PLAYER field 9: what else shows of them. EARS: both hands clapped over the ears (s.ears: a screecher's scream).
 // BURNING: set alight by a flammer (PLAYER_FIRE in defs.js), until it is put out
-export const PSTAT = { EARS: 1, BURNING: 2 };
+export const PSTAT = uniqueIds('PSTAT', { EARS: 1, BURNING: 2 });
 // ...and in the five bits above them, the seat of a ride the player sits in + 1 (fair.js; 0: on foot)
 export const PRIDE_SHIFT = 11;
 export const playerRide = (flags) => flags >> PRIDE_SHIFT;
@@ -680,7 +694,7 @@ export const playerRide = (flags) => flags >> PRIDE_SHIFT;
 export const ZF = { POS: 0, YAW: 1, ANIM: 2, HP: 3, LINK: 4, LEGS: 5, STATUS: 6 };
 // zombie status bits (ZF.STATUS). BURST: a Mother whose belly a shot has torn open (her babies are out). MARKED: a
 // Spotter's danger ping is on it, and the rest of the team hits it harder (shared/roles.js)
-export const ZSTATUS = { BURNING: 1, BURST: 2, MARKED: 4 };
+export const ZSTATUS = uniqueIds('ZSTATUS', { BURNING: 1, BURST: 2, MARKED: 4 });
 // ITEM fields
 export const IF = { POS: 0, COUNT: 1 };
 // STRUCTURE fields

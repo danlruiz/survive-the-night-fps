@@ -3,6 +3,7 @@
 import { FLASHLIGHT_MAX, STAMINA_MAX } from './constants.js';
 import { BASE_ITEM } from './items.js';
 import { WEAPON_LIST } from './weapons/index.js';
+import { uniqueIds } from './ids.js';
 
 // ---------------------------------------------------------------- items
 // Every item's id: the ones in items.js, with each weapon's (shared/weapons/) put in after the backpack, in id order.
@@ -242,7 +243,7 @@ export function useWasted(item, p) {
 }
 
 // ---------------------------------------------------------------- structures
-export const STRUCT = {
+export const STRUCT = uniqueIds('STRUCT', {
   BARRICADE: 1,
   WALL: 2,
   METAL_WALL: 3,
@@ -256,7 +257,7 @@ export const STRUCT = {
   GENERATOR: 11, // burns Flamethrower Fuel, feeds the floodlights round it, hums (shared/power.js)
   FLOODLIGHT: 12,
   STONE_WALL: 13, // dry-laid stone: between the wood wall and the metal one, and no schematic
-};
+});
 
 // sx/sy/sz = size (m). block: blocks zombies (and players unless humanPass). hp.
 // light: radius (m) lit while it burns - Shades inside it are frozen.
@@ -399,7 +400,7 @@ export function salvageOf(item) {
 }
 
 // ---------------------------------------------------------------- zombies
-export const ZTYPE = {
+export const ZTYPE = uniqueIds('ZTYPE', {
   WALKER: 0,
   RUNNER: 1,
   TANK: 2,
@@ -421,7 +422,7 @@ export const ZTYPE = {
   FLAMMER: 18,
   MOTHER: 19,
   BABY: 20,
-};
+});
 
 // speed m/s, hp, dmg per hit, attack rate s, radius, height (for hitboxes), headR, headY
 // common: rank-and-file (plain loot table, no killfeed line). Quadrupeds: headFwd = head sphere this far
@@ -541,7 +542,7 @@ export const zombieLoop = (t) => {
 export const GIB = { minHit: 100, overkill: 0.25 };
 
 // zombie animation states (sent over the wire, 4 bits)
-export const ZANIM = {
+export const ZANIM = uniqueIds('ZANIM', {
   IDLE: 0,
   WALK: 1,
   RUN: 2,
@@ -554,20 +555,20 @@ export const ZANIM = {
   FROZEN: 9, // shade pinned by light: holds whatever pose it was caught in
   STUMBLE: 10, // shot in the leg: it trips and catches itself
   RISE: 11, // climbing out of a grave (cemetery.js): its feet are still under the ground
-};
+});
 
 // the stray cat's animation states (sent over the wire)
-export const CANIM = {
+export const CANIM = uniqueIds('CANIM', {
   IDLE: 0,
   WALK: 1,
   RUN: 2,
   SIT: 3,
   HELD: 4, // in a survivor's arms (its HOLDER field says whose)
   PET: 5, // ...and being stroked: it purrs
-};
+});
 
 // ---------------------------------------------------------------- projectiles / areas
-export const PROJ = {
+export const PROJ = uniqueIds('PROJ', {
   ACID: 1,
   ROPE: 2,
   MOLOTOV: 3,
@@ -578,17 +579,17 @@ export const PROJ = {
   DECOY: 8, // noisemaker: lands and rings, luring the dead
   ROCKET: 9, // an RPG grenade in flight: bursts on impact
   SKYFLARE: 10, // a flare gun's parachute flare: climbs, opens its chute, drifts down burning (shared/skyflare.js)
-};
+});
 // the item each thrown projectile is (THROWABLES holds its numbers)
 export const PROJ_ITEM = { [PROJ.MOLOTOV]: ITEM.MOLOTOV, [PROJ.PIPEBOMB]: ITEM.PIPEBOMB, [PROJ.FLARE]: ITEM.FLARE, [PROJ.GRENADE]: ITEM.GRENADE, [PROJ.DECOY]: ITEM.DECOY };
-export const AREA = {
+export const AREA = uniqueIds('AREA', {
   ACID: 1,
   FIRE: 2,
   SMOKE: 3, // a smoker's cloud: nothing but what it hides (shared/smoke.js)
-};
+});
 
 // ---------------------------------------------------------------- events
-export const SOUND = {
+export const SOUND = uniqueIds('SOUND', {
   NONE: 0,
   PISTOL: 1,
   SHOTGUN: 2,
@@ -711,9 +712,9 @@ export const SOUND = {
   VEH_MOUNT: 141, // somebody swinging a leg over a moped or a bicycle
   VEH_SKID: 142, // tyres letting go (client-side, from the vehicle's replicated state)
   CRAWLER_CHITTER: 150, // a crawler springing at a face, and chittering on it once it has it
-};
+});
 
-export const EVT = {
+export const EVT = uniqueIds('EVT', {
   SOUND: 1, // sound u8, x,y,z (i16)
   SHOT: 2, // shooterId u16, weapon u8, yaw u16, pitch i16, seed u16, spread u8, recoil pitch u8 (1/500 rad)
   IMPACT: 3, // kind u8, x,y,z, (blood/dirt/wood/metal/spark/acid)
@@ -763,17 +764,17 @@ export const EVT = {
   // (private) a screecher screamed close enough to leave the survivor's ears ringing: u16 its id, u8 tenths of a second
   // the ringing lasts at most (it stops sooner if the screecher dies)
   SCREECH: 40,
-};
+});
 
 // EVT.HEARD: what made the noise, so the client can name it the first time ("Gunshot: heard 70 m")
-export const HEARD = { GUNSHOT: 1, BLAST: 2, MOLOTOV: 3, BUILD: 4, CHOP: 5, SALVAGE: 6, PRY: 7, HORN: 8, CAR_ALARM: 9 };
+export const HEARD = uniqueIds('HEARD', { GUNSHOT: 1, BLAST: 2, MOLOTOV: 3, BUILD: 4, CHOP: 5, SALVAGE: 6, PRY: 7, HORN: 8, CAR_ALARM: 9 });
 export const HEARD_MIN = 1; // a noise has to wake this many of the dead to be told: one is the lesson
 export const HEARD_IDS = 32; // the most of the ones it woke named in it (the nearest: the minimap shows 70 m)
 export const HEARD_GAP = 1; // s: no more than one ring this often (the woken dead are lit every time) (client)
 
-export const IMPACT = { BLOOD: 1, DIRT: 2, WOOD: 3, METAL: 4, ACID: 5, GREEN_BLOOD: 6, SPARK: 7 };
+export const IMPACT = uniqueIds('IMPACT', { BLOOD: 1, DIRT: 2, WOOD: 3, METAL: 4, ACID: 5, GREEN_BLOOD: 6, SPARK: 7 });
 
-export const NOTIFY = {
+export const NOTIFY = uniqueIds('NOTIFY', {
   NIGHT_FALLS: 1,
   DAWN: 2,
   HORDE_SOON: 3,
@@ -845,7 +846,7 @@ export const NOTIFY = {
   VEH_OFF: 76, // (to the rider) arg = VEH_OFF: what took them off it
   SUPPLY_HINT: 77, // a team that has found no supply yet is told on the radio where one is. arg = the hint (shared/supplyhelp.js)
   SCOUTED: 78, // a Scout has come near where a car supply is hidden: it is on the compass now. arg = the hint (shared/roles.js)
-};
+});
 
 // NOTIFY.VEH_NEED / VEH_OFF: why
 export const VEH_NO = { FULL: 1, NO_FUEL: 2, NO_PARTS: 3, FINE: 4, SEATS: 5, BROKEN: 6, WRECK: 7, NO_ROOM: 8, NOT_HERE: 9 };
@@ -855,7 +856,7 @@ export const VEH_OFFS = { THROWN: 1, PULLED: 2, KNOCKED: 3 };
 export const KILLER = { PLAYER: 1, ZOMBIE: 2, WORLD: 3 };
 
 // ---------------------------------------------------------------- zones & loot
-export const ZONE = {
+export const ZONE = uniqueIds('ZONE', {
   CAMP: 0, // the breakdown: your car on Route 9 (start)
   BARN: 1,
   DOCK: 2,
@@ -930,7 +931,7 @@ export const ZONE = {
   SOUTH_FOREST: 67, // the campsites of South Forest
   PASSAGE: 68, // the South Passage Mines: the workings under the river, and their yard
   LIGHTHOUSE: 69, // on its islet off the south-west coast
-};
+});
 export const MAINLAND_ZONES = [27, 69]; // the first and the last of the mainland's places
 // NOTIFY.CACHE: what the bridgehead cache handed a survivor (acts.js BRIDGEHEAD)
 export const CACHE_GAVE = { PISTOL: 1, AMMO: 2, BANDAGE: 4, MELEE: 8, BUILD: 16 };
@@ -1097,6 +1098,7 @@ export const CONT = { CRATE: 1, AMMO_BOX: 2, TRUNK: 3, DUFFEL: 4, LOCKER: 5, CAB
 // Mercy Clinic's own (shared/clinic.js): the cabinets of its pharmacy and wards, and the one drug locker of a map
 CONT.MEDICINE = 16;
 CONT.DRUG_LOCKER = 17;
+uniqueIds('CONT', CONT);
 // A place's own table only reaches its floor loot, crates and shelves, so whatever a recipe or an ammo type depends on
 // needs a container table too: ammo crates hold the AK-47 next to the 7.62 they are full of (as rare as the M4A1) and
 // kevlar plates by the pair (a vest takes two), trunks and duffels hold leather. A new entry thins every other one in
