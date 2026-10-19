@@ -1005,6 +1005,13 @@ export class ViewModel {
       }
       else if (act.type === 'melee') {
         evalSwing(act.swing, P6.slice ? P6 : P6, u, _pose6b);
+        // (a pair shoves with both guns at once, each on its own side: the swing's jab without its turn across the
+        // middle, where the left gun - this one mirrored - would meet it)
+        if (this.akimbo) {
+          _pose6b[0] = P6[0];
+          _pose6b[4] = P6[4];
+          _pose6b[5] = P6[5];
+        }
         for (let i = 0; i < 6; i++) P6[i] = _pose6b[i];
       } else if (act.type === 'throw') {
         this._animThrow(u, P6, cur);
@@ -1123,7 +1130,7 @@ export class ViewModel {
     const rC = altR && altRw > 0 ? this._blendCenter(this.armR, cfg.rPose || 'grip', 'pinch', altRw) : cfg.kind === 'throw' ? cfg.rPose : undefined;
     // a long gun's butt swings across under the right forearm on a shove: the right elbow goes out to the side for it
     let poleR = cfg.poleR || POLE_R;
-    if (act && act.type === 'melee' && (cfg.kind === 'rifle' || cfg.kind === 'shotgun')) poleR = _v8.copy(poleR).lerp(SHOVE_POLE_R, win(u, 0.0, 0.2, 0.7, 0.95));
+    if (act && act.type === 'melee' && !this.akimbo && (cfg.kind === 'rifle' || cfg.kind === 'shotgun')) poleR = _v8.copy(poleR).lerp(SHOVE_POLE_R, win(u, 0.0, 0.2, 0.7, 0.95));
     this._solveArm(this.armR, rp, rq, SHOULDER_R, poleR, rC);
 
     // left
