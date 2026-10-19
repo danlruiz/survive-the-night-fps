@@ -277,5 +277,16 @@ check('...and the rifles, the anti-tank rifle, the SMG, the flare gun and melee 
   check('two rifles are not: the one put on trades places with the one in hand', s.dual === 0 && s.mags[0] === 10 && at(0) === `${ITEM.AK47}:30`);
 }
 
+// the bridge's checkpoint (a wipe on the mainland puts back what each survivor crossed with): a pair comes back a pair
+{
+  s.weapons[SLOT_PISTOL] = ITEM.PISTOL;
+  s.dual = DUAL_BIT[SLOT_PISTOL];
+  s.mags[1] = 20;
+  const k = game.kitOf(a);
+  game.spawnHuman(a, k.kit || { mag: 0, ammo: 0, items: [], tools: [] });
+  game.wear(a, k);
+  check('a pair crossed with comes back a pair after a wipe on the mainland', s.dual === DUAL_BIT[SLOT_PISTOL] && s.mags[1] === 20 && s.weapons[SLOT_PISTOL] === ITEM.PISTOL, `dual ${s.dual}, mag ${s.mags[1]}`);
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED:\n  ${fails.join('\n  ')}` : '\nall akimbo checks passed');
 process.exit(fails.length ? 1 : 0);
