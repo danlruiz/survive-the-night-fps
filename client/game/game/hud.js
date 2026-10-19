@@ -38,6 +38,7 @@ export const methods = {
     updateMeters(this, s, h);
     const w = currentWeapon(s);
     const def = heldDef(s); // (a pair's numbers for two of the gun: its magazine and reload are both guns')
+    h.pair = !!def?.pair;
     if (def && !def.melee) {
       h.mag = s.mags[s.slot === SLOT_PRIMARY ? 0 : 1];
       h.reserve = s.ammo[def.ammo];
