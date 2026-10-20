@@ -197,6 +197,9 @@ const SHOULDER_L_PAIR = new THREE.Vector3(-SHOULDER_R.x, SHOULDER_R.y, SHOULDER_
 // ...each gun held a little further out to its side than one on its own, and turned in less toward the crosshair
 // (added to cfg.hip, by kind)
 const PAIR_HIP = { pistol: [0.025, 0.005, 0, 0, -0.07, 0], shotgun: [0.0, 0.0, -0.02, 0, -0.1, 0] };
+// ...and at a sprint (in place of cfg.sprint): carried low and turned out a little. A long gun's own sprint swings its
+// muzzle across the chest, through the left one - mirrored - swung across the other way; a pistol's turns in less
+const PAIR_SPRINT = { pistol: [0.0, -0.015, 0.03, -0.3, 0.06, 0.28], shotgun: [0.0, -0.04, 0.02, -0.32, -0.12, 0.15] };
 const POLE_R = new THREE.Vector3(0.75, -0.65, 0.15);
 const POLE_L = new THREE.Vector3(-0.75, -0.65, 0.15);
 const DB_LOAD_ARC = new THREE.Vector3(-0.12, 0.03, 0.03);
@@ -878,7 +881,10 @@ export class ViewModel {
       P6[4] *= 1 - a;
       P6[5] *= 1 - a;
     }
-    if (this.sprintT > 0.001) for (let i = 0; i < 6; i++) P6[i] += cfg.sprint[i] * this.sprintT;
+    if (this.sprintT > 0.001) {
+      const sp = this.akimbo ? PAIR_SPRINT[kind] : cfg.sprint;
+      for (let i = 0; i < 6; i++) P6[i] += sp[i] * this.sprintT;
+    }
     if (cfg.talk) {
       this.talkT += ((s.talk ? 1 : 0) - this.talkT) * (1 - Math.exp(-dt * 11));
       const tk = ease(this.talkT, 2);
